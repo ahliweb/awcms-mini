@@ -7281,7 +7281,561 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/profile-duplicate-candidates:
+    get:
+      tags:
+        - Profile Identity
+      summary: List duplicate candidates (tenant-wide)
+      operationId: profileDuplicateCandidatesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - confirmed_duplicate
+              - not_duplicate
+        - name: profileId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Duplicate-candidate list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DuplicateCandidateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profile-duplicate-candidates/{id}/review:
+    post:
+      tags:
+        - Profile Identity
+      summary: Review a duplicate candidate (confirm or mark false positive)
+      operationId: profileDuplicateCandidatesReview
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DuplicateCandidateReviewRequest"
+      responses:
+        "200":
+          description: Duplicate candidate reviewed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/DuplicateCandidateResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profile-merge-requests:
+    get:
+      tags:
+        - Profile Identity
+      summary: List profile merge requests
+      operationId: profileMergeRequestsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - approved
+              - rejected
+              - completed
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Merge request list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/MergeRequestResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Profile Identity
+      summary: Create a profile merge request (source=loser, target=survivor)
+      operationId: profileMergeRequestsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeRequestCreateRequest"
+      responses:
+        "200":
+          description: Merge request created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MergeRequestResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency conflict, or either profile does not exist/is already merged/soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profile-merge-requests/{id}:
+    get:
+      tags:
+        - Profile Identity
+      summary: Get a merge request's detail (including field-conflict/reference-impact snapshots)
+      operationId: profileMergeRequestsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Merge request detail.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MergeRequestResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profile-merge-requests/{id}/decisions:
+    post:
+      tags:
+        - Profile Identity
+      summary: Approve or reject a merge request (self-approval denied)
+      operationId: profileMergeRequestsDecide
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MergeRequestDecisionRequest"
+      responses:
+        "200":
+          description: Decision recorded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MergeRequestResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency conflict, or the merge request has already been decided.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profile-merge-requests/{id}/execute:
+    post:
+      tags:
+        - Profile Identity
+      summary: Execute an approved merge request (survivor absorbs loser)
+      operationId: profileMergeRequestsExecute
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Merge executed (or already executed — idempotent).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/MergeRequestResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Access denied, or cross-tenant merge denied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency conflict, merge request not approved, or either profile no longer eligible.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles:
+    get:
+      tags:
+        - Profile Identity
+      summary: List/search parties (person/organization)
+      operationId: profilesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum:
+              - person
+              - organization
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Case-insensitive substring match on displayName/legalName.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Party list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/PartyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Profile Identity
+      summary: Create a party (person/organization)
+      operationId: profilesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartyCreateRequest"
+      responses:
+        "200":
+          description: Party created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PartyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/profiles/{id}:
+    get:
+      tags:
+        - Profile Identity
+      summary: Get party detail (masked-administrative projection)
+      operationId: profilesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Party detail.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PartyResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Profile Identity
+      summary: Partially update a party
+      operationId: profilesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartyUpdateRequest"
+      responses:
+        "200":
+          description: Party updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PartyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
     delete:
       tags:
         - Profile Identity
@@ -7308,6 +7862,568 @@ paths:
       responses:
         "200":
           description: Profile soft-deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProfileLifecycleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/addresses:
+    get:
+      tags:
+        - Profile Identity
+      summary: List a party's addresses
+      operationId: profileAddressesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Address list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/AddressResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Profile Identity
+      summary: Add an effective-dated address
+      operationId: profileAddressesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddressCreateRequest"
+      responses:
+        "200":
+          description: Address added.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AddressResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/addresses/{addressId}:
+    delete:
+      tags:
+        - Profile Identity
+      summary: Soft delete an address
+      operationId: profileAddressesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: addressId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileDeleteRequest"
+      responses:
+        "200":
+          description: Address soft-deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProfileLifecycleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/channels:
+    get:
+      tags:
+        - Profile Identity
+      summary: List a party's communication channels
+      operationId: profileChannelsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Channel list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ChannelResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Profile Identity
+      summary: Add a communication channel (references an existing identifier)
+      operationId: profileChannelsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChannelCreateRequest"
+      responses:
+        "200":
+          description: Channel added.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ChannelResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/channels/{channelId}:
+    delete:
+      tags:
+        - Profile Identity
+      summary: Soft delete a communication channel
+      operationId: profileChannelsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileDeleteRequest"
+      responses:
+        "200":
+          description: Channel soft-deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProfileLifecycleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/duplicate-candidates/scan:
+    post:
+      tags:
+        - Profile Identity
+      summary: Trigger an on-demand duplicate-candidate scan for this party
+      operationId: profileDuplicateCandidatesScan
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Scan completed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - candidatesConsidered
+                        properties:
+                          candidatesConsidered:
+                            type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/identifiers:
+    get:
+      tags:
+        - Profile Identity
+      summary: List a party's identifiers (masked)
+      operationId: profileIdentifiersList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Identifier list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/IdentifierResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Profile Identity
+      summary: Add a typed identifier (provenance/verification/validity metadata)
+      operationId: profileIdentifiersCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentifierCreateRequest"
+      responses:
+        "200":
+          description: Identifier added.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/IdentifierResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: An active identifier of the same type/value already exists for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/identifiers/{identifierId}:
+    patch:
+      tags:
+        - Profile Identity
+      summary: Update an identifier's verification/preferred/validity fields
+      operationId: profileIdentifiersUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: identifierId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IdentifierUpdateRequest"
+      responses:
+        "200":
+          description: Identifier updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/IdentifierResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Profile Identity
+      summary: Soft delete an identifier
+      operationId: profileIdentifiersDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: identifierId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileDeleteRequest"
+      responses:
+        "200":
+          description: Identifier soft-deleted.
           content:
             application/json:
               schema:
@@ -7383,6 +8499,161 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/relationships:
+    get:
+      tags:
+        - Profile Identity
+      summary: List a party's relationships (either side)
+      operationId: profileRelationshipsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Relationship list.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - items
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/RelationshipResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Profile Identity
+      summary: Create a generic party-to-party relationship or authorized-representative record
+      operationId: profileRelationshipsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RelationshipCreateRequest"
+      responses:
+        "200":
+          description: Relationship created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RelationshipResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profiles/{id}/relationships/{relationshipId}:
+    delete:
+      tags:
+        - Profile Identity
+      summary: End an active relationship
+      operationId: profileRelationshipsEnd
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: relationshipId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Relationship ended.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/ProfileLifecycleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/profiles/{id}/restore:
     post:
       tags:
@@ -7421,6 +8692,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: Profile was merged away (merged_into_profile_id is set) and cannot be restored through this endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/reports/access-audit:
@@ -10485,6 +11762,93 @@ components:
           type: string
         matchedPolicy:
           type: string
+    AddressCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        addressType:
+          type: string
+          enum:
+            - primary
+            - billing
+            - shipping
+            - other
+        addressLine:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        province:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          minLength: 2
+          maxLength: 2
+        isDefault:
+          type: boolean
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+    AddressResponse:
+      type: object
+      required:
+        - id
+        - profileId
+        - addressType
+        - countryCode
+        - isDefault
+        - validFrom
+        - validUntil
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        profileId:
+          type: string
+          format: uuid
+        addressType:
+          type: string
+        addressLine:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        province:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+        isDefault:
+          type: boolean
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     AdPlacementCreateRequest:
       type: object
       required:
@@ -12118,6 +13482,81 @@ components:
         updatedAt:
           type: string
           format: date-time
+    ChannelCreateRequest:
+      type: object
+      required:
+        - profileIdentifierId
+      additionalProperties: false
+      properties:
+        profileIdentifierId:
+          type: string
+          format: uuid
+        channelType:
+          type: string
+          enum:
+            - email
+            - phone
+            - whatsapp
+            - other
+        isOptIn:
+          type: boolean
+        isDefault:
+          type: boolean
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+    ChannelResponse:
+      type: object
+      required:
+        - id
+        - profileId
+        - profileIdentifierId
+        - channelType
+        - isOptIn
+        - isDefault
+        - verifiedAt
+        - validFrom
+        - validUntil
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        profileId:
+          type: string
+          format: uuid
+        profileIdentifierId:
+          type: string
+          format: uuid
+        channelType:
+          type: string
+        isOptIn:
+          type: boolean
+        isDefault:
+          type: boolean
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     ContentQualityChecklistPolicy:
       type: object
       description: "Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists, social_preview_image_ready, social_preview_image_alt_text — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment."
@@ -13211,6 +14650,93 @@ components:
         recordedAt:
           type: string
           format: date-time
+    DuplicateCandidateResponse:
+      type: object
+      required:
+        - id
+        - profileIdA
+        - profileIdB
+        - matchBasis
+        - matchScore
+        - matchReasons
+        - status
+        - reviewedBy
+        - reviewedAt
+        - reviewNotes
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        profileIdA:
+          type: string
+          format: uuid
+        profileIdB:
+          type: string
+          format: uuid
+        matchBasis:
+          type: string
+          enum:
+            - deterministic_identifier
+            - heuristic_name_similarity
+            - heuristic_combined
+        matchScore:
+          type: number
+          nullable: true
+        matchReasons:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - field
+              - reason
+              - detail
+            properties:
+              field:
+                type: string
+              reason:
+                type: string
+              detail:
+                type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - confirmed_duplicate
+            - not_duplicate
+        reviewedBy:
+          type: string
+          format: uuid
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewNotes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DuplicateCandidateReviewRequest:
+      type: object
+      required:
+        - decision
+      additionalProperties: false
+      properties:
+        decision:
+          type: string
+          enum:
+            - confirmed_duplicate
+            - not_duplicate
+        notes:
+          type: string
     EmailHealthReport:
       type: object
       required:
@@ -13734,6 +15260,111 @@ components:
           type: string
           format: date-time
           nullable: true
+    IdentifierCreateRequest:
+      type: object
+      required:
+        - identifierType
+        - value
+      additionalProperties: false
+      properties:
+        identifierType:
+          type: string
+          enum:
+            - email
+            - phone
+            - whatsapp
+            - national_id
+            - tax_id
+            - external_code
+            - other
+        value:
+          type: string
+          minLength: 1
+          maxLength: 320
+        isPrimary:
+          type: boolean
+        provenance:
+          type: string
+          enum:
+            - self_reported
+            - verified_by_staff
+            - imported
+            - system_generated
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+    IdentifierResponse:
+      type: object
+      required:
+        - id
+        - profileId
+        - identifierType
+        - maskedValue
+        - isPrimary
+        - provenance
+        - verificationStatus
+        - verifiedAt
+        - validFrom
+        - validUntil
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        profileId:
+          type: string
+          format: uuid
+        identifierType:
+          type: string
+        maskedValue:
+          type: string
+          description: Masked display value only — the raw normalized value is never returned by this API.
+        isPrimary:
+          type: boolean
+        provenance:
+          type: string
+        verificationStatus:
+          type: string
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    IdentifierUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: At least one field must be provided.
+      properties:
+        isPrimary:
+          type: boolean
+        verificationStatus:
+          type: string
+          enum:
+            - unverified
+            - pending
+            - verified
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
     InternalTagLinkingPreviewResult:
       type: object
       required:
@@ -13975,6 +15606,124 @@ components:
           type:
             - string
             - "null"
+          format: date-time
+    MergeRequestCreateRequest:
+      type: object
+      required:
+        - sourceProfileId
+        - targetProfileId
+        - reason
+      additionalProperties: false
+      properties:
+        sourceProfileId:
+          type: string
+          format: uuid
+          description: The loser profile (soft-deleted on successful execution).
+        targetProfileId:
+          type: string
+          format: uuid
+          description: The survivor profile.
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        duplicateCandidateId:
+          type: string
+          format: uuid
+          nullable: true
+    MergeRequestDecisionRequest:
+      type: object
+      required:
+        - decision
+      additionalProperties: false
+      properties:
+        decision:
+          type: string
+          enum:
+            - approved
+            - rejected
+        reason:
+          type: string
+          maxLength: 1000
+    MergeRequestResponse:
+      type: object
+      required:
+        - id
+        - sourceProfileId
+        - targetProfileId
+        - status
+        - reason
+        - requiresApproval
+        - requestedBy
+        - decidedBy
+        - decidedAt
+        - executedBy
+        - executedAt
+        - fieldConflictSnapshot
+        - referenceImpactSnapshot
+        - duplicateCandidateId
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        sourceProfileId:
+          type: string
+          format: uuid
+        targetProfileId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - completed
+        reason:
+          type: string
+          nullable: true
+        requiresApproval:
+          type: boolean
+        requestedBy:
+          type: string
+          format: uuid
+          nullable: true
+        decidedBy:
+          type: string
+          format: uuid
+          nullable: true
+        decidedAt:
+          type: string
+          format: date-time
+          nullable: true
+        executedBy:
+          type: string
+          format: uuid
+          nullable: true
+        executedAt:
+          type: string
+          format: date-time
+          nullable: true
+        fieldConflictSnapshot:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        referenceImpactSnapshot:
+          type: object
+          additionalProperties: true
+        duplicateCandidateId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
           format: date-time
     MfaChallengeVerifyRequest:
       type: object
@@ -14566,6 +16315,117 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ObjectSyncStatusEntry"
+    PartyCreateRequest:
+      type: object
+      required:
+        - profileType
+        - displayName
+      additionalProperties: false
+      properties:
+        profileType:
+          type: string
+          enum:
+            - person
+            - organization
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        legalName:
+          type: string
+          nullable: true
+          maxLength: 200
+        riskLevel:
+          type: string
+          enum:
+            - low
+            - normal
+            - high
+    PartyResponse:
+      type: object
+      required:
+        - id
+        - profileType
+        - displayName
+        - status
+        - verificationStatus
+        - riskLevel
+        - mergedIntoProfileId
+        - createdAt
+        - updatedAt
+        - deletedAt
+        - deleteReason
+        - restoredAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        profileType:
+          type: string
+        displayName:
+          type: string
+        legalName:
+          type: string
+          nullable: true
+        status:
+          type: string
+        verificationStatus:
+          type: string
+        riskLevel:
+          type: string
+        mergedIntoProfileId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deleteReason:
+          type: string
+          nullable: true
+        restoredAt:
+          type: string
+          format: date-time
+          nullable: true
+    PartyUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: At least one field must be provided.
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        legalName:
+          type: string
+          nullable: true
+          maxLength: 200
+        riskLevel:
+          type: string
+          enum:
+            - low
+            - normal
+            - high
+        verificationStatus:
+          type: string
+          enum:
+            - unverified
+            - pending
+            - verified
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+          description: merged is set only by merge execution, never via this endpoint.
     PermissionEntry:
       type: object
       required:
@@ -14677,6 +16537,76 @@ components:
         detail:
           type: string
           description: Safe, generic text only — never a raw error message, stack trace, or env/secret value.
+    RelationshipCreateRequest:
+      type: object
+      required:
+        - toProfileId
+        - relationshipType
+      additionalProperties: false
+      properties:
+        toProfileId:
+          type: string
+          format: uuid
+        relationshipType:
+          type: string
+          minLength: 2
+          maxLength: 64
+          description: Free-text, normalized to snake_case — no hardcoded business-domain role vocabulary (customer/supplier/employee/...).
+        isAuthorizedRepresentative:
+          type: boolean
+        representationScope:
+          type: string
+          nullable: true
+          maxLength: 500
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+    RelationshipResponse:
+      type: object
+      required:
+        - id
+        - fromProfileId
+        - toProfileId
+        - relationshipType
+        - isAuthorizedRepresentative
+        - status
+        - validFrom
+        - validUntil
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        fromProfileId:
+          type: string
+          format: uuid
+        toProfileId:
+          type: string
+          format: uuid
+        relationshipType:
+          type: string
+        isAuthorizedRepresentative:
+          type: boolean
+        representationScope:
+          type: string
+          nullable: true
+        status:
+          type: string
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
     ResetPasswordRequest:
       type: object
       required:

@@ -84,7 +84,18 @@ export type AccessAction =
   // `Idempotency-Key` (replay) and are explicitly audited regardless of
   // this classification.
   | "replay"
-  | "manage";
+  | "manage"
+  // Issue #748 (profile_identity): `profile_merge.merge` — executing an
+  // approved profile merge request (survivor absorbs loser, entity links
+  // repointed, immutable merge history written). Deliberately its own
+  // action, distinct from `approve` (the earlier decision step) and
+  // `update`/`delete` — merging is irreversible-by-default (the loser
+  // profile is soft-deleted with `merged_into_profile_id` set, never
+  // hard-deleted) and has broad blast radius across every module that
+  // holds an `awcms_mini_profile_entity_links` reference, so a role
+  // granted `profile_merge.approve` is NOT implicitly allowed to also
+  // execute the merge itself. Added to `HIGH_RISK_ACTIONS` below.
+  | "merge";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -113,7 +124,8 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "purge",
   "connect",
   "disconnect",
-  "release"
+  "release",
+  "merge"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

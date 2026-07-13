@@ -1,0 +1,363 @@
+---
+/**
+ * Profile Identity — party (person/organization) list + create (Issue #748).
+ * Same "SSR list via direct application-layer call + client submitJson for
+ * mutations" convention `admin/social-publishing/accounts.astro` uses.
+ * Filtering (`?type=`/`?status=`/`?q=`) is a plain SSR query-string reload
+ * (a GET form), not client-side — no client JS needed for that part.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listParties } from "../../../modules/profile-identity/application/party-directory";
+import { toPartyMaskedAdminDTO } from "../../../modules/profile-identity/domain/projection";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/profile-identity/index.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("profile_identity", "profile_management", "read")
+);
+const CAN_CREATE = context.permissions.has(
+  permissionKey("profile_identity", "profile_management", "create")
+);
+
+const clientStrings = {
+  createSuccess: t("admin.profile_identity.parties.create_success"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+const typeParam = Astro.url.searchParams.get("type") ?? undefined;
+const statusParam = Astro.url.searchParams.get("status") ?? undefined;
+const queryParam = Astro.url.searchParams.get("q") ?? undefined;
+
+let parties: ReturnType<typeof toPartyMaskedAdminDTO>[] = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    const result = await withTenant(
+      getDatabaseClient(),
+      context.tenantId,
+      async (tx) =>
+        listParties(tx, context.tenantId, {
+          profileType: typeParam as "person" | "organization" | undefined,
+          status: statusParam,
+          query: queryParam,
+          limit: 100
+        })
+    );
+    parties = result.items.map(toPartyMaskedAdminDTO);
+  } catch (error) {
+    logAdminPageError(
+      "admin/profile-identity/index.astro: failed to load parties",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.profile_identity.parties.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.profile_identity.access_denied_title")}
+        body={t("admin.profile_identity.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="party-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <form class="filter-form" method="get">
+          <label>
+            {t("admin.profile_identity.parties.filter_q")}
+            <input type="text" name="q" value={queryParam ?? ""} />
+          </label>
+          <label>
+            {t("admin.profile_identity.parties.filter_type")}
+            <select name="type">
+              <option value="">
+                {t("admin.profile_identity.parties.filter_all")}
+              </option>
+              <option value="person" selected={typeParam === "person"}>
+                person
+              </option>
+              <option
+                value="organization"
+                selected={typeParam === "organization"}
+              >
+                organization
+              </option>
+            </select>
+          </label>
+          <button type="submit">
+            {t("admin.profile_identity.parties.filter_submit")}
+          </button>
+        </form>
+
+        {parties.length === 0 ? (
+          <p class="empty-state">
+            {t("admin.profile_identity.parties.no_parties")}
+          </p>
+        ) : (
+          <table class="party-table">
+            <thead>
+              <tr>
+                <th>{t("admin.profile_identity.parties.field_name")}</th>
+                <th>{t("admin.profile_identity.parties.field_type")}</th>
+                <th>{t("admin.profile_identity.parties.field_status")}</th>
+                <th>
+                  {t("admin.profile_identity.parties.field_verification")}
+                </th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {parties.map((party) => (
+                <tr>
+                  <td>{party.displayName}</td>
+                  <td>{party.profileType}</td>
+                  <td>{party.status}</td>
+                  <td>{party.verificationStatus}</td>
+                  <td>
+                    <a href={`/admin/profile-identity/${party.id}`}>
+                      {t("admin.profile_identity.parties.manage_link")}
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {CAN_CREATE && (
+          <details class="create-party">
+            <summary>
+              {t("admin.profile_identity.parties.create_summary")}
+            </summary>
+            <form id="create-party-form" class="create-party-form">
+              <label>
+                {t("admin.profile_identity.parties.field_type")}
+                <select name="profileType" required>
+                  <option value="person">person</option>
+                  <option value="organization">organization</option>
+                </select>
+              </label>
+              <label>
+                {t("admin.profile_identity.parties.field_name")}
+                <input
+                  type="text"
+                  name="displayName"
+                  required
+                  maxlength="200"
+                />
+              </label>
+              <label>
+                {t("admin.profile_identity.parties.field_legal_name")}
+                <input type="text" name="legalName" maxlength="200" />
+              </label>
+              <label>
+                {t("admin.profile_identity.parties.field_risk_level")}
+                <select name="riskLevel">
+                  <option value="low">low</option>
+                  <option value="normal" selected>
+                    normal
+                  </option>
+                  <option value="high">high</option>
+                </select>
+              </label>
+              <button type="submit">
+                {t("admin.profile_identity.parties.create_submit")}
+              </button>
+            </form>
+          </details>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .party-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
+  }
+
+  .filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    align-items: end;
+  }
+
+  .filter-form label,
+  .create-party-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .filter-form input,
+  .filter-form select,
+  .create-party-form input,
+  .create-party-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .party-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .party-table th,
+  .party-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .empty-state {
+    color: var(--color-text-muted);
+  }
+
+  .create-party-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 480px;
+  }
+
+  .create-party-form button,
+  .filter-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface PartyManagerStrings {
+    createSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<PartyManagerStrings>();
+
+  document
+    .getElementById("create-party-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (button?.disabled) return;
+
+      const formData = new FormData(form);
+      const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+
+      try {
+        const result = await submitJson(
+          "/api/v1/profiles",
+          "POST",
+          {
+            profileType: formData.get("profileType"),
+            displayName: formData.get("displayName"),
+            legalName: formData.get("legalName") || null,
+            riskLevel: formData.get("riskLevel")
+          },
+          strings
+        );
+
+        showBanner(
+          "action-banner",
+          result.ok ? strings.createSuccess : result.message,
+          result.ok ? "success" : "error"
+        );
+        if (result.ok) reloadAfterDelay();
+      } finally {
+        unlock?.();
+      }
+    });
+</script>

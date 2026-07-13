@@ -1949,6 +1949,285 @@ Cross-module audit trail (awcms_mini_audit_events) and its read API. Complements
 
 Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-to-end. Full profile CRUD (create/update/list) remains out of scope/backlog.
 
+### `GET /api/v1/profile-duplicate-candidates` — List duplicate candidates (tenant-wide)
+
+- **operationId**: `profileDuplicateCandidatesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                    | Description                                 |
+| ------------------ | ------ | -------- | ------------------------------------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`pending`, `confirmed_duplicate`, `not_duplicate`) |                                             |
+| `profileId`        | query  | no       | string (uuid)                                           |                                             |
+| `X-Correlation-ID` | header | no       | string                                                  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                                  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Duplicate-candidate list.                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/profile-duplicate-candidates/{id}/review` — Review a duplicate candidate (confirm or mark false positive)
+
+- **operationId**: `profileDuplicateCandidatesReview`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DuplicateCandidateReviewRequest`](#schema-duplicatecandidatereviewrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 200    | Duplicate candidate reviewed.                                                                                                                                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;[`DuplicateCandidateResponse`](#schema-duplicatecandidateresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                               |
+
+### `GET /api/v1/profile-merge-requests` — List profile merge requests
+
+- **operationId**: `profileMergeRequestsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                 | Description                                 |
+| ------------------ | ------ | -------- | ---------------------------------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`pending`, `approved`, `rejected`, `completed`) |                                             |
+| `X-Correlation-ID` | header | no       | string                                               | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                               | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Merge request list.                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/profile-merge-requests` — Create a profile merge request (source=loser, target=survivor)
+
+- **operationId**: `profileMergeRequestsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+| `Idempotency-Key`  | header | yes      | string |                                             |
+
+**Request body** (required): [`MergeRequestCreateRequest`](#schema-mergerequestcreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Merge request created.                                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)&lt;[`MergeRequestResponse`](#schema-mergerequestresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 409    | Idempotency conflict, or either profile does not exist/is already merged/soft-deleted.                                                                                                                           | [`ApiError`](#standard-error-envelope)                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+
+### `GET /api/v1/profile-merge-requests/{id}` — Get a merge request's detail (including field-conflict/reference-impact snapshots)
+
+- **operationId**: `profileMergeRequestsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Merge request detail.                               | [`ApiSuccess`](#standard-success-envelope)&lt;[`MergeRequestResponse`](#schema-mergerequestresponse)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                   |
+
+### `POST /api/v1/profile-merge-requests/{id}/decisions` — Approve or reject a merge request (self-approval denied)
+
+- **operationId**: `profileMergeRequestsDecide`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+| `Idempotency-Key`  | header | yes      | string        |                                             |
+
+**Request body** (required): [`MergeRequestDecisionRequest`](#schema-mergerequestdecisionrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Decision recorded.                                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;[`MergeRequestResponse`](#schema-mergerequestresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 409    | Idempotency conflict, or the merge request has already been decided.                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+
+### `POST /api/v1/profile-merge-requests/{id}/execute` — Execute an approved merge request (survivor absorbs loser)
+
+- **operationId**: `profileMergeRequestsExecute`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+| `Idempotency-Key`  | header | yes      | string        |                                             |
+
+**Responses**
+
+| Status | Description                                                                             | Schema                                                                                                   |
+| ------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Merge executed (or already executed — idempotent).                                      | [`ApiSuccess`](#standard-success-envelope)&lt;[`MergeRequestResponse`](#schema-mergerequestresponse)&gt; |
+| 401    | Authentication required or expired.                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied, or cross-tenant merge denied.                                            | [`ApiError`](#standard-error-envelope)                                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 409    | Idempotency conflict, merge request not approved, or either profile no longer eligible. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+
+### `GET /api/v1/profiles` — List/search parties (person/organization)
+
+- **operationId**: `profilesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                           | Description                                                |
+| ------------------ | ------ | -------- | ------------------------------ | ---------------------------------------------------------- |
+| `type`             | query  | no       | enum(`person`, `organization`) |                                                            |
+| `status`           | query  | no       | string                         |                                                            |
+| `q`                | query  | no       | string                         | Case-insensitive substring match on displayName/legalName. |
+| `limit`            | query  | no       | integer                        |                                                            |
+| `X-Correlation-ID` | header | no       | string                         | Optional server-side trace correlation ID.                 |
+| `X-Request-ID`     | header | no       | string                         | Optional client-generated request trace ID.                |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Party list.                                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/profiles` — Create a party (person/organization)
+
+- **operationId**: `profilesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`PartyCreateRequest`](#schema-partycreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 200    | Party created.                                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`PartyResponse`](#schema-partyresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                     |
+
+### `GET /api/v1/profiles/{id}` — Get party detail (masked-administrative projection)
+
+- **operationId**: `profilesGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                                                     |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 200    | Party detail.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;[`PartyResponse`](#schema-partyresponse)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                     |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                     |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                     |
+
+### `PATCH /api/v1/profiles/{id}` — Partially update a party
+
+- **operationId**: `profilesUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`PartyUpdateRequest`](#schema-partyupdaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 200    | Party updated.                                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`PartyResponse`](#schema-partyresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                     |
+
 ### `DELETE /api/v1/profiles/{id}` — Soft delete a profile (lifecycle only; no profile CRUD yet)
 
 - **operationId**: `profilesSoftDelete`
@@ -1969,6 +2248,292 @@ Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-
 | Status | Description                                                                                                                                                                                                      | Schema                                                                                                           |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | 200    | Profile soft-deleted.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+
+### `GET /api/v1/profiles/{id}/addresses` — List a party's addresses
+
+- **operationId**: `profileAddressesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Address list.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/profiles/{id}/addresses` — Add an effective-dated address
+
+- **operationId**: `profileAddressesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`AddressCreateRequest`](#schema-addresscreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 200    | Address added.                                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`AddressResponse`](#schema-addressresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                         |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                         |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                         |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                         |
+
+### `DELETE /api/v1/profiles/{id}/addresses/{addressId}` — Soft delete an address
+
+- **operationId**: `profileAddressesDelete`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `addressId`        | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ProfileDeleteRequest`](#schema-profiledeleterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Address soft-deleted.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+
+### `GET /api/v1/profiles/{id}/channels` — List a party's communication channels
+
+- **operationId**: `profileChannelsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Channel list.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/profiles/{id}/channels` — Add a communication channel (references an existing identifier)
+
+- **operationId**: `profileChannelsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ChannelCreateRequest`](#schema-channelcreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                         |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| 200    | Channel added.                                                                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`ChannelResponse`](#schema-channelresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                         |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                         |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                         |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                         |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                         |
+
+### `DELETE /api/v1/profiles/{id}/channels/{channelId}` — Soft delete a communication channel
+
+- **operationId**: `profileChannelsDelete`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `channelId`        | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ProfileDeleteRequest`](#schema-profiledeleterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Channel soft-deleted.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+
+### `POST /api/v1/profiles/{id}/duplicate-candidates/scan` — Trigger an on-demand duplicate-candidate scan for this party
+
+- **operationId**: `profileDuplicateCandidatesScan`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Scan completed.                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/profiles/{id}/identifiers` — List a party's identifiers (masked)
+
+- **operationId**: `profileIdentifiersList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Identifier list.                                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/profiles/{id}/identifiers` — Add a typed identifier (provenance/verification/validity metadata)
+
+- **operationId**: `profileIdentifiersCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`IdentifierCreateRequest`](#schema-identifiercreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Identifier added.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`IdentifierResponse`](#schema-identifierresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 409    | An active identifier of the same type/value already exists for this tenant.                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                               |
+
+### `PATCH /api/v1/profiles/{id}/identifiers/{identifierId}` — Update an identifier's verification/preferred/validity fields
+
+- **operationId**: `profileIdentifiersUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `identifierId`     | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`IdentifierUpdateRequest`](#schema-identifierupdaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 200    | Identifier updated.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`IdentifierResponse`](#schema-identifierresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                               |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                               |
+
+### `DELETE /api/v1/profiles/{id}/identifiers/{identifierId}` — Soft delete an identifier
+
+- **operationId**: `profileIdentifiersDelete`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `identifierId`     | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ProfileDeleteRequest`](#schema-profiledeleterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Identifier soft-deleted.                                                                                                                                                                                         | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
 | 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
 | 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
 | 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
@@ -2001,6 +2566,84 @@ Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-
 | 409    | Purge blocked by foreign-key-referencing dependents (identities, identifiers, channels, addresses, entity links, merge requests). | [`ApiError`](#standard-error-envelope)                                                                           |
 | 500    | Internal server error without stack trace.                                                                                        | [`ApiError`](#standard-error-envelope)                                                                           |
 
+### `GET /api/v1/profiles/{id}/relationships` — List a party's relationships (either side)
+
+- **operationId**: `profileRelationshipsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Relationship list.                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/profiles/{id}/relationships` — Create a generic party-to-party relationship or authorized-representative record
+
+- **operationId**: `profileRelationshipsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`RelationshipCreateRequest`](#schema-relationshipcreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 200    | Relationship created.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;[`RelationshipResponse`](#schema-relationshipresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                   |
+
+### `DELETE /api/v1/profiles/{id}/relationships/{relationshipId}` — End an active relationship
+
+- **operationId**: `profileRelationshipsEnd`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `relationshipId`   | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Relationship ended.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                           |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+
 ### `POST /api/v1/profiles/{id}/restore` — Restore a soft-deleted profile
 
 - **operationId**: `profilesRestore`
@@ -2016,13 +2659,14 @@ Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-
 
 **Responses**
 
-| Status | Description                                         | Schema                                                                                                           |
-| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 200    | Profile restored.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                           |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                           |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                           |
+| Status | Description                                                                                           | Schema                                                                                                           |
+| ------ | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Profile restored.                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;[`ProfileLifecycleResponse`](#schema-profilelifecycleresponse)&gt; |
+| 401    | Authentication required or expired.                                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                        | [`ApiError`](#standard-error-envelope)                                                                           |
+| 404    | Resource not found or hidden by soft-delete policy.                                                   | [`ApiError`](#standard-error-envelope)                                                                           |
+| 409    | Profile was merged away (merged_into_profile_id is set) and cannot be restored through this endpoint. | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                            | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ## Database Connectivity
 
@@ -5827,6 +6471,74 @@ Every schema referenced by at least one operation above (excluding the standard 
 }
 ```
 
+### Schema: AddressCreateRequest
+
+| Field         | Type                                            | Required | Nullable | Description |
+| ------------- | ----------------------------------------------- | -------- | -------- | ----------- |
+| `addressType` | enum(`primary`, `billing`, `shipping`, `other`) | no       | no       |             |
+| `addressLine` | string                                          | no       | yes      |             |
+| `city`        | string                                          | no       | yes      |             |
+| `province`    | string                                          | no       | yes      |             |
+| `postalCode`  | string                                          | no       | yes      |             |
+| `countryCode` | string                                          | no       | no       |             |
+| `isDefault`   | boolean                                         | no       | no       |             |
+| `validFrom`   | string (date-time)                              | no       | no       |             |
+| `validUntil`  | string (date-time)                              | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "addressType": "primary",
+  "addressLine": "string",
+  "city": "string",
+  "province": "string",
+  "postalCode": "string",
+  "countryCode": "string",
+  "isDefault": false,
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validUntil": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: AddressResponse
+
+| Field         | Type               | Required | Nullable | Description |
+| ------------- | ------------------ | -------- | -------- | ----------- |
+| `id`          | string (uuid)      | yes      | no       |             |
+| `profileId`   | string (uuid)      | yes      | no       |             |
+| `addressType` | string             | yes      | no       |             |
+| `addressLine` | string             | no       | yes      |             |
+| `city`        | string             | no       | yes      |             |
+| `province`    | string             | no       | yes      |             |
+| `postalCode`  | string             | no       | yes      |             |
+| `countryCode` | string             | yes      | no       |             |
+| `isDefault`   | boolean            | yes      | no       |             |
+| `validFrom`   | string (date-time) | yes      | no       |             |
+| `validUntil`  | string (date-time) | yes      | yes      |             |
+| `createdAt`   | string (date-time) | yes      | no       |             |
+| `updatedAt`   | string (date-time) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "profileId": "00000000-0000-0000-0000-000000000000",
+  "addressType": "string",
+  "addressLine": "string",
+  "city": "string",
+  "province": "string",
+  "postalCode": "string",
+  "countryCode": "string",
+  "isDefault": false,
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validUntil": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
 ### Schema: AdPlacementCreateRequest
 
 | Field           | Type                                                                                                                                                                                                                             | Required | Nullable | Description |
@@ -7084,6 +7796,64 @@ Whitelisted layout shape (Issue
 }
 ```
 
+### Schema: ChannelCreateRequest
+
+| Field                 | Type                                        | Required | Nullable | Description |
+| --------------------- | ------------------------------------------- | -------- | -------- | ----------- |
+| `profileIdentifierId` | string (uuid)                               | yes      | no       |             |
+| `channelType`         | enum(`email`, `phone`, `whatsapp`, `other`) | no       | no       |             |
+| `isOptIn`             | boolean                                     | no       | no       |             |
+| `isDefault`           | boolean                                     | no       | no       |             |
+| `validFrom`           | string (date-time)                          | no       | no       |             |
+| `validUntil`          | string (date-time)                          | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "profileIdentifierId": "00000000-0000-0000-0000-000000000000",
+  "channelType": "email",
+  "isOptIn": false,
+  "isDefault": false,
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validUntil": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: ChannelResponse
+
+| Field                 | Type               | Required | Nullable | Description |
+| --------------------- | ------------------ | -------- | -------- | ----------- |
+| `id`                  | string (uuid)      | yes      | no       |             |
+| `profileId`           | string (uuid)      | yes      | no       |             |
+| `profileIdentifierId` | string (uuid)      | yes      | no       |             |
+| `channelType`         | string             | yes      | no       |             |
+| `isOptIn`             | boolean            | yes      | no       |             |
+| `isDefault`           | boolean            | yes      | no       |             |
+| `verifiedAt`          | string (date-time) | yes      | yes      |             |
+| `validFrom`           | string (date-time) | yes      | no       |             |
+| `validUntil`          | string (date-time) | yes      | yes      |             |
+| `createdAt`           | string (date-time) | yes      | no       |             |
+| `updatedAt`           | string (date-time) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "profileId": "00000000-0000-0000-0000-000000000000",
+  "profileIdentifierId": "00000000-0000-0000-0000-000000000000",
+  "channelType": "string",
+  "isOptIn": false,
+  "isDefault": false,
+  "verifiedAt": "2026-01-01T00:00:00.000Z",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validUntil": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
 ### Schema: ContentQualityChecklistPolicy
 
 Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists, social_preview_image_ready, social_preview_image_alt_text — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment.
@@ -7719,6 +8489,64 @@ Issue #743 — this PROCESS's own capacity configuration only (never an aggregat
 }
 ```
 
+### Schema: DuplicateCandidateResponse
+
+| Field          | Type                                                                                | Required | Nullable | Description |
+| -------------- | ----------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `id`           | string (uuid)                                                                       | yes      | no       |             |
+| `profileIdA`   | string (uuid)                                                                       | yes      | no       |             |
+| `profileIdB`   | string (uuid)                                                                       | yes      | no       |             |
+| `matchBasis`   | enum(`deterministic_identifier`, `heuristic_name_similarity`, `heuristic_combined`) | yes      | no       |             |
+| `matchScore`   | number                                                                              | yes      | yes      |             |
+| `matchReasons` | array of object                                                                     | yes      | no       |             |
+| `status`       | enum(`pending`, `confirmed_duplicate`, `not_duplicate`)                             | yes      | no       |             |
+| `reviewedBy`   | string (uuid)                                                                       | yes      | yes      |             |
+| `reviewedAt`   | string (date-time)                                                                  | yes      | yes      |             |
+| `reviewNotes`  | string                                                                              | yes      | yes      |             |
+| `createdAt`    | string (date-time)                                                                  | yes      | no       |             |
+| `updatedAt`    | string (date-time)                                                                  | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "profileIdA": "00000000-0000-0000-0000-000000000000",
+  "profileIdB": "00000000-0000-0000-0000-000000000000",
+  "matchBasis": "deterministic_identifier",
+  "matchScore": 0,
+  "matchReasons": [
+    {
+      "field": "string",
+      "reason": "string",
+      "detail": "string"
+    }
+  ],
+  "status": "pending",
+  "reviewedBy": "00000000-0000-0000-0000-000000000000",
+  "reviewedAt": "2026-01-01T00:00:00.000Z",
+  "reviewNotes": "string",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: DuplicateCandidateReviewRequest
+
+| Field      | Type                                         | Required | Nullable | Description |
+| ---------- | -------------------------------------------- | -------- | -------- | ----------- |
+| `decision` | enum(`confirmed_duplicate`, `not_duplicate`) | yes      | no       |             |
+| `notes`    | string                                       | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "decision": "confirmed_duplicate",
+  "notes": "string"
+}
+```
+
 ### Schema: EmailHealthReport
 
 | Field               | Type               | Required | Nullable | Description                              |
@@ -8214,6 +9042,86 @@ sectionType cannot be changed after creation — omit it, do not send the old or
 }
 ```
 
+### Schema: IdentifierCreateRequest
+
+| Field            | Type                                                                                  | Required | Nullable | Description |
+| ---------------- | ------------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `identifierType` | enum(`email`, `phone`, `whatsapp`, `national_id`, `tax_id`, `external_code`, `other`) | yes      | no       |             |
+| `value`          | string                                                                                | yes      | no       |             |
+| `isPrimary`      | boolean                                                                               | no       | no       |             |
+| `provenance`     | enum(`self_reported`, `verified_by_staff`, `imported`, `system_generated`)            | no       | no       |             |
+| `validFrom`      | string (date-time)                                                                    | no       | no       |             |
+| `validUntil`     | string (date-time)                                                                    | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "identifierType": "email",
+  "value": "string",
+  "isPrimary": false,
+  "provenance": "self_reported",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validUntil": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: IdentifierResponse
+
+| Field                | Type               | Required | Nullable | Description                                                                         |
+| -------------------- | ------------------ | -------- | -------- | ----------------------------------------------------------------------------------- |
+| `id`                 | string (uuid)      | yes      | no       |                                                                                     |
+| `profileId`          | string (uuid)      | yes      | no       |                                                                                     |
+| `identifierType`     | string             | yes      | no       |                                                                                     |
+| `maskedValue`        | string             | yes      | no       | Masked display value only — the raw normalized value is never returned by this API. |
+| `isPrimary`          | boolean            | yes      | no       |                                                                                     |
+| `provenance`         | string             | yes      | no       |                                                                                     |
+| `verificationStatus` | string             | yes      | no       |                                                                                     |
+| `verifiedAt`         | string (date-time) | yes      | yes      |                                                                                     |
+| `validFrom`          | string (date-time) | yes      | no       |                                                                                     |
+| `validUntil`         | string (date-time) | yes      | yes      |                                                                                     |
+| `createdAt`          | string (date-time) | yes      | no       |                                                                                     |
+| `updatedAt`          | string (date-time) | yes      | no       |                                                                                     |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "profileId": "00000000-0000-0000-0000-000000000000",
+  "identifierType": "string",
+  "maskedValue": "string",
+  "isPrimary": false,
+  "provenance": "string",
+  "verificationStatus": "string",
+  "verifiedAt": "2026-01-01T00:00:00.000Z",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validUntil": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: IdentifierUpdateRequest
+
+At least one field must be provided.
+
+| Field                | Type                                      | Required | Nullable | Description |
+| -------------------- | ----------------------------------------- | -------- | -------- | ----------- |
+| `isPrimary`          | boolean                                   | no       | no       |             |
+| `verificationStatus` | enum(`unverified`, `pending`, `verified`) | no       | no       |             |
+| `validUntil`         | string (date-time)                        | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "isPrimary": false,
+  "verificationStatus": "unverified",
+  "validUntil": "2026-01-01T00:00:00.000Z"
+}
+```
+
 ### Schema: InternalTagLinkingPreviewResult
 
 | Field            | Type                                                                    | Required | Nullable | Description |
@@ -8439,6 +9347,86 @@ Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
   "profileId": "00000000-0000-0000-0000-000000000000",
   "status": "active",
   "lastLoginAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: MergeRequestCreateRequest
+
+| Field                  | Type          | Required | Nullable | Description                                               |
+| ---------------------- | ------------- | -------- | -------- | --------------------------------------------------------- |
+| `sourceProfileId`      | string (uuid) | yes      | no       | The loser profile (soft-deleted on successful execution). |
+| `targetProfileId`      | string (uuid) | yes      | no       | The survivor profile.                                     |
+| `reason`               | string        | yes      | no       |                                                           |
+| `duplicateCandidateId` | string (uuid) | no       | yes      |                                                           |
+
+**Example**
+
+```json
+{
+  "sourceProfileId": "00000000-0000-0000-0000-000000000000",
+  "targetProfileId": "00000000-0000-0000-0000-000000000000",
+  "reason": "string",
+  "duplicateCandidateId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+### Schema: MergeRequestDecisionRequest
+
+| Field      | Type                         | Required | Nullable | Description |
+| ---------- | ---------------------------- | -------- | -------- | ----------- |
+| `decision` | enum(`approved`, `rejected`) | yes      | no       |             |
+| `reason`   | string                       | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "decision": "approved",
+  "reason": "string"
+}
+```
+
+### Schema: MergeRequestResponse
+
+| Field                     | Type                                                 | Required | Nullable | Description |
+| ------------------------- | ---------------------------------------------------- | -------- | -------- | ----------- |
+| `id`                      | string (uuid)                                        | yes      | no       |             |
+| `sourceProfileId`         | string (uuid)                                        | yes      | no       |             |
+| `targetProfileId`         | string (uuid)                                        | yes      | no       |             |
+| `status`                  | enum(`pending`, `approved`, `rejected`, `completed`) | yes      | no       |             |
+| `reason`                  | string                                               | yes      | yes      |             |
+| `requiresApproval`        | boolean                                              | yes      | no       |             |
+| `requestedBy`             | string (uuid)                                        | yes      | yes      |             |
+| `decidedBy`               | string (uuid)                                        | yes      | yes      |             |
+| `decidedAt`               | string (date-time)                                   | yes      | yes      |             |
+| `executedBy`              | string (uuid)                                        | yes      | yes      |             |
+| `executedAt`              | string (date-time)                                   | yes      | yes      |             |
+| `fieldConflictSnapshot`   | array of object                                      | yes      | no       |             |
+| `referenceImpactSnapshot` | object                                               | yes      | no       |             |
+| `duplicateCandidateId`    | string (uuid)                                        | yes      | yes      |             |
+| `createdAt`               | string (date-time)                                   | yes      | no       |             |
+| `updatedAt`               | string (date-time)                                   | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "sourceProfileId": "00000000-0000-0000-0000-000000000000",
+  "targetProfileId": "00000000-0000-0000-0000-000000000000",
+  "status": "pending",
+  "reason": "string",
+  "requiresApproval": false,
+  "requestedBy": "00000000-0000-0000-0000-000000000000",
+  "decidedBy": "00000000-0000-0000-0000-000000000000",
+  "decidedAt": "2026-01-01T00:00:00.000Z",
+  "executedBy": "00000000-0000-0000-0000-000000000000",
+  "executedAt": "2026-01-01T00:00:00.000Z",
+  "fieldConflictSnapshot": ["(operation-specific payload)"],
+  "referenceImpactSnapshot": "(operation-specific payload)",
+  "duplicateCandidateId": "00000000-0000-0000-0000-000000000000",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
@@ -9106,6 +10094,88 @@ Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
 }
 ```
 
+### Schema: PartyCreateRequest
+
+| Field         | Type                           | Required | Nullable | Description |
+| ------------- | ------------------------------ | -------- | -------- | ----------- |
+| `profileType` | enum(`person`, `organization`) | yes      | no       |             |
+| `displayName` | string                         | yes      | no       |             |
+| `legalName`   | string                         | no       | yes      |             |
+| `riskLevel`   | enum(`low`, `normal`, `high`)  | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "profileType": "person",
+  "displayName": "string",
+  "legalName": "string",
+  "riskLevel": "low"
+}
+```
+
+### Schema: PartyResponse
+
+| Field                 | Type               | Required | Nullable | Description |
+| --------------------- | ------------------ | -------- | -------- | ----------- |
+| `id`                  | string (uuid)      | yes      | no       |             |
+| `profileType`         | string             | yes      | no       |             |
+| `displayName`         | string             | yes      | no       |             |
+| `legalName`           | string             | no       | yes      |             |
+| `status`              | string             | yes      | no       |             |
+| `verificationStatus`  | string             | yes      | no       |             |
+| `riskLevel`           | string             | yes      | no       |             |
+| `mergedIntoProfileId` | string (uuid)      | yes      | yes      |             |
+| `createdAt`           | string (date-time) | yes      | no       |             |
+| `updatedAt`           | string (date-time) | yes      | no       |             |
+| `deletedAt`           | string (date-time) | yes      | yes      |             |
+| `deleteReason`        | string             | yes      | yes      |             |
+| `restoredAt`          | string (date-time) | yes      | yes      |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "profileType": "string",
+  "displayName": "string",
+  "legalName": "string",
+  "status": "string",
+  "verificationStatus": "string",
+  "riskLevel": "string",
+  "mergedIntoProfileId": "00000000-0000-0000-0000-000000000000",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z",
+  "deletedAt": "2026-01-01T00:00:00.000Z",
+  "deleteReason": "string",
+  "restoredAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: PartyUpdateRequest
+
+At least one field must be provided.
+
+| Field                | Type                                      | Required | Nullable | Description                                                     |
+| -------------------- | ----------------------------------------- | -------- | -------- | --------------------------------------------------------------- |
+| `displayName`        | string                                    | no       | no       |                                                                 |
+| `legalName`          | string                                    | no       | yes      |                                                                 |
+| `riskLevel`          | enum(`low`, `normal`, `high`)             | no       | no       |                                                                 |
+| `verificationStatus` | enum(`unverified`, `pending`, `verified`) | no       | no       |                                                                 |
+| `status`             | enum(`active`, `inactive`)                | no       | no       | merged is set only by merge execution, never via this endpoint. |
+
+**Example**
+
+```json
+{
+  "displayName": "string",
+  "legalName": "string",
+  "riskLevel": "low",
+  "verificationStatus": "unverified",
+  "status": "active"
+}
+```
+
 ### Schema: PermissionEntry
 
 | Field          | Type          | Required | Nullable | Description                   |
@@ -9222,6 +10292,62 @@ Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
   "name": "string",
   "status": "pass",
   "detail": "string"
+}
+```
+
+### Schema: RelationshipCreateRequest
+
+| Field                        | Type               | Required | Nullable | Description                                                                                                          |
+| ---------------------------- | ------------------ | -------- | -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `toProfileId`                | string (uuid)      | yes      | no       |                                                                                                                      |
+| `relationshipType`           | string             | yes      | no       | Free-text, normalized to snake_case — no hardcoded business-domain role vocabulary (customer/supplier/employee/...). |
+| `isAuthorizedRepresentative` | boolean            | no       | no       |                                                                                                                      |
+| `representationScope`        | string             | no       | yes      |                                                                                                                      |
+| `validFrom`                  | string (date-time) | no       | no       |                                                                                                                      |
+| `validUntil`                 | string (date-time) | no       | yes      |                                                                                                                      |
+
+**Example**
+
+```json
+{
+  "toProfileId": "00000000-0000-0000-0000-000000000000",
+  "relationshipType": "string",
+  "isAuthorizedRepresentative": false,
+  "representationScope": "string",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validUntil": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: RelationshipResponse
+
+| Field                        | Type               | Required | Nullable | Description |
+| ---------------------------- | ------------------ | -------- | -------- | ----------- |
+| `id`                         | string (uuid)      | yes      | no       |             |
+| `fromProfileId`              | string (uuid)      | yes      | no       |             |
+| `toProfileId`                | string (uuid)      | yes      | no       |             |
+| `relationshipType`           | string             | yes      | no       |             |
+| `isAuthorizedRepresentative` | boolean            | yes      | no       |             |
+| `representationScope`        | string             | no       | yes      |             |
+| `status`                     | string             | yes      | no       |             |
+| `validFrom`                  | string (date-time) | yes      | no       |             |
+| `validUntil`                 | string (date-time) | yes      | yes      |             |
+| `createdAt`                  | string (date-time) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "fromProfileId": "00000000-0000-0000-0000-000000000000",
+  "toProfileId": "00000000-0000-0000-0000-000000000000",
+  "relationshipType": "string",
+  "isAuthorizedRepresentative": false,
+  "representationScope": "string",
+  "status": "string",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validUntil": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
@@ -11207,7 +12333,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (53)
+### Channels (54)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -11244,6 +12370,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.email.message.queued` — An email message was enqueued into `awcms_mini_email_messages` (Issue #494/#497). Documented contract only, same convention as `database.pool.saturated` above — the concrete producer is the structured JSON logger, invoked from `email/application/announcement-directory.ts`'s `enqueueAnnouncement` (`email.message.queued` log line).
 - `awcms-mini.email.message.sent` — The email dispatcher (Issue #495, `bun run email:dispatch`) successfully delivered a message through the configured provider. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.sent` log line).
 - `awcms-mini.email.message.suppressed` — The email dispatcher (Issue #499) found a claimed message's recipient newly present on `awcms_mini_email_suppression_list` (added after enqueue, before dispatch) and skipped the provider call entirely. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.suppressed` log line).
+- `awcms-mini.profile-identity.profile.merged` — Published when a profile merge request is executed (Issue #748, epic `platform-evolution` #738 Wave 2): the loser profile is soft-deleted (`merged_into_profile_id` set) and its `awcms_mini_profile_entity_links` rows are repointed to the survivor. Payload: `mergeRequestId`, `survivorProfileId`, `loserProfileId`, `entityLinksRepointedCount`. Lets domain modules react to the merge mapping through the outbox instead of importing `profile_identity` tables directly (see `src/modules/_shared/ports/party-directory-port.ts` for the pull-based equivalent). Producer: `profile-identity/application/merge-workflow.ts`'s `executeMergeRequest`.
 - `awcms-mini.social-publishing.account.connected` — A social account was connected or reconnected/reauthorized (Issue #643). Documented contract only, same producer convention as every other event in this file — the structured JSON logger, invoked from `social-publishing/application/social-account-directory.ts`'s `connectSocialAccount` (`social_publishing.account.connected` audit event + log line).
 - `awcms-mini.social-publishing.account.disconnected` — A social account was disconnected (Issue #643) — a status transition, not a delete. Producer: `social-account-directory.ts`'s `disconnectSocialAccount`.
 - `awcms-mini.social-publishing.account.needs-reauth` — A connected social account's token expired/was rejected by its provider and now requires reauthorization (Issue #643). Producer: `social-account-directory.ts`'s `markSocialAccountNeedsReauth`, called by the outbox dispatcher on a `needs_reauth` publish outcome.

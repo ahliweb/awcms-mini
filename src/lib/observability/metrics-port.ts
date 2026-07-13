@@ -261,6 +261,39 @@ export const METRIC_DEFINITIONS = {
     allowedLabelKeys: ["consumerName"],
     approxCardinality: "A handful of registered consumer names (2 today).",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  // Issue #748 (epic #738 platform-evolution) — profile_identity party
+  // lifecycle/duplicate/merge privacy-safe operational counters. Every
+  // label is a small, fixed, code-defined enum — never a profile id,
+  // tenant id, display name, or identifier value.
+  profile_identity_party_lifecycle_total: {
+    name: "profile_identity_party_lifecycle_total",
+    type: "counter",
+    description:
+      "Count of party (person/organization) lifecycle transitions, by action.",
+    allowedLabelKeys: ["action"],
+    approxCardinality:
+      "Exactly 4 — the fixed action enum (create, update, archive, restore).",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  profile_identity_duplicate_candidate_total: {
+    name: "profile_identity_duplicate_candidate_total",
+    type: "counter",
+    description:
+      "Count of duplicate-candidate rows generated or reviewed, by match basis and resulting status.",
+    allowedLabelKeys: ["matchBasis", "status"],
+    approxCardinality:
+      "3 match-basis values x 3 status values = 9 series bound.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  profile_identity_merge_total: {
+    name: "profile_identity_merge_total",
+    type: "counter",
+    description:
+      "Count of profile merge workflow transitions, by outcome (requested, approved, rejected, executed, cross_tenant_rejected).",
+    allowedLabelKeys: ["outcome"],
+    approxCardinality: "Exactly 5 — the fixed outcome enum.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   }
 } as const satisfies Record<string, MetricDefinition>;
 
