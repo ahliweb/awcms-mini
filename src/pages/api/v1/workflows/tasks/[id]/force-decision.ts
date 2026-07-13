@@ -26,6 +26,7 @@ import {
   forceWorkflowTaskDecision,
   WorkflowRecoveryError
 } from "../../../../../../modules/workflow-approval/application/workflow-recovery";
+import { fetchTaskWithInstanceForDecision } from "../../../../../../modules/workflow-approval/application/workflow-instance-decision";
 import { createEmailWorkflowNotificationAdapter } from "../../../../../../modules/email/application/workflow-notification-port-adapter";
 
 const FORCE_DECIDE_GUARD = {
@@ -47,6 +48,14 @@ type ForceDecisionRequestBody = { decision?: unknown; reason?: unknown };
  * (high-risk), fully audited. Recorded as an append-only decision row
  * with `is_administrative_override: true` — never overwrites prior
  * decision history.
+ *
+ * Security-auditor finding (PR #778): the task/instance is looked up
+ * BEFORE the guard — same pattern `decisions.ts` uses — so
+ * `resourceAttributes.requestedByTenantUserId` is populated and the
+ * self-approval-deny check in `access-control.ts` (extended to also
+ * cover `force_decide`) can fire. Without this, a caller who filed their
+ * own instance and also holds `workflow.recovery.force_decide` could
+ * force-approve their own request, structurally bypassing quorum.
  */
 export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
@@ -106,12 +115,30 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
     sql,
     tenantId,
     async (tx) => {
+      // Look up the task/instance BEFORE the guard so self-approval
+      // resourceAttributes are populated — see doc comment above.
+      const taskForGuard = await fetchTaskWithInstanceForDecision(
+        tx,
+        tenantId,
+        taskId
+      );
+
+      const guardRequest = {
+        ...FORCE_DECIDE_GUARD,
+        resourceType: "workflow_task",
+        resourceId: taskId,
+        resourceAttributes: {
+          tenantId,
+          requestedByTenantUserId: taskForGuard?.requested_by_tenant_user_id
+        }
+      };
+
       const auth = await authorizeInTransaction(
         tx,
         tenantId,
         tokenHash,
         now,
-        FORCE_DECIDE_GUARD
+        guardRequest
       );
       if (!auth.allowed) return auth.denied;
 

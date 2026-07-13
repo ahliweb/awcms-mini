@@ -1,5 +1,9 @@
 import type { APIRoute } from "astro";
-import { fail, ok } from "../../../../../modules/_shared/api-response";
+import {
+  fail,
+  jsonResponse,
+  ok
+} from "../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../lib/database/client";
 import { withTenant } from "../../../../../lib/database/tenant-context";
 import {
@@ -11,6 +15,12 @@ import {
   bodyTooLargeResponse,
   readJsonBody
 } from "../../../../../lib/security/request-body-limit";
+import {
+  computeRequestHash,
+  findIdempotencyRecord,
+  saveIdempotencyRecord
+} from "../../../../../modules/_shared/idempotency";
+import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
   getWorkflowDefinitionById,
   listWorkflowDefinitionVersions,
@@ -37,6 +47,7 @@ const DELETE_GUARD = {
   activityCode: "definition",
   action: "delete" as const
 };
+const DELETE_IDEMPOTENCY_SCOPE = "workflow_definition_delete";
 
 function serializeDefinition(row: WorkflowDefinitionRow) {
   return {
@@ -188,7 +199,13 @@ export const PUT: APIRoute = async ({ request, params, cookies, locals }) => {
   );
 };
 
-/** `DELETE /api/v1/workflows/definitions/{id}` (Issue #747) — soft-deletes a `draft` definition. 409 for any non-draft (published/retired version history is permanent). */
+/**
+ * `DELETE /api/v1/workflows/definitions/{id}` (Issue #747) — soft-deletes
+ * a `draft` definition. 409 for any non-draft (published/retired version
+ * history is permanent). High-risk (`delete` is in `HIGH_RISK_ACTIONS`) —
+ * requires `Idempotency-Key`, fully audited (security-auditor finding,
+ * PR #778 — both were previously missing).
+ */
 export const DELETE: APIRoute = async ({
   request,
   params,
@@ -203,6 +220,16 @@ export const DELETE: APIRoute = async ({
   if (!id) return fail(400, "VALIDATION_ERROR", "Definition id is required.");
   if (!token) return fail(401, "AUTH_REQUIRED", "Authentication required.");
 
+  const idempotencyKey = request.headers.get("idempotency-key");
+
+  if (!idempotencyKey) {
+    return fail(
+      400,
+      "IDEMPOTENCY_REQUIRED",
+      "Idempotency-Key header is required."
+    );
+  }
+
   const bodyRead = await readJsonBody<{ reason?: unknown }>(request);
 
   if (bodyRead.tooLarge) {
@@ -214,6 +241,7 @@ export const DELETE: APIRoute = async ({
       ? bodyRead.value.reason
       : undefined;
 
+  const requestHash = computeRequestHash({ id, action: "delete", reason });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
@@ -231,7 +259,29 @@ export const DELETE: APIRoute = async ({
       );
       if (!auth.allowed) return auth.denied;
 
+      const existingIdempotency = await findIdempotencyRecord(
+        tx,
+        tenantId,
+        DELETE_IDEMPOTENCY_SCOPE,
+        idempotencyKey
+      );
+
+      if (existingIdempotency) {
+        if (existingIdempotency.requestHash !== requestHash) {
+          return fail(
+            409,
+            "IDEMPOTENCY_CONFLICT",
+            "Idempotency-Key was already used with a different request."
+          );
+        }
+        return jsonResponse(existingIdempotency.responseBody, {
+          status: existingIdempotency.responseStatus
+        });
+      }
+
       try {
+        const existing = await getWorkflowDefinitionById(tx, tenantId, id);
+
         await softDeleteDraftWorkflowDefinition(tx, {
           tenantId,
           definitionId: id,
@@ -239,7 +289,40 @@ export const DELETE: APIRoute = async ({
           deleteReason: reason
         });
 
-        return ok({ id }, { correlationId: locals.correlationId });
+        await recordAuditEvent(tx, {
+          tenantId,
+          actorTenantUserId: auth.context.tenantUserId,
+          moduleKey: "workflow",
+          action: "delete",
+          resourceType: "workflow_definition",
+          resourceId: id,
+          severity: "warning",
+          message: `Workflow definition draft "${existing?.workflow_key ?? id}" soft-deleted.`,
+          attributes: {
+            workflowKey: existing?.workflow_key,
+            version: existing?.version,
+            reason
+          },
+          correlationId: locals.correlationId
+        });
+
+        const successResponse = ok(
+          { id },
+          { correlationId: locals.correlationId }
+        );
+        const successBody = await successResponse.clone().json();
+
+        await saveIdempotencyRecord(
+          tx,
+          tenantId,
+          DELETE_IDEMPOTENCY_SCOPE,
+          idempotencyKey,
+          requestHash,
+          200,
+          successBody
+        );
+
+        return successResponse;
       } catch (error) {
         if (error instanceof WorkflowDefinitionLifecycleError) {
           if (error.message.includes("not found")) {

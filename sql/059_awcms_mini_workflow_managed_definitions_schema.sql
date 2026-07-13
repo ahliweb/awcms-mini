@@ -307,8 +307,14 @@ ON CONFLICT (module_key, activity_code, action) DO NOTHING;
 --    the new escalation/timeout job (`bun run workflow:escalations:dispatch`)
 -- =========================================================================
 
+-- Security-auditor finding (PR #778): `workflow_instances` was
+-- previously granted UPDATE too, but `workflow-escalation.ts` only ever
+-- SELECTs from it (it JOINs to read `resource_type`/`resource_id` context
+-- and the active-instance backlog gauge count — it never mutates an
+-- instance row; only `awcms_mini_workflow_tasks` rows are UPDATEd when a
+-- task escalates). Trimmed to SELECT-only for strict least privilege.
 GRANT SELECT ON awcms_mini_workflow_definitions TO awcms_mini_worker;
-GRANT SELECT, UPDATE ON awcms_mini_workflow_instances TO awcms_mini_worker;
+GRANT SELECT ON awcms_mini_workflow_instances TO awcms_mini_worker;
 GRANT SELECT, UPDATE ON awcms_mini_workflow_tasks TO awcms_mini_worker;
 GRANT SELECT, INSERT, UPDATE ON awcms_mini_workflow_task_assignments TO awcms_mini_worker;
 GRANT SELECT ON awcms_mini_workflow_delegations TO awcms_mini_worker;

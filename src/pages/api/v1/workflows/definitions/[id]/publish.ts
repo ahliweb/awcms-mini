@@ -21,6 +21,7 @@ import {
   InvalidWorkflowGraphError,
   WorkflowDefinitionLifecycleError
 } from "../../../../../../modules/workflow-approval/application/workflow-definition-directory";
+import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 
 const PUBLISH_GUARD = {
   moduleKey: "workflow",
@@ -97,6 +98,22 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
           tenantId,
           definitionId: id,
           publishedByTenantUserId: auth.context.tenantUserId
+        });
+
+        await recordAuditEvent(tx, {
+          tenantId,
+          actorTenantUserId: auth.context.tenantUserId,
+          moduleKey: "workflow",
+          action: "publish",
+          resourceType: "workflow_definition",
+          resourceId: published.id,
+          severity: "warning",
+          message: `Workflow definition "${published.workflow_key}" v${published.version} published.`,
+          attributes: {
+            workflowKey: published.workflow_key,
+            version: published.version
+          },
+          correlationId: locals.correlationId
         });
 
         const successResponse = ok(

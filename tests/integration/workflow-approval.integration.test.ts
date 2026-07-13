@@ -47,6 +47,7 @@ import { GET as getInstance } from "../../src/pages/api/v1/workflows/instances/[
 import { POST as cancelInstance } from "../../src/pages/api/v1/workflows/instances/[id]/cancel";
 
 import { POST as createDelegation } from "../../src/pages/api/v1/workflows/delegations/index";
+import { POST as revokeDelegation } from "../../src/pages/api/v1/workflows/delegations/[id]/revoke";
 
 import { startWorkflowInstance } from "../../src/modules/workflow-approval/application/workflow-instance";
 import { escalateDueTasksForTenant } from "../../src/modules/workflow-approval/application/workflow-escalation";
@@ -679,6 +680,109 @@ suite(
       expect(decision.status).toBe(403);
     });
 
+    test("security-auditor regression (PR #778): force-decision denies a caller who is also the instance's original requester, in both directions", async () => {
+      const owner = await bootstrap();
+      // A distinct eligible assignee so quorum never completes via a
+      // normal decision — the only way this task ever resolves in this
+      // test is via force-decision.
+      const assignee = await provisionScopedWorkflowUser(
+        owner.tenantId,
+        "force-decide-assignee@example.com",
+        [
+          { activityCode: "approval", action: "approve" },
+          { activityCode: "approval", action: "read" }
+        ]
+      );
+      await createAndPublishQuorumDefinition(owner, "force_decide_self_test", [
+        assignee.tenantUserId
+      ]);
+
+      const { withTenant } =
+        await import("../../src/lib/database/tenant-context");
+      const { getDatabaseClient } =
+        await import("../../src/lib/database/client");
+      const sql = getDatabaseClient();
+
+      // The OWNER files the request (owner holds `workflow.recovery.force_decide`
+      // via the full-access role `bootstrap()` grants) — owner is the
+      // requester, not an assignee, so a normal decision would never reach
+      // them; force-decision is the only path that could let them decide
+      // their own instance.
+      await withTenant(sql, owner.tenantId, (tx) =>
+        startWorkflowInstance(tx, {
+          tenantId: owner.tenantId,
+          workflowKey: "force_decide_self_test",
+          resourceType: "test_resource",
+          resourceId: "r-force-decide-self",
+          requestedByTenantUserId: owner.tenantUserId,
+          notificationPort
+        })
+      );
+
+      const tasks = await invoke<{ data: { tasks: { id: string }[] } }>(
+        listTasks,
+        {
+          method: "GET",
+          path: "/api/v1/workflows/tasks?status=pending",
+          headers: authHeaders(owner)
+        }
+      );
+      const taskId = tasks.body.data.tasks[0]!.id;
+
+      const forceApproveOwnRequest = await invoke(forceDecideTask, {
+        method: "POST",
+        path: `/api/v1/workflows/tasks/${taskId}/force-decision`,
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": crypto.randomUUID()
+        },
+        params: { id: taskId },
+        body: {
+          decision: "approve",
+          reason: "attempting to self force-approve"
+        }
+      });
+      expect(forceApproveOwnRequest.status).toBe(403);
+
+      const forceRejectOwnRequest = await invoke(forceDecideTask, {
+        method: "POST",
+        path: `/api/v1/workflows/tasks/${taskId}/force-decision`,
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": crypto.randomUUID()
+        },
+        params: { id: taskId },
+        body: { decision: "reject", reason: "attempting to self force-reject" }
+      });
+      expect(forceRejectOwnRequest.status).toBe(403);
+
+      // Sanity: a DIFFERENT operator (not the requester) with the same
+      // permission can still force-decide it — the fix denies the
+      // self-case specifically, not force-decision generally.
+      const otherOperator = await provisionScopedWorkflowUser(
+        owner.tenantId,
+        "other-operator@example.com",
+        [{ activityCode: "recovery", action: "force_decide" }]
+      );
+      const forceApproveByOther = await invoke<{
+        data: { instanceStatus: string };
+      }>(forceDecideTask, {
+        method: "POST",
+        path: `/api/v1/workflows/tasks/${taskId}/force-decision`,
+        headers: {
+          ...authHeaders(otherOperator),
+          "idempotency-key": crypto.randomUUID()
+        },
+        params: { id: taskId },
+        body: {
+          decision: "approve",
+          reason: "legitimate administrative override"
+        }
+      });
+      expect(forceApproveByOther.status).toBe(200);
+      expect(forceApproveByOther.body.data.instanceStatus).toBe("approved");
+    });
+
     test("delegation: an effective-dated delegate may decide on behalf of the original assignee; outside the window it is denied", async () => {
       const owner = await bootstrap();
       const assignee = await provisionScopedWorkflowUser(
@@ -708,7 +812,10 @@ suite(
       const futureDelegation = await invoke(createDelegation, {
         method: "POST",
         path: "/api/v1/workflows/delegations",
-        headers: authHeaders(assignee),
+        headers: {
+          ...authHeaders(assignee),
+          "idempotency-key": crypto.randomUUID()
+        },
         body: {
           delegateTenantUserId: delegate.tenantUserId,
           workflowKey: "delegation_test",
@@ -759,10 +866,15 @@ suite(
       expect(deniedDecision.status).toBe(403);
 
       // Now create an ACTIVE (starting now) delegation and confirm it works.
-      const activeDelegation = await invoke(createDelegation, {
+      const activeDelegation = await invoke<{
+        data: { delegation: { id: string } };
+      }>(createDelegation, {
         method: "POST",
         path: "/api/v1/workflows/delegations",
-        headers: authHeaders(assignee),
+        headers: {
+          ...authHeaders(assignee),
+          "idempotency-key": crypto.randomUUID()
+        },
         body: {
           delegateTenantUserId: delegate.tenantUserId,
           workflowKey: "delegation_test",
@@ -782,6 +894,117 @@ suite(
         body: { decision: "approve" }
       });
       expect(allowedDecision.status).toBe(200);
+    });
+
+    test("security-auditor regression (PR #778): delegation revoke requires the workflow.delegation.revoke permission, not just read/ownership", async () => {
+      const owner = await bootstrap();
+      // Holds create + read but NOT revoke — matches doc 17's "delegation
+      // create implies self-service management" intent while proving the
+      // distinct revoke permission is now genuinely enforced.
+      const delegator = await provisionScopedWorkflowUser(
+        owner.tenantId,
+        "delegator-no-revoke@example.com",
+        [
+          { activityCode: "delegation", action: "create" },
+          { activityCode: "delegation", action: "read" }
+        ]
+      );
+      const delegate = await provisionScopedWorkflowUser(
+        owner.tenantId,
+        "delegate-no-revoke@example.com",
+        []
+      );
+
+      const created = await invoke<{ data: { delegation: { id: string } } }>(
+        createDelegation,
+        {
+          method: "POST",
+          path: "/api/v1/workflows/delegations",
+          headers: {
+            ...authHeaders(delegator),
+            "idempotency-key": crypto.randomUUID()
+          },
+          body: {
+            delegateTenantUserId: delegate.tenantUserId,
+            reason: "temporary coverage"
+          }
+        }
+      );
+      expect(created.status).toBe(200);
+      const delegationId = created.body.data.delegation.id;
+
+      // The delegator themselves cannot revoke without the `revoke`
+      // permission, even though they are the delegation's owner.
+      const deniedRevoke = await invoke(revokeDelegation, {
+        method: "POST",
+        path: `/api/v1/workflows/delegations/${delegationId}/revoke`,
+        headers: {
+          ...authHeaders(delegator),
+          "idempotency-key": crypto.randomUUID()
+        },
+        params: { id: delegationId },
+        body: { reason: "no longer needed" }
+      });
+      expect(deniedRevoke.status).toBe(403);
+
+      // The owner holds `delegation.revoke` (full permission set) but is
+      // NOT the original delegator — the ownership check inside
+      // `revokeWorkflowDelegation` denies it too, proving the permission
+      // gate and the ownership check are BOTH enforced (defense-in-depth,
+      // not either/or).
+      const deniedByOwnership = await invoke(revokeDelegation, {
+        method: "POST",
+        path: `/api/v1/workflows/delegations/${delegationId}/revoke`,
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": crypto.randomUUID()
+        },
+        params: { id: delegationId },
+        body: { reason: "administrative cleanup" }
+      });
+      expect(deniedByOwnership.status).toBe(403);
+
+      // A delegator who holds BOTH `create` and `revoke` can revoke their
+      // own delegation — the permission gate is not a blanket denial.
+      const empoweredDelegator = await provisionScopedWorkflowUser(
+        owner.tenantId,
+        "empowered-delegator@example.com",
+        [
+          { activityCode: "delegation", action: "create" },
+          { activityCode: "delegation", action: "revoke" }
+        ]
+      );
+      const secondCreated = await invoke<{
+        data: { delegation: { id: string } };
+      }>(createDelegation, {
+        method: "POST",
+        path: "/api/v1/workflows/delegations",
+        headers: {
+          ...authHeaders(empoweredDelegator),
+          "idempotency-key": crypto.randomUUID()
+        },
+        body: {
+          delegateTenantUserId: delegate.tenantUserId,
+          reason: "temporary coverage 2"
+        }
+      });
+      expect(secondCreated.status).toBe(200);
+
+      const selfRevoke = await invoke<{ data: { status: string } }>(
+        revokeDelegation,
+        {
+          method: "POST",
+          path: `/api/v1/workflows/delegations/${secondCreated.body.data.delegation.id}/revoke`,
+          headers: {
+            ...authHeaders(empoweredDelegator),
+            "idempotency-key": crypto.randomUUID()
+          },
+          params: { id: secondCreated.body.data.delegation.id },
+          body: { reason: "no longer needed" }
+        }
+      );
+      expect(selfRevoke.status).toBe(200);
+      expect(selfRevoke.body.data.status).toBe("revoked");
     });
 
     test("administrative recovery: reassign/cancel/force-decide require explicit permission and are denied without it", async () => {

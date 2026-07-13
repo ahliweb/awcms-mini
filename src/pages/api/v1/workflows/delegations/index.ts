@@ -1,5 +1,9 @@
 import type { APIRoute } from "astro";
-import { fail, ok } from "../../../../../modules/_shared/api-response";
+import {
+  fail,
+  jsonResponse,
+  ok
+} from "../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../lib/database/client";
 import { withTenant } from "../../../../../lib/database/tenant-context";
 import {
@@ -11,6 +15,12 @@ import {
   bodyTooLargeResponse,
   readJsonBody
 } from "../../../../../lib/security/request-body-limit";
+import {
+  computeRequestHash,
+  findIdempotencyRecord,
+  saveIdempotencyRecord
+} from "../../../../../modules/_shared/idempotency";
+import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
   createWorkflowDelegation,
   listWorkflowDelegations,
@@ -28,6 +38,7 @@ const CREATE_GUARD = {
   activityCode: "delegation",
   action: "create" as const
 };
+const CREATE_IDEMPOTENCY_SCOPE = "workflow_delegation_create";
 
 function serializeDelegation(row: WorkflowDelegationRow) {
   return {
@@ -97,7 +108,11 @@ export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
  * `POST /api/v1/workflows/delegations` (Issue #747) — creates a
  * delegation FROM the calling tenant user (a tenant user can only
  * delegate their OWN standing, never a third party's — see
- * `domain/workflow-delegation.ts`'s doc comment).
+ * `domain/workflow-delegation.ts`'s doc comment). Security-auditor
+ * finding (PR #778): this route was missing both `Idempotency-Key`
+ * enforcement and an audit log entry — a delegation broadens who can act
+ * on the delegator's behalf, so both are added here, matching the
+ * pattern every other high-risk workflow mutation in this module uses.
  */
 export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
@@ -105,6 +120,16 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   if (!tenantId)
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
   if (!token) return fail(401, "AUTH_REQUIRED", "Authentication required.");
+
+  const idempotencyKey = request.headers.get("idempotency-key");
+
+  if (!idempotencyKey) {
+    return fail(
+      400,
+      "IDEMPOTENCY_REQUIRED",
+      "Idempotency-Key header is required."
+    );
+  }
 
   const bodyRead = await readJsonBody(request);
 
@@ -144,6 +169,31 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         );
       }
 
+      const requestHash = computeRequestHash({
+        tenantUserId: auth.context.tenantUserId,
+        ...validation.value
+      });
+
+      const existingIdempotency = await findIdempotencyRecord(
+        tx,
+        tenantId,
+        CREATE_IDEMPOTENCY_SCOPE,
+        idempotencyKey
+      );
+
+      if (existingIdempotency) {
+        if (existingIdempotency.requestHash !== requestHash) {
+          return fail(
+            409,
+            "IDEMPOTENCY_CONFLICT",
+            "Idempotency-Key was already used with a different request."
+          );
+        }
+        return jsonResponse(existingIdempotency.responseBody, {
+          status: existingIdempotency.responseStatus
+        });
+      }
+
       const created = await createWorkflowDelegation(tx, {
         tenantId,
         delegatorTenantUserId: auth.context.tenantUserId,
@@ -156,10 +206,40 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         correlationId: locals.correlationId
       });
 
-      return ok(
+      await recordAuditEvent(tx, {
+        tenantId,
+        actorTenantUserId: auth.context.tenantUserId,
+        moduleKey: "workflow",
+        action: "create",
+        resourceType: "workflow_delegation",
+        resourceId: created.id,
+        severity: "info",
+        message: `Workflow delegation created (delegate ${created.delegate_tenant_user_id}).`,
+        attributes: {
+          delegateTenantUserId: created.delegate_tenant_user_id,
+          workflowKey: created.workflow_key ?? undefined,
+          resourceType: created.resource_type ?? undefined
+        },
+        correlationId: locals.correlationId
+      });
+
+      const successResponse = ok(
         { delegation: serializeDelegation(created) },
         { correlationId: locals.correlationId }
       );
+      const successBody = await successResponse.clone().json();
+
+      await saveIdempotencyRecord(
+        tx,
+        tenantId,
+        CREATE_IDEMPOTENCY_SCOPE,
+        idempotencyKey,
+        requestHash,
+        200,
+        successBody
+      );
+
+      return successResponse;
     },
     { workClass: "interactive" }
   );

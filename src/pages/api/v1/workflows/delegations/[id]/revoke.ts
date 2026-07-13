@@ -1,5 +1,9 @@
 import type { APIRoute } from "astro";
-import { fail, ok } from "../../../../../../modules/_shared/api-response";
+import {
+  fail,
+  jsonResponse,
+  ok
+} from "../../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../../lib/database/client";
 import { withTenant } from "../../../../../../lib/database/tenant-context";
 import {
@@ -12,30 +16,37 @@ import {
   readJsonBody
 } from "../../../../../../lib/security/request-body-limit";
 import {
+  computeRequestHash,
+  findIdempotencyRecord,
+  saveIdempotencyRecord
+} from "../../../../../../modules/_shared/idempotency";
+import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
+import {
   revokeWorkflowDelegation,
   WorkflowDelegationForbiddenError,
   WorkflowDelegationNotFoundError
 } from "../../../../../../modules/workflow-approval/application/workflow-delegation-directory";
 
 /**
- * Read-only guard (`workflow.delegation.read`) is intentionally NOT what
- * gates this route — `revokeWorkflowDelegation` itself enforces "only the
- * delegator may revoke their own delegation" (an ownership check, not a
- * permission check). A caller who separately holds
- * `workflow.recovery.cancel`-equivalent administrative authority is out of
- * scope for this issue's revoke path (Issue #747 explicitly scopes
- * delegation revocation to "revocable" by the delegator; a future
- * administrative-override revoke would be a distinct, explicitly
- * permissioned action). We still require the caller to be an
- * authenticated tenant user with the `delegation.read` permission at
- * minimum, so an entirely unauthorized caller cannot even reach the
- * ownership check.
+ * Security-auditor finding (PR #778): this route previously gated on
+ * `workflow.delegation.read` and relied solely on `revokeWorkflowDelegation`'s
+ * ownership check ("only the delegator may revoke their own delegation")
+ * — leaving the distinct `workflow.delegation.revoke` permission seeded
+ * in migration `059` and doc 17's RBAC matrix (Owner/Manager: `RCV`)
+ * completely unenforced (dead permission). Fixed to gate on
+ * `workflow.delegation.revoke` — the ownership check in
+ * `revokeWorkflowDelegation` remains as defense-in-depth on top of the
+ * permission gate (a caller must hold BOTH the permission AND be the
+ * original delegator); a future administrative-override revoke (any
+ * delegation, not just one's own) would still be a distinct, separately
+ * permissioned action, not built here.
  */
-const READ_GUARD = {
+const REVOKE_GUARD = {
   moduleKey: "workflow",
   activityCode: "delegation",
-  action: "read" as const
+  action: "revoke" as const
 };
+const REVOKE_IDEMPOTENCY_SCOPE = "workflow_delegation_revoke";
 const MAX_REASON_LENGTH = 500;
 
 type RevokeRequestBody = { reason?: unknown };
@@ -48,6 +59,16 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
   if (!id) return fail(400, "VALIDATION_ERROR", "Delegation id is required.");
   if (!token) return fail(401, "AUTH_REQUIRED", "Authentication required.");
+
+  const idempotencyKey = request.headers.get("idempotency-key");
+
+  if (!idempotencyKey) {
+    return fail(
+      400,
+      "IDEMPOTENCY_REQUIRED",
+      "Idempotency-Key header is required."
+    );
+  }
 
   const bodyRead = await readJsonBody<RevokeRequestBody>(request);
 
@@ -68,6 +89,7 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
     );
   }
 
+  const requestHash = computeRequestHash({ id, reason });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
@@ -81,9 +103,29 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
         tenantId,
         tokenHash,
         now,
-        READ_GUARD
+        REVOKE_GUARD
       );
       if (!auth.allowed) return auth.denied;
+
+      const existingIdempotency = await findIdempotencyRecord(
+        tx,
+        tenantId,
+        REVOKE_IDEMPOTENCY_SCOPE,
+        idempotencyKey
+      );
+
+      if (existingIdempotency) {
+        if (existingIdempotency.requestHash !== requestHash) {
+          return fail(
+            409,
+            "IDEMPOTENCY_CONFLICT",
+            "Idempotency-Key was already used with a different request."
+          );
+        }
+        return jsonResponse(existingIdempotency.responseBody, {
+          status: existingIdempotency.responseStatus
+        });
+      }
 
       try {
         const revoked = await revokeWorkflowDelegation(tx, {
@@ -94,10 +136,36 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
           correlationId: locals.correlationId
         });
 
-        return ok(
+        await recordAuditEvent(tx, {
+          tenantId,
+          actorTenantUserId: auth.context.tenantUserId,
+          moduleKey: "workflow",
+          action: "revoke",
+          resourceType: "workflow_delegation",
+          resourceId: revoked.id,
+          severity: "warning",
+          message: `Workflow delegation revoked.`,
+          attributes: { reason },
+          correlationId: locals.correlationId
+        });
+
+        const successResponse = ok(
           { id: revoked.id, status: revoked.status },
           { correlationId: locals.correlationId }
         );
+        const successBody = await successResponse.clone().json();
+
+        await saveIdempotencyRecord(
+          tx,
+          tenantId,
+          REVOKE_IDEMPOTENCY_SCOPE,
+          idempotencyKey,
+          requestHash,
+          200,
+          successBody
+        );
+
+        return successResponse;
       } catch (error) {
         if (error instanceof WorkflowDelegationNotFoundError) {
           return fail(404, "RESOURCE_NOT_FOUND", error.message);

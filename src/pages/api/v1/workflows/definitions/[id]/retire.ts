@@ -20,6 +20,7 @@ import {
   retireWorkflowDefinition,
   WorkflowDefinitionLifecycleError
 } from "../../../../../../modules/workflow-approval/application/workflow-definition-directory";
+import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 
 const RETIRE_GUARD = {
   moduleKey: "workflow",
@@ -91,6 +92,22 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
           tenantId,
           definitionId: id,
           retiredByTenantUserId: auth.context.tenantUserId
+        });
+
+        await recordAuditEvent(tx, {
+          tenantId,
+          actorTenantUserId: auth.context.tenantUserId,
+          moduleKey: "workflow",
+          action: "retire",
+          resourceType: "workflow_definition",
+          resourceId: retired.id,
+          severity: "warning",
+          message: `Workflow definition "${retired.workflow_key}" v${retired.version} retired.`,
+          attributes: {
+            workflowKey: retired.workflow_key,
+            version: retired.version
+          },
+          correlationId: locals.correlationId
         });
 
         const successResponse = ok(

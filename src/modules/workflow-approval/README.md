@@ -48,7 +48,7 @@ A static, reviewed-source-code registry — mirrors `domain-event-runtime`'s `DO
 
 ## Delegation (`domain/workflow-delegation.ts`)
 
-A delegation only ever lets the delegate act using the delegator's OWN standing — never a permission grant, never wider than the delegation row's own declared `workflowKey`/`resourceType`/effective window. Self-approval denial (`identity-access/domain/access-control.ts`, unchanged) still compares the ACTING tenant user against the instance's original requester — a delegate cannot be used to approve a request the delegator themselves filed.
+A delegation only ever lets the delegate act using the delegator's OWN standing — never a permission grant, never wider than the delegation row's own declared `workflowKey`/`resourceType`/effective window. Self-approval denial (`identity-access/domain/access-control.ts`, unchanged) still compares the ACTING tenant user against the instance's original requester — a delegate cannot be used to approve a request the delegator themselves filed. Both create (`POST /workflows/delegations`) and revoke (`POST /workflows/delegations/{id}/revoke`) require `Idempotency-Key` and are recorded via `recordAuditEvent` (in addition to the `workflow.delegation.created`/`.revoked` domain events already published through `domain_event_runtime`'s outbox — the audit log entry and the domain event are two distinct, independently-consumed records, not the same thing). Revoke is gated on the `workflow.delegation.revoke` permission (Owner/Manager per doc 17's RBAC matrix) — `revokeWorkflowDelegation`'s ownership check (only the original delegator may revoke) remains as defense-in-depth on top of that permission gate, not instead of it (security-auditor finding, PR #778: the permission was previously seeded but never enforced by any guard).
 
 ## Escalation/timeout (`application/workflow-escalation.ts`, `scripts/workflow-escalations-dispatch.ts`)
 
@@ -84,4 +84,11 @@ Reassign (`POST /workflows/tasks/{id}/reassign`), cancel (`POST /workflows/insta
 
 ## Idempotency
 
-Every high-risk mutation here (`decisions`, `reassign`, `force-decision`, `publish`, `retire`, `.../instances/{id}/cancel`) requires `Idempotency-Key`, using the same generic `awcms_mini_idempotency_keys` store (migration `012`) — same key + same request hash replays the stored response; same key + different hash -> `409 IDEMPOTENCY_CONFLICT`.
+Every high-risk mutation here (`decisions`, `reassign`, `force-decision`, `publish`, `retire`, `DELETE .../definitions/{id}`, `.../instances/{id}/cancel`, `.../delegations` create, `.../delegations/{id}/revoke`) requires `Idempotency-Key`, using the same generic `awcms_mini_idempotency_keys` store (migration `012`) — same key + same request hash replays the stored response; same key + different hash -> `409 IDEMPOTENCY_CONFLICT`.
+
+## Security-auditor findings fixed (PR #778, before merge)
+
+- **`force-decision` self-approval bypass (High)** — the route authorized via `workflow.recovery.force_decide` without populating `resourceAttributes.requestedByTenantUserId`, and `access-control.ts`'s self-approval-deny check was hardwired to the `"approve"` action only — so a caller who filed their own instance and held `force_decide` could force-approve their own request, bypassing quorum entirely. Fixed by looking up the task/instance before the guard (same pattern `decisions.ts` uses) and extending the self-approval-deny check to also cover `"force_decide"` (blocks both force-approve and force-reject of one's own instance).
+- **Missing audit log entries (High)** — `publish`, `retire`, the definitions `DELETE` handler, and delegation create/revoke did not call `recordAuditEvent` despite being high-risk mutations; all 5 now do. `DELETE .../definitions/{id}` and both delegation endpoints were also missing `Idempotency-Key` enforcement; now added.
+- **Unenforced `workflow.delegation.revoke` permission (Low)** — the revoke route gated on `workflow.delegation.read` and relied solely on the ownership check; the seeded `revoke` permission (doc 17: Owner/Manager `RCV`) was dead. Fixed to gate on `workflow.delegation.revoke`.
+- **Escalation-job worker role over-grant (Low)** — migration `059` granted `SELECT, UPDATE` on `awcms_mini_workflow_instances` to `awcms_mini_worker`, but the escalation job only ever `SELECT`s from that table. Trimmed to `SELECT`-only.

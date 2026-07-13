@@ -90,14 +90,18 @@ export type AccessAction =
   // definition version without publishing a replacement — distinct from
   // `publish`, which retires the PREVIOUS active version only as a side
   // effect of activating a new one), `workflow.recovery.reassign`
-  // (reassign a pending task's open seats to another tenant user), and
+  // (reassign a pending task's open seats to another tenant user),
   // `workflow.recovery.force_decide` (force-approve/force-reject a
-  // pending task, bypassing quorum). All three added to `HIGH_RISK_
-  // ACTIONS` below — each is an administrative override of a running
-  // workflow's normal decision path.
+  // pending task, bypassing quorum), and `workflow.delegation.revoke`
+  // (revoke an effective-dated substitute assignment — security-auditor
+  // finding, PR #778: previously seeded in migration 059/doc 17 but never
+  // enforced by any guard). All four added to `HIGH_RISK_ACTIONS` below —
+  // each is either an administrative override of a running workflow's
+  // normal decision path, or a reduction of a substitute's standing.
   | "retire"
   | "reassign"
-  | "force_decide";
+  | "force_decide"
+  | "revoke";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -129,7 +133,8 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "release",
   "retire",
   "reassign",
-  "force_decide"
+  "force_decide",
+  "revoke"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {
@@ -169,6 +174,28 @@ export function evaluateAccess(
     return {
       allowed: false,
       reason: "Self-approval is not allowed.",
+      matchedPolicy: "self_approval_deny"
+    };
+  }
+
+  // Issue #747 security-auditor finding (PR #778): `force_decide` is an
+  // administrative override that bypasses quorum entirely (workflow-
+  // approval's `force-decision.ts`) — without this, a caller who filed
+  // their own workflow instance AND holds `workflow.recovery.force_decide`
+  // could force-approve their own request, structurally bypassing the
+  // `approve`-only check above (that check is hardwired to the "approve"
+  // action string, so it never fires for "force_decide"). Blocks BOTH
+  // directions (force-approve and force-reject) of a caller's own
+  // instance — an administrator who is also the requester should not be
+  // deciding their own request at all via this path, not just the
+  // approve direction.
+  if (
+    request.action === "force_decide" &&
+    requestedBy === context.tenantUserId
+  ) {
+    return {
+      allowed: false,
+      reason: "Self-administered force-decision is not allowed.",
       matchedPolicy: "self_approval_deny"
     };
   }
