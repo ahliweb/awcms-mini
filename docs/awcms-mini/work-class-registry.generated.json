@@ -1,0 +1,821 @@
+{
+  "routes": [
+    {
+      "path": "src/pages/api/v1/access/assignments.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/access/decision-logs.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/access/evaluate.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/access/modules.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/devices.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/events.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/locations.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/pages.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/realtime.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/retention/purge.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/security.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/sessions.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/settings.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/analytics/summary.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/login.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/logout.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/me.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/mfa/recovery-codes/regenerate.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/mfa/status.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/mfa/totp/disable.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/mfa/totp/enroll/start.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/mfa/totp/enroll/verify.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/mfa/totp/verify.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/password/forgot.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/password/reset.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/providers/google/callback.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/providers/google/link.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/providers/google/start.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/providers/google/unlink.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/sso/[providerKey]/callback.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/sso/[providerKey]/link.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/sso/[providerKey]/start.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/auth/sso/[providerKey]/unlink.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/ads/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/ads/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/internal-tag-links/settings.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/menus/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/menus/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/pages/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/pages/[id]/quality-checklist.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/pages/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/archive.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/internal-links/preview.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/publish.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/purge.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/quality-checklist.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/restore.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/revisions/[revisionId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/revisions/[revisionId]/restore.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/revisions/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/schedule.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/[id]/submit-review.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/posts/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/search/index.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/blog/settings/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/templates/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/templates/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/terms/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/terms/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/theme/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/widgets/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/blog/widgets/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/consumers/[name]/pause.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/consumers/[name]/resume.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/consumers/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/deliveries/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/deliveries/[id]/replay.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/deliveries/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/events/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/domain-events/events/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/announcements/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/announcements/preview.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/messages/[id]/cancel.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/messages/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/suppressions/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/suppressions/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/templates/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/templates/[id]/preview.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/templates/[id]/restore.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/email/templates/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/form-drafts/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/form-drafts/[id]/submit.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/form-drafts/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/sso/policy/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/sso/providers/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/sso/providers/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/logs/audit.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/logs/observability/dependency-health.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/media/news-images/upload-sessions/[id]/cancel.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/media/news-images/upload-sessions/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/modules/[moduleKey].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/modules/[moduleKey]/health.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/modules/[moduleKey]/health/check.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/modules/[moduleKey]/jobs.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/modules/[moduleKey]/permissions.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/modules/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/modules/sync.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/news-portal/ad-placements/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/news-portal/ad-placements/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/news-portal/homepage-sections/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/news-portal/homepage-sections/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/permissions/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/purge.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/profiles/[id]/restore.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reports/access-audit.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/reports/email-health.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/reports/module-usage.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/reports/sync-health.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/reports/tenant-activity.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/roles/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/roles/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/settings/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/accounts/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/accounts/[id]/disconnect.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/accounts/[id]/verify.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/accounts/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/jobs/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/jobs/[id]/approve.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/jobs/[id]/cancel.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/jobs/[id]/retry.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/jobs/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/rules/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/rules/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/settings/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/templates/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/social-publishing/templates/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/sync/conflicts/[id]/resolve.ts",
+      "workClass": "background_sync",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/sync/conflicts/index.ts",
+      "workClass": "background_sync",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/sync/nodes/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/sync/nodes/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/sync/object-queue/[id]/retry.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/sync/object-queue/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/sync/objects/index.ts",
+      "workClass": "background_sync",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/sync/objects/status.ts",
+      "workClass": "background_sync",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/sync/pull.ts",
+      "workClass": "background_sync",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/sync/push.ts",
+      "workClass": "background_sync",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/sync/status.ts",
+      "workClass": "background_sync",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/tenant/domains/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant/domains/[id]/set-primary.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant/domains/[id]/verify.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant/domains/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant/modules/[moduleKey]/disable.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant/modules/[moduleKey]/enable.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant/modules/[moduleKey]/settings.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant/modules/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/users/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/users/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/tasks/[id]/decisions.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    },
+    {
+      "path": "src/pages/api/v1/workflows/tasks/index.ts",
+      "workClass": "interactive",
+      "source": "explicit"
+    }
+  ],
+  "jobs": [
+    {
+      "path": "scripts/audit-log-purge.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Scheduled retention purge (logs:audit:purge) — tolerant of delay, never latency-sensitive."
+    },
+    {
+      "path": "scripts/blog-scheduled-publish.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Scheduled-publish dispatcher (blog:publish:scheduled) — recurring, not latency-sensitive, but more time-relevant than a maintenance purge."
+    },
+    {
+      "path": "scripts/domain-events-dispatch.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Outbox dispatcher (domain-events:dispatch, Issue #742), recommended every 30-60 seconds — same recurring dispatcher profile as email/object-sync/social-publish dispatch; its own internal withTenant calls already pass workClass: \"background_sync\" explicitly."
+    },
+    {
+      "path": "scripts/email-dispatch.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Outbox dispatcher (email:dispatch), recommended every 1-2 minutes — matches sync/object dispatch's own background_sync classification."
+    },
+    {
+      "path": "scripts/form-draft-purge.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Scheduled retention purge (form-drafts:purge) — same profile as audit-log-purge."
+    },
+    {
+      "path": "scripts/news-media-r2-reconcile.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Infrequent reconciliation sweep (news-media:reconcile) — tolerant of delay, run far less often than the dispatchers above."
+    },
+    {
+      "path": "scripts/object-sync-dispatch.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Outbox dispatcher (sync:objects:dispatch) — the module's own module.ts already documents this as background/low-priority traffic."
+    },
+    {
+      "path": "scripts/social-publish-dispatch.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Outbox dispatcher (social-publishing:dispatch) — same recurring dispatcher profile."
+    },
+    {
+      "path": "scripts/visitor-analytics-purge.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Scheduled retention/anonymization purge (analytics:purge) — tolerant of delay."
+    },
+    {
+      "path": "scripts/visitor-analytics-rollup.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Frequent scheduled aggregation (analytics:rollup, doc recommends every run of the daily rollup) — same low-priority-but-regular profile as sync push/pull, not a one-off maintenance task."
+    }
+  ]
+}

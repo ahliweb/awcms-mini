@@ -4,6 +4,7 @@ import {
   acquireWorkClassSlot,
   getWorkClassSaturation,
   resetWorkClassGatesForTests,
+  WorkClassQueueFullError,
   WorkClassTimeoutError
 } from "../src/lib/database/work-class";
 import {
@@ -129,6 +130,116 @@ describe("acquireWorkClassSlot", () => {
     expect(byClass.reporting?.max).toBe(4);
     expect(byClass.background_sync?.max).toBe(4);
     expect(byClass.maintenance?.max).toBe(1);
+  });
+
+  // Issue #743 — bounded queue depth = max concurrency x the default
+  // DATABASE_WORK_CLASS_QUEUE_MULTIPLIER (4, unset in the test environment).
+  test("getWorkClassSaturation reports maxQueueDepth = max x default multiplier (4) for every work class", () => {
+    const saturation = getWorkClassSaturation();
+    const byClass = Object.fromEntries(
+      saturation.map((entry) => [entry.workClass, entry])
+    );
+
+    expect(byClass.critical_transaction?.maxQueueDepth).toBe(40);
+    expect(byClass.interactive?.maxQueueDepth).toBe(32);
+    expect(byClass.reporting?.maxQueueDepth).toBe(16);
+    expect(byClass.background_sync?.maxQueueDepth).toBe(16);
+    expect(byClass.maintenance?.maxQueueDepth).toBe(4);
+  });
+
+  describe("bounded queue depth (Issue #743)", () => {
+    // "maintenance" has max 1 -> maxQueueDepth 4 (1 x default multiplier 4) —
+    // the smallest, easiest bound to exhaust deterministically in a test.
+
+    test("rejects immediately with WorkClassQueueFullError once the queue is at its bounded cap, without ever waiting", async () => {
+      const active = await acquireWorkClassSlot("maintenance", 5_000);
+      const queued = [
+        acquireWorkClassSlot("maintenance", 5_000),
+        acquireWorkClassSlot("maintenance", 5_000),
+        acquireWorkClassSlot("maintenance", 5_000),
+        acquireWorkClassSlot("maintenance", 5_000)
+      ];
+      await Promise.resolve();
+
+      const saturationAtCap = getWorkClassSaturation().find(
+        (entry) => entry.workClass === "maintenance"
+      );
+      expect(saturationAtCap?.queued).toBe(4);
+      expect(saturationAtCap?.maxQueueDepth).toBe(4);
+
+      // The 6th caller (1 active + 4 queued already) must be rejected
+      // OUTRIGHT — this assertion would time out (not just fail fast) if the
+      // bounded-queue check were missing, since the promise would otherwise
+      // still be pending after `timeoutMs` (5000ms) rather than already
+      // rejected.
+      let caught: unknown;
+      try {
+        await acquireWorkClassSlot("maintenance", 5_000);
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(WorkClassQueueFullError);
+      expect((caught as WorkClassQueueFullError).workClass).toBe("maintenance");
+      expect((caught as WorkClassQueueFullError).queueDepth).toBe(4);
+
+      // Queue depth is unaffected by the rejected caller (it never joined).
+      const saturationAfterRejection = getWorkClassSaturation().find(
+        (entry) => entry.workClass === "maintenance"
+      );
+      expect(saturationAfterRejection?.queued).toBe(4);
+
+      active.release();
+      for (const promise of queued) {
+        (await promise).release();
+      }
+    });
+
+    test("after a release frees room in the queue, a new caller can queue again (not permanently rejecting)", async () => {
+      const active = await acquireWorkClassSlot("maintenance", 5_000);
+      const first = acquireWorkClassSlot("maintenance", 5_000);
+      const second = acquireWorkClassSlot("maintenance", 5_000);
+      const third = acquireWorkClassSlot("maintenance", 5_000);
+      const fourth = acquireWorkClassSlot("maintenance", 5_000);
+      await Promise.resolve();
+
+      // Queue is now at its cap (4) — release the active slot, which hands
+      // it directly to the first queued waiter (doc'd releaseSlot
+      // behavior), freeing one queue slot.
+      active.release();
+      const firstSlot = await first;
+
+      const saturationAfterOneHandoff = getWorkClassSaturation().find(
+        (entry) => entry.workClass === "maintenance"
+      );
+      // second/third/fourth are still queued (3), one slot of headroom freed.
+      expect(saturationAfterOneHandoff?.queued).toBe(3);
+
+      // A brand-new caller should now be able to join the queue again
+      // (queued would become 4, still at/under the cap), not be rejected.
+      const fifth = acquireWorkClassSlot("maintenance", 5_000);
+      await Promise.resolve();
+      const saturationWithFifthQueued = getWorkClassSaturation().find(
+        (entry) => entry.workClass === "maintenance"
+      );
+      expect(saturationWithFifthQueued?.queued).toBe(4);
+
+      firstSlot.release();
+      (await second).release();
+      (await third).release();
+      (await fourth).release();
+      (await fifth).release();
+    });
+
+    test("WorkClassQueueFullError and WorkClassTimeoutError are distinct classes (callers can tell 'rejected outright' from 'waited then timed out')", async () => {
+      expect(Object.is(WorkClassQueueFullError, WorkClassTimeoutError)).toBe(
+        false
+      );
+
+      const error = new WorkClassQueueFullError("maintenance", 4);
+      expect(error).not.toBeInstanceOf(WorkClassTimeoutError);
+      expect(error.name).toBe("WorkClassQueueFullError");
+    });
   });
 });
 

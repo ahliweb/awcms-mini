@@ -117,6 +117,53 @@ export const METRIC_DEFINITIONS = {
     approxCardinality: "Exactly 5 — same fixed WorkClass enum.",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   },
+  db_pool_work_class_rejected_total: {
+    name: "db_pool_work_class_rejected_total",
+    type: "counter",
+    description:
+      "Count of database work-class acquisitions rejected immediately (Issue #743) because the bounded FIFO queue for that class was already full — distinct from a queued caller that later timed out (see db_pool_work_class_wait_ms's outcome label).",
+    allowedLabelKeys: ["workClass"],
+    approxCardinality: "Exactly 5 — same fixed WorkClass enum.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  db_pool_work_class_wait_ms: {
+    name: "db_pool_work_class_wait_ms",
+    type: "histogram",
+    description:
+      "How long a caller that had to queue for a database work-class slot (Issue #743) waited, in milliseconds — the 'saturation duration' operational signal. Only recorded for callers that actually queued (immediate, non-saturated acquisitions are not observed here); outcome distinguishes eventually acquiring a slot from timing out.",
+    allowedLabelKeys: ["workClass", "outcome"],
+    approxCardinality:
+      "5 work classes x 2 outcomes (acquired, timeout) = 10 series bound.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  db_pool_capacity_configured_connections: {
+    name: "db_pool_capacity_configured_connections",
+    type: "gauge",
+    description:
+      "This process's configured Bun.SQL pool max, per database process class (Issue #743, src/lib/database/capacity-config.ts) — a per-process, per-class signal, refreshed whenever GET /api/v1/database/pool/health is called.",
+    allowedLabelKeys: ["processClass"],
+    approxCardinality:
+      "Exactly 3 — the fixed ProcessClass enum (app, worker, setup).",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  db_pool_capacity_estimated_total_connections: {
+    name: "db_pool_capacity_estimated_total_connections",
+    type: "gauge",
+    description:
+      "sum(instance_count[class] x pool_max[class]) across every process class, as estimated from THIS process's own capacity configuration (Issue #743) — reported for both the 'expected' and worst-case 'max' configured instance-count scenarios.",
+    allowedLabelKeys: ["scenario"],
+    approxCardinality: "Exactly 2 — scenario is 'expected' or 'max'.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  db_pool_capacity_approved_budget: {
+    name: "db_pool_capacity_approved_budget",
+    type: "gauge",
+    description:
+      "The configured approved PostgreSQL/PgBouncer connection budget (DATABASE_CAPACITY_APPROVED_CONNECTIONS, Issue #743) this process is validating itself against — a single number, no labels.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
   job_run_total: {
     name: "job_run_total",
     type: "counter",

@@ -33,6 +33,22 @@ channels:
       from `withTenant` (`src/lib/database/tenant-context.ts`), consistent
       with how AsyncAPI events have been documented since Issue 0.3 without
       requiring a live producer.
+  awcms-mini.database.pool.rejected:
+    address: awcms-mini.database.pool.rejected
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      Emitted when a work-class concurrency gate's bounded FIFO queue is
+      already full and a caller is rejected IMMEDIATELY, without ever
+      waiting (Issue #743, epic #738 platform-evolution — distinct from
+      `database.pool.saturated` above, which is a caller that waited and
+      THEN timed out; doc 16 §Connection pooling dan backpressure, doc 05
+      "DB Connectivity" category). Documented contract only, same
+      convention as `database.pool.saturated` — the concrete producer is
+      the structured JSON logger (`src/lib/logging/logger.ts`) invoked from
+      `withTenant` (`src/lib/database/tenant-context.ts`) on a
+      `WorkClassQueueFullError`.
   awcms-mini.email.message.queued:
     address: awcms-mini.email.message.queued
     messages:
@@ -579,6 +595,12 @@ operations:
       $ref: "#/channels/awcms-mini.database.pool.saturated"
     messages:
       - $ref: "#/channels/awcms-mini.database.pool.saturated/messages/DomainEvent"
+  publishDatabasePoolRejected:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.database.pool.rejected"
+    messages:
+      - $ref: "#/channels/awcms-mini.database.pool.rejected/messages/DomainEvent"
   publishEmailMessageQueued:
     action: send
     channel:
