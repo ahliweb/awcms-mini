@@ -261,6 +261,55 @@ export const METRIC_DEFINITIONS = {
     allowedLabelKeys: ["consumerName"],
     approxCardinality: "A handful of registered consumer names (2 today).",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  // Issue #747 (epic #738 platform-evolution) — workflow-approval managed
+  // definitions/escalation observability.
+  workflow_instances_active_total: {
+    name: "workflow_instances_active_total",
+    type: "gauge",
+    description:
+      "Current count of `pending` workflow instances for a tenant, sampled by the escalation/timeout job's own pass.",
+    allowedLabelKeys: [],
+    approxCardinality:
+      "Exactly 1 — unlabeled (one value per emitting process per tenant iteration, not itself a label).",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  workflow_tasks_overdue_total: {
+    name: "workflow_tasks_overdue_total",
+    type: "gauge",
+    description:
+      "Current count of `pending` workflow tasks past their `due_at`, sampled by the escalation/timeout job's own pass.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  workflow_task_decision_duration_ms: {
+    name: "workflow_task_decision_duration_ms",
+    type: "histogram",
+    description:
+      "Wall-clock duration of recording a workflow task decision (POST /api/v1/workflows/tasks/{id}/decisions), by outcome.",
+    allowedLabelKeys: ["outcome"],
+    approxCardinality: "Exactly 2 — outcome is 'approved' or 'rejected'.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  workflow_escalation_total: {
+    name: "workflow_escalation_total",
+    type: "counter",
+    description:
+      "Count of workflow tasks escalated by the scheduled escalation/timeout job (`bun run workflow:escalations:dispatch`).",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  workflow_recovery_action_total: {
+    name: "workflow_recovery_action_total",
+    type: "counter",
+    description:
+      "Count of administrative recovery actions (reassign/cancel/force-decision) recorded against workflow tasks/instances.",
+    allowedLabelKeys: ["action"],
+    approxCardinality:
+      "Exactly 3 — action is 'reassign', 'cancel', or 'force_decide'.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   }
 } as const satisfies Record<string, MetricDefinition>;
 

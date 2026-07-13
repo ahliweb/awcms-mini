@@ -108,5 +108,10 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     workClass: "maintenance",
     rationale:
       'Scheduled bounded archive/purge (data-lifecycle:archive-purge, Issue #745) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/form-draft-purge; every withTenant call inside archive-purge-job.ts already passes workClass: "maintenance" explicitly.'
+  },
+  "scripts/workflow-escalations-dispatch.ts": {
+    workClass: "background_sync",
+    rationale:
+      "Escalation/timeout sweep (workflow:escalations:dispatch, Issue #747), recommended every 1-5 minutes — same recurring dispatcher profile as domain-events/social-publish/object-sync dispatch, not a tolerant-of-delay maintenance sweep since it drives due-date/overdue task state operators rely on."
   }
 };

@@ -84,7 +84,20 @@ export type AccessAction =
   // `Idempotency-Key` (replay) and are explicitly audited regardless of
   // this classification.
   | "replay"
-  | "manage";
+  | "manage"
+  // Issue #747 (workflow-approval managed definitions/escalation/recovery):
+  // `workflow.definition.retire` (voluntary retirement of an active
+  // definition version without publishing a replacement — distinct from
+  // `publish`, which retires the PREVIOUS active version only as a side
+  // effect of activating a new one), `workflow.recovery.reassign`
+  // (reassign a pending task's open seats to another tenant user), and
+  // `workflow.recovery.force_decide` (force-approve/force-reject a
+  // pending task, bypassing quorum). All three added to `HIGH_RISK_
+  // ACTIONS` below — each is an administrative override of a running
+  // workflow's normal decision path.
+  | "retire"
+  | "reassign"
+  | "force_decide";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -113,7 +126,10 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "purge",
   "connect",
   "disconnect",
-  "release"
+  "release",
+  "retire",
+  "reassign",
+  "force_decide"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

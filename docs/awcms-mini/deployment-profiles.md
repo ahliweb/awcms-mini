@@ -716,16 +716,17 @@ daftar lengkap dan alasan tiap job dimiliki modul mana. Dua kategori:
 `email:dispatch` di atas (ganti nama command pada contoh crontab),
 idempoten/aman dijalankan berulang, no-op aman bila fiturnya nonaktif:
 
-| Command                        | Modul                | Jadwal disarankan                                                     |
-| ------------------------------ | -------------------- | --------------------------------------------------------------------- |
-| `sync:objects:dispatch`        | sync_storage         | Setiap 1-2 menit                                                      |
-| `logs:audit:purge`             | logging              | Harian                                                                |
-| `form-drafts:purge`            | form_drafts          | Harian                                                                |
-| `analytics:rollup`             | visitor_analytics    | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai)              |
-| `analytics:purge`              | visitor_analytics    | Harian, setelah `analytics:rollup`                                    |
-| `news-media:reconcile`         | news_portal          | Harian (Issue #690)                                                   |
-| `domain-events:dispatch`       | domain_event_runtime | Setiap 30-60 detik (Issue #742)                                       |
-| `data-lifecycle:archive-purge` | data_lifecycle       | Harian (Issue #745, lihat §Data lifecycle archive/purge job di bawah) |
+| Command                         | Modul                | Jadwal disarankan                                                     |
+| ------------------------------- | -------------------- | --------------------------------------------------------------------- |
+| `sync:objects:dispatch`         | sync_storage         | Setiap 1-2 menit                                                      |
+| `logs:audit:purge`              | logging              | Harian                                                                |
+| `form-drafts:purge`             | form_drafts          | Harian                                                                |
+| `analytics:rollup`              | visitor_analytics    | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai)              |
+| `analytics:purge`               | visitor_analytics    | Harian, setelah `analytics:rollup`                                    |
+| `news-media:reconcile`          | news_portal          | Harian (Issue #690)                                                   |
+| `domain-events:dispatch`        | domain_event_runtime | Setiap 30-60 detik (Issue #742)                                       |
+| `data-lifecycle:archive-purge`  | data_lifecycle       | Harian (Issue #745, lihat §Data lifecycle archive/purge job di bawah) |
+| `workflow:escalations:dispatch` | workflow             | Setiap 1-5 menit (Issue #747)                                         |
 
 Semua bersifat operasi database murni (kecuali `sync:objects:dispatch`
 yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`, dan
@@ -754,6 +755,17 @@ yang menumpuk pada satu consumer/aggregate memblokir HANYA aggregate itu
 sendiri (lihat `src/modules/domain-event-runtime/README.md` §Ordering),
 jadi interval pendek menjaga lag tetap rendah tanpa risiko menghantam
 provider eksternal (tidak ada).
+
+`workflow:escalations:dispatch` (Issue #747) adalah operasi PostgreSQL
+murni juga — mengeskalasi `awcms_mini_workflow_tasks` yang melewati
+`due_at`-nya (hanya node `approval` dengan konfigurasi `escalation`),
+aman dijadwalkan di profil offline/LAN. Idempoten via guard optimistic-
+concurrency (`UPDATE ... WHERE status='pending' AND escalation_step=
+<nilai dibaca pass ini>`) — race/duplikat run tidak pernah mengeskalasi
+task yang sama dua kali untuk due event yang sama (lihat
+`src/modules/workflow-approval/README.md` §Escalation/timeout). Jadwal
+1-5 menit cukup rapat untuk SLA approval operasional tanpa membebani
+database (satu `SELECT`+`UPDATE` per task due, dibatasi batch).
 
 `analytics:rollup` (Issue #624) tanpa argumen merangkum "kemarin" (UTC) —
 `--date=YYYY-MM-DD` untuk satu tanggal spesifik atau

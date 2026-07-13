@@ -60,6 +60,7 @@
     "news-media:reconcile": "bun scripts/news-media-r2-reconcile.ts",
     "social-publishing:dispatch": "bun scripts/social-publish-dispatch.ts",
     "domain-events:dispatch": "bun scripts/domain-events-dispatch.ts",
+    "workflow:escalations:dispatch": "bun scripts/workflow-escalations-dispatch.ts",
     "modules:sync": "bun scripts/modules-sync.ts",
     "modules:dag:check": "bun scripts/validate-module-graph.ts",
     "modules:compose:check": "bun scripts/validate-module-composition.ts",

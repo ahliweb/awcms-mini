@@ -2111,6 +2111,11 @@ msgstr ""
 msgid "admin.layout.nav_visitor_analytics"
 msgstr ""
 
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/workflow-approval/module.ts:13
+msgid "admin.layout.nav_workflow_inbox"
+msgstr ""
+
 #: src/layouts/AdminLayout.astro:230
 msgid "admin.layout.no_role"
 msgstr ""
@@ -3617,6 +3622,154 @@ msgstr ""
 
 #: src/pages/admin/tenant/domains.astro:111
 msgid "admin.tenant_domain.verify_success"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:103
+msgid "admin.workflows.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:102
+msgid "admin.workflows.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:78
+msgid "admin.workflows.cancel_confirm"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:77
+msgid "admin.workflows.cancel_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:79
+msgid "admin.workflows.cancel_success"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:175
+msgid "admin.workflows.column_actions"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:174
+msgid "admin.workflows.column_due"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:173
+msgid "admin.workflows.column_node"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:172
+msgid "admin.workflows.column_resource"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:171
+msgid "admin.workflows.column_workflow"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:70
+msgid "admin.workflows.decide_approve_success"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:72
+msgid "admin.workflows.decide_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:71
+msgid "admin.workflows.decide_reject_success"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:163
+msgid "admin.workflows.filter_apply_button"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:154
+msgid "admin.workflows.filter_overdue_label"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:148
+msgid "admin.workflows.filter_resource_type_label"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:158
+msgid "admin.workflows.filter_search_label"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:138
+msgid "admin.workflows.filter_status_cancelled"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:132
+msgid "admin.workflows.filter_status_completed"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:125
+msgid "admin.workflows.filter_status_label"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:129
+msgid "admin.workflows.filter_status_pending"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:135
+msgid "admin.workflows.filter_status_skipped"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:143
+msgid "admin.workflows.filter_workflow_key_label"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:80
+msgid "admin.workflows.force_decide_prompt"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:81
+msgid "admin.workflows.force_decide_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:82
+msgid "admin.workflows.force_decide_success"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:96
+msgid "admin.workflows.heading"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:83
+msgid "admin.workflows.history_empty"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:84
+msgid "admin.workflows.history_load_error"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:185
+msgid "admin.workflows.load_more_button"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:74
+msgid "admin.workflows.reassign_prompt"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:75
+msgid "admin.workflows.reassign_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:76
+msgid "admin.workflows.reassign_success"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:73
+msgid "admin.workflows.reject_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:68
+msgid "admin.workflows.state_empty"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:69
+msgid "admin.workflows.state_error"
+msgstr ""
+
+#: src/pages/admin/workflows/index.astro:67
+msgid "admin.workflows.state_loading"
 msgstr ""
 
 #: src/pages/login.astro:46

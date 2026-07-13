@@ -71,10 +71,24 @@ describe("domain-event-runtime registry <-> AsyncAPI parity (Issue #742)", () =>
     }
   });
 
-  test("module.ts's events.publishes includes every DOMAIN_EVENT_TYPE_REGISTRY entry", () => {
+  test("module.ts's events.publishes includes every domain_event_runtime-OWNED DOMAIN_EVENT_TYPE_REGISTRY entry", () => {
+    // Issue #747 (epic `platform-evolution` #738, Wave 2) is the first
+    // OTHER module (`workflow`) to add its own entries to this shared
+    // registry, exactly as `event-type-registry.ts`'s own doc comment
+    // anticipates ("Future producer modules add their OWN entries here...
+    // and their own module.ts events.publishes entries") — those entries
+    // are correctly declared in `workflow-approval/module.ts`'s OWN
+    // `events.publishes`, not this module's. Scoped to this runtime's own
+    // namespace (`awcms-mini.domain-event-runtime.*`) so this assertion
+    // stays meaningful as more producer modules register here.
     const publishes = new Set(domainEventRuntimeModule.events?.publishes ?? []);
+    const ownedEntries = DOMAIN_EVENT_TYPE_REGISTRY.filter((entry) =>
+      entry.eventType.startsWith("awcms-mini.domain-event-runtime.")
+    );
 
-    for (const entry of DOMAIN_EVENT_TYPE_REGISTRY) {
+    expect(ownedEntries.length).toBeGreaterThan(0);
+
+    for (const entry of ownedEntries) {
       expect(publishes.has(entry.eventType)).toBe(true);
     }
   });

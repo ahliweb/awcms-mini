@@ -30,41 +30,44 @@ flowchart LR
 
 `module_key.activity_code` mengidentifikasi kemampuan. Contoh utama:
 
-| Module key                      | Activity code         | Action tersedia                       |
-| ------------------------------- | --------------------- | ------------------------------------- |
-| `tenant_admin`                  | `office_management`   | read, create, update                  |
-| `identity_access`               | `user_management`     | read, create, update, assign          |
-| `identity_access`               | `access_control`      | read, assign, configure               |
-| `profile_identity`              | `profile_management`  | read, create, update, delete, restore |
-| `profile_identity`              | `profile_merge`       | read, approve                         |
-| `catalog_inventory`             | `product_management`  | read, create, update, delete, restore |
-| `catalog_inventory`             | `price_management`    | read, update                          |
-| `catalog_inventory`             | `stock_management`    | read, update, adjust                  |
-| `sales_pos`                     | `checkout`            | read, create, update                  |
-| `sales_pos`                     | `transaction_posting` | post                                  |
-| `sales_pos`                     | `transaction_cancel`  | cancel, approve                       |
-| `sales_pos`                     | `discount`            | update                                |
-| `warehouse_management`          | `transfer`            | read, create, approve, send, receive  |
-| `warehouse_management`          | `cycle_count`         | read, create, approve                 |
-| `accounting_tax`                | `tax_profile`         | read, configure                       |
-| `accounting_tax`                | `vat_invoice`         | read, create                          |
-| `accounting_tax`                | `coretax_export`      | export, approve                       |
-| `crm_communication`             | `contact`             | read, create, update, delete, restore |
-| `crm_communication`             | `receipt_delivery`    | read, send                            |
-| `sync_storage`                  | `sync`                | read, configure                       |
-| `sync_storage`                  | `conflict_resolution` | read, approve                         |
-| `ai_analyst`                    | `analysis`            | analyze                               |
-| `management_reporting`          | `reports`             | read                                  |
-| `workflow_approval`             | `approval`            | read, approve                         |
-| `observability_logging`         | `logs`                | read                                  |
-| `production_security_readiness` | `go_live`             | read, approve                         |
-| `module_management`             | `modules`             | read, sync                            |
-| `module_management`             | `tenant_modules`      | read, enable, disable                 |
-| `module_management`             | `settings`            | read, update                          |
-| `module_management`             | `permissions`         | read                                  |
-| `module_management`             | `navigation`          | read                                  |
-| `module_management`             | `jobs`                | read                                  |
-| `module_management`             | `health`              | read, check                           |
+| Module key                      | Activity code         | Action tersedia                                            |
+| ------------------------------- | --------------------- | ---------------------------------------------------------- |
+| `tenant_admin`                  | `office_management`   | read, create, update                                       |
+| `identity_access`               | `user_management`     | read, create, update, assign                               |
+| `identity_access`               | `access_control`      | read, assign, configure                                    |
+| `profile_identity`              | `profile_management`  | read, create, update, delete, restore                      |
+| `profile_identity`              | `profile_merge`       | read, approve                                              |
+| `catalog_inventory`             | `product_management`  | read, create, update, delete, restore                      |
+| `catalog_inventory`             | `price_management`    | read, update                                               |
+| `catalog_inventory`             | `stock_management`    | read, update, adjust                                       |
+| `sales_pos`                     | `checkout`            | read, create, update                                       |
+| `sales_pos`                     | `transaction_posting` | post                                                       |
+| `sales_pos`                     | `transaction_cancel`  | cancel, approve                                            |
+| `sales_pos`                     | `discount`            | update                                                     |
+| `warehouse_management`          | `transfer`            | read, create, approve, send, receive                       |
+| `warehouse_management`          | `cycle_count`         | read, create, approve                                      |
+| `accounting_tax`                | `tax_profile`         | read, configure                                            |
+| `accounting_tax`                | `vat_invoice`         | read, create                                               |
+| `accounting_tax`                | `coretax_export`      | export, approve                                            |
+| `crm_communication`             | `contact`             | read, create, update, delete, restore                      |
+| `crm_communication`             | `receipt_delivery`    | read, send                                                 |
+| `sync_storage`                  | `sync`                | read, configure                                            |
+| `sync_storage`                  | `conflict_resolution` | read, approve                                              |
+| `ai_analyst`                    | `analysis`            | analyze                                                    |
+| `management_reporting`          | `reports`             | read                                                       |
+| `workflow_approval`             | `approval`            | read, approve                                              |
+| `workflow_approval`             | `definition`          | read, create, update, publish, retire, delete (Issue #747) |
+| `workflow_approval`             | `recovery`            | reassign, cancel, force_decide (Issue #747)                |
+| `workflow_approval`             | `delegation`          | read, create, revoke (Issue #747)                          |
+| `observability_logging`         | `logs`                | read                                                       |
+| `production_security_readiness` | `go_live`             | read, approve                                              |
+| `module_management`             | `modules`             | read, sync                                                 |
+| `module_management`             | `tenant_modules`      | read, enable, disable                                      |
+| `module_management`             | `settings`            | read, update                                               |
+| `module_management`             | `permissions`         | read                                                       |
+| `module_management`             | `navigation`          | read                                                       |
+| `module_management`             | `jobs`                | read                                                       |
+| `module_management`             | `health`              | read, check                                                |
 
 ## Role default
 
@@ -83,7 +86,7 @@ flowchart LR
 
 ## Matriks role → permission (ringkas)
 
-Legenda action: R=read, C=create, U=update, P=post, X=cancel, A=approve, E=export, S=send, G=assign, N=analyze, F=configure, Y=sync, I=enable, D=disable, K=health check.
+Legenda action: R=read, C=create, U=update, P=post, X=cancel, A=approve, E=export, S=send, G=assign, N=analyze, F=configure, Y=sync, I=enable, D=disable, K=health check. Khusus baris `workflow.*` (Issue #747): B=publish, T=retire, J=reassign, Z=force_decide, V=revoke.
 
 Permission `delete`, `restore`, dan `purge` untuk soft delete tidak tersirat dari `U`; seed harus memberikannya eksplisit per resource dan ABAC tetap default deny untuk archive/restore/purge.
 
@@ -113,6 +116,9 @@ Permission `delete`, `restore`, dan `purge` untuk soft delete tidak tersirat dar
 | ai_analyst.analysis            | N     | –     | –     | –       | –      | –          | –   | –   | N       | –       |
 | reporting.reports              | R     | R     | –     | R       | R      | R          | R   | R   | R       | R       |
 | workflow.approval              | RA    | R     | –     | RA      | –      | –          | –   | –   | –       | R       |
+| workflow.definition            | RCUBT | RCU   | –     | R       | –      | –          | –   | –   | –       | R       |
+| workflow.recovery              | JXZ   | –     | –     | JX      | –      | –          | –   | –   | –       | R       |
+| workflow.delegation            | RCV   | R     | –     | RCV     | –      | –          | –   | –   | –       | R       |
 | logs.logs                      | R     | R     | –     | –       | –      | –          | –   | –   | –       | R       |
 | security.go_live               | RA    | R     | –     | –       | –      | –          | –   | –   | –       | R       |
 | module_management.modules      | RY    | RY    | –     | –       | –      | –          | –   | –   | –       | R       |

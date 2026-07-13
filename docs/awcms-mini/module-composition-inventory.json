@@ -339,16 +339,20 @@
     {
       "key": "workflow",
       "name": "Workflow Approval",
-      "version": "1.0.0",
+      "version": "2.0.0",
       "status": "active",
       "type": null,
       "source": "base",
-      "dependencies": ["tenant_admin", "identity_access"],
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime"
+      ],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
-      "permissionCount": 0,
-      "navigationCount": 0,
-      "jobCount": 0,
+      "permissionCount": 14,
+      "navigationCount": 1,
+      "jobCount": 1,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,
       "deploymentProfiles": null

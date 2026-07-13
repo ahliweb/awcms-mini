@@ -2987,3 +2987,116 @@ msgstr "Social Publish Rules"
 msgid "admin.social_publishing.rules.update_success"
 msgstr "Social publish rule updated."
 
+msgid "admin.layout.nav_workflow_inbox"
+msgstr "Approval Inbox"
+
+msgid "admin.workflows.heading"
+msgstr "Approval Inbox"
+
+msgid "admin.workflows.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.workflows.access_denied_body"
+msgstr "You do not have permission to view the workflow approval inbox."
+
+msgid "admin.workflows.state_loading"
+msgstr "Loading…"
+
+msgid "admin.workflows.state_empty"
+msgstr "No tasks match the current filters."
+
+msgid "admin.workflows.state_error"
+msgstr "Something went wrong loading tasks."
+
+msgid "admin.workflows.filter_status_label"
+msgstr "Status"
+
+msgid "admin.workflows.filter_status_pending"
+msgstr "Pending"
+
+msgid "admin.workflows.filter_status_completed"
+msgstr "Completed"
+
+msgid "admin.workflows.filter_status_skipped"
+msgstr "Skipped"
+
+msgid "admin.workflows.filter_status_cancelled"
+msgstr "Cancelled"
+
+msgid "admin.workflows.filter_workflow_key_label"
+msgstr "Workflow key"
+
+msgid "admin.workflows.filter_resource_type_label"
+msgstr "Resource type"
+
+msgid "admin.workflows.filter_overdue_label"
+msgstr "Overdue only"
+
+msgid "admin.workflows.filter_search_label"
+msgstr "Search"
+
+msgid "admin.workflows.filter_apply_button"
+msgstr "Apply filters"
+
+msgid "admin.workflows.column_workflow"
+msgstr "Workflow"
+
+msgid "admin.workflows.column_resource"
+msgstr "Resource"
+
+msgid "admin.workflows.column_node"
+msgstr "Step"
+
+msgid "admin.workflows.column_due"
+msgstr "Due"
+
+msgid "admin.workflows.column_actions"
+msgstr "Actions"
+
+msgid "admin.workflows.load_more_button"
+msgstr "Load more"
+
+msgid "admin.workflows.decide_approve_success"
+msgstr "Decision recorded: approved."
+
+msgid "admin.workflows.decide_reject_success"
+msgstr "Decision recorded: rejected."
+
+msgid "admin.workflows.decide_reason_prompt"
+msgstr "Reason (optional):"
+
+msgid "admin.workflows.reject_reason_prompt"
+msgstr "Reason for rejection (optional):"
+
+msgid "admin.workflows.reassign_prompt"
+msgstr "Reassign to (tenant user id):"
+
+msgid "admin.workflows.reassign_reason_prompt"
+msgstr "Reason for reassignment:"
+
+msgid "admin.workflows.reassign_success"
+msgstr "Task reassigned."
+
+msgid "admin.workflows.cancel_reason_prompt"
+msgstr "Reason for cancellation:"
+
+msgid "admin.workflows.cancel_confirm"
+msgstr "Cancel this workflow instance? This cannot be undone."
+
+msgid "admin.workflows.cancel_success"
+msgstr "Workflow instance cancelled."
+
+msgid "admin.workflows.force_decide_prompt"
+msgstr "Force decision (approve/reject):"
+
+msgid "admin.workflows.force_decide_reason_prompt"
+msgstr "Reason for administrative override:"
+
+msgid "admin.workflows.force_decide_success"
+msgstr "Task force-decided."
+
+msgid "admin.workflows.history_empty"
+msgstr "No history yet."
+
+msgid "admin.workflows.history_load_error"
+msgstr "Could not load history."
