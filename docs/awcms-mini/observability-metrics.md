@@ -299,3 +299,14 @@ to copy.
   requirements, a healthy closed-circuit database dependency, and an
   open provider circuit reported under its bounded family label with the
   raw tenant-scoped key/tenant id proven absent from the response body.
+
+## Related: performance suite (Issue #744)
+
+[`performance-suite.md`](performance-suite.md)'s `saturation-and-recovery`
+scenario directly reads back the REAL `db_pool_work_class_active`/
+`db_pool_work_class_queued`/`db_pool_work_class_rejected_total` signals
+this document describes (via `getWorkClassSaturation()` — no second
+accounting mechanism) as its recovery proof, and its report artifact
+additionally captures process CPU/memory and `pg_stat_activity`/
+`pg_locks`-derived connection/lock signals — read-only samples, not new
+metrics-port entries.

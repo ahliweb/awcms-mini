@@ -58,6 +58,7 @@ bun run db:migrate           # bila menambah migration
 bun run extension:check      # bila mengubah manifest kompatibilitas aplikasi turunan (extension.manifest.json, Issue #741)
 bun run build                # Astro foundation build
 bun run production:preflight  # cek gabungan pra-deploy
+bun run performance:query-plan:check  # bila mengubah query kritikal (RLS/pagination/search/outbox-claim/retention-purge/reporting) — lihat docs/awcms-mini/performance-suite.md
 ```
 
 Untuk perubahan docs-only, pastikan minimal format Markdown lolos (`bunx prettier --check`) dan tautan internal tidak rusak.

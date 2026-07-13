@@ -320,3 +320,9 @@ bad release:
   pure-function policy checks backing both workflows, unit-tested in
   `tests/unit/changeset-policy-check.test.ts` /
   `tests/unit/release-verify.test.ts`.
+- [`performance-suite.md`](performance-suite.md) — before a release that
+  touches a critical query path or connection/work-class sizing, run the
+  full performance lane (`bun run performance:suite -- --full`) against a
+  staging/isolated environment and compare its JSON report against the
+  previous release's, per that document's §Comparing two releases/commits
+  (Issue #744, epic #738 `platform-evolution`).

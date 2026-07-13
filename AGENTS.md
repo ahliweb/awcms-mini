@@ -278,6 +278,8 @@ bun run config:docs:check        # validasi src/lib/config/registry.ts <-> .env.
 bun run logging:lint:check       # gate: larang console.error/warn dengan raw error/error.message/error.stack tanpa sanitasi di src/pages/admin, src/pages/api/v1, scripts/ (bagian dari `bun run check`, Issue #687)
 bun run production:preflight     # preflight read-only sebelum go-live (config -> security -> connectivity -> spec -> test -> build -> pool -> migration:plan); apply migrasi terpisah & bergerbang (--apply-migrations --backup-verified --acknowledge-target=<APP_ENV>, Issue #684)
 bun run resilience:dr-drill      # failure-injection & DR verification (safety interlock default-deny target produksi; tier safe default, --full menambah restore-drill.sh; Issue #699)
+bun run performance:suite        # performance suite representatif: seed fixture sintetik + skenario load/soak/saturasi-recovery (safety interlock sama dengan dr-drill; tier safe default, --full menambah skala large + soak-stability; Issue #744)
+bun run performance:query-plan:check # budget regresi query-plan versioned (RLS/pagination, search, outbox-claim, retention-purge, reporting) terhadap fixture skala safe (Issue #744)
 bun run email:provider:health    # cek kesehatan provider email (Mailketing)
 bun run sync:objects:dispatch    # job terjadwal: dispatch antrian sync object R2
 bun run logs:audit:purge         # job terjadwal: purge audit log kedaluwarsa

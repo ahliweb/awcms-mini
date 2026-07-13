@@ -38,6 +38,30 @@ Sumber kebenaran: **`docs/awcms-mini/16_backend_data_access_integration.md`** (l
 - Uji beban ringan: query saturasi kelas pool → `503`, mengering ke 0 (bukti backpressure, seperti verifikasi Issue 10.2).
 - Tak ada N+1 baru; tak ada `OFFSET` besar; index cocok dengan predikat.
 
+## Performance suite representatif (Issue #744)
+
+Untuk audit performa yang butuh bukti lebih dari sekadar `EXPLAIN` manual —
+fixture multi-tenant sintetik berskala, skenario load/soak/saturasi-dan-
+recovery, dan budget regresi query-plan versioned — gunakan suite yang
+sudah ada di `src/lib/performance/`, jangan bangun tooling ad hoc baru:
+
+```bash
+# Safe subset (detik) — dijalankan di CI job `quality` (.github/workflows/ci.yml),
+# BUKAN bagian dari komposit `bun run check` (sama seperti resilience:dr-drill):
+bun run performance:suite -- --confirm-non-production=<APP_ENV>
+bun run performance:query-plan:check -- --confirm-non-production=<APP_ENV>
+
+# Full lane (skala besar + soak, terjadwal/manual — --full):
+bun run performance:suite -- --confirm-non-production=<APP_ENV> --full
+```
+
+Menambah budget baru? Registrasikan di
+`src/lib/performance/query-plan-budgets.ts` (SQL pasangannya di
+`query-plan-runner.ts`) dengan `approval.reason` yang jelas — mengubah
+threshold yang sudah ada wajib diff yang direview, bukan flag runtime.
+Lihat [`performance-suite.md`](../../../docs/awcms-mini/performance-suite.md)
+untuk arsitektur lengkap, safe subset vs full lane, dan format artefak.
+
 ## Skill terkait
 
 `awcms-mini-new-migration` (tambah index via migration berurutan), `awcms-mini-integration` (I/O eksternal & outbox), `awcms-mini-testing` (benchmark/load test), `awcms-mini-production-preflight` (`db:pool:health`).
