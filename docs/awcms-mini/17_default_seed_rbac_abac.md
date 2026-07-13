@@ -31,13 +31,13 @@ flowchart LR
 `module_key.activity_code` mengidentifikasi kemampuan. Contoh utama:
 
 | Module key                      | Activity code                | Action tersedia                                            |
-| ------------------------------- | ----------------------------- | ----------------------------------------------------------- |
+| ------------------------------- | ---------------------------- | ---------------------------------------------------------- |
 | `tenant_admin`                  | `office_management`          | read, create, update                                       |
 | `identity_access`               | `user_management`            | read, create, update, assign                               |
 | `identity_access`               | `access_control`             | read, assign, configure                                    |
 | `identity_access`               | `business_scope_assignments` | read, create, revoke (Issue #746)                          |
 | `identity_access`               | `business_scope_conflicts`   | read (Issue #746)                                          |
-| `identity_access`               | `business_scope_exceptions`  | read, create, approve, reject, revoke (Issue #746)          |
+| `identity_access`               | `business_scope_exceptions`  | read, create, approve, reject, revoke (Issue #746)         |
 | `profile_identity`              | `profile_management`         | read, create, update, delete, restore                      |
 | `profile_identity`              | `profile_merge`              | read, approve                                              |
 | `catalog_inventory`             | `product_management`         | read, create, update, delete, restore                      |
