@@ -1,45 +1,79 @@
 ---
 name: awcms-mini-legacy-migration
-description: Kerjakan migrasi data legacy ke AWCMS-Mini dengan aman (Epic 1). Gunakan saat mengimpor data sistem lama, membuat mapping tabel/field legacy, dry-run backfill, atau menjalankan legacy:preflight. Sesuai checklist legacy doc 07.
+description: BACAAN SAJA — migrasi data legacy sengaja DIDESKOP dari base repo AWCMS-Mini (lihat doc 06 §"Riwayat perubahan backlog"). Gunakan skill ini untuk memahami KENAPA fitur ini tidak ada di sini dan ke mana konsep ini harus dibangun (aplikasi turunan, mis. AWPOS) — jangan pakai sebagai panduan implementasi. Command/tabel/issue yang dulu dirujuk di skill ini (`legacy:preflight`, `awcms_mini_legacy_migration_runs`, Issue 1.1/1.2) tidak ada di repo ini.
 ---
 
-# AWCMS-Mini — Legacy Data Migration
+# AWCMS-Mini — Legacy Data Migration (DIDESKOP — bukan bagian base repo ini)
 
-Ikuti `docs/awcms-mini/07_sprint_testing_production_readiness.md` §Legacy migration checklist dan Issue 1.1–1.2 (doc 06 / GitHub #4–#5).
+## Status: sengaja tidak dibangun di sini
 
-## Alur
+Epic "Legacy Migration" (semula Epic 1, Issue 1.1–1.2) ada di backlog awal
+38-issue AWCMS-Mini, tapi **ditutup `not planned`** di GitHub bersama 18
+issue domain POS/retail lain (POS MVP, Warehouse Management, CRM Receipt
+Delivery, Accounting & Coretax, dst.) — total 20 issue domain ditutup,
+Legacy Migration sendiri 2 di antaranya — karena tidak sesuai konteks
+AWCMS-Mini sebagai **contoh repo pengembangan umum** (generic base, bukan
+aplikasi retail). Kontennya **dipindahkan ke aplikasi turunan contoh**
+(mis. AWPOS), bukan dihapus historisnya — lihat memory proyek
+`awpos-standard-refactor` untuk arah standar itu.
 
-```mermaid
-flowchart LR
-  A[Backup legacy] --> B[Import ke schema legacy]
-  B --> C[Hitung row count sumber]
-  C --> D[Mapping tabel/field]
-  D --> E[Scan: duplicate profile/product,<br/>stock negatif, data invalid]
-  E --> F[Dry-run tanpa tulis final]
-  F --> G{Critical error?}
-  G -- Ya --> H[Exit gagal + laporan]
-  G -- Tidak --> I[Backfill bertahap + verifikasi row count]
-```
+Sumber keputusan: `docs/awcms-mini/06_github_issues_detail.md` §"Riwayat
+perubahan backlog (2026-07-04)". Doc itu sekarang lompat langsung dari
+`EPIC 0 — Repository Foundation` ke `EPIC 2 — Tenant, Identity, Profile`
+— tidak ada lagi "EPIC 1" di daftar epic aktif, konsisten dengan status
+`not planned`-nya.
 
-## Aturan wajib
+## Yang TIDAK ada di repo ini — jangan diimplementasikan seolah "melengkapi yang belum selesai"
 
-1. **Backup legacy dulu**; verifikasi restore sebelum menyentuh data.
-2. Import mentah ke schema **`legacy`** terpisah — jangan langsung ke tabel `awcms_mini_*`.
-3. Semua run tercatat di `awcms_mini_legacy_migration_runs` (+ mappings, row counts, validation errors, backfill tasks).
-4. **Password legacy tidak pernah digunakan ulang** — user diberi reset flow; hash lama tidak diimpor.
-5. Identifier (email/phone/NPWP/NIK) dinormalisasi lalu hash+mask via aturan `awcms-mini-sensitive-data`; duplikat di-resolve ke satu profile (bukan buat baru).
-6. Dry-run **tidak menulis data final**; critical error → exit code gagal (`legacy:preflight`).
-7. Backfill idempotent — bisa diulang tanpa duplikasi; verifikasi row count source vs target per tabel.
-8. Stock hasil migrasi masuk sebagai movement `opening_balance` (append-only), bukan update langsung.
-9. Data customer asli tidak boleh masuk fixture/test/commit.
+Semua berikut ini adalah sisa konten epic yang dideskop, **tidak pernah
+dibangun**, dan bukan gap yang perlu diisi di base repo ini:
 
-## Verifikasi
+- Script/command `legacy:preflight` — **tidak ada** di `package.json`
+  (`grep -n "legacy" package.json` kosong).
+- Tabel `awcms_mini_legacy_migration_runs` (atau mapping/row-count/
+  validation-error/backfill-task terkait) — **tidak ada** satu pun
+  migration di `sql/*.sql` yang membuatnya.
+- Schema Postgres terpisah bernama `legacy`.
+- GitHub Issue 1.1/1.2 (referensi lama "#4"/"#5" di repo ini) — kedua
+  nomor itu **tidak resolve** ke issue apa pun di `ahliweb/awcms-mini`
+  (`gh issue view 4`/`gh issue view 5` → "could not resolve").
+- Section "Legacy migration checklist" yang mungkin masih tersisa di
+  `docs/awcms-mini/07_sprint_testing_production_readiness.md` adalah sisa
+  dokumentasi dari epic yang sama — jangan jadikan acuan implementasi
+  tanpa memverifikasi ulang statusnya dulu.
 
-- `bun run legacy:preflight` pass tanpa critical error.
-- Row count source vs target cocok (atau selisih terjelaskan di laporan).
-- Duplicate scan & stock negative scan terlampir di laporan run.
-- Login user hasil migrasi memaksa reset password.
+Jangan menulis migration, script, endpoint, atau test baru berdasarkan
+daftar di atas seakan itu backlog aktif yang tinggal dilengkapi — itu
+bukan, dan tidak ada trace GitHub issue yang mendukungnya di repo ini.
+
+## Kalau butuh migrasi data legacy sungguhan
+
+Migrasi data legacy adalah **concern aplikasi turunan**, bukan base repo
+generik ini. Base repo (`awcms-mini`) menyediakan modul/pola reusable
+(migration toolkit, sensitive-data masking, module scaffold, dst.) yang
+bisa dipakai aplikasi turunan untuk membangun migrasi legacy-nya sendiri
+sesuai domain masing-masing — misalnya AWPOS (retail/POS) menangani
+migrasi data POS/retail legacy-nya sendiri di repo turunannya sendiri,
+bukan di `awcms-mini`.
+
+Kalau kebutuhan itu muncul di sebuah aplikasi turunan:
+
+1. Jangan salin isi lama skill ini sebagai starting point — kontennya
+   (alur dry-run/backfill, nama tabel, command) tidak pernah
+   diimplementasikan atau divalidasi terhadap kode nyata mana pun.
+2. Desain ulang dari kebutuhan domain aplikasi turunan yang sebenarnya
+   (mapping tabel/field sumber, strategi dry-run, verifikasi row count,
+   dsb.), dibangun di atas pola umum base repo yang memang nyata ada:
+   `awcms-mini-new-migration` (schema/RLS), `awcms-mini-sensitive-data`
+   (normalize/hash/mask identifier), `awcms-mini-testing` (strategi test
+   berlapis).
+3. Prinsip umum yang tetap berlaku di mana pun migrasi legacy dibangun:
+   password/credential legacy tidak boleh diimpor ulang — user hasil
+   migrasi harus melalui reset flow, hash lama tidak pernah dipakai
+   langsung untuk login.
 
 ## Skill terkait
 
-`awcms-mini-new-migration` (schema toolkit), `awcms-mini-sensitive-data`, `awcms-mini-testing`.
+`awcms-mini-new-migration` (schema toolkit umum), `awcms-mini-sensitive-data`
+(normalize/hash/mask identifier), `awcms-mini-testing` (strategi test
+berlapis).

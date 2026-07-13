@@ -355,7 +355,15 @@ export type AccessRequest = {
     | "sync"
     | "enable"
     | "disable"
-    | "check";
+    | "check"
+    | "publish"
+    | "schedule"
+    | "archive"
+    | "verify"
+    | "set_primary"
+    | "connect"
+    | "disconnect"
+    | "preview";
   resourceType?: string;
   resourceId?: string;
   resourceAttributes?: Record<string, unknown>;

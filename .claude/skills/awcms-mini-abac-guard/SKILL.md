@@ -46,7 +46,10 @@ type AccessRequest = {
     | "schedule"
     | "archive"
     | "verify"
-    | "set_primary"; // Issue #562 (tenant_domain) — see access-control.ts's own comment for why neither is in HIGH_RISK_ACTIONS
+    | "set_primary" // Issue #562 (tenant_domain) — see access-control.ts's own comment for why neither is in HIGH_RISK_ACTIONS
+    | "connect"
+    | "disconnect" // Issue #643 (social_publishing) — unlike verify/set_primary, BOTH are in HIGH_RISK_ACTIONS (write a credential-bearing token_reference)
+    | "preview"; // Issue #641 (blog_content) — read-only (internal-links preview), not in HIGH_RISK_ACTIONS
   resourceType?: string;
   resourceId?: string;
   resourceAttributes?: Record<string, unknown>;

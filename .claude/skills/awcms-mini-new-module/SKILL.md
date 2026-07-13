@@ -62,7 +62,7 @@ export const <camelCase>Module: ModuleDescriptor = {
 
 Domain retail/POS contoh (aspirational, belum tentu ada di base generik ini): `tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
 
-Modul base generik yang **sudah nyata terdaftar** di repo ini (`src/modules/index.ts`, 14 modul): `tenant-admin`, `profile-identity`, `identity-access`, `sync-storage`, `reporting`, `logging`, `workflow-approval`, `form-drafts`, `email`, `module-management`, `blog-content`, `tenant-domain`, `visitor-analytics`, `news-portal`.
+Modul base generik yang **sudah nyata terdaftar** di repo ini (`src/modules/index.ts`, 16 modul): `tenant-admin`, `profile-identity`, `identity-access`, `sync-storage`, `reporting`, `logging`, `workflow-approval`, `form-drafts`, `email`, `module-management`, `blog-content`, `tenant-domain`, `visitor-analytics`, `news-portal`, `social-publishing`, `idn-admin-regions`.
 
 ## Sebelum scaffold modul baru: cek kebijakan admission
 

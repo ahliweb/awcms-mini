@@ -18,8 +18,10 @@ module, sudah `active`) dan online public routing (`tenant_domain`).
 Modul ini **baru berisi**:
 
 - Module descriptor (`module.ts`) — key `news_portal`, tanpa
-  `permissions`/`navigation`/`api`/`settings`/`jobs`/`health` (belum ada
-  fitur nyata yang membutuhkannya).
+  `settings`/`health` (belum ada fitur nyata yang membutuhkannya).
+  `permissions`/`navigation`/`api`/`jobs` sudah dideklarasikan sejak issue
+  lanjutan (media upload, homepage sections, ad placements, reconciliation
+  job) — lihat catatan drift di atas.
 - Preset tenant module `news_portal_full_online_r2`
   (`../module-management/domain/module-presets.ts`) yang membundel
   `blog_content` + `tenant_domain` + `visitor_analytics` +

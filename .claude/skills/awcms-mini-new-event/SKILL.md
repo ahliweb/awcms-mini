@@ -36,12 +36,26 @@ type DomainEventEnvelope<TPayload> = {
 5. Node hybrid: event masuk `awcms_mini_sync_outbox` untuk sync (`awcms-mini-sync-hmac`).
 6. **Update AsyncAPI** (`asyncapi/`) untuk event & payload baru; jalankan `api:spec:check`.
 
-## Event inti (producer → consumer)
+## Event inti (contoh channel nyata — bukan daftar lengkap)
 
-- `sales.transaction.posted` → Inventory, Tax, CRM, Sync, Reporting, Audit.
-- `warehouse.transfer.shipped/received` → Inventory, Sync, Reporting.
-- `tax.vat_invoice.generated`, `tax.coretax.batch_exported` → Reporting, Audit.
-- `crm.message.sent`, `sync.conflict.detected`, `workflow.task.approved`, `security.golive.blocked`.
+`asyncapi/awcms-mini-domain-events.asyncapi.yaml` adalah satu-satunya
+sumber kebenaran (51 channel terdaftar hari ini — `grep -n "^  awcms-mini\."
+asyncapi/awcms-mini-domain-events.asyncapi.yaml` untuk daftar hidup
+lengkap). Contoh representatif lintas modul yang BENAR-BENAR ada di sana:
+
+- `awcms-mini.blog-content.post.published` (`blog_content`)
+- `awcms-mini.social-publishing.job.published` (`social_publishing`)
+- `awcms-mini.email.message.sent` (`email`)
+- `awcms-mini.sync.push.requested` (baseline envelope `sync-storage`)
+- `awcms-mini.database.pool.saturated` (backpressure/pooling, doc 16)
+
+Jangan karang nama channel domain retail/POS (mis. `sales.*`/
+`warehouse.*`/`tax.*`/`crm.*`) sebagai contoh — modul-modul itu tidak ada
+di base repo ini, dipindahkan ke aplikasi turunan contoh (mis. AWPOS);
+lihat `docs/awcms-mini/06_github_issues_detail.md` §"Riwayat perubahan
+backlog" dan skill `awcms-mini-legacy-migration`. Event baru mengikuti
+pola `namespace.aggregate.action` di atas, dengan `namespace` = `module_key`
+modul nyata yang menerbitkannya.
 
 ## Verifikasi
 

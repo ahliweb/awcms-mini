@@ -196,14 +196,15 @@ masing-masing.
 
 `GET /api/v1/modules/{moduleKey}/permissions` (Issue #517) melaporkan
 `synced`/`missing`/`orphaned`/`mismatched_description` — **read-only**,
-tidak pernah menulis ke `awcms_mini_permissions`. Hanya `module_management`
-dan `blog_content` (sejak Issue #543, 36-entry array) yang sudah
-mendeklarasikan `permissions` di descriptornya; 9 modul lain (email,
-form-drafts, identity-access, logging, profile-identity, reporting,
-sync-storage, tenant-admin, workflow-approval) punya permission seed
-nyata (dari migration masing-masing) tapi belum ditambahkan ke
-descriptor — jadi permission mereka **legitimately** muncul `orphaned`
-hari ini, bukan insiden. Jangan hapus baris `awcms_mini_permissions`
+tidak pernah menulis ke `awcms_mini_permissions`. **7 modul** sudah
+mendeklarasikan `permissions` di descriptornya — `module_management`,
+`blog_content` (sejak Issue #543, 39-entry array), `idn_admin_regions`,
+`news_portal`, `social_publishing`, `tenant_domain`, dan
+`visitor_analytics`; 9 modul lain (email, form-drafts, identity-access,
+logging, profile-identity, reporting, sync-storage, tenant-admin,
+workflow-approval) punya permission seed nyata (dari migration
+masing-masing) tapi belum ditambahkan ke descriptor — jadi permission
+mereka **legitimately** muncul `orphaned` hari ini, bukan insiden. Jangan hapus baris `awcms_mini_permissions`
 berdasarkan laporan ini tanpa keputusan admin eksplisit.
 
 ## Health check — GET pasif, POST eksplisit
@@ -250,7 +251,7 @@ ini), `awcms-mini-abac-guard` (guard bersama yang juga menegakkan
 kategori modul (Core/System/Official Optional Module/Derived Application/
 External Integration), kriteria admission, aturan dependency required vs
 optional (§5, melengkapi `capabilities` di atas), ekspektasi kompatibilitas
-offline/LAN vs full-online-only, dan pemetaan 14 modul terdaftar saat ini
+offline/LAN vs full-online-only, dan pemetaan 16 modul terdaftar saat ini
 ke kategori tersebut (termasuk catatan remediasi field `type`/`isCore`/
 `maintainers` yang belum konsisten diisi — lihat doc 21 §8). Baca dokumen
 itu sebelum mengusulkan modul baru atau mengubah kategori/status lifecycle

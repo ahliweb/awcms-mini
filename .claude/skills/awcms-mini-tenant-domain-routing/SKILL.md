@@ -817,7 +817,7 @@ menguji aturan gating env di atas. Detail lengkap:
 9. **Cloudflare DNS adapter (#567) adalah opsional/enhancement**, bukan hard dependency — epic #555 §Out of scope eksplisit menyebut "making Cloudflare DNS automation a hard dependency" di luar scope. Tenant domain mapping (#557/#562) harus tetap berfungsi tanpa Cloudflare sama sekali (manual DNS setup oleh operator).
 10. **`/news` routes (Issue #560, selesai) reuse `resolvePublicTenantFromRequest()` (Issue #559) langsung** lewat `withNewsTenant()` helper — tidak re-derive hostname→tenant lookup logic lain. `config.mode` untuk panggilan itu dibangun dari `PUBLIC_TENANT_RESOLUTION_MODE`/`PUBLIC_TRUST_PROXY` di `process.env` (resolver sendiri tidak membaca `process.env` untuk keduanya — sengaja, untuk testability; lihat §Resolver). `#562`'s admin API (mutasi domain, tenant-scoped, authenticated) **TIDAK** boleh reuse resolver #559 (yang anonymous/pre-tenant-context) — API #562 memakai `withTenant(...)` biasa seperti endpoint tenant-scoped lain, RLS `awcms_mini_tenant_domains` yang menjaga isolasinya, bukan fungsi `SECURITY DEFINER` (fungsi itu murni untuk bootstrap publik tanpa tenant context).
 
-## Belum ada — jangan asumsikan sudah dikerjakan
+## Residual follow-up — belum ada
 
 **Epic #555 (#556-#567) sekarang 100% selesai** — semua 12 issue sudah
 merge: config (#556), schema `awcms_mini_tenant_domains` (#557), module

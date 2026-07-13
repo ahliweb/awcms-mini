@@ -52,18 +52,23 @@ menginvestigasi ulang dari nol.
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                                                          | Status                            |
-| ----- | ---------------------------------------------------------------------------------------------- | --------------------------------- |
-| #655  | Scaffold modul `idn_admin_regions` (descriptor, permission catalog, README)                    | **Selesai** — lihat §655 di bawah |
-| #656  | Vendor source metadata + license `cahyadsn/wilayah` di bawah `data/idn-admin-regions/`         | **Selesai** — lihat §656 di bawah |
-| #657  | Schema PostgreSQL versioned (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | **Selesai** — lihat §657 di bawah |
-| #658  | Parser & normalizer SQL dump upstream `cahyadsn/wilayah` (MySQL-style insert dumps)            | Belum dikerjakan                  |
-| #659  | Validation gate repository untuk file dataset yang di-vendor/dinormalisasi                     | Belum dikerjakan                  |
-| #660  | Import pipeline PostgreSQL (dry-run/commit)                                                    | Belum dikerjakan                  |
-| #661  | Activation, rollback, dan diff dataset                                                         | Belum dikerjakan                  |
-| #662  | Read-only lookup API wilayah Indonesia                                                         | Belum dikerjakan                  |
-| #663  | Admin UI untuk browse dataset dan status validasi                                              | Belum dikerjakan                  |
-| #664  | SOP, docs, dan security review                                                                 | Belum dikerjakan                  |
+| Issue | Scope                                                                                          | Status                                                           |
+| ----- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| #655  | Scaffold modul `idn_admin_regions` (descriptor, permission catalog, README)                    | **Selesai** — lihat §655 di bawah                                |
+| #656  | Vendor source metadata + license `cahyadsn/wilayah` di bawah `data/idn-admin-regions/`         | **Selesai** — lihat §656 di bawah                                |
+| #657  | Schema PostgreSQL versioned (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | **Selesai** — lihat §657 di bawah                                |
+| #658  | Parser & normalizer SQL dump upstream `cahyadsn/wilayah` (MySQL-style insert dumps)            | Deferred (closed, `NOT_PLANNED` — temporary hold, bukan ditolak) |
+| #659  | Validation gate repository untuk file dataset yang di-vendor/dinormalisasi                     | Deferred (closed, `NOT_PLANNED` — temporary hold, bukan ditolak) |
+| #660  | Import pipeline PostgreSQL (dry-run/commit)                                                    | Deferred (closed, `NOT_PLANNED` — temporary hold, bukan ditolak) |
+| #661  | Activation, rollback, dan diff dataset                                                         | Deferred (closed, `NOT_PLANNED` — temporary hold, bukan ditolak) |
+| #662  | Read-only lookup API wilayah Indonesia                                                         | Deferred (closed, `NOT_PLANNED` — temporary hold, bukan ditolak) |
+| #663  | Admin UI untuk browse dataset dan status validasi                                              | Deferred (closed, `NOT_PLANNED` — temporary hold, bukan ditolak) |
+| #664  | SOP, docs, dan security review                                                                 | Deferred (closed, `NOT_PLANNED` — temporary hold, bukan ditolak) |
+
+**Catatan:** #658-#664 ditutup `NOT_PLANNED` oleh maintainer pada
+2026-07-13 sebagai hold sementara (judul issue berawalan `PENDING:`) —
+**jangan lanjutkan scope ini tanpa maintainer membuka ulang issue-nya
+secara eksplisit.**
 
 Urutan dependency yang disarankan (dari objective masing-masing issue):
 655 → 656 (butuh modul terdaftar untuk `data/idn-admin-regions/` punya
@@ -389,7 +394,7 @@ WHERE status = 'active'`. Karena setiap baris yang ter-index oleh
 - **#660/#661 (import/activate/rollback)**: mutation high-risk — WAJIB
   `Idempotency-Key` (skill `awcms-mini-idempotency`) dan audit event
   (skill `awcms-mini-audit-log`). Import TIDAK boleh memanggil provider
-  eksternal di dalam transaksi DB (aturan wajib #8 AGENTS.md) — tapi
+  eksternal di dalam transaksi DB (aturan wajib #11 AGENTS.md) — tapi
   perhatikan bahwa import #660 tidak melibatkan provider eksternal sama
   sekali (murni baca file lokal + tulis Postgres), jadi aturan ini
   relevan hanya bila implementasi masa depan menambah fetch jarak jauh.

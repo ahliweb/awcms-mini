@@ -121,6 +121,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Migrasi data legacy (dry-run, backfill)                                 | `awcms-mini-legacy-migration`      |
 | Kerjakan bagian mana pun epic blog_content (Issue #537-#543)            | `awcms-mini-blog-content`          |
 | Epic online public routing & tenant domain (Issue #556-#567)            | `awcms-mini-tenant-domain-routing` |
+| Epic full-online auth security hardening (Issue #587-#593)              | `awcms-mini-auth-online-hardening` |
 | Epic visitor analytics (Issue #617-#624)                                | `awcms-mini-visitor-analytics`     |
 | Epic news_portal full-online R2-only media (Issue #631-#642, #649)      | `awcms-mini-news-portal`           |
 | Epic master data wilayah administratif Indonesia (Issue #655-#664)      | `awcms-mini-idn-admin-regions`     |
@@ -172,6 +173,13 @@ flowchart LR
   II --> BLOG[blog-content]
   BLOG --> EP
   BLOG --> MIG
+  II --> AOH[auth-online-hardening]
+  AOH --> MIG
+  AOH --> EP
+  AOH --> IDEM
+  AOH --> ABAC
+  AOH --> AUD
+  AOH --> SD
   II --> VA[visitor-analytics]
   VA --> MIG
   VA --> NM
@@ -297,7 +305,7 @@ awcms-mini/
 ├── AGENTS.md                # file ini
 ├── CHANGELOG.md             # versioning (Changesets)
 ├── .changeset/              # config + changeset entries
-├── .claude/skills/          # 33 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/skills/          # 39 skill proyek (implement-issue, new-migration, dst.)
 ├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
 ├── README.md
 ├── package.json
@@ -333,10 +341,11 @@ Sejumlah concern lintas-modul (i18n/localization, observability wiring, database
 
 Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) pada umumnya **bukan bagian repo ini** — itu ditambahkan di aplikasi turunan contoh (mis. AWPOS) di atas base ini; lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
 
-**Pengecualian:** empat modul didaftarkan **langsung** di repo base ini sebagai contoh referensi (bukan preseden untuk memindahkan modul domain lain seperti POS/gudang ke repo ini) — dua bertipe `domain` (fitur bisnis tenant) dan dua bertipe `system` (infrastruktur platform bersama, lihat kolom Type di `docs/awcms-mini/repo-inventory.md` §Modules untuk status hidup):
+**Pengecualian:** lima modul didaftarkan **langsung** di repo base ini sebagai contoh referensi (bukan preseden untuk memindahkan modul domain lain seperti POS/gudang ke repo ini) — tiga bertipe `domain` (fitur bisnis tenant) dan dua bertipe `system` (infrastruktur platform bersama, lihat kolom Type di `docs/awcms-mini/repo-inventory.md` §Modules untuk status hidup):
 
 - `blog-content` (`blog_content`, `type: domain`) — epic #536, Issue #537 dst., `docs/adr/0009-public-tenant-scoped-routes.md`.
 - `news-portal` (`news_portal`, `type: domain`) — epic #631-#642, #649.
+- `social-publishing` (`social_publishing`, `type: domain`) — epic #643-#647.
 - `tenant-domain` (`tenant_domain`, `type: system`) — epic #555 tenant domain routing, `docs/adr/0010-public-host-tenant-routing.md`.
 - `visitor-analytics` (`visitor_analytics`, `type: system`) — epic #617-#624.
 

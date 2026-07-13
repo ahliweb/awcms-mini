@@ -98,8 +98,8 @@ data, restore-nya bermakna).
 
 - **Kategori & allowlist variabel** — `domain/email-template-categories.ts`.
   `template_key` (format sama seperti constraint SQL) SEKALIGUS menjadi
-  kategori: 5 kategori base fixed (`auth.password_reset`,
-  `system.announcement`, `system.security_notice`,
+  kategori: 6 kategori base fixed (`auth.password_reset`,
+  `system.announcement`, `system.security_notice`, `system.maintenance`,
   `workflow.task_assigned`, `workflow.decision_required`) plus
   `derived.transactional` sebagai contoh; masing-masing punya daftar nama
   variabel yang diizinkan. `derived.*` lain **harus** didaftarkan dulu via

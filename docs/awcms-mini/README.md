@@ -41,6 +41,7 @@ flowchart TB
   subgraph Referensi
     D19[19 Glossary]
     D20[20 Threat Model]
+    D21[21 Module Admission]
     ADR[docs/adr ADRs]
     GH[GitHub Snapshot]
   end
@@ -55,6 +56,7 @@ flowchart TB
   D11 --> D18
   D19 -.rujukan istilah.-> D1
   D20 -.gates keamanan.-> D7
+  D21 -.gates admission modul.-> D11
   ADR -.dasar keputusan.-> D1
   GH -.state aktual.-> D6
 ```
@@ -121,13 +123,18 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 |   8 | `08_sop_operasional_user_guide.md`                    | SOP operasional dan user guide                                                                                                                                                                                                                   |
 |  19 | `19_glossary_terminology.md`                          | Glossary & terminologi lintas dokumen                                                                                                                                                                                                            |
 |  20 | `20_threat_model_security_architecture.md`            | Threat model (STRIDE), trust boundary, kontrol keamanan berlapis (dokumen base, bukan contoh domain)                                                                                                                                             |
-|  21 | `21_module_admission_governance.md`                   | Kategori modul (Core/System/Official Optional/Derived/Integration), pohon keputusan admission, dan pemetaan 14 modul terdaftar (Issue #696)                                                                                                      |
+|  21 | `21_module_admission_governance.md`                   | Kategori modul (Core/System/Official Optional/Derived/Integration), pohon keputusan admission, dan pemetaan 16 modul terdaftar (Issue #696)                                                                                                      |
 |   – | `templates/module-proposal-template.md`               | Proposal ringan untuk modul System/Official Optional Module baru                                                                                                                                                                                 |
 |   – | `templates/module-admission-decision-checklist.md`    | Checklist review PR untuk admission modul + provider eksternal baru                                                                                                                                                                              |
 |   – | `database-migrations.md`                              | Panduan runner migrasi PostgreSQL Bun-native                                                                                                                                                                                                     |
+|   – | `database-pooling.md`                                 | Connection pooling per work class, backpressure, circuit breaker, dan antrean timeout database (Issue 10.2, doc 16/05/20)                                                                                                                        |
 |   – | `deployment-profiles.md`                              | Profil deployment (development/staging/production/offline-LAN) dan model dua-peran basis data                                                                                                                                                    |
+|   – | `observability-metrics.md`                            | Metrics port: counter/histogram/gauge berkardinalitas rendah untuk request/pool/job/provider, SLI/SLO awal, dan endpoint dependency-health (Issue #698, epic #679)                                                                               |
 |   – | `deploy-coolify.md`                                   | Panduan deploy Coolify: single-VPS, multi-aplikasi, opsi PostgreSQL, checklist keamanan (Issue #462)                                                                                                                                             |
 |   – | `production-preflight-runbook.md`                     | Rehearsal staging, bukti backup, apply migrasi bergerbang, dan rollback untuk `bun run production:preflight` (Issue #684, epic #679)                                                                                                             |
+|   – | `production-readiness.md`                             | Implementasi checklist production security readiness: preflight, RLS, RBAC/ABAC default-deny, soft delete/immutability (Issue 10.3, doc 07/03/16/20)                                                                                             |
+|   – | `resilience-dr-verification.md`                       | `bun run resilience:dr-drill`: verifikasi disaster-recovery, katalog skenario failure-injection, dan model keamanannya (Issue #699, epic #679)                                                                                                   |
+|   – | `branch-protection.md`                                | Daftar required status check yang direkomendasikan untuk branch protection `main` (belum diaktifkan) — CI quality/security gate yang sudah berjalan di setiap PR (Issue #685, epic #679)                                                         |
 |   – | `release-process.md`                                  | Rilis otomatis: Changesets gate, SBOM, keyless signing, provenance/attestation, environment approval, dry-run, rollback/yank (Issue #692, epic #679)                                                                                             |
 |   – | `derived-application-guide.md`                        | Panduan membangun aplikasi turunan di atas base (9 langkah + 5 contoh ilustratif + checklist keamanan)                                                                                                                                           |
 |   – | `examples/minimal-domain-module.md`                   | Contoh konkret satu modul domain minimal (Issue #463)                                                                                                                                                                                            |
@@ -142,6 +149,7 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 |   – | `news-portal/social-publishing-security-checklist.md` | Token storage, heuristic anti-raw-secret, redaction, incident response token bocor/post tidak sah, kepatuhan (Issue #647)                                                                                                                        |
 |   – | `../../openapi/` dan `../../asyncapi/`                | Baseline kontrak OpenAPI/AsyncAPI dan validator `api:spec:check`                                                                                                                                                                                 |
 |   – | `api-reference.md`                                    | Referensi API & event GENERATED (`bun run api:docs:generate`) dari kontrak OpenAPI/AsyncAPI ter-bundle — auth, tenant context, pagination, idempotency, error schema, seluruh operation/event, dan kebijakan deprecation (Issue #700, epic #679) |
+|   – | `repo-inventory.md`                                   | Inventory repo GENERATED (`bun run repo:inventory:generate`): modul, migration, tabel/RLS, test, dan route — sumber kebenaran mekanis, dicek `repo:inventory:check` (Issue #688, epic #679)                                                      |
 
 ### Architecture Decision Records
 

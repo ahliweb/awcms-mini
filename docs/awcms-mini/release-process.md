@@ -89,13 +89,19 @@ Two entry points, both converging on the same job graph:
    full quality gate, re-verified at release time rather than trusted from
    a possibly-stale CI run. This is **stricter** than `ci.yml`'s own
    `quality` job, not identical to it: `ci.yml`'s `quality` job does not
-   currently run `i18n:pot:check`, `config:docs:check`, or
-   `logging:lint:check` (reviewer finding on PR #715) — those three checks
-   only run here, so an i18n `.pot` drift, config-docs drift, or a raw-
-   error-logging violation could in principle merge to `main` via a green
-   PR and only surface at tag-push time. Closing that `ci.yml` gap so the
-   two gates are actually identical is tracked as a separate follow-up,
-   out of this issue's scope.
+   currently run five of the thirteen steps `bun run check` runs —
+   `i18n:pot:check`, `config:docs:check`, and `logging:lint:check`
+   (reviewer finding on PR #715), plus `api:docs:check` and
+   `repo:inventory:check` (same category of gap, confirmed directly
+   against `.github/workflows/ci.yml`) — those five checks only run here,
+   so an i18n `.pot` drift, config-docs drift, raw-error-logging
+   violation, API-docs drift, or repo-inventory drift could in principle
+   merge to `main` via a green PR and only surface at tag-push time.
+   Closing that `ci.yml` gap so the two gates are actually identical is
+   tracked as a separate follow-up, out of this issue's scope — see
+   [`branch-protection.md`](branch-protection.md) §Why `bun run check` and
+   CI must stay the same source of truth for the full step-by-step
+   comparison.
 
 ### `build` job (unprivileged: `contents: read`, `packages: write` only)
 

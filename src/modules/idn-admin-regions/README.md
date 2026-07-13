@@ -73,18 +73,24 @@ below. `application/` is currently empty (`.gitkeep` only) — there is no
 application-layer logic to write until a later issue gives this module
 its first real read/write code path.
 
-| Issue | Scope                                                                                          | Status      |
-| ----- | ---------------------------------------------------------------------------------------------- | ----------- |
-| #655  | Scaffold `idn_admin_regions` module (this issue)                                               | **Done**    |
-| #656  | Vendor `cahyadsn/wilayah` source metadata + license under `data/idn-admin-regions/`            | **Done**    |
-| #657  | Versioned PostgreSQL schema (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | **Done**    |
-| #658  | SQL parser/normalizer for upstream MySQL-style dump files                                      | Not started |
-| #659  | Repository validation gate for vendored/normalized dataset files                               | Not started |
-| #660  | PostgreSQL import pipeline (dry-run/commit)                                                    | Not started |
-| #661  | Dataset activation, rollback, and diff                                                         | Not started |
-| #662  | Read-only Indonesia region lookup API                                                          | Not started |
-| #663  | Admin UI for browsing datasets and validation status                                           | Not started |
-| #664  | SOP, docs, and security review                                                                 | Not started |
+| Issue | Scope                                                                                          | Status                               |
+| ----- | ---------------------------------------------------------------------------------------------- | ------------------------------------ |
+| #655  | Scaffold `idn_admin_regions` module (this issue)                                               | **Done**                             |
+| #656  | Vendor `cahyadsn/wilayah` source metadata + license under `data/idn-admin-regions/`            | **Done**                             |
+| #657  | Versioned PostgreSQL schema (`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`) | **Done**                             |
+| #658  | SQL parser/normalizer for upstream MySQL-style dump files                                      | **Deferred** (closed, `NOT_PLANNED`) |
+| #659  | Repository validation gate for vendored/normalized dataset files                               | **Deferred** (closed, `NOT_PLANNED`) |
+| #660  | PostgreSQL import pipeline (dry-run/commit)                                                    | **Deferred** (closed, `NOT_PLANNED`) |
+| #661  | Dataset activation, rollback, and diff                                                         | **Deferred** (closed, `NOT_PLANNED`) |
+| #662  | Read-only Indonesia region lookup API                                                          | **Deferred** (closed, `NOT_PLANNED`) |
+| #663  | Admin UI for browsing datasets and validation status                                           | **Deferred** (closed, `NOT_PLANNED`) |
+| #664  | SOP, docs, and security review                                                                 | **Deferred** (closed, `NOT_PLANNED`) |
+
+**Catatan:** Issue #658-#664 ditutup oleh maintainer sebagai temporary hold
+pada 2026-07-13 (judul memakai prefix "PENDING:", `stateReason:
+NOT_PLANNED` — cek `gh issue view <nomor>` untuk detail). Scope ini
+**tidak boleh** dilanjutkan tanpa maintainer secara eksplisit membuka
+kembali (reopen) issue-issue tersebut.
 
 ## Permission seed (migration `048_awcms_mini_idn_admin_regions_permissions.sql`, Issue #655)
 

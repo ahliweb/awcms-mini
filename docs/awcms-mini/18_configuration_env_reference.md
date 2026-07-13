@@ -758,10 +758,16 @@ approval, retry/backoff. Full-online-only, gate DUA-flag sama pola
 `AUTH_ONLINE_SECURITY_ENABLED`/`_PROFILE`
 (`src/lib/auth/online-security-config.ts`) — **bukan** reuse
 `NEWS_PORTAL_ENABLED`/`_PROFILE` (keputusan deployment berbeda, lihat
-`.claude/skills/awcms-mini-social-publishing/SKILL.md`). Issue ini TIDAK
-mengirim satu pun panggilan HTTP nyata ke Meta/LinkedIn/Telegram — adapter
-provider nyata adalah issue terpisah (#644/#645/#646) yang mendaftar ke
-`social-provider-registry.ts`'s registry (kosong secara default).
+`.claude/skills/awcms-mini-social-publishing/SKILL.md`). Modul foundation
+ini sendiri (#643) tidak pernah mengirim panggilan HTTP nyata ke
+Meta/LinkedIn/Telegram — tapi ketiga adapter provider NYATA sudah
+di-deploy sebagai issue terpisah dan terdaftar ke
+`social-provider-registry.ts`'s registry: Meta (`meta_facebook_page`,
+`meta_instagram`, Issue #644) dan Telegram (`telegram_channel`, Issue
+#646) terdaftar TANPA SYARAT (unconditional, independen dari flag
+enable-nya sendiri), LinkedIn (`linkedin_organization`, Issue #645)
+terdaftar bersyarat pada `LINKEDIN_PROVIDER_ENABLED`. Lihat masing-masing
+bagian adapter di bawah untuk detail var env per provider.
 
 | Var                         | Wajib        | Default | Sensitif | Fungsi                                                      |
 | --------------------------- | ------------ | ------- | -------- | ----------------------------------------------------------- |
@@ -773,8 +779,10 @@ boot bila `SOCIAL_PUBLISHING_ENABLED=true` tapi `SOCIAL_PUBLISHING_PROFILE`
 bukan `full_online`. `bun run security:readiness`
 (`checkSocialPublishingProviderReadiness`, critical) menolak (fail) bila
 ada tenant dengan akun sosial `connected` yang `provider_key`-nya belum
-punya adapter terdaftar — memberi sinyal jelas begitu operator
-menghubungkan akun sebelum adapter provider sungguhan (#644/#645/#646)
+punya adapter terdaftar — sinyal nyata hari ini adalah akun
+`linkedin_organization` yang `connected` tapi `LINKEDIN_PROVIDER_ENABLED`
+belum di-set (adapternya jadi tidak terdaftar, lihat §645 di bawah),
+karena Meta dan Telegram sudah terdaftar tanpa syarat sejak #644/#646
 di-deploy.
 
 ### LinkedIn organization-page adapter (Issue #645)
