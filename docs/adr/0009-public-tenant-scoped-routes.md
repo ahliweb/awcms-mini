@@ -1,6 +1,6 @@
 # ADR-0009 — Resolusi tenant untuk rute publik (tanpa sesi)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Tanggal:** 2026-07-07
 - **Pengambil keputusan:** <maintainer>
 - **Terkait:** `docs/awcms-mini/15_frontend_architecture_integration.md`, `docs/awcms-mini/16_backend_data_access_integration.md`, `docs/awcms-mini/18_configuration_env_reference.md` §Topologi deployment LAN-first, Issue #540 (epic #536, `blog_content`), ADR-0003

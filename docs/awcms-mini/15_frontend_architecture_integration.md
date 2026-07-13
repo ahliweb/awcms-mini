@@ -60,33 +60,79 @@ flowchart TB
 
 ## API client
 
-Wrapper `fetch` bertipe di `src/lib/api-client.ts`.
+**Catatan kejujuran status.** Bagian ini sebelumnya mendeskripsikan sebuah
+typed fetch wrapper di `src/lib/api-client.ts` dengan kontrak
+`ApiResult<T>`/`apiFetch<T>()` — **file itu tidak pernah ada** (`find src
+-iname "api-client*"` nol hasil). Yang benar-benar di-deploy (Issue #434)
+adalah `submitJson`/`fetchJson` di `src/lib/ui/admin-form-client.ts`,
+dipakai oleh script inline halaman admin (`login.astro`,
+`admin/access-users.astro`, `admin/sync.astro`, `admin/settings.astro`,
+dan halaman admin lain yang menyusul). Perilaku NYATA-nya, jauh lebih
+sederhana dari deskripsi lama:
 
-Tanggung jawab:
-
-1. Base URL `/api/v1`.
-2. Inject header: `Authorization` (dari sesi), `X-AWCMS-Mini-Tenant-ID`, `X-Correlation-ID`, `Accept-Language`; `Idempotency-Key` untuk mutation high-risk.
-3. Normalisasi response `{ success, data, meta }` / `{ success:false, error }`.
-4. Map error code (doc 05) → pesan i18n + state UI (doc 14).
-5. Retry aman untuk GET; mutation high-risk retry hanya dengan idempotency key sama.
-6. Timeout + deteksi offline → fallback ke outbox (untuk aksi yang didukung offline).
-7. Untuk resource soft-deletable, list default tidak mengirim `includeDeleted`; archive view mengirim `includeDeleted=true` hanya setelah permission efektif tersedia.
+1. **Auth**: `credentials: "same-origin"` — mengandalkan cookie httpOnly
+   sesi yang browser kirim otomatis. TIDAK ADA header `Authorization`
+   yang di-inject manual oleh client ini.
+2. **Tenant/correlation header**: TIDAK ADA injeksi otomatis
+   `X-AWCMS-Mini-Tenant-ID`/`X-Correlation-ID` dari client. Tenant selalu
+   diresolusi server-side dari sesi (`src/middleware.ts`: "never a
+   client-supplied value, closing the cross-tenant..."); correlation ID
+   dibaca-atau-dibuat server-side juga (`src/middleware.ts`,
+   `CORRELATION_ID_HEADER`).
+3. **Idempotency**: **tidak otomatis** — pemanggil membuat sendiri lewat
+   `newIdempotencyKey()` (`crypto.randomUUID()`) dan mengirimnya manual
+   per-panggilan lewat parameter `extraHeaders` ke `submitJson(url,
+method, body, strings, extraHeaders)` (pola dipakai lifecycle action
+   `admin/blog/*`, Issue #543).
+4. **Retry**: **tidak ada** retry otomatis sama sekali (GET maupun
+   mutation) — satu percobaan; kegagalan network dipetakan ke `{ ok:
+false, message: strings.networkError }`.
+5. **Offline-outbox**: **tidak ada** integrasi IndexedDB/service-worker
+   outbox di client ini.
+6. **Response envelope**: `submitJson`/`fetchJson` mem-parse envelope
+   standar `{ success, data }` / `{ success: false, error }`
+   (`modules/_shared/api-response.ts`) dan memetakan `error.code` lewat
+   `strings.errorMessages` (i18n) — tidak pernah membocorkan stack/detail
+   internal ke UI (doc 10).
+7. **UX pendukung**: `lockElement` men-disable tombol + `aria-busy` selama
+   request in-flight (cegah double-submit dari klik/Enter ganda);
+   `showBanner`/`reloadAfterDelay` untuk feedback sukses/gagal.
 
 ```ts
-type ApiResult<T> =
-  | { ok: true; data: T; meta?: { correlationId?: string; requestId?: string } }
-  | {
-      ok: false;
-      error: { code: string; message: string; details?: unknown[] };
-    };
+// src/lib/ui/admin-form-client.ts — kontrak nyata (bukan ilustrasi)
+async function submitJson(
+  url: string,
+  method: string,
+  body: unknown,
+  strings: ClientErrorStrings,
+  extraHeaders?: Record<string, string> // mis. { "Idempotency-Key": newIdempotencyKey() }
+): Promise<{ ok: boolean; code?: string; message: string }> {
+  /* fetch same-origin, parse envelope, tidak pernah throw */
+}
 
-async function apiFetch<T>(
-  path: string,
-  init?: RequestInit & { idempotencyKey?: string }
-): Promise<ApiResult<T>> {
-  /* ... */
+async function fetchJson<TData = unknown>(
+  url: string,
+  strings: ClientErrorStrings
+): Promise<{
+  ok: boolean;
+  status: number;
+  code?: string;
+  message: string;
+  data: TData | null;
+}> {
+  /* GET same-origin, parse envelope, tidak pernah throw */
 }
 ```
+
+**Belum dibangun (aspirasi, bukan kontrak nyata hari ini).** Sebuah typed
+API client generik lintas-modul dengan tanggung jawab lebih luas — base
+URL `/api/v1` terpusat, injeksi header Authorization/tenant/correlation
+otomatis, retry aman untuk GET, timeout + deteksi offline dengan fallback
+outbox — tetap **target masa depan yang legitimate** bila kompleksitas
+client-side bertambah (mis. island POS yang butuh retry/offline
+sungguhan), tapi TIDAK ADA di repo ini hari ini. Jangan berasumsi
+`src/lib/api-client.ts` ada saat membaca kode atau menulis panduan baru —
+rujuk `admin-form-client.ts` di atas untuk pola nyata yang sudah dipakai.
 
 ## Autentikasi dan sesi
 

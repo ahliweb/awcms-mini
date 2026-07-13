@@ -509,25 +509,38 @@ sudah berlaku sama di sini.
 ## Standar tambahan dipicu epic platform-hardening (Issue #683, epic #679)
 
 Migration 013 memberi `awcms_mini_app` DML penuh (`SELECT/INSERT/UPDATE/
-DELETE`) di SEMUA tabel `public.awcms_mini_*` — benar untuk ~76 tabel
-tenant-scoped (RLS FORCE'd, itu batas keamanan sesungguhnya, ADR-0003),
-tapi juga menjangkau 9 tabel GLOBAL (non-RLS): katalog permission,
-ledger migrasi, kunci setup singleton, tabel root tenant, dan registry
-modul + 4 turunannya. Satu role yang sama yang melayani setiap request
-tenant biasa punya akses tulis penuh ke data yang seharusnya hanya
-ditulis oleh migration/setup wizard.
+DELETE`) di SEMUA tabel `public.awcms_mini_*` secara otomatis (`ALTER
+DEFAULT PRIVILEGES`) — benar untuk ~76 tabel tenant-scoped (RLS FORCE'd,
+itu batas keamanan sesungguhnya, ADR-0003), tapi juga menjangkau tabel
+GLOBAL (non-RLS): saat migration 013/045 berjalan, itu 9 tabel (katalog
+permission, ledger migrasi, kunci setup singleton, tabel root tenant, dan
+registry modul + 4 turunannya). Satu role yang sama yang melayani setiap
+request tenant biasa punya akses tulis penuh ke data yang seharusnya
+hanya ditulis oleh migration/setup wizard — itulah yang dipersempit
+migration 045 di bawah.
+
+Registry tabel GLOBAL (non-RLS) sekarang berjumlah **11**
+(`RLS_FREE_TABLES`, `scripts/security-readiness.ts`): 9 tabel di atas
+ditambah dua tabel referensi wilayah administratif Indonesia
+(`awcms_mini_idn_region_datasets`, `awcms_mini_idn_admin_regions`,
+migration 054, Issue #657) yang ditambahkan belakangan. Kedua tabel baru
+ini TIDAK mengalami periode akses tulis penuh yang dialami 9 tabel
+sebelumnya — migration 054 langsung mengikuti pola least-privilege
+migration 045 sejak awal (`REVOKE ALL ... FROM awcms_mini_app` di
+migration yang sama persis setelah `CREATE TABLE`), jadi `awcms_mini_app`
+mengakhiri migration 054 dengan nol grant di kedua tabel itu.
 
 `sql/045_awcms_mini_db_role_separation.sql` memisahkan menjadi EMPAT
 role, masing-masing hanya diberi hak yang benar-benar dipakai jalur
 kodenya (diverifikasi per-jalur lewat grep, bukan diasumsikan — lihat
 header migration untuk evidence lengkap):
 
-| Role                | Env var               | Dipakai oleh                                                                                                             |
-| ------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Migration owner     | `DATABASE_URL` (CLI)  | `bun run db:migrate` saja — satu-satunya yang bisa `ALTER`/`DROP`/`GRANT`.                                               |
-| `awcms_mini_app`    | `DATABASE_URL`        | Setiap HTTP request biasa. Dipersempit di 9 tabel global (lihat matriks di header migration).                            |
-| `awcms_mini_worker` | `WORKER_DATABASE_URL` | 7 script cron/systemd-timer tanpa endpoint HTTP. Nol akses ke 9 tabel global kecuali `SELECT` di `awcms_mini_tenants`.   |
-| `awcms_mini_setup`  | `SETUP_DATABASE_URL`  | Hanya `POST /api/v1/setup/initialize`. Defense-in-depth di atas kunci singleton `awcms_mini_setup_state` yang sudah ada. |
+| Role                | Env var               | Dipakai oleh                                                                                                                                                                                                                 |
+| ------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migration owner     | `DATABASE_URL` (CLI)  | `bun run db:migrate` saja — satu-satunya yang bisa `ALTER`/`DROP`/`GRANT`.                                                                                                                                                   |
+| `awcms_mini_app`    | `DATABASE_URL`        | Setiap HTTP request biasa. Dipersempit di 11 tabel global — 9 via matriks di header migration 045, ditambah 2 tabel referensi wilayah administratif Indonesia (Issue #657) via revoke langsung di migration 054 (nol grant). |
+| `awcms_mini_worker` | `WORKER_DATABASE_URL` | 7 script cron/systemd-timer tanpa endpoint HTTP. Nol akses ke 11 tabel global kecuali `SELECT` di `awcms_mini_tenants`.                                                                                                      |
+| `awcms_mini_setup`  | `SETUP_DATABASE_URL`  | Hanya `POST /api/v1/setup/initialize`. Defense-in-depth di atas kunci singleton `awcms_mini_setup_state` yang sudah ada.                                                                                                     |
 
 `WORKER_DATABASE_URL`/`SETUP_DATABASE_URL` opsional — fallback ke
 `DATABASE_URL` (`awcms_mini_app`, sudah dipersempit) bila tidak di-set,
@@ -537,8 +550,10 @@ lebih aman dari sebelumnya, hanya kehilangan lapisan isolasi tambahan.
 Regression guard: `bun run security:readiness`'s
 `checkRuntimeRoleGlobalTableGrants` (critical) membaca grant nyata dari
 `pg_class.relacl` untuk ketiga role runtime dan menolak migration masa
-depan yang tanpa sengaja memberi grant tambahan di salah satu dari 9
-tabel global tersebut — melengkapi (bukan mengganti) `checkRlsEnabled`/
+depan yang tanpa sengaja memberi grant tambahan di salah satu dari 11
+tabel global tersebut (termasuk dua tabel referensi wilayah Issue #657,
+yang diberi entri nol-grant eksplisit di `ALLOWED_GLOBAL_TABLE_GRANTS`) —
+melengkapi (bukan mengganti) `checkRlsEnabled`/
 `checkAppDbUserNotSuperuser` yang sudah ada untuk tabel tenant-scoped.
 Dibuktikan hidup lewat
 `tests/integration/db-role-separation.integration.test.ts` — koneksi
@@ -564,8 +579,11 @@ PRIVILEGES` yang sudah ada (migration 013) tetap otomatis memberi
   depan, sengaja dipertahankan karena RLS FORCE adalah batas keamanan
   sesungguhnya di sana (ADR-0003) — mempersempit grant DB di lapisan
   itu tidak menambah keamanan nyata, hanya menambah beban migrasi
-  setiap tabel baru. Yang tidak tercakup convenience ini justru 9 tabel
-  GLOBAL (non-RLS) — itulah yang dijaga `checkRuntimeRoleGlobalTableGrants`.
+  setiap tabel baru. Yang tidak tercakup convenience ini justru 11 tabel
+  GLOBAL (non-RLS) — termasuk 2 tabel referensi wilayah administratif
+  Indonesia yang ditambahkan belakangan (`awcms_mini_idn_region_datasets`,
+  `awcms_mini_idn_admin_regions`, migration 054, Issue #657) — itulah yang
+  dijaga `checkRuntimeRoleGlobalTableGrants`.
 
 ## Standar tambahan dipicu epic platform-hardening (Issue #686, epic #679)
 

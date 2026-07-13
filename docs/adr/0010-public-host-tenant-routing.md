@@ -1,6 +1,6 @@
 # ADR-0010 — Host/domain-based public tenant routing (online-public extension)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Tanggal:** 2026-07-08
 - **Pengambil keputusan:** <maintainer>
 - **Terkait:** `docs/adr/0009-public-tenant-scoped-routes.md`, `docs/adr/0003-postgresql-rls-multi-tenant.md`, `docs/awcms-mini/deployment-profiles.md` §Profil online, `docs/awcms-mini/18_configuration_env_reference.md` §Public routing, `src/modules/blog-content/README.md` §`/news` (default) vs `/blog/{tenantCode}` (legacy), `.claude/skills/awcms-mini-tenant-domain-routing/SKILL.md`, Issue #556-#561 (epic #555)

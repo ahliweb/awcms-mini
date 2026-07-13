@@ -71,17 +71,39 @@ check requirement this doc is about.)
 
 ## Why `bun run check` and CI must stay the same source of truth
 
-`package.json`'s `check` script is intentionally the same ordered list of
-steps `.github/workflows/ci.yml`'s `quality` job runs one-by-one (Issue
-#685) — `lint`, `check:docs`, `api:spec:check`, `modules:dag:check`,
-`i18n:parity:check`, `typecheck`, `test`, `build`. Before this issue, CI
-silently ran a SUBSET of `check` (missing `api:spec:check` and
-`modules:dag:check` entirely), so a contract or module-graph regression
-could pass CI and merge to `main` while `bun run check` would have caught
-it locally. Whenever a new step is added to `bun run check`, add the
-matching named step to `ci.yml`'s `quality` job in the same PR — the two
-drifting apart again is exactly the failure mode this issue exists to
-close.
+`package.json`'s `check` script runs **13** steps in order: `lint`,
+`check:docs`, `api:spec:check`, `api:docs:check`, `repo:inventory:check`,
+`modules:dag:check`, `i18n:pot:check`, `i18n:parity:check`,
+`config:docs:check`, `logging:lint:check`, `typecheck`, `test`, `build`.
+
+`.github/workflows/ci.yml`'s `quality` job (verified directly against the
+workflow file) currently runs only **8** of those 13, as named steps in
+this order: `lint` ("Prettier check"), `check:docs` ("Docs checks"),
+`api:spec:check` ("API spec + route + AsyncAPI contract check"),
+`modules:dag:check` ("Module dependency graph check"), `i18n:parity:check`
+("i18n EN/ID/POT key parity check"), `typecheck`, `test` (as `bun test`,
+after a separate `db:migrate` setup step), and `build` ("Build Astro
+foundation") — plus a DR/resilience-drill step that isn't part of `bun run
+check` at all. Before Issue #685, CI silently ran a subset of `check`
+missing `api:spec:check` and `modules:dag:check` entirely; Issue #685
+closed that gap for those two, but **5 steps still only run in
+`release.yml`**, not in `ci.yml`'s `quality` job: `api:docs:check`,
+`repo:inventory:check`, `i18n:pot:check`, `config:docs:check`, and
+`logging:lint:check` — all 13 run there via one "Full quality gate (`bun
+run check`)" step against a real, migrated Postgres service (reviewer
+finding on PR #715 originally flagged the last three of these five; see
+[`release-process.md`](release-process.md) §3 for the full context).
+
+Concretely, this means an API-docs drift, a repo-inventory drift, an i18n
+`.pot` drift, a config-docs drift, or a raw-error-logging violation can
+merge to `main` via a green PR today and only surface when a release tag
+is pushed — closing this gap (either by adding the 5 missing steps to
+`ci.yml`'s `quality` job, or by accepting the two-tier design explicitly)
+is tracked as a separate follow-up, out of this doc's own scope to apply.
+Whenever a new step is added to `bun run check`, add the matching named
+step to `ci.yml`'s `quality` job in the same PR (or explicitly document
+why it stays release-only) — silent drift between the two is exactly the
+failure mode Issue #685 exists to close.
 
 ## Lihat juga
 
