@@ -31,6 +31,20 @@ that shape:
   `ApplicationModuleRegistry` combining both modules plus a declared
   `migrationNamespace` (`900-999`, non-overlapping with the base's own
   reserved `1-899`).
+- [`extension.manifest.json`](extension.manifest.json) +
+  [`sql/900_example_crm_schema.sql`](sql/900_example_crm_schema.sql)
+  (Issue #741, epic #738 `platform-evolution`, Wave 1, ADR-0015) — the
+  COMPATIBLE derived-application compatibility manifest a real derived
+  repository would publish at its own repository root, checked by
+  `bun run extension:check`
+  (`scripts/extension-check.ts` →
+  `src/modules/module-management/domain/extension-compatibility.ts`).
+  The `.sql` file is illustration-only (never applied to a real
+  database) — it exists so the manifest's `migrations.historicalChecksums`
+  entry has a real file to declare an immutable checksum against. See
+  [`../extension-contract-incompatible/README.md`](../extension-contract-incompatible/README.md)
+  for eight sibling fixtures, each this same manifest with exactly one
+  deliberate incompatibility.
 
 ## What it proves (see the consuming test)
 
@@ -40,6 +54,9 @@ that shape:
   same whole-registry DAG check `bun run modules:dag:check` runs.
 - The base repository's own `listModules()`/`src/modules/index.ts` are
   completely unaffected — this fixture is never wired into either.
+- `extension.manifest.json` passes `bun run extension:check` end to end
+  (real spawned CLI, not just a direct function call) — see
+  [`tests/unit/extension-check-fixtures.test.ts`](../../unit/extension-check-fixtures.test.ts).
 
 ## What this is not
 

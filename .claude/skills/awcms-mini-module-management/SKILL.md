@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-module-management
-description: Kelola/konsumsi sistem Module Management AWCMS-Mini (registry, komposisi modul build-time untuk aplikasi turunan, tenant lifecycle enable/disable, settings, permission sync/status, navigation, job registry, health/readiness). Gunakan saat menambah field descriptor baru (permissions/navigation/settings/jobs/health) di modul lain, saat menyelidiki kenapa suatu modul terlihat degraded/orphaned, saat aplikasi turunan perlu menyusun modulnya sendiri lewat `src/modules/application-registry.ts` tanpa mengedit registry base, atau saat mengubah perilaku enable/disable/settings/health module_management sendiri. Sesuai src/modules/module-management/README.md, epic #510, epic #738 (Issue #740, ADR-0014).
+description: Kelola/konsumsi sistem Module Management AWCMS-Mini (registry, komposisi modul build-time untuk aplikasi turunan, manifest kompatibilitas aplikasi turunan, tenant lifecycle enable/disable, settings, permission sync/status, navigation, job registry, health/readiness). Gunakan saat menambah field descriptor baru (permissions/navigation/settings/jobs/health) di modul lain, saat menyelidiki kenapa suatu modul terlihat degraded/orphaned, saat aplikasi turunan perlu menyusun modulnya sendiri lewat `src/modules/application-registry.ts` tanpa mengedit registry base, saat aplikasi turunan perlu memverifikasi kompatibilitasnya dengan rilis base terbaru (`bun run extension:check`), atau saat mengubah perilaku enable/disable/settings/health module_management sendiri. Sesuai src/modules/module-management/README.md, epic #510, epic #738 (Issue #740/ADR-0014, Issue #741/ADR-0015).
 ---
 
 # AWCMS-Mini — Module Management System
@@ -311,3 +311,65 @@ migrationNamespace` (opsional) mendeklarasikan range milik repo turunan
 Detail keputusan lengkap: `docs/adr/0014-deterministic-build-time-module-
 composition.md`. Panduan penggunaan dari sisi aplikasi turunan:
 `docs/awcms-mini/derived-application-guide.md` §langkah 2.
+
+## Manifest kompatibilitas aplikasi turunan (Issue #741, ADR-0015)
+
+Pertanyaan BERBEDA lagi dari komposisi (§ di atas, yang membuktikan
+registry TypeScript Anda valid HARI INI): apakah aplikasi turunan Anda
+TETAP kompatibel begitu base ini merilis versi baru. Jawabannya
+`src/modules/module-management/domain/extension-compatibility.ts` +
+`bun run extension:check` (`scripts/extension-check.ts`) — dua lapisan
+digabung satu laporan:
+
+1. **`composeModuleRegistry()`** (§ di atas, dipakai ulang APA ADANYA) —
+   terhadap registry TypeScript nyata. Selalu jalan, dengan atau tanpa
+   manifest.
+2. **`evaluateExtensionManifest()`** (baru) — terhadap
+   `extension.manifest.json`/`.yaml` yang Anda publikasikan di root repo
+   turunan Anda (skema: `src/modules/_shared/extension-manifest-
+contract.ts`). Hanya jalan bila file itu ditemukan — **tidak ada** file
+   itu di repo base ini sendiri (dengan sengaja), jadi `bun run
+extension:check` di sini selalu lulus trivial, sama seperti
+   `applicationModuleRegistry === undefined`.
+
+Manifest memvalidasi: range SemVer base yang kompatibel
+(`compatibleAwcmsMiniRange`, terhadap `package.json` base nyata), versi
+module-contract (`moduleContractVersion`, terhadap
+`MODULE_CONTRACT_VERSION` konstanta baru di `_shared/module-contract.ts`),
+versi capability yang dikonsumsi/disediakan (`capabilities.requires`/
+`.provides`, terhadap `CAPABILITY_CONTRACT_VERSIONS` registry global baru
+di `_shared/capability-contract-versions.ts` — capability yang tidak
+ditemukan di registry global dicek ulang terhadap `capabilities.provides`
+manifest itu SENDIRI, untuk kasus satu modul aplikasi turunan mengonsumsi
+capability modul aplikasi turunan lain), immutabilitas+ordering checksum
+migration historis (`migrations.historicalChecksums`, checksum dihitung
+ulang persis dengan `computeMigrationChecksum`/
+`stripOptionalTransactionWrapper` yang sama dipakai `bun run db:migrate`
+— **bukan** `discoverMigrationFiles`'s sendiri, yang naming pattern-nya
+hardcode `_awcms_mini_`), profil deployment wajib
+(`deployment.requiredProfiles` vs `contributedModules[].deploymentProfiles`
+self-declared), dan staleness versi kontrak OpenAPI/AsyncAPI yang
+dikonsumsi (`consumes.openApiContractVersion`/`.asyncApiContractVersion`,
+terhadap `info.version` nyata, aturan MAJOR/MINOR ADR-0008).
+
+**Wiring nyata, bukan cuma script berdiri sendiri** (pelajaran eksplisit
+dari PR #769/#770's kegagalan wiring pada wave yang sama) — tiga tempat:
+`package.json`'s `check` composite, `.github/workflows/ci.yml`'s
+`quality` job (langkah bernama eksplisit, bukan diasumsikan otomatis dari
+`bun run check`), dan `scripts/production-preflight.ts`'s stage list
+(tepat setelah `modules:compose:check`, alasan yang sama persis). `bun
+run release:verify`/`release.yml` tercakup otomatis lewat `bun run check`.
+
+Fixture: satu manifest COMPATIBLE
+(`tests/fixtures/derived-application-example/extension.manifest.json`) +
+delapan manifest INCOMPATIBLE, masing-masing gagal untuk alasan berbeda
+(`tests/fixtures/extension-contract-incompatible/`, lihat README di
+direktori itu untuk tabel lengkap). Diuji dua lapis:
+`tests/unit/extension-compatibility.test.ts` (fungsi murni, setiap issue
+type) dan `tests/unit/extension-check-fixtures.test.ts` (men-spawn CLI
+SUNGGUHAN sebagai proses child terhadap tiap fixture — bukti pipeline
+end-to-end, bukan cuma fungsi validator).
+
+Detail keputusan lengkap: `docs/adr/0015-derived-application-
+compatibility-manifest.md`. Panduan penggunaan dari sisi aplikasi
+turunan: `docs/awcms-mini/derived-application-guide.md` §langkah 9.

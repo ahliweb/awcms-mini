@@ -229,6 +229,8 @@ export type ModuleDescriptor = {
 
 Aturan authoring: deklarasikan sebuah field (`navigation`/`jobs`/`health`/`api`/`events`) hanya setelah fitur sungguhan yang bersangkutan ada — descriptor tidak boleh mengklaim kapabilitas yang belum diimplementasi (lihat `src/modules/module-management/README.md` §"module_management's own descriptor" untuk contoh nyata: field `jobs`/`navigation` ditambahkan satu-satu seiring Issue #518/#519 masing-masing selesai, bukan sekaligus di depan).
 
+Sejak Issue #740/#741 (epic #738 `platform-evolution`), blok di atas juga diperluas secara ADITIF oleh `capabilities?: ModuleCapabilityContract` (ADR-0011), `compatibility.deploymentProfiles?` dan tipe `ApplicationModuleRegistry`/`ModuleMigrationNamespace` (ADR-0014) — lihat `src/modules/_shared/module-contract.ts` untuk bentuk lengkap terkini (kode tetap sumber kebenaran; blok di atas sengaja tidak disalin ulang seluruhnya di sini supaya tidak drift). File itu juga mengekspor `MODULE_CONTRACT_VERSION` (`"1.0.0"` hari ini) — SemVer bentuk kontrak `ModuleDescriptor` ini sendiri, independen dari `package.json`/kontrak OpenAPI-AsyncAPI (ADR-0008) dan dari `EXTENSION_MANIFEST_SCHEMA_VERSION` (`_shared/extension-manifest-contract.ts`) — dicek `bun run extension:check` terhadap `moduleContractVersion` yang dideklarasikan manifest kompatibilitas aplikasi turunan (ADR-0015, Issue #741). Bump MAJOR hanya bila field dihapus/rename/opsional-jadi-wajib; MINOR untuk field opsional baru (kasus setiap penambahan sampai hari ini); PATCH dokumentasi saja.
+
 ## API response helper
 
 ```ts

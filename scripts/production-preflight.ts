@@ -104,6 +104,20 @@ const REMAINING_CHILD_PROCESS_STAGES: StageDefinition[] = [
     name: "modules:compose:check",
     command: ["bun", "run", "modules:compose:check"]
   },
+  // Issue #741 (epic #738), same reasoning as `modules:compose:check`
+  // immediately above (and the exact same PR #769 security-auditor
+  // finding this repeats the fix for): a derived repository's own
+  // production preflight is precisely where an incompatible declared
+  // AWCMS-Mini range, module-contract version, capability version, or an
+  // edited historical migration checksum must be caught — read-only
+  // (manifest/migration-file/contract-file reads only, no writes), no
+  // database required (a base-repo run with no committed manifest passes
+  // trivially, same as `modules:compose:check` does with no application
+  // registry).
+  {
+    name: "extension:check",
+    command: ["bun", "run", "extension:check"]
+  },
   { name: "test", command: ["bun", "test"] },
   { name: "build", command: ["bun", "run", "build"] }
   // db:connectivity, db:pool:health, and migration:plan are handled

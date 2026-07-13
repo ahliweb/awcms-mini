@@ -89,6 +89,17 @@ registry base + registry turunan saat build. Detail: skill
 `docs/awcms-mini/derived-application-guide.md`, dan
 `docs/adr/0014-deterministic-build-time-module-composition.md`.
 
+Setelah modul terdaftar dan `bun run modules:compose:check` hijau,
+publikasikan/perbarui `extension.manifest.json` repo turunan Anda
+(`compatibleAwcmsMiniRange`, `moduleContractVersion`,
+`contributedModules` termasuk modul baru ini, dst.) dan jalankan `bun run
+extension:check` (Issue #741/ADR-0015) — memverifikasi aplikasi turunan
+Anda TETAP kompatibel dengan rilis base saat ini, pertanyaan yang berbeda
+dari "registry saya valid hari ini" yang sudah dijawab
+`modules:compose:check`. Detail: skill `awcms-mini-module-management`
+§Manifest kompatibilitas aplikasi turunan,
+`docs/adr/0015-derived-application-compatibility-manifest.md`.
+
 ## Verifikasi
 
 - `bun run build` pass.
