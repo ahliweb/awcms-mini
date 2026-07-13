@@ -2,6 +2,7 @@
 
 > **Status:** Accepted (kebijakan mengikat, lihat `docs/adr/0012-module-admission-and-trusted-registry-boundary.md`).
 > **Terkait:** Issue #696 (epic #679 platform-hardening), Issue #510 (epic Module Management), ADR-0001, ADR-0002, ADR-0008, ADR-0011.
+> **Lihat juga:** `docs/adr/0013-extension-layers-and-boundary-model.md` (Issue #739, epic #738 `platform-evolution`) — memperluas lima kategori admission dokumen ini dengan kosakata **lapisan ekstensi** lintas-repo (Core/System Foundation/Official Optional Business Foundation/SaaS Control Plane/ERP Extension/Derived Application), batas tenant vs legal entity vs organization unit, data-ownership matrix, dan kriteria evidence-based ekstraksi layanan. ADR-0013 **tidak mengubah** lima kategori admission atau pohon keputusan §3 di dokumen ini — murni lapisan tambahan di atasnya untuk pertanyaan "repo mana + boundary data apa" ketika banyak repo turunan independen terlibat.
 
 ## 1. Konteks dan tujuan
 
@@ -369,6 +370,10 @@ penuh.
 
 ## 10. Referensi
 
+- `docs/adr/0013-extension-layers-and-boundary-model.md` — lapisan ekstensi
+  lintas-repo (SaaS Control Plane, ERP Extension, Derived Application),
+  batas tenant/legal entity/organization unit, data-ownership matrix, dan
+  kriteria evidence-based ekstraksi layanan — Issue #739, epic #738.
 - `docs/adr/0001-modular-monolith-architecture.md`,
   `docs/adr/0002-bun-only-runtime.md` — batas arsitektural yang membuat §7
   mengikat.

@@ -145,9 +145,9 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 
 ### Architecture Decision Records
 
-| Folder                        | Isi                                                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| [`../adr/`](../adr/README.md) | Keputusan arsitektural base (modular monolith, Bun-only, RLS, RBAC/ABAC, soft delete, offline-first, kontrak) |
+| Folder                        | Isi                                                                                                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`../adr/`](../adr/README.md) | Keputusan arsitektural base (modular monolith, Bun-only, RLS, RBAC/ABAC, soft delete, offline-first, kontrak, module admission, lapisan ekstensi/boundary tenant-bisnis) |
 
 ### Audit repo
 
