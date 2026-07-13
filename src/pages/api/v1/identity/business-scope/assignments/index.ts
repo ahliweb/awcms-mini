@@ -207,6 +207,12 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
             .join("; ")
         );
       }
+      if (result.reason === "tenant_user_not_found") {
+        return fail(404, "NOT_FOUND", "Tenant user not found.");
+      }
+      if (result.reason === "role_not_found") {
+        return fail(404, "NOT_FOUND", "Role not found.");
+      }
       if (result.reason === "scope_unresolved") {
         return fail(
           400,

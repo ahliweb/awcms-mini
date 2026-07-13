@@ -16,6 +16,7 @@ import {
   applyMigrations,
   createCookieJar,
   getAdminSql,
+  getTestSql,
   integrationEnabled,
   invoke,
   provisionAppRole,
@@ -35,6 +36,13 @@ import {
 } from "../../src/pages/api/v1/identity/business-scope/exceptions/index";
 import { POST as approveException } from "../../src/pages/api/v1/identity/business-scope/exceptions/[id]/approve";
 import { hashPassword } from "../../src/lib/auth/password";
+import { withTenant } from "../../src/lib/database/tenant-context";
+import {
+  approveSoDConflictException,
+  createSoDConflictException
+} from "../../src/modules/identity-access/application/sod-exception-service";
+import { collectSoDRuleDescriptors } from "../../src/modules/identity-access/domain/sod-rule-registry";
+import { listModules } from "../../src/modules";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-owner-password";
@@ -112,18 +120,32 @@ function authHeaders(
 }
 
 /**
- * Inserts a second tenant user (same tenant, owner role — full
- * permissions) directly via admin SQL — a distinct subject/approver for
- * self-grant/self-approval tests without extra invite-flow plumbing. Uses
- * a REAL `hashPassword` hash (not a placeholder) so
- * `loginAsSecondTenantUser` below can authenticate this user through the
- * real `POST /auth/login` endpoint and obtain a genuinely distinct
- * session — required for any assertion that needs a DIFFERENT acting
- * user than `owner` (e.g. approving an exception someone else requested).
+ * Inserts a second tenant user directly via admin SQL — a distinct
+ * subject/actor for self-grant/self-approval/least-privilege tests
+ * without extra invite-flow plumbing. Uses a REAL `hashPassword` hash
+ * (not a placeholder) so `loginAsSecondTenantUser` below can authenticate
+ * this user through the real `POST /auth/login` endpoint and obtain a
+ * genuinely distinct session.
+ *
+ * `roleId` is OPTIONAL and, when omitted, this user gets NO role at all
+ * (zero permissions) — this is deliberate, not an oversight (security-
+ * auditor finding on PR #776 that this file itself surfaced): once
+ * `resolveSoDAssignmentFacts` started including ordinary RBAC-granted
+ * permissions, defaulting every second user to a full-permission "owner"
+ * role (the previous behavior) made them ALWAYS hold every registered
+ * SoD conflict's both halves simultaneously — useless as a subject for
+ * any test that wants to build up a conflict incrementally, or as an
+ * actor who should NOT be blocked by an unrelated conflict. Callers that
+ * need a real actor pass an explicit `roleId` from
+ * `createRoleWithPermissions` below, holding EXACTLY the permission(s)
+ * that test needs — least-privilege, matching how a real SoD-conscious
+ * tenant would actually be configured, not the always-conflicted
+ * bootstrap "owner".
  */
 async function createSecondTenantUser(
   tenantId: string,
-  loginIdentifier: string
+  loginIdentifier: string,
+  roleId?: string
 ): Promise<string> {
   const admin = getAdminSql();
 
@@ -146,35 +168,48 @@ async function createSecondTenantUser(
     RETURNING id
   `) as { id: string }[];
 
-  // A tenant seeded directly via admin SQL (e.g. "tenant B" in the
-  // cross-tenant isolation test below) never went through the setup
-  // wizard's `initializeTenant` (`platform-bootstrap.ts`), so it has no
-  // `role_code = 'owner'` row yet — create one (full-permission grant,
-  // same shape `platform-bootstrap.ts` uses for its own owner role)
-  // on demand instead of assuming it already exists.
-  let roleRows = (await admin`
-    SELECT id FROM awcms_mini_roles WHERE tenant_id = ${tenantId} AND role_code = 'owner'
-  `) as { id: string }[];
-
-  if (roleRows.length === 0) {
-    roleRows = (await admin`
-      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name, is_system)
-      VALUES (${tenantId}, 'owner', 'Owner', true)
-      RETURNING id
-    `) as { id: string }[];
-
+  if (roleId) {
     await admin`
-      INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
-      SELECT ${tenantId}, ${roleRows[0]!.id}, id FROM awcms_mini_permissions
+      INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+      VALUES (${tenantId}, ${tenantUserRows[0]!.id}, ${roleId})
     `;
   }
 
-  await admin`
-    INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
-    VALUES (${tenantId}, ${tenantUserRows[0]!.id}, ${roleRows[0]!.id})
-  `;
-
   return tenantUserRows[0]!.id;
+}
+
+/**
+ * Creates a role granting EXACTLY the given `module.activity.action`
+ * permission keys — the least-privilege building block every test below
+ * uses to construct a realistic, narrowly-scoped actor instead of relying
+ * on the setup wizard's always-full-permission "owner" role (see
+ * `createSecondTenantUser`'s own header for why that matters now).
+ */
+async function createRoleWithPermissions(
+  tenantId: string,
+  roleCode: string,
+  roleName: string,
+  permissionKeys: string[]
+): Promise<string> {
+  const admin = getAdminSql();
+
+  const roleRows = (await admin`
+    INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name)
+    VALUES (${tenantId}, ${roleCode}, ${roleName})
+    RETURNING id
+  `) as { id: string }[];
+  const roleId = roleRows[0]!.id;
+
+  for (const key of permissionKeys) {
+    const [moduleKey, activityCode, action] = key.split(".");
+    await admin`
+      INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+      SELECT ${tenantId}, ${roleId}, id FROM awcms_mini_permissions
+      WHERE module_key = ${moduleKey} AND activity_code = ${activityCode} AND action = ${action}
+    `;
+  }
+
+  return roleId;
 }
 
 /** Logs in as a user previously created by `createSecondTenantUser` through the REAL `POST /auth/login` endpoint, returning a genuinely distinct session token/cookie jar for that user. */
@@ -333,12 +368,37 @@ suite("business-scope assignments API (Issue #746)", () => {
     );
     expect(created.status).toBe(200);
 
+    // `revoke` is high-risk: `owner`'s full-permission role ALSO holds
+    // `business_scope_assignments.create` via ordinary RBAC, which would
+    // now (correctly) conflict with `.revoke` under the same-scope-only
+    // maker/checker rule if `owner` performed the revoke themselves — a
+    // real, unrelated SoD conflict this test isn't about. Use a distinct,
+    // least-privilege actor holding ONLY `.revoke` instead.
+    const revokerRole = await createRoleWithPermissions(
+      owner.tenantId,
+      "assignment_revoker",
+      "Assignment Revoker",
+      ["identity_access.business_scope_assignments.revoke"]
+    );
+    await createSecondTenantUser(
+      owner.tenantId,
+      "acme-revoker@example.com",
+      revokerRole
+    );
+    const revokerSession = await loginAsSecondTenantUser(
+      owner.tenantId,
+      "acme-revoker@example.com"
+    );
+
     const revoked = await invoke<{ data: { assignment: { status: string } } }>(
       revokeAssignment,
       {
         method: "POST",
         path: `/api/v1/identity/business-scope/assignments/${created.body.data.assignment.id}/revoke`,
-        headers: authHeaders(owner, "revoke-1"),
+        headers: {
+          ...authHeaders(owner, "revoke-1"),
+          authorization: `Bearer ${revokerSession.token}`
+        },
         params: { id: created.body.data.assignment.id },
         body: { revokeReason: "No longer needed." }
       }
@@ -401,10 +461,33 @@ suite("business-scope assignments API (Issue #746)", () => {
     );
     expect(listedByA.body.data.assignments).toEqual([]);
 
+    // Least-privilege actor in tenant A (same reasoning as the "revoke
+    // succeeds" test above) — isolates this assertion to the cross-tenant
+    // RLS/not-found behavior itself, not an unrelated SoD conflict that
+    // `ownerA`'s own full-permission role would otherwise also trigger.
+    const revokerRoleA = await createRoleWithPermissions(
+      ownerA.tenantId,
+      "assignment_revoker",
+      "Assignment Revoker",
+      ["identity_access.business_scope_assignments.revoke"]
+    );
+    await createSecondTenantUser(
+      ownerA.tenantId,
+      "acme-revoker@example.com",
+      revokerRoleA
+    );
+    const revokerASession = await loginAsSecondTenantUser(
+      ownerA.tenantId,
+      "acme-revoker@example.com"
+    );
+
     const revokeAttempt = await invoke(revokeAssignment, {
       method: "POST",
       path: `/api/v1/identity/business-scope/assignments/${assignmentB[0]!.id}/revoke`,
-      headers: authHeaders(ownerA, "revoke-cross"),
+      headers: {
+        ...authHeaders(ownerA, "revoke-cross"),
+        authorization: `Bearer ${revokerASession.token}`
+      },
       params: { id: assignmentB[0]!.id },
       body: { revokeReason: "Cross-tenant attempt." }
     });
@@ -503,8 +586,23 @@ suite("business-scope assignments API (Issue #746)", () => {
     expect(evaluations[0]!.resolved_via).toBe("denied");
 
     // But: the rule allows exceptions — request one, have a DIFFERENT
-    // tenant user approve it, then the same grant succeeds.
-    await createSecondTenantUser(owner.tenantId, "acme-approver@example.com");
+    // tenant user approve it, then the same grant succeeds. This approver
+    // holds ONLY `business_scope_exceptions.approve` — NOT also `.create`
+    // — because holding BOTH is itself exactly the (non-exceptable)
+    // `identity_access.business_scope_exception_maker_checker` conflict;
+    // an approver with both would be denied approving ANYTHING regardless
+    // of this test's own scenario.
+    const approverOnlyRole = await createRoleWithPermissions(
+      owner.tenantId,
+      "exception_approver_only",
+      "Exception Approver (approve-only)",
+      ["identity_access.business_scope_exceptions.approve"]
+    );
+    await createSecondTenantUser(
+      owner.tenantId,
+      "acme-approver@example.com",
+      approverOnlyRole
+    );
     const secondApproverSession = await loginAsSecondTenantUser(
       owner.tenantId,
       "acme-approver@example.com"
@@ -560,38 +658,59 @@ suite("business-scope assignments API (Issue #746)", () => {
   });
 
   test("SoD exception approval: self-approval is denied (re-checked from the DB row, not the request body)", async () => {
+    // Deliberately calls the APPLICATION-layer functions directly
+    // (`createSoDConflictException`/`approveSoDConflictException`) rather
+    // than the real HTTP endpoints — same convention `data-lifecycle-
+    // legal-hold-service.integration.test.ts` uses to isolate ONE
+    // specific behavior. Any single real actor able to call BOTH
+    // `POST .../exceptions` (needs `.create`) and `POST .../approve`
+    // (needs `.approve`) necessarily holds BOTH halves of the
+    // `identity_access.business_scope_exception_maker_checker` rule —
+    // which the real `authorizeInTransaction` chokepoint would ALSO
+    // (correctly) deny with `SOD_CONFLICT`, masking this test's own
+    // narrower assertion about the self-approval-specific re-check. This
+    // test isolates that re-check by calling the service functions below
+    // the chokepoint, exactly like the legal-hold precedent isolates its
+    // own service behavior from the full ABAC stack.
     const owner = await bootstrap();
+    const sql = getTestSql();
+    const sodRules = collectSoDRuleDescriptors(listModules());
 
-    const created = await invoke<{ data: { exception: { id: string } } }>(
-      createException,
-      {
-        method: "POST",
-        path: "/api/v1/identity/business-scope/exceptions",
-        headers: authHeaders(owner, "exc-self-1"),
-        body: {
+    const created = await withTenant(sql, owner.tenantId, (tx) =>
+      createSoDConflictException(
+        tx,
+        owner.tenantId,
+        owner.tenantUserId,
+        owner.tenantUserId,
+        {
           ruleKey: "data_lifecycle.legal_hold_maker_checker",
-          subjectTenantUserId: owner.tenantUserId,
+          scopeType: null,
+          scopeId: null,
           justification: "Attempting to approve my own request.",
-          effectiveTo: new Date(
-            Date.now() + 3 * 24 * 60 * 60 * 1000
-          ).toISOString()
-        }
-      }
+          effectiveFrom: new Date(),
+          effectiveTo: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+        },
+        sodRules,
+        "corr-self-approve-create"
+      )
     );
-    expect(created.status).toBe(200);
+    if (!created.ok) throw new Error(`unexpected: ${JSON.stringify(created)}`);
 
-    const selfApprove = await invoke(approveException, {
-      method: "POST",
-      path: `/api/v1/identity/business-scope/exceptions/${created.body.data.exception.id}/approve`,
-      headers: authHeaders(owner, "exc-self-approve"),
-      params: { id: created.body.data.exception.id },
-      body: {}
-    });
-
-    expect(selfApprove.status).toBe(403);
-    expect((selfApprove.body as { error: { code: string } }).error.code).toBe(
-      "SELF_APPROVAL_DENIED"
+    const selfApprove = await withTenant(sql, owner.tenantId, (tx) =>
+      approveSoDConflictException(
+        tx,
+        owner.tenantId,
+        owner.tenantUserId,
+        created.exception.id,
+        null,
+        "corr-self-approve-attempt"
+      )
     );
+
+    expect(selfApprove.ok).toBe(false);
+    if (!selfApprove.ok) {
+      expect(selfApprove.reason).toBe("self_approval_denied");
+    }
   });
 
   test("exception: a rule with exceptionPolicy.allowed=false rejects a request (EXCEPTION_NOT_ALLOWED)", async () => {

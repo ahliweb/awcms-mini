@@ -532,29 +532,44 @@ criterion — deliberately real permission pairs, not contrived examples):
    pair) is a genuine maker/checker candidate, not invented for this
    issue.
 
-### Conflict enforcement — wired at the REAL universal chokepoint
+### Conflict enforcement — wired at the real `authorizeInTransaction` chokepoint
 
 `application/high-risk-sod-guard.ts`'s `checkHighRiskSoDConflicts` is
-called from `access-guard.ts`'s `authorizeInTransaction` — the one
-function every guarded endpoint in this codebase already calls through —
-for every `isHighRiskAction` decision, immediately after an ordinary ABAC
-decision has already allowed it (deny-overrides-allow: this can only
-additionally deny, never upgrade a deny to an allow). See that file's own
-header for the full, deliberate scope decision: it reasons **only** about
-permissions the subject holds via an **active business-scope assignment**
-(never the subject's ordinary RBAC role grant ordinary ABAC already
-checked) — a documented, zero-regression-by-construction choice, since
-business-scope assignments are a brand-new table with zero rows on the
-day this ships, so the check is a genuine no-op for every tenant until
-they start using the feature. A cheap code-defined `Set` membership
-short-circuit (`SOD_RELEVANT_PERMISSION_KEYS`) means extending the
-universal chokepoint costs nothing measurable for the hundreds of
+called from `access-guard.ts`'s `authorizeInTransaction` for every
+`isHighRiskAction` decision, immediately after an ordinary ABAC decision
+has already allowed it (deny-overrides-allow: this can only additionally
+deny, never upgrade a deny to an allow). It reasons about permissions the
+subject holds via **both** an active business-scope assignment **and**
+an ordinary RBAC role grant (`business-scope-facts.ts`'s
+`resolveSoDAssignmentFacts` merges both sources — see that file's header;
+an earlier version only checked the former, a security-auditor finding on
+PR #776 fixed before merge, since it made the check permanently blind to
+the realistic case of both conflicting permissions being held through an
+ordinary role like the setup wizard's "owner"). A cheap code-defined
+`Set` membership short-circuit (`SOD_RELEVANT_PERMISSION_KEYS`) means
+extending this chokepoint costs nothing measurable for the hundreds of
 endpoints this feature does not touch.
+
+**Scope of "chokepoint" — accurate claim, not "every endpoint in this
+codebase".** `authorizeInTransaction` is used by 124 route files, but 13
+pre-existing route files call `evaluateAccess()`/`isHighRiskAction()`
+directly instead (not introduced by this issue) — including 3 high-risk
+ones this issue does not touch (`profiles/[id]` delete/restore/purge) and
+`workflows/tasks/[id]/decisions.ts` (approve, its own hand-rolled
+self-approval guard outside `access-guard.ts`). No current
+`SoDRuleDescriptor` fixture references those endpoints' permission keys,
+so there is no active gap today, but a future SoD rule targeting one of
+them would silently not be enforced — see `high-risk-sod-guard.ts`'s own
+header for the same disclosure; migrating those 13 callers is a plausible
+follow-up, not attempted here.
+
 `tests/integration/business-scope-sod-chokepoint.integration.test.ts`
-proves this against a real, unrelated guarded endpoint
+proves conflict enforcement against a real, unrelated guarded endpoint
 (`POST /api/v1/data-lifecycle/legal-holds/{id}/release`) this issue did
 not modify — not just a unit test of the pure conflict-detection
-function.
+function — and `tests/integration/business-scope-assignments.integration.
+test.ts`'s "ordinary RBAC alone" test proves the same conflict is caught
+with no business-scope assignment involved at all.
 
 SoD conflict evaluation also runs at assignment **creation** time
 (`application/business-scope-assignment-service.ts`'s

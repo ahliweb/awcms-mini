@@ -27,6 +27,7 @@ import {
   recordGauge
 } from "../../../lib/observability/metrics-port";
 import {
+  fetchActiveTenants,
   iterateTenantsInBatches,
   type BatchPassResult
 } from "../../../lib/jobs/batching";
@@ -192,6 +193,50 @@ async function refreshAssignmentGauges(
   );
 }
 
+/**
+ * Read-only per-tenant backlog counts for `--dry-run` (security-auditor
+ * finding on PR #776, fixed). The ORIGINAL version queried
+ * `awcms_mini_business_scope_assignments`/`..._sod_conflict_exceptions`
+ * directly via the bare `sql` client with NO `withTenant` wrapping — since
+ * both tables are `FORCE ROW LEVEL SECURITY`'d and `awcms_mini_worker`'s
+ * session-level `app.current_tenant_id` defaults to the all-zero UUID
+ * (migration 045's fail-closed design, `tenant-context.ts`), that COUNT
+ * was always silently scoped to a tenant that does not exist — an
+ * operator running `--dry-run` to "preview the expiry backlog before
+ * scheduling for real" got a false "nothing to expire" on every real
+ * backlog, every time. Fixed by iterating real tenants and summing a
+ * `withTenant`-scoped count per tenant, the exact same shape
+ * `expireAssignmentsPass`/`expireSoDConflictExceptionsPass` already use
+ * for their real (non-dry-run) mutation passes — this function only
+ * reads, never mutates.
+ */
+async function countExpiredBacklogForTenant(
+  sql: Bun.SQL,
+  tenantId: string,
+  now: Date
+): Promise<{ assignments: number; exceptions: number }> {
+  return withTenant(
+    sql,
+    tenantId,
+    async (tx) => {
+      const rows = (await tx`
+        SELECT
+          (SELECT count(*) FROM awcms_mini_business_scope_assignments
+            WHERE tenant_id = ${tenantId} AND status = 'active'
+              AND effective_to IS NOT NULL AND effective_to <= ${now}) AS assignments,
+          (SELECT count(*) FROM awcms_mini_sod_conflict_exceptions
+            WHERE tenant_id = ${tenantId} AND status = 'approved' AND effective_to <= ${now}) AS exceptions
+      `) as { assignments: string; exceptions: string }[];
+
+      return {
+        assignments: Number(rows[0]?.assignments ?? 0),
+        exceptions: Number(rows[0]?.exceptions ?? 0)
+      };
+    },
+    { workClass: "maintenance" }
+  );
+}
+
 export async function runBusinessScopeExpiry(
   sql: Bun.SQL,
   ctx: JobContext
@@ -199,21 +244,22 @@ export async function runBusinessScopeExpiry(
   const now = new Date();
 
   if (ctx.dryRun) {
-    // Dry-run: count-only, no mutation — same convention `data-lifecycle`'s
-    // job uses for its own `--dry-run`. A plain read-only count query per
-    // tenant, no `withTenant` write path exercised.
-    const rows = (await sql`
-      SELECT
-        (SELECT count(*) FROM awcms_mini_business_scope_assignments
-          WHERE status = 'active' AND effective_to IS NOT NULL AND effective_to <= ${now}) AS assignments,
-        (SELECT count(*) FROM awcms_mini_sod_conflict_exceptions
-          WHERE status = 'approved' AND effective_to <= ${now}) AS exceptions
-    `) as { assignments: string; exceptions: string }[];
+    const tenants = await fetchActiveTenants(sql);
+    let assignmentsExpired = 0;
+    let exceptionsExpired = 0;
+
+    for (const tenant of tenants) {
+      if (ctx.signal.aborted) break;
+
+      const counts = await countExpiredBacklogForTenant(sql, tenant.id, now);
+      assignmentsExpired += counts.assignments;
+      exceptionsExpired += counts.exceptions;
+    }
 
     return {
-      tenantsChecked: 0,
-      assignmentsExpired: Number(rows[0]?.assignments ?? 0),
-      exceptionsExpired: Number(rows[0]?.exceptions ?? 0),
+      tenantsChecked: tenants.length,
+      assignmentsExpired,
+      exceptionsExpired,
       tenantsHitPassLimit: []
     };
   }

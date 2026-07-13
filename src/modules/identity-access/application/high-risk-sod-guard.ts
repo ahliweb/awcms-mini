@@ -1,52 +1,72 @@
 /**
- * SoD conflict enforcement at the REAL universal authorization chokepoint
+ * SoD conflict enforcement at the real `authorizeInTransaction` chokepoint
  * (Issue #746, epic #738 platform-evolution Wave 2). Called from
- * `access-guard.ts`'s `authorizeInTransaction` — the one function every
- * guarded endpoint in this codebase already calls through — for every
- * `isHighRiskAction` decision, satisfying the acceptance criterion "conflict
- * evaluation for ... high-risk authorization decisions" against the REAL
+ * `access-guard.ts`'s `authorizeInTransaction` for every `isHighRiskAction`
+ * decision, satisfying the acceptance criterion "conflict evaluation for
+ * ... high-risk authorization decisions" against a real, widely-shared
  * production entrypoint, not a narrower/duplicated mechanism.
  *
- * DELIBERATE SCOPE DECISION (documented here since it is the single most
- * important design call in this issue): this check reasons ONLY about
- * permissions the subject holds via an ACTIVE
- * `awcms_mini_business_scope_assignment` (`business-scope-facts.ts`'s
- * `resolveSoDAssignmentFacts`) — NEVER the subject's ordinary RBAC role
- * grant (`auth-context.ts`'s `fetchGrantedPermissionKeys`, what ordinary
- * ABAC already checked earlier in the SAME `authorizeInTransaction` call).
- * Two reasons, both load-bearing:
+ * **Scope of this claim (reviewer finding on PR #776 — do not overstate).**
+ * "Every guarded endpoint" is NOT literally true: `authorizeInTransaction`
+ * is used by 124 route files, but 13 route files call
+ * `evaluateAccess()`/`isHighRiskAction()` directly instead (pre-existing,
+ * not introduced by this issue) — including 3 high-risk ones this PR does
+ * not touch: `src/pages/api/v1/profiles/[id].ts` (delete),
+ * `.../profiles/[id]/restore.ts`, `.../profiles/[id]/purge.ts`, plus
+ * `.../workflows/tasks/[id]/decisions.ts` (approve, with its own
+ * hand-rolled self-approval guard living OUTSIDE `access-guard.ts`). No
+ * current `SoDRuleDescriptor` fixture references any permission key those
+ * four endpoints gate, so there is no active gap today — but a FUTURE SoD
+ * rule targeting one of them would silently not be enforced here. Accurate
+ * claim: this is wired at the chokepoint every endpoint using
+ * `access-guard.ts`'s `authorizeInTransaction` already shares — migrating
+ * the 13 direct-`evaluateAccess` callers onto that shared guard is a
+ * plausible follow-up, not attempted in this issue.
  *
- * 1. **Zero-regression-by-construction.** Business-scope assignments are a
- *    BRAND NEW table this issue introduces — no tenant has a single row in
- *    it on the day this ships. Every existing tenant's already-provisioned
- *    roles (which very plausibly grant a broad admin/owner role BOTH
- *    members of a newly-declared conflicting pair, e.g.
- *    `data_lifecycle.legal_hold.create` AND `.release` on the same "manage
- *    everything" role) would otherwise start being retroactively DENIED the
- *    moment this feature ships, if this check consulted ordinary RBAC
- *    grants directly — a severe, silent production regression for a
- *    feature nobody asked to enforce yet. Scoping to business-scope-
- *    assignment-granted permissions instead makes this genuinely a NO-OP
- *    for 100% of existing traffic until a tenant explicitly starts using
- *    the new assignment feature — the conflict can only ever fire for
- *    permissions this issue's OWN new mechanism granted.
- * 2. **Bounded cost.** A cheap, code-defined `Set` membership check (see
- *    `SOD_RELEVANT_PERMISSION_KEYS` below) short-circuits BEFORE any query
- *    for the ~99% of requests whose permission key does not appear in any
- *    registered `SoDRuleDescriptor` at all (true for virtually every one of
- *    the hundreds of existing endpoints today, since only 3 rule fixtures
- *    exist) — so extending the universal chokepoint costs nothing
- *    measurable for endpoints this feature does not touch.
+ * **Corrected scope (security-auditor finding on PR #776).** An earlier
+ * version of this file reasoned ONLY about permissions the subject holds
+ * via an ACTIVE `awcms_mini_business_scope_assignment`, deliberately
+ * EXCLUDING the subject's ordinary RBAC role grant
+ * (`auth-context.ts`'s `fetchGrantedPermissionKeys`) — reasoned at the time
+ * as "zero-regression-by-construction" since the new table starts empty.
+ * That reasoning was wrong: it made the check permanently blind to the
+ * realistic, common case — a tenant granting an ordinary role (e.g. the
+ * setup wizard's "owner" role, which grants every permission) that already
+ * holds BOTH halves of a registered conflict (e.g.
+ * `data_lifecycle.legal_hold.create` AND `.release`, registered
+ * `severity: "critical"`) — that subject could create and immediately
+ * release their own legal hold with ZERO enforcement and no evaluation log
+ * entry, for as long as they never happened to also receive a
+ * business-scope assignment. `business-scope-facts.ts`'s
+ * `resolveSoDAssignmentFacts` now merges BOTH sources (business-scope
+ * assignment facts, carrying their own real scope, AND ordinary RBAC
+ * facts, `scopeType`/`scopeId: null` since an ordinary grant is not
+ * confined to any scope) — see that file's own header for the full
+ * rationale. This means a tenant whose EXISTING role composition already
+ * holds both halves of a registered conflict is now genuinely affected the
+ * moment this ships (a previously-silent conflict starts being detected
+ * and denied) — the correct, intended behavior for a rule registered as a
+ * real SoD conflict, not a regression to avoid.
  *
- * This means "conflict evaluation for high-risk authorization decisions"
- * is real and wired at the true chokepoint, but its blast radius today is
- * exactly the surface this issue itself creates (business-scope
- * assignments) — a deliberately narrower interpretation than "re-evaluate
- * every pre-existing RBAC role combination", justified by the regression
- * risk above. See `identity-access/README.md` for the same reasoning in
- * prose, and `tests/integration/business-scope-sod-chokepoint.integration.
- * test.ts` for the real-endpoint proof this is actually wired (not just
- * unit-tested against the pure `detectSoDConflicts` function).
+ * The one part of the original reasoning that remains valid: **bounded
+ * cost**. A cheap, code-defined `Set` membership check (see
+ * `SOD_RELEVANT_PERMISSION_KEYS` below) still short-circuits BEFORE any
+ * query for the ~99% of requests whose permission key does not appear in
+ * any registered `SoDRuleDescriptor` at all (true for virtually every one
+ * of the hundreds of existing endpoints today, since only 3 rule fixtures
+ * exist) — extending the shared `authorizeInTransaction` chokepoint still
+ * costs nothing measurable for endpoints this feature does not touch; only the
+ * per-request COST reasoning survives, not the "which facts count" scope
+ * decision.
+ *
+ * See `identity-access/README.md` for the same reasoning in prose,
+ * `tests/integration/business-scope-sod-chokepoint.integration.test.ts`
+ * for the real-endpoint proof this is wired at the true chokepoint (not
+ * just unit-tested against the pure `detectSoDConflicts` function), and
+ * `tests/integration/business-scope-assignments.integration.test.ts`'s
+ * "ordinary RBAC alone" test for the proof this now catches a conflict
+ * held ENTIRELY through ordinary role grants, with no business-scope
+ * assignment involved at all.
  */
 import { listModules } from "../../index";
 import { recordCounter } from "../../../lib/observability/metrics-port";

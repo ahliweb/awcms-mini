@@ -112,6 +112,8 @@ export type CreateBusinessScopeAssignmentResult =
       reason: "validation";
       errors: BusinessScopeAssignmentValidationError[];
     }
+  | { ok: false; reason: "tenant_user_not_found" }
+  | { ok: false; reason: "role_not_found" }
   | { ok: false; reason: "scope_unresolved" }
   | { ok: false; reason: "self_grant_denied" }
   | { ok: false; reason: "sod_conflict"; conflicts: SoDConflictSummary[] };
@@ -131,6 +133,32 @@ export async function createBusinessScopeAssignment(
   const errors = validateCreateBusinessScopeAssignmentInput(input);
   if (errors.length > 0) {
     return { ok: false, reason: "validation", errors };
+  }
+
+  // Tenant-membership + role-existence check (reviewer finding on PR #776
+  // — this regressed the EXISTING sibling-endpoint precedent,
+  // `src/pages/api/v1/access/assignments.ts`'s own explicit
+  // `WHERE tenant_id = ... AND id = ...` lookups before granting a role).
+  // Not directly exploitable (RLS already prevents a cross-tenant row from
+  // being usable), but a missing check here would silently insert an
+  // orphaned/dead row referencing another tenant's user or a deleted role
+  // — defense in depth this module already established elsewhere.
+  const tenantUserRows = (await tx`
+    SELECT id FROM awcms_mini_tenant_users
+    WHERE tenant_id = ${tenantId} AND id = ${input.tenantUserId}
+  `) as { id: string }[];
+  if (!tenantUserRows[0]) {
+    return { ok: false, reason: "tenant_user_not_found" };
+  }
+
+  if (input.roleId) {
+    const roleRows = (await tx`
+      SELECT id FROM awcms_mini_roles
+      WHERE tenant_id = ${tenantId} AND id = ${input.roleId} AND deleted_at IS NULL
+    `) as { id: string }[];
+    if (!roleRows[0]) {
+      return { ok: false, reason: "role_not_found" };
+    }
   }
 
   // "Scope identifiers are validated through the owning capability and

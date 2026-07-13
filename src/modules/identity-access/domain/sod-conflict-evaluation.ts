@@ -26,11 +26,32 @@
  */
 import type { SoDRuleDescriptor } from "../../_shared/module-contract";
 
-/** One permission a subject currently holds via an ACTIVE business-scope assignment's role — resolved ahead of time (I/O) by `business-scope-facts.ts`, never here. */
+/**
+ * One permission a subject currently holds — resolved ahead of time (I/O)
+ * by `business-scope-facts.ts`'s `resolveSoDAssignmentFacts`, never here.
+ * Two sources are merged into this same fact shape (security-auditor
+ * finding on PR #776 — the original version only reasoned about the
+ * business-scope-assignment path, silently missing the realistic case
+ * where BOTH conflicting permissions come from an ordinary RBAC role):
+ *
+ * - Held via an ACTIVE `awcms_mini_business_scope_assignments` row's
+ *   role — `scopeType`/`scopeId` are that assignment's own scope (a
+ *   `"same_scope_only"` rule only conflicts when the OTHER held
+ *   permission is at the IDENTICAL scope).
+ * - Held via an ordinary `awcms_mini_access_assignments` role grant (the
+ *   path every other authorization check in this codebase reads from) —
+ *   `scopeType`/`scopeId` are both `null`, since an ordinary role grant
+ *   is not confined to any business scope at all. `detectSoDConflicts`
+ *   below treats a `null`-scope fact as matching ANY requested scope for
+ *   a `"same_scope_only"` rule (an unscoped grant is, definitionally,
+ *   held "at" every scope) — the same "blanket covers every scope"
+ *   reasoning `isSoDConflictExceptionCurrentlyValid` already documents
+ *   for a blanket SoD exception.
+ */
 export type SoDAssignmentFact = {
   permissionKey: string;
-  scopeType: string;
-  scopeId: string;
+  scopeType: string | null;
+  scopeId: string | null;
 };
 
 export type RequestedScope = {
@@ -93,8 +114,11 @@ export function detectSoDConflicts(
 
         const scopedMatch = holdingFacts.some(
           (fact) =>
-            fact.scopeType === requestedScope.scopeType &&
-            fact.scopeId === requestedScope.scopeId
+            // A `null`-scope fact (ordinary RBAC role grant — not confined
+            // to any business scope) conflicts at EVERY requested scope.
+            (fact.scopeType === null && fact.scopeId === null) ||
+            (fact.scopeType === requestedScope.scopeType &&
+              fact.scopeId === requestedScope.scopeId)
         );
 
         if (scopedMatch) {

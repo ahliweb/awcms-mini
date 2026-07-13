@@ -109,6 +109,39 @@ describe("detectSoDConflicts", () => {
     expect(differentScope).toHaveLength(0);
   });
 
+  test("same_scope_only: a null-scope fact (ordinary RBAC role grant, not confined to any business scope) conflicts at EVERY requested scope (security-auditor finding on PR #776)", () => {
+    const matches = detectSoDConflicts(
+      [SCOPED_RULE],
+      "test_module.gadgets.revoke",
+      { scopeType: "office", scopeId: "scope-a" },
+      [
+        {
+          permissionKey: "test_module.gadgets.create",
+          scopeType: null,
+          scopeId: null
+        }
+      ]
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.indeterminate).toBe(false);
+
+    // Same null-scope fact conflicts at a COMPLETELY different requested
+    // scope too — unlike a real scoped fact, it is not confined to "scope-a".
+    const otherScope = detectSoDConflicts(
+      [SCOPED_RULE],
+      "test_module.gadgets.revoke",
+      { scopeType: "office", scopeId: "scope-z" },
+      [
+        {
+          permissionKey: "test_module.gadgets.create",
+          scopeType: null,
+          scopeId: null
+        }
+      ]
+    );
+    expect(otherScope).toHaveLength(1);
+  });
+
   test('same_scope_only: no requestedScope supplied is INDETERMINATE, not silently "no conflict" — default-deny', () => {
     const matches = detectSoDConflicts(
       [SCOPED_RULE],

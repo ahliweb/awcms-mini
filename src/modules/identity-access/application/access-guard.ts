@@ -124,10 +124,10 @@ export async function authorizeInTransaction(
   // Issue #746 — segregation-of-duties conflict enforcement, additive to
   // the ordinary ABAC decision above (deny-overrides-allow: this can only
   // turn an already-`allowed` high-risk decision into a deny, never the
-  // reverse). See `high-risk-sod-guard.ts`'s own header for why this is
-  // scoped to business-scope-assignment-granted permissions only (a
-  // deliberate, documented, zero-regression-by-construction choice), not a
-  // re-evaluation of ordinary RBAC role grants.
+  // reverse). See `high-risk-sod-guard.ts`'s own header — it reasons about
+  // permissions held via BOTH the business-scope-assignment path AND
+  // ordinary RBAC role grants (security-auditor finding on PR #776
+  // corrected an earlier version that only checked the former).
   if (isHighRiskAction(guard.action)) {
     const sodCheck = await checkHighRiskSoDConflicts(
       tx,
