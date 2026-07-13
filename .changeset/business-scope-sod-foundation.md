@@ -7,7 +7,7 @@ policy hooks to `identity_access` (Issue #746, epic #738
 `platform-evolution` Wave 2, ADR-0013 §2/§4).
 
 - **Generic business-scope reference**: `awcms_mini_business_scope_assignments`
-  (`sql/060`) grants a tenant user a role restricted to one
+  (`sql/061`) grants a tenant user a role restricted to one
   `(scope_type, scope_id)` reference — never a foreign key to any
   optional module's table. Supports effective dates, temporary expiry,
   revocation, grantor/approver, and an append-only lifecycle history
@@ -35,24 +35,25 @@ policy hooks to `identity_access` (Issue #746, epic #738
   assignment create/revoke at the same scope) and one contributed by
   `data_lifecycle` (`legal_hold.create`/`.release`, its own pre-existing
   permission pair).
-- **Conflict enforcement wired at the real universal chokepoint** —
-  `access-guard.ts`'s `authorizeInTransaction` (every guarded endpoint's
-  single entry point) now runs SoD conflict evaluation for every
-  high-risk decision, scoped to permissions held via an active
-  business-scope assignment only (a documented, zero-regression-by-
-  construction choice — this table is brand new with zero rows for every
-  existing tenant on release day). Proven against a real, unmodified
+- **Conflict enforcement wired at the real, shared chokepoint** —
+  `access-guard.ts`'s `authorizeInTransaction` (used by the large
+  majority of guarded endpoints, though a minority of pre-existing
+  routes still call `evaluateAccess` directly and are not yet covered
+  — see `high-risk-sod-guard.ts`'s header comment for the current
+  scope) now runs SoD conflict evaluation for every high-risk decision
+  on that path, reasoning over BOTH ordinary RBAC grants and active
+  business-scope assignments. Proven against a real, unmodified
   endpoint (`POST /api/v1/data-lifecycle/legal-holds/{id}/release`) in
   `tests/integration/business-scope-sod-chokepoint.integration.test.ts`,
   not just a unit test of the pure conflict-detection function.
 - **Temporary exception/override flow**
-  (`awcms_mini_sod_conflict_exceptions`, `sql/060`) — bounded lifetime
+  (`awcms_mini_sod_conflict_exceptions`, `sql/061`) — bounded lifetime
   (no indefinite override), self-approval denied (re-checked from DB),
   automatic expiry via the scheduled job below.
 - **Scheduled expiry job** — `bun run
   identity-access:business-scope:expiry` (hourly recommended), built on
   the shared worker runner, least-privilege `awcms_mini_worker` grants
-  (`sql/060`), registered in `work-class-registry.ts`.
+  (`sql/061`), registered in `work-class-registry.ts`.
 - **New API**: `GET`/`POST /api/v1/identity/business-scope/assignments`,
   `POST .../assignments/{id}/revoke`,
   `GET`/`POST /api/v1/identity/business-scope/exceptions`,
