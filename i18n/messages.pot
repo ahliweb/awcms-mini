@@ -2050,6 +2050,16 @@ msgid "admin.layout.nav_dashboard"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/domain-event-runtime/module.ts:25
+msgid "admin.layout.nav_domain_events_consumers"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/domain-event-runtime/module.ts:19
+msgid "admin.layout.nav_domain_events_deliveries"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/module-management/module.ts:25
 msgid "admin.layout.nav_module_matrix"
 msgstr ""
