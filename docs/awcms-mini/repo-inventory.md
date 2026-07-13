@@ -30,7 +30,7 @@
 
 ## Migrations
 
-56 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `056_awcms_mini_domain_event_runtime_schema.sql`).
+56 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `056_awcms_mini_domain_event_runtime_schema.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -115,7 +115,7 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-255 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+257 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
@@ -123,7 +123,7 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 | `e2e`         | 9          |
 | `integration` | 79         |
 | `modules`     | 5          |
-| `unit`        | 116        |
+| `unit`        | 118        |
 
 ## Routes / Operations (summary)
 

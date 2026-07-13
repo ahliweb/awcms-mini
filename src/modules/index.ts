@@ -1,4 +1,6 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
+import { applicationModuleRegistry } from "./application-registry";
+import { mergeModuleRegistries } from "./module-management/domain/module-composition";
 import { blogContentModule } from "./blog-content/module";
 import { domainEventRuntimeModule } from "./domain-event-runtime/module";
 import { emailModule } from "./email/module";
@@ -17,7 +19,12 @@ import { tenantDomainModule } from "./tenant-domain/module";
 import { visitorAnalyticsModule } from "./visitor-analytics/module";
 import { workflowApprovalModule } from "./workflow-approval/module";
 
-export const modules: ModuleDescriptor[] = [
+/**
+ * The reviewed BASE registry — unchanged in shape/order/content by Issue
+ * #740. Every module below is reviewed, in-repo code; nothing here is
+ * conditional on a derived repository's own contribution.
+ */
+const baseModules: ModuleDescriptor[] = [
   tenantAdminModule,
   profileIdentityModule,
   identityAccessModule,
@@ -35,6 +42,28 @@ export const modules: ModuleDescriptor[] = [
   idnAdminRegionsModule,
   socialPublishingModule,
   domainEventRuntimeModule
+];
+
+/** Base-only registry, regardless of any application registry — Issue #740's composition API. */
+export function listBaseModules(): readonly ModuleDescriptor[] {
+  return baseModules;
+}
+
+/**
+ * Final, effective registry — `baseModules` merged with an optional
+ * build-time application registry (`./application-registry.ts`, Issue
+ * #740). Merge only, never validated here: `index.ts` stays pure data,
+ * exactly like before this issue (`listModules()` used to be `return
+ * modules` with zero validation) — the composed registry's VALIDITY is a
+ * separate, explicit check (`bun run modules:compose:check`,
+ * `bun run modules:dag:check`, tests), never something module load itself
+ * throws on. In this base repository, `applicationModuleRegistry` is
+ * always `undefined`, so `modules` below is a byte-identical pass-through
+ * of `baseModules` — the exact same effective registry as before this
+ * change.
+ */
+export const modules: ModuleDescriptor[] = [
+  ...mergeModuleRegistries(baseModules, applicationModuleRegistry)
 ];
 
 export function getModuleByKey(
