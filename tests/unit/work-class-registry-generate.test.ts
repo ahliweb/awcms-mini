@@ -16,7 +16,8 @@ import {
   buildWorkClassRegistryJson,
   buildWorkClassRegistrySnapshot,
   classifyJob,
-  classifyRoute
+  classifyRoute,
+  findStaleJobRegistryEntries
 } from "../../scripts/work-class-registry-generate";
 import { runWorkClassRegistryCheck } from "../../scripts/work-class-registry-check";
 import { JOB_WORK_CLASS_REGISTRY } from "../../src/lib/database/work-class-registry";
@@ -64,6 +65,52 @@ describe("classifyRoute (pure)", () => {
       workClass: "reporting",
       source: "explicit"
     });
+  });
+
+  // Security-auditor finding, PR #770 (Issue #743): the original
+  // `source.includes("withTenant(")` check was a deterministic false
+  // negative for any call site written with an explicit generic type
+  // argument — `withTenant<T>(...)` never contains the literal substring
+  // `"withTenant("`. This is not a hypothetical: `src/pages/api/v1/media/
+  // news-images/upload-sessions/index.ts` calls
+  // `withTenant<CreateTxResult>(...)` today and was silently missing from
+  // the committed registry as a result. These cases pin the fix
+  // (`WITH_TENANT_CALL_PATTERN`) so it cannot silently regress back to a
+  // plain substring check.
+  test("detects a generic-typed withTenant<T>( call with no explicit workClass (regression: PR #770 security-auditor finding)", () => {
+    const entry = classifyRoute(
+      "src/pages/api/v1/media/news-images/upload-sessions/index.ts",
+      "const txResult = await withTenant<CreateTxResult>(\n  sql,\n  tenantId,\n  async (tx) => {}\n);"
+    );
+
+    expect(entry).toEqual({
+      path: "src/pages/api/v1/media/news-images/upload-sessions/index.ts",
+      workClass: "interactive",
+      source: "default"
+    });
+  });
+
+  test("detects a generic-typed withTenant<T>( call AND still extracts an explicit workClass literal", () => {
+    const entry = classifyRoute(
+      "src/pages/api/v1/synthetic/generic-with-explicit-class.ts",
+      'await withTenant<SomeResult>(\n  sql,\n  tenantId,\n  fn,\n  { workClass: "background_sync" }\n);'
+    );
+
+    expect(entry).toEqual({
+      path: "src/pages/api/v1/synthetic/generic-with-explicit-class.ts",
+      workClass: "background_sync",
+      source: "explicit"
+    });
+  });
+
+  test("also detects a generic-typed call with a namespaced/qualified type argument and extra whitespace", () => {
+    const entry = classifyRoute(
+      "src/pages/api/v1/synthetic/whitespace-generic.ts",
+      "await withTenant   <   Foo.Bar   >   (sql, tenantId, fn);"
+    );
+
+    expect(entry?.workClass).toBe("interactive");
+    expect(entry?.source).toBe("default");
   });
 });
 
@@ -114,6 +161,56 @@ describe("classifyJob (pure)", () => {
   });
 });
 
+// Reviewer finding on PR #770: `work-class-registry.ts`'s header comment
+// claimed a stale registry entry (a path that no longer exists, or no
+// longer opens a worker/setup connection) makes the check fail — this was
+// not actually implemented; `buildWorkClassRegistrySnapshot` only checked
+// the opposite direction (a discovered file missing an entry, covered by
+// `classifyJob`'s throw above). `findStaleJobRegistryEntries` closes that
+// gap; these tests exercise it directly with a synthetic registry, without
+// needing an actual stale entry to exist in the real repo.
+describe("findStaleJobRegistryEntries (pure)", () => {
+  test("returns empty when every registry key has a matching discovered path", () => {
+    const stale = findStaleJobRegistryEntries(
+      ["scripts/a.ts", "scripts/b.ts"],
+      {
+        "scripts/a.ts": { workClass: "maintenance", rationale: "r" },
+        "scripts/b.ts": { workClass: "background_sync", rationale: "r" }
+      }
+    );
+
+    expect(stale).toEqual([]);
+  });
+
+  test("flags a registry key with no matching discovered path (deleted/renamed script, or one that no longer opens a worker connection)", () => {
+    const stale = findStaleJobRegistryEntries(["scripts/a.ts"], {
+      "scripts/a.ts": { workClass: "maintenance", rationale: "r" },
+      "scripts/deleted-job.ts": { workClass: "maintenance", rationale: "r" }
+    });
+
+    expect(stale).toEqual(["scripts/deleted-job.ts"]);
+  });
+
+  test("flags every stale key when multiple are stale", () => {
+    const stale = findStaleJobRegistryEntries([], {
+      "scripts/one.ts": { workClass: "maintenance", rationale: "r" },
+      "scripts/two.ts": { workClass: "background_sync", rationale: "r" }
+    });
+
+    expect(stale.sort()).toEqual(["scripts/one.ts", "scripts/two.ts"]);
+  });
+
+  test("the real JOB_WORK_CLASS_REGISTRY has zero stale entries against the real discovered job set", async () => {
+    const snapshot = await buildWorkClassRegistrySnapshot();
+    const stale = findStaleJobRegistryEntries(
+      snapshot.jobs.map((entry) => entry.path),
+      JOB_WORK_CLASS_REGISTRY
+    );
+
+    expect(stale).toEqual([]);
+  });
+});
+
 describe("JOB_WORK_CLASS_REGISTRY content", () => {
   test("every entry declares a valid WorkClass and a non-empty rationale", () => {
     for (const [path_, entry] of Object.entries(JOB_WORK_CLASS_REGISTRY)) {
@@ -158,6 +255,12 @@ describe("buildWorkClassRegistrySnapshot against the real repo", () => {
     const paths = snapshot.routes.map((entry) => entry.path);
     expect(paths).not.toContain("src/pages/api/v1/health.ts");
     expect(paths).not.toContain("src/pages/api/v1/setup/initialize.ts");
+    // Regression guard (security-auditor finding, PR #770): this REAL file
+    // calls `withTenant<CreateTxResult>(...)` (a generic type argument) and
+    // must be discovered, not silently dropped by a naive substring check.
+    expect(paths).toContain(
+      "src/pages/api/v1/media/news-images/upload-sessions/index.ts"
+    );
   });
 
   test("discovers exactly the worker scripts registered in JOB_WORK_CLASS_REGISTRY", async () => {

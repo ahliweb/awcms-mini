@@ -397,6 +397,7 @@ flowchart LR
 | `sync.conflict.detected`         | Sync            | Workflow, audit                      |
 | `workflow.task.approved`         | Workflow        | Requesting module                    |
 | `database.pool.saturated`        | DB Connectivity | Observability, security              |
+| `database.pool.rejected`         | DB Connectivity | Observability, security              |
 | `security.golive.blocked`        | Security        | Owner/admin                          |
 
 ## Contract testing requirement

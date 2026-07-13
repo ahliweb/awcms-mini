@@ -39,6 +39,18 @@ and the standalone `bun run database:capacity:check`.
 | `worker` | The 9 unattended background scripts (`getWorkerDatabaseClient()`) | `awcms_mini_worker` | `WORKER_DATABASE_URL` |
 | `setup`  | `POST /api/v1/setup/initialize` only (one-time wizard)            | `awcms_mini_setup`  | `SETUP_DATABASE_URL`  |
 
+**`DATABASE_CAPACITY_WORKER_INSTANCES_MAX`'s default (1) is narrower than
+it looks.** It only accounts for one instance of the SAME job NAME running
+at a time — the case `job-runner.ts`'s Postgres advisory lock already
+mitigates (see §Known limitation below). It does NOT budget for two
+DIFFERENT worker scripts scheduled to run concurrently on the same host
+(e.g. `logs:audit:purge` and `email:dispatch` both firing in the same
+cron minute) — each is a separate process opening its own `worker`-role
+pool at the same time, so real overlap of N distinct scripts needs
+`DATABASE_CAPACITY_WORKER_INSTANCES_MAX >= N`, not `1`, even though the
+advisory lock guarantees no SINGLE job name ever overlaps itself.
+Multi-job-concurrent cron layouts should size this explicitly.
+
 Exempted, with rationale (not part of the instance x pool_max sum, see
 `capacity-config.ts`'s header comment for the full reasoning):
 

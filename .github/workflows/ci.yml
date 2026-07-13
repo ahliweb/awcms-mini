@@ -109,6 +109,9 @@ jobs:
       - name: i18n EN/ID/POT key parity check
         run: bun run i18n:parity:check
 
+      - name: Database work-class registry drift check
+        run: bun run db:work-class:check
+
       - name: Typecheck (tsc --noEmit)
         run: bun run typecheck
 
