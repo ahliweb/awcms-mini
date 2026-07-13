@@ -67,8 +67,8 @@ policy hooks to `identity_access` (Issue #746, epic #738
   `business_scope_cross_tenant_denied_total`,
   `sod_conflicts_detected_total`, `sod_exceptions_granted_total`.
 
-Migrations `sql/060_awcms_mini_business_scope_assignments_schema.sql`
+Migrations `sql/061_awcms_mini_business_scope_assignments_schema.sql`
 (four tenant-scoped, RLS FORCE'd tables) and
-`sql/061_awcms_mini_business_scope_permissions.sql` (nine permissions).
+`sql/062_awcms_mini_business_scope_permissions.sql` (nine permissions).
 Docs: `src/modules/identity-access/README.md`, updates to doc 04 (ERD),
 doc 17 (RBAC/ABAC seed), doc 20 (threat model).

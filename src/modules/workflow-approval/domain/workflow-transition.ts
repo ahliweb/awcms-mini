@@ -1,49 +1,14 @@
 /**
- * Pure workflow transition logic (Issue 11.1). No I/O — callers (the
- * decision API route / `startWorkflowInstance`) own persistence.
+ * Decision-request validation (Issue 11.1, kept unchanged in shape by
+ * Issue #747). The linear `evaluateDecisionOutcome`/`validateWorkflowSteps`
+ * this file used to also export were replaced by the graph-based engine —
+ * see `domain/workflow-graph.ts` (structure), `domain/workflow-quorum.ts`
+ * (approval-outcome evaluation), and `domain/workflow-condition.ts`
+ * (conditional routing). No I/O in this file — callers (the decision API
+ * route) own persistence.
  */
 
 export type WorkflowDecision = "approve" | "reject";
-
-export type DecisionOutcomeInput = {
-  decision: WorkflowDecision;
-  currentStepOrder: number;
-  totalSteps: number;
-};
-
-export type WorkflowInstanceStatus = "approved" | "rejected" | "pending";
-
-export type DecisionOutcome = {
-  instanceStatus: WorkflowInstanceStatus;
-  nextStepOrder: number | null;
-};
-
-/**
- * `"reject"` at any step ends the instance immediately (`rejected`, no
- * further task). `"approve"` advances to the next step unless the current
- * step is already the last one, in which case the instance is `approved`.
- */
-export function evaluateDecisionOutcome(
-  input: DecisionOutcomeInput
-): DecisionOutcome {
-  if (input.decision === "reject") {
-    return { instanceStatus: "rejected", nextStepOrder: null };
-  }
-
-  if (input.currentStepOrder < input.totalSteps) {
-    return {
-      instanceStatus: "pending",
-      nextStepOrder: input.currentStepOrder + 1
-    };
-  }
-
-  return { instanceStatus: "approved", nextStepOrder: null };
-}
-
-export type WorkflowStepDefinition = {
-  stepOrder: number;
-  name: string;
-};
 
 export type ValidationError = {
   field: string;
@@ -93,84 +58,4 @@ export function validateWorkflowDecisionRequestBody(
       reason: typeof record.reason === "string" ? record.reason : undefined
     }
   };
-}
-
-export type WorkflowStepsValidationResult =
-  | { valid: true; value: WorkflowStepDefinition[] }
-  | { valid: false; errors: ValidationError[] };
-
-/**
- * Validates the `steps` jsonb shape used by `awcms_mini_workflow_definitions`
- * (doc 04 §Workflow). Used only by the internal instance-starting path
- * (`startWorkflowInstance`) — there is no public HTTP endpoint that accepts
- * raw `steps` input in this base (doc 17's seed model grants no
- * create/configure action for `workflow.approval`).
- */
-export function validateWorkflowSteps(
-  input: unknown
-): WorkflowStepsValidationResult {
-  const errors: ValidationError[] = [];
-
-  if (!Array.isArray(input) || input.length === 0) {
-    return {
-      valid: false,
-      errors: [{ field: "steps", message: "steps must be a non-empty array." }]
-    };
-  }
-
-  const steps: WorkflowStepDefinition[] = [];
-
-  input.forEach((entry, index) => {
-    const candidate = (entry ?? {}) as Record<string, unknown>;
-    const stepOrder = candidate.stepOrder;
-    const name = candidate.name;
-
-    if (
-      typeof stepOrder !== "number" ||
-      !Number.isInteger(stepOrder) ||
-      stepOrder <= 0
-    ) {
-      errors.push({
-        field: `steps[${index}].stepOrder`,
-        message: "stepOrder must be a positive integer."
-      });
-    }
-
-    if (typeof name !== "string" || name.trim().length === 0) {
-      errors.push({
-        field: `steps[${index}].name`,
-        message: "name is required."
-      });
-    }
-
-    steps.push({
-      stepOrder: typeof stepOrder === "number" ? stepOrder : Number.NaN,
-      name: typeof name === "string" ? name : ""
-    });
-  });
-
-  if (errors.length > 0) {
-    return { valid: false, errors };
-  }
-
-  const orderedStepOrders = steps
-    .map((step) => step.stepOrder)
-    .sort((left, right) => left - right);
-  const isContiguousFromOne = orderedStepOrders.every(
-    (stepOrder, index) => stepOrder === index + 1
-  );
-
-  if (!isContiguousFromOne) {
-    return {
-      valid: false,
-      errors: [
-        {
-          field: "steps",
-          message: "stepOrder values must be contiguous starting at 1."
-        }
-      ]
-    };
-  }
-
-  return { valid: true, value: steps };
 }

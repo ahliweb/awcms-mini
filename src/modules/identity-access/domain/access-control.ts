@@ -92,7 +92,11 @@ export type AccessAction =
   // lifecycle history, `awcms_mini_business_scope_assignment_events`).
   // High-risk: revoking removes an access grant or a standing exception,
   // same "removes a safeguard/grant" reasoning `release`'s own comment
-  // above documents.
+  // above documents. Issue #747 (workflow-approval) also reuses this same
+  // action for `workflow.delegation.revoke` (revoke an effective-dated
+  // substitute assignment) — same generic action vocabulary shared across
+  // activities throughout this codebase (e.g. "approve"), distinct
+  // permission keys, no conflict.
   | "revoke"
   // `override` — reserved for a future "grant access despite a detected
   // conflict" hook distinct from the ordinary `approve` decision on an
@@ -111,6 +115,20 @@ export type AccessAction =
   // stays denied), not high-risk, matching `verify`/`preview`'s
   // non-destructive reasoning above.
   | "reject"
+  // Issue #747 (workflow-approval managed definitions/escalation/recovery):
+  // `workflow.definition.retire` (voluntary retirement of an active
+  // definition version without publishing a replacement — distinct from
+  // `publish`, which retires the PREVIOUS active version only as a side
+  // effect of activating a new one), `workflow.recovery.reassign`
+  // (reassign a pending task's open seats to another tenant user), and
+  // `workflow.recovery.force_decide` (force-approve/force-reject a
+  // pending task, bypassing quorum). All three added to `HIGH_RISK_ACTIONS`
+  // below — each is either an administrative override of a running
+  // workflow's normal decision path, or a reduction of a substitute's
+  // standing.
+  | "retire"
+  | "reassign"
+  | "force_decide"
   // Issue #748 (profile_identity): `profile_merge.merge` — executing an
   // approved profile merge request (survivor absorbs loser, entity links
   // repointed, immutable merge history written). Deliberately its own
@@ -183,11 +201,15 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "disconnect",
   "release",
   // Issue #746: revoking a business-scope assignment/SoD exception removes
-  // an access grant or a standing safeguard override.
+  // an access grant or a standing safeguard override. Issue #747 also
+  // relies on this same set entry for `workflow.delegation.revoke`.
   "revoke",
   // Issue #746: reserved override hook (see AccessAction's own comment) —
   // classified high-risk up front even though no endpoint consumes it yet.
   "override",
+  "retire",
+  "reassign",
+  "force_decide",
   "merge"
 ]);
 
@@ -229,6 +251,28 @@ export function evaluateAccess(
     return {
       allowed: false,
       reason: "Self-approval is not allowed.",
+      matchedPolicy: "self_approval_deny"
+    };
+  }
+
+  // Issue #747 security-auditor finding (PR #778): `force_decide` is an
+  // administrative override that bypasses quorum entirely (workflow-
+  // approval's `force-decision.ts`) — without this, a caller who filed
+  // their own workflow instance AND holds `workflow.recovery.force_decide`
+  // could force-approve their own request, structurally bypassing the
+  // `approve`-only check above (that check is hardwired to the "approve"
+  // action string, so it never fires for "force_decide"). Blocks BOTH
+  // directions (force-approve and force-reject) of a caller's own
+  // instance — an administrator who is also the requester should not be
+  // deciding their own request at all via this path, not just the
+  // approve direction.
+  if (
+    request.action === "force_decide" &&
+    requestedBy === context.tenantUserId
+  ) {
+    return {
+      allowed: false,
+      reason: "Self-administered force-decision is not allowed.",
       matchedPolicy: "self_approval_deny"
     };
   }

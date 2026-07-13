@@ -11992,21 +11992,755 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
-  /api/v1/workflows/tasks:
+  /api/v1/workflows/definitions:
     get:
       tags:
         - Workflow Approval
-      summary: List this tenant's pending workflow tasks (limit 100, oldest first)
-      operationId: workflowsGetPendingTasks
+      summary: List workflow definitions (latest version per workflow key)
+      operationId: workflowsListDefinitions
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: lifecycleStatus
+          in: query
+          schema:
+            type: string
+            enum:
+              - draft
+              - active
+              - retired
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Latest version per distinct workflow key (or per `lifecycleStatus` filter).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkflowDefinitionListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Workflow Approval
+      summary: Create a new draft workflow definition (version 1, or next draft version for an existing workflow key)
+      operationId: workflowsCreateDefinition
       security:
         - bearerAuth: []
           tenantHeader: []
       parameters:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowDefinitionCreateRequest"
       responses:
         "200":
-          description: Pending workflow tasks for the caller's tenant (limit 100, oldest first).
+          description: Draft definition created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - definition
+                        properties:
+                          definition:
+                            $ref: "#/components/schemas/WorkflowDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/definitions/{id}:
+    get:
+      tags:
+        - Workflow Approval
+      summary: Get a workflow definition and its full version history
+      operationId: workflowsGetDefinition
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Definition detail plus every version of the same workflow key.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - definition
+                          - versions
+                        properties:
+                          definition:
+                            $ref: "#/components/schemas/WorkflowDefinition"
+                          versions:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/WorkflowDefinition"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags:
+        - Workflow Approval
+      summary: Update a draft workflow definition in place
+      operationId: workflowsUpdateDefinition
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowDefinitionUpdateRequest"
+      responses:
+        "200":
+          description: Draft definition updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - definition
+                        properties:
+                          definition:
+                            $ref: "#/components/schemas/WorkflowDefinition"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The definition is not a draft (edit non-draft versions via `new-version` instead).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Workflow Approval
+      summary: Soft-delete a draft workflow definition
+      operationId: workflowsDeleteDefinition
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Draft definition soft-deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Only a draft definition can be deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/definitions/{id}/new-version:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Fork a new draft version from an existing (active/retired/draft) definition
+      operationId: workflowsCreateDefinitionNewVersion
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: New draft version created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkflowDefinitionLifecycleActionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/definitions/{id}/publish:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Publish/activate a draft workflow definition version
+      operationId: workflowsPublishDefinition
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Definition published; any previously-active version of the same workflow key is retired in the same transaction.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkflowDefinitionLifecycleActionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, or the definition is not a draft.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/definitions/{id}/retire:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Voluntarily retire an active workflow definition version
+      operationId: workflowsRetireDefinition
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Definition retired.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkflowDefinitionLifecycleActionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, or the definition is not active.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/definitions/{id}/validate:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Dry-run validate a workflow definition's graph (stored, or a candidate provided in the body)
+      operationId: workflowsValidateDefinition
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                graph: {}
+                factsSchema: {}
+      responses:
+        "200":
+          description: Validation result — never fails the HTTP call itself for an invalid graph.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkflowGraphValidationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/delegations:
+    get:
+      tags:
+        - Workflow Approval
+      summary: List workflow delegations
+      operationId: workflowsListDelegations
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: delegatorTenantUserId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Delegations (limit 100), newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - delegations
+                        properties:
+                          delegations:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/WorkflowDelegation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Workflow Approval
+      summary: Create a workflow delegation/substitute assignment from the calling tenant user
+      operationId: workflowsCreateDelegation
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowDelegationCreateRequest"
+      responses:
+        "200":
+          description: Delegation created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - delegation
+                        properties:
+                          delegation:
+                            $ref: "#/components/schemas/WorkflowDelegation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/delegations/{id}/revoke:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Revoke a workflow delegation (delegator only)
+      operationId: workflowsRevokeDelegation
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Delegation revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - id
+                          - status
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          status:
+                            type: string
+                            enum:
+                              - active
+                              - revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Only the delegator may revoke their own delegation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/instances/{id}:
+    get:
+      tags:
+        - Workflow Approval
+      summary: Get a workflow instance's detail and immutable action history
+      operationId: workflowsGetInstance
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Instance detail plus decision/audit history, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/WorkflowInstanceDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/instances/{id}/cancel:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Administrative recovery — cancel a running (pending) workflow instance
+      operationId: workflowsCancelInstance
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Instance cancelled, along with every one of its pending tasks.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - instanceId
+                        properties:
+                          instanceId:
+                            type: string
+                            format: uuid
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request, or the instance is not pending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/tasks:
+    get:
+      tags:
+        - Workflow Approval
+      summary: Consolidated approval inbox — keyset-paginated, filterable task list
+      operationId: workflowsGetPendingTasks
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: workflowKey
+          in: query
+          schema:
+            type: string
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - completed
+              - skipped
+              - cancelled
+        - name: overdue
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tasks matching the filters (limit 100), oldest first, with an opaque `nextCursor` for the next page.
           content:
             application/json:
               schema:
@@ -12053,7 +12787,7 @@ paths:
               $ref: "#/components/schemas/WorkflowTaskDecisionRequest"
       responses:
         "200":
-          description: Decision recorded. Instance advances to the next step, is approved, or is rejected depending on the decision and remaining steps.
+          description: Decision recorded. The task completes only once its quorum rule is satisfied; the instance advances through the graph only once the task completes.
           content:
             application/json:
               schema:
@@ -12070,7 +12804,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Access denied by RBAC, ABAC, or tenant policy — including self-approval denial when the caller is the same tenant user who requested the workflow instance.
+          description: Access denied by RBAC/ABAC/self-approval, or the caller is not an eligible decider for this task (not assigned, no active delegation).
           content:
             application/json:
               schema:
@@ -12079,6 +12813,150 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: Idempotency-Key reused with a different request, or the task's decision has already been recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/tasks/{id}/force-decision:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Administrative recovery — force-approve or force-reject a pending task, bypassing quorum
+      operationId: workflowsForceTaskDecision
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowTaskForceDecisionRequest"
+      responses:
+        "200":
+          description: Task force-decided and the instance advanced accordingly.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - taskId
+                          - instanceId
+                          - instanceFinished
+                          - instanceStatus
+                        properties:
+                          taskId:
+                            type: string
+                            format: uuid
+                          instanceId:
+                            type: string
+                            format: uuid
+                          instanceFinished:
+                            type: boolean
+                          instanceStatus:
+                            type: string
+                            enum:
+                              - pending
+                              - approved
+                              - rejected
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, or the task is not pending.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/workflows/tasks/{id}/reassign:
+    post:
+      tags:
+        - Workflow Approval
+      summary: Administrative recovery — reassign a pending task to another tenant user
+      operationId: workflowsReassignTask
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowTaskReassignRequest"
+      responses:
+        "200":
+          description: Task reassigned.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - taskId
+                          - assignmentId
+                        properties:
+                          taskId:
+                            type: string
+                            format: uuid
+                          assignmentId:
+                            type: string
+                            format: uuid
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, or the task is not pending.
           content:
             application/json:
               schema:
@@ -19497,6 +20375,282 @@ components:
           type: integer
           minimum: 0
           description: "Issue #743 — bounded queue cap for this work class (max concurrency x DATABASE_WORK_CLASS_QUEUE_MULTIPLIER). Once `queued` would reach this number, a new caller is rejected immediately instead of joining the queue."
+    WorkflowDefinition:
+      type: object
+      required:
+        - id
+        - workflowKey
+        - name
+        - version
+        - lifecycleStatus
+        - graph
+        - factsSchema
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        workflowKey:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        lifecycleStatus:
+          type: string
+          enum:
+            - draft
+            - active
+            - retired
+        graph: {}
+        factsSchema: {}
+        publishedAt:
+          type: string
+          format: date-time
+        retiredAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkflowDefinitionCreateRequest:
+      type: object
+      required:
+        - workflowKey
+        - name
+        - graph
+      additionalProperties: false
+      properties:
+        workflowKey:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        graph: {}
+        factsSchema: {}
+    WorkflowDefinitionLifecycleActionResponse:
+      type: object
+      required:
+        - id
+        - workflowKey
+        - version
+        - lifecycleStatus
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        workflowKey:
+          type: string
+        version:
+          type: integer
+        lifecycleStatus:
+          type: string
+          enum:
+            - draft
+            - active
+            - retired
+    WorkflowDefinitionListResponse:
+      type: object
+      required:
+        - definitions
+      additionalProperties: false
+      properties:
+        definitions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowDefinition"
+    WorkflowDefinitionUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        graph: {}
+        factsSchema: {}
+    WorkflowDelegation:
+      type: object
+      required:
+        - id
+        - delegatorTenantUserId
+        - delegateTenantUserId
+        - effectiveFrom
+        - reason
+        - status
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        delegatorTenantUserId:
+          type: string
+          format: uuid
+        delegateTenantUserId:
+          type: string
+          format: uuid
+        workflowKey:
+          type: string
+        resourceType:
+          type: string
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - revoked
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+    WorkflowDelegationCreateRequest:
+      type: object
+      required:
+        - delegateTenantUserId
+        - reason
+      additionalProperties: false
+      properties:
+        delegateTenantUserId:
+          type: string
+          format: uuid
+        workflowKey:
+          type: string
+        resourceType:
+          type: string
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+        reason:
+          type: string
+    WorkflowGraphValidationResult:
+      type: object
+      required:
+        - valid
+      additionalProperties: false
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+    WorkflowInstanceDetailResponse:
+      type: object
+      required:
+        - instance
+        - history
+      additionalProperties: false
+      properties:
+        instance:
+          type: object
+          required:
+            - id
+            - workflowDefinitionId
+            - workflowDefinitionVersion
+            - workflowKey
+            - workflowName
+            - resourceType
+            - resourceId
+            - status
+            - requestedByTenantUserId
+            - facts
+            - createdAt
+            - updatedAt
+          additionalProperties: false
+          properties:
+            id:
+              type: string
+              format: uuid
+            workflowDefinitionId:
+              type: string
+              format: uuid
+            workflowDefinitionVersion:
+              type: integer
+            workflowKey:
+              type: string
+            workflowName:
+              type: string
+            resourceType:
+              type: string
+            resourceId:
+              type: string
+            status:
+              type: string
+              enum:
+                - pending
+                - approved
+                - rejected
+                - cancelled
+            requestedByTenantUserId:
+              type: string
+              format: uuid
+            facts: {}
+            cancelReason:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowInstanceHistoryEntry"
+    WorkflowInstanceHistoryEntry:
+      type: object
+      required:
+        - kind
+        - createdAt
+        - action
+        - detail
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum:
+            - decision
+            - audit
+        createdAt:
+          type: string
+          format: date-time
+        actorTenantUserId:
+          type: string
+          format: uuid
+        action:
+          type: string
+        detail: {}
     WorkflowTaskDecisionRequest:
       type: object
       required:
@@ -19516,8 +20670,9 @@ components:
         - taskId
         - decision
         - instanceId
+        - taskCompleted
+        - instanceFinished
         - instanceStatus
-        - nextStepOrder
       additionalProperties: false
       properties:
         taskId:
@@ -19531,27 +20686,44 @@ components:
         instanceId:
           type: string
           format: uuid
+        taskCompleted:
+          type: boolean
+          description: False when the task's quorum rule is not yet satisfied by this decision alone.
+        instanceFinished:
+          type: boolean
         instanceStatus:
           type: string
           enum:
             - approved
             - rejected
             - pending
-        nextStepOrder:
-          type: integer
-          minimum: 1
-          nullable: true
+    WorkflowTaskForceDecisionRequest:
+      type: object
+      required:
+        - decision
+        - reason
+      additionalProperties: false
+      properties:
+        decision:
+          type: string
+          enum:
+            - approve
+            - reject
+        reason:
+          type: string
     WorkflowTaskItem:
       type: object
       required:
         - id
-        - stepOrder
+        - nodeId
+        - status
+        - quorumRule
+        - overdue
         - createdAt
         - instanceId
         - resourceType
         - resourceId
         - requestedByTenantUserId
-        - currentStepOrder
         - workflowDefinitionId
         - workflowKey
         - workflowName
@@ -19560,9 +20732,26 @@ components:
         id:
           type: string
           format: uuid
-        stepOrder:
-          type: integer
-          minimum: 1
+        nodeId:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - completed
+            - skipped
+            - cancelled
+        quorumRule:
+          type: string
+          enum:
+            - all
+            - any
+            - quorum
+        dueAt:
+          type: string
+          format: date-time
+        overdue:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -19576,9 +20765,6 @@ components:
         requestedByTenantUserId:
           type: string
           format: uuid
-        currentStepOrder:
-          type: integer
-          minimum: 1
         workflowDefinitionId:
           type: string
           format: uuid
@@ -19590,12 +20776,28 @@ components:
       type: object
       required:
         - tasks
+        - nextCursor
       additionalProperties: false
       properties:
         tasks:
           type: array
           items:
             $ref: "#/components/schemas/WorkflowTaskItem"
+        nextCursor:
+          type: string
+          nullable: true
+    WorkflowTaskReassignRequest:
+      type: object
+      required:
+        - toTenantUserId
+        - reason
+      additionalProperties: false
+      properties:
+        toTenantUserId:
+          type: string
+          format: uuid
+        reason:
+          type: string
 security:
   - bearerAuth: []
     tenantHeader: []

@@ -113,5 +113,10 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     workClass: "maintenance",
     rationale:
       'Scheduled expiry sweep for business-scope assignments/SoD conflict exceptions (identity-access:business-scope:expiry, Issue #746) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; every withTenant call inside business-scope-expiry-job.ts already passes workClass: "maintenance" explicitly.'
+  },
+  "scripts/workflow-escalations-dispatch.ts": {
+    workClass: "background_sync",
+    rationale:
+      "Escalation/timeout sweep (workflow:escalations:dispatch, Issue #747), recommended every 1-5 minutes — same recurring dispatcher profile as domain-events/social-publish/object-sync dispatch, not a tolerant-of-delay maintenance sweep since it drives due-date/overdue task state operators rely on."
   }
 };

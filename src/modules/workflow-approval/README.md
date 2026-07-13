@@ -1,74 +1,94 @@
 # Workflow Approval
 
-Implementasi Issue 11.1 (`docs/awcms-mini/06_github_issues_detail.md` §Issue 11.1 — Add Workflow Approval Engine).
+Implementation of Issue 11.1 (`docs/awcms-mini/06_github_issues_detail.md` §Issue 11.1), evolved by **Issue #747** (epic `platform-evolution` #738, Wave 2) into a managed, versioned, graph-based enterprise workflow minimum — while keeping the base's original guardrail: no domain-specific business terms/actions (base ships no POS cancel/Coretax export/warehouse transfer), no external BPMN engine, and no runtime code execution in conditions/actions (doc 21 §3 decision tree, node Q5).
 
-## Scope
+## What changed from Issue 11.1
 
-Generic multi-step approval engine, tanpa istilah/aksi bisnis domain apa pun (base ini tidak punya POS cancel, Coretax export, atau warehouse transfer — semuanya domain-specific dan sudah berulang kali dikeluarkan dari base ini di issue-issue sebelumnya). Empat tabel persis sesuai doc 04 §Workflow (migration `012_awcms_mini_workflow_approval_schema.sql`):
+| Issue 11.1 (linear)                                | Issue #747 (managed, graph-based)                                                                             |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| One `status: active/inactive` per definition       | `version` + `lifecycle_status: draft/active/retired`, full version history, immutable published/retired rows  |
+| `steps` (ordered jsonb list)                       | `graph` (nodes/transitions — approval/condition/parallel/join/notify/end)                                     |
+| No public create-definition endpoint               | `POST/PUT/DELETE /workflows/definitions`, `.../publish`, `.../retire`, `.../new-version`, `.../validate`      |
+| `current_step_order` (single int)                  | `awcms_mini_workflow_tasks` rows (one per activated node) — supports multiple concurrently-active nodes       |
+| One implicit assignee (whoever calls the decision) | `awcms_mini_workflow_task_assignments` — explicit assignees, quorum/any/all, delegation-resolved deciders     |
+| No delegation                                      | `awcms_mini_workflow_delegations` — effective-dated, scoped, reason, audited, revocable                       |
+| No escalation/timeout                              | Per-node `escalation` config + `bun run workflow:escalations:dispatch`, idempotent via optimistic concurrency |
+| No administrative recovery                         | Reassign / cancel / force-approve / force-reject, permission-gated + `Idempotency-Key` + audit                |
+| `GET /workflows/tasks` (offset-free, no filters)   | Keyset-paginated, filterable (workflow key/resource type/status/overdue), safe search, action-history view    |
 
-1. **`awcms_mini_workflow_definitions`** — template workflow per tenant. `workflow_key` unik per tenant (partial unique index `WHERE deleted_at IS NULL`, pola dedup yang sama seperti `office_code`/`profile_identifiers`). Kolom `steps` (jsonb) adalah daftar langkah terurut, mis. `[{"stepOrder":1,"name":"Manager approval"}]` — divalidasi di domain logic (`validateWorkflowSteps`), bukan constraint SQL. "Steps" pada scope issue **bukan** tabel ke-5 — ia melekat pada satu definition.
-2. **`awcms_mini_workflow_instances`** — satu proses approval berjalan untuk satu resource (`resource_type`/`resource_id`, `resource_id` bertipe `text` mengikuti pola `awcms_mini_audit_events.resource_id`). `status`: `pending → approved | rejected | cancelled`. `current_step_order` menunjuk step yang sedang menunggu keputusan.
-3. **`awcms_mini_workflow_tasks`** — satu task per step per instance (`status`: `pending → completed | skipped`).
-4. **`awcms_mini_workflow_decisions`** — append-only, satu baris per keputusan (`decision`: `approve`/`reject`, `decided_by_tenant_user_id`, `reason` opsional). RLS sama seperti `awcms_mini_abac_decision_logs`/`awcms_mini_audit_events`: satu policy `tenant_isolation`, tidak ada `UPDATE` yang pernah dijalankan aplikasi terhadap tabel ini.
+## Schema (migration `012` + `060`)
 
-## Kenapa tidak ada endpoint publik "create definition" / "start instance"
+Same 4 core tables (`awcms_mini_workflow_definitions`/`_instances`/`_tasks`/`_decisions`), evolved in place (migration `060`), plus 3 new tables:
 
-Doc 17 §Registry module & activity hanya memberi `workflow_approval.approval: read, approve` — **tidak ada** `create`/`configure`. Membangun endpoint publik untuk membuat definition atau memulai instance berarti menciptakan permission/aksi yang tidak disahkan doc 17, persis jenis penambahan tak berdasar yang dihindari repo ini berulang kali (bandingkan: Issue 6.3 tidak membangun dispatcher R2 sungguhan; Issue 10.1 hanya membangun 3 endpoint lifecycle profile tipis, bukan CRUD penuh).
+- `awcms_mini_workflow_task_assignments` — eligible deciders per task (quorum/any/all counting, delegation resolution, reassignment history — never deleted, only `reassigned`).
+- `awcms_mini_workflow_delegations` — effective-dated substitute assignments.
+- `awcms_mini_workflow_join_arrivals` — fan-in bookkeeping for `parallel`/`join` nodes (append-only, idempotent by unique constraint).
 
-Sebagai gantinya:
+`awcms_mini_idempotency_keys` (from migration `012`) is reused unchanged for every new high-risk action here.
 
-- `application/workflow-instance.ts` → `startWorkflowInstance(tx, params)` adalah fungsi aplikasi **internal-only** (bukan dipanggil route publik manapun). Ia membaca `steps` definition, membuat instance (`status: 'pending'`, `current_step_order: 1`), dan task pertama (`step_order: 1`, `status: 'pending'`). Melempar error bila definition tidak ada, tidak aktif, atau soft-deleted.
-- Dipakai oleh: (a) kode domain masa depan pada aplikasi turunan yang menggerbangi aksi bisnis nyata (mis. POS cancel/Coretax export), dan (b) fixture test/verifikasi langsung — pola yang sama seperti Issue 9.1 (SQL langsung untuk office/tenant-user kedua) dan Issue 10.1 (SQL langsung untuk profile test).
-- Workflow definition sendiri juga hanya dibuat lewat `INSERT` langsung pada saat verifikasi/test (tidak ada endpoint `POST /workflows/definitions`), untuk alasan yang sama.
+## Graph model (`domain/workflow-graph.ts`)
 
-## Endpoint publik (persis yang disahkan doc 17: "decision API")
+A small, closed set of node types — never a scripting/expression engine:
 
-Bearer session (`Authorization: Bearer <token>` + header `X-AWCMS-Mini-Tenant-ID`), pola identik dengan `GET /api/v1/logs/audit` dan `POST /api/v1/sync/conflicts/{id}/resolve`: `resolveTenantContext` → `fetchGrantedPermissionKeys` → `evaluateAccess` (default deny) → `recordDecisionLog` (dicatat untuk allow maupun deny).
+- **`approval`** — one or more `assigneeTenantUserIds`; `quorumRule` (`all`/`any`/`quorum` with `quorumThreshold`) decides when the node completes. A single `reject` always completes the node as rejected, regardless of rule (a deliberate, documented conservative default — see `domain/workflow-quorum.ts`). Optional `escalation` config (`timeoutMinutes`, `escalateToTenantUserId`, `maxEscalations`).
+- **`condition`** — EITHER a bounded comparison (`factKey`/`operator`/`value`, operators `eq|neq|gt|gte|lt|lte|in`) over a fact declared in the definition's `factsSchema`, OR a reference to a statically-registered `WorkflowConditionResolver` (`resolverName` — see below). Never both, never neither.
+- **`parallel`**/**`join`** — fan-out into 2+ concurrent branches, fan back in once every branch has arrived at the join (`awcms_mini_workflow_join_arrivals`). Nested parallel/join is **not supported** in this issue (see §Deferred).
+- **`notify`** — fires a notification via the `WorkflowNotificationPort` capability port (ADR-0011; adapter in `email`, wraps `enqueueAnnouncement` unchanged) and advances immediately; never blocks.
+- **`end`** — terminal; sets the instance's outcome.
 
-- **`GET /api/v1/workflows/tasks`** — guard `{ moduleKey: "workflow", activityCode: "approval", action: "read" }`. Daftar task `status = 'pending'` milik tenant, join instance (`workflowDefinitionId`, `resourceType`, `resourceId`, `requestedByTenantUserId`, `currentStepOrder`) dan definition (`workflowKey`, `workflowName`) untuk konteks. `LIMIT 100 ORDER BY created_at ASC`.
-- **`POST /api/v1/workflows/tasks/{id}/decisions`** — guard `{ moduleKey: "workflow", activityCode: "approval", action: "approve" }` (satu action untuk **kedua** nilai `decision` — "approve" dan "reject" — sama seperti `sync_storage.conflict_resolution.approve` yang menggerbangi seluruh `POST /sync/conflicts/{id}/resolve` apa pun `resolution`-nya; permission di sini adalah kapabilitas "memutuskan", bukan hanya menyetujui). Body: `{ decision: "approve" | "reject", reason?: string }`.
+`validateWorkflowGraph` structurally validates every node reference, quorum threshold bound, parallel/join branch-set matching, and rejects cycles (DFS) — run on every definition write and again at publish (defense in depth).
 
-  Modul key yang dipakai di guard sengaja `"workflow"` (bukan `"workflow_approval"` dari doc 17) — konsisten dengan preseden `"logging"`/`"reporting"` yang juga memendekkan module key doc 17 (`observability_logging`/`management_reporting`) di kode. Seed permission migration `012` memakai `('workflow', 'approval', ...)` mengikuti pola yang sama.
+## Module-contributed condition resolvers/actions (`_shared/ports/workflow-condition-port.ts`, `infrastructure/condition-action-registry.ts`)
 
-## Self-approval guard — dipakai ulang, bukan mekanisme baru
+A static, reviewed-source-code registry — mirrors `domain-event-runtime`'s `DOMAIN_EVENT_CONSUMERS` exactly. Ships one self-contained reference resolver (`workflow_approval.reference.always_true`) and one reference action handler (`workflow_approval.reference.noop`), proving the mechanism end-to-end without inventing real business logic in this foundation-adjacent issue (matches the accepted "foundation issue ships zero real business integrations" precedent, #643/#742). **Deferred**: an `action` node type that would invoke a registered `WorkflowActionHandler` mid-graph does not exist yet in this issue's node schema — the handler registry exists and is tested, but nothing calls it yet; a follow-up issue wires a real node type to it once a real consumer needs one.
 
-`evaluateAccess` (`src/modules/identity-access/domain/access-control.ts`, ditambahkan Issue 2.4) sudah punya cek generik:
+## Version pinning
 
-```ts
-if (request.action === "approve" && requestedBy === context.tenantUserId) {
-  return {
-    allowed: false,
-    reason: "Self-approval is not allowed.",
-    matchedPolicy: "self_approval_deny"
-  };
-}
-```
+`awcms_mini_workflow_instances.workflow_definition_id` (FK, immutable once published) + denormalized `workflow_definition_version` pin every instance to the EXACT definition row active when `startWorkflowInstance` ran. Because published/active/retired rows are never edited in place (`application/workflow-definition-directory.ts` enforces `draft`-only editing), every later read/advance of that instance re-fetches the identical graph regardless of newer versions published afterward.
 
-Endpoint decision di sini **memanggil ulang** mekanisme yang sudah ada ini — tidak ada guard baru. Kuncinya: `decisions.ts` melakukan `SELECT` task+instance (untuk `requested_by_tenant_user_id`) **sebelum** memanggil `evaluateAccess`, supaya `resourceAttributes.requestedByTenantUserId` terisi nilai yang benar untuk dibandingkan terhadap `context.tenantUserId` (doc 17 Policy #7).
+## Delegation (`domain/workflow-delegation.ts`)
 
-## Alur keputusan → transisi
+A delegation only ever lets the delegate act using the delegator's OWN standing — never a permission grant, never wider than the delegation row's own declared `workflowKey`/`resourceType`/effective window. Self-approval denial (`identity-access/domain/access-control.ts`, unchanged) still compares the ACTING tenant user against the instance's original requester — a delegate cannot be used to approve a request the delegator themselves filed. Both create (`POST /workflows/delegations`) and revoke (`POST /workflows/delegations/{id}/revoke`) require `Idempotency-Key` and are recorded via `recordAuditEvent` (in addition to the `workflow.delegation.created`/`.revoked` domain events already published through `domain_event_runtime`'s outbox — the audit log entry and the domain event are two distinct, independently-consumed records, not the same thing). Revoke is gated on the `workflow.delegation.revoke` permission (Owner/Manager per doc 17's RBAC matrix) — `revokeWorkflowDelegation`'s ownership check (only the original delegator may revoke) remains as defense-in-depth on top of that permission gate, not instead of it (security-auditor finding, PR #778: the permission was previously seeded but never enforced by any guard).
 
-`domain/workflow-transition.ts` (`evaluateDecisionOutcome`, pure function, tanpa I/O):
+## Escalation/timeout (`application/workflow-escalation.ts`, `scripts/workflow-escalations-dispatch.ts`)
 
-- `reject` di step manapun → instance langsung `rejected`, tidak ada task baru.
-- `approve` saat `currentStepOrder < totalSteps` → instance tetap `pending`, task baru dibuat di `currentStepOrder + 1`.
-- `approve` di step terakhir (`currentStepOrder === totalSteps`) → instance `approved`, tidak ada task baru.
+Built on the shared worker runner (`src/lib/jobs/job-runner.ts`) — bounded batch, advisory lock, `--dry-run`. **Idempotency guard**: the escalation `UPDATE` is conditioned on `WHERE status = 'pending' AND escalation_step = <value read this pass>` — a lost race (concurrent run, or a retried pass) affects zero rows and is silently skipped, never double-escalates. Runs as the least-privilege `awcms_mini_worker` role (migration `060` grants).
 
-`decisions.ts` menjalankan urutan: 404 bila task tidak ada; `INSERT` ke `awcms_mini_workflow_decisions`; tandai task `completed`; panggil `evaluateDecisionOutcome`; `UPDATE` `status`/`current_step_order` instance; bila ada `nextStepOrder`, `INSERT` task berikutnya berstatus `pending`; `recordAuditEvent` (`src/modules/logging/application/audit-log.ts`, `resourceType: "workflow_instance"`, `severity: "warning"`).
+## Administrative recovery (`application/workflow-recovery.ts`)
+
+Reassign (`POST /workflows/tasks/{id}/reassign`), cancel (`POST /workflows/instances/{id}/cancel`), and force-approve/force-reject (`POST /workflows/tasks/{id}/force-decision`) — each permission-gated (`workflow.recovery.reassign`/`.cancel`/`.force_decide`), reason-required, `Idempotency-Key`, fully audited (`recordAuditEvent`). Never overwrites/deletes a prior decision/task/assignment row — always appends a new row or a guarded status transition.
+
+## Consolidated approval inbox (`application/workflow-inbox-directory.ts`)
+
+`GET /workflows/tasks` — keyset pagination (`(created_at, id)`, doc 16 §Pagination keyset), filters (`workflowKey`/`resourceType`/`status`/`overdue`), safe parameterized search (ILIKE with escaped wildcards, never string concatenation). `GET /workflows/instances/{id}` — instance detail + immutable action history, built by REUSING `awcms_mini_workflow_decisions` + `awcms_mini_audit_events` (no new history table).
+
+## Self-approval guard — still reused, not a new mechanism
+
+`evaluateAccess` (`src/modules/identity-access/domain/access-control.ts`, Issue 2.4) is called unchanged; the decision route still looks up the instance's `requested_by_tenant_user_id` BEFORE the guard so the comparison has the right value.
+
+## Metrics (`src/lib/observability/metrics-port.ts`)
+
+`workflow_instances_active_total`/`workflow_tasks_overdue_total` (gauges, sampled per escalation-job pass), `workflow_task_decision_duration_ms` (histogram), `workflow_escalation_total`/`workflow_recovery_action_total` (counters) — all unlabeled or labeled with a fixed, code-defined enum only (never a tenant/resource id).
+
+## Admin UI (`/admin/workflows`)
+
+`src/pages/admin/workflows/index.astro` — the consolidated approval inbox screen: filters (status/workflow key/resource type/overdue), safe search, keyset "load more" pagination, per-row approve/reject/reassign/force-decide/cancel actions (each gated by its own permission, each a real client-side `fetch` against the existing endpoints above, same convention `admin/analytics.astro` established — the UI is never the enforcement point, only a second, strictly-more-restrictive convenience layer over already-guarded server-side ABAC), and an expandable immutable action-history panel per row. Deliberately NOT built in this issue: a visual definition/graph editor — `POST/PUT /workflows/definitions/**` are exercised by tests and usable directly, but authoring a node/transition graph today is done via the API, same precedent Issue 11.1 set for the original linear engine (backlog for a follow-up issue, not silently dropped).
+
+## Deferred (explicitly out of scope for Issue #747, not silently dropped)
+
+- **Nested `parallel`/`join`** — a branch containing its own `parallel` node is not supported; the fan-in tracking (`awcms_mini_workflow_join_arrivals`) assumes one level of nesting. Real need would require branch-id disambiguation across nesting levels.
+- **`any`-join** (proceed once ANY one branch, not all, arrives) — only `all`-join is implemented; `any`-join is more naturally modeled today by routing each branch independently to the same next node without a join at all.
+- **A graph `action` node type** invoking a registered `WorkflowActionHandler` — the static registry/port exists and is tested, no node type calls it yet.
+- **SoD (segregation-of-duties) hooks from Issue #746** — that issue (`identity-access` business-scope + SoD) is not yet merged; self-approval/delegation authorization here is designed so a future SoD hook could plug into `findEligibleAssignment`/`evaluateAccess` without a rewrite, but nothing SoD-specific is built here.
+- **Full metrics cardinality tuning per workflowKey/nodeId** — deliberately kept unlabeled/low-cardinality per Issue #747's own guardrail; a future dashboard wanting per-workflow breakdowns would need a bounded-cardinality follow-up (e.g. capping to the tenant's top-N workflow keys), not unbounded labels.
 
 ## Idempotency
 
-`POST /workflows/tasks/{id}/decisions` adalah mutation high-risk — doc 10 §Idempotency wrapper rules eksplisit menyebut "workflow decision" wajib `Idempotency-Key`. Tidak ada endpoint lain di base ini yang sudah mengimplementasikan mekanisme header+store ini di kode (base ini belum punya POS posting/transfer/dll yang butuh idempotency), tapi OpenAPI baseline **sudah** menyediakan parameter `IdempotencyKey` sejak awal tanpa pernah dipakai — endpoint ini adalah konsumen pertamanya.
+Every high-risk mutation here (`decisions`, `reassign`, `force-decision`, `publish`, `retire`, `DELETE .../definitions/{id}`, `.../instances/{id}/cancel`, `.../delegations` create, `.../delegations/{id}/revoke`) requires `Idempotency-Key`, using the same generic `awcms_mini_idempotency_keys` store (migration `012`) — same key + same request hash replays the stored response; same key + different hash -> `409 IDEMPOTENCY_CONFLICT`.
 
-`src/modules/_shared/idempotency.ts` (helper generik, dipakai bersama modul manapun di masa depan) + tabel generik `awcms_mini_idempotency_keys` (migration `012`, kolom: `request_scope`, `idempotency_key`, `request_hash`, `response_status`, `response_body`, unique `(tenant_id, request_scope, idempotency_key)`). Alur: key sama + hash sama → replay response tersimpan; key sama + hash beda → `409 IDEMPOTENCY_CONFLICT`; key baru → jalankan mutation lalu simpan hasil.
+## Security-auditor findings fixed (PR #778, before merge)
 
-Catatan: doc 04 §Table ownership matrix mencantumkan `awcms_mini_idempotency_keys` di grup ilustratif "Sales POS" — itu mencerminkan domain contoh tempat ERD pertama kali memperkenalkannya, bukan kepemilikan eksklusif; doc 16 (§Idempotency store, dokumen integrasi backend generik, bukan spesifik domain) mendeskripsikannya sebagai infrastruktur lintas modul. Ditambahkan di sini sebagai infrastruktur generik yang dapat dipakai ulang mutation high-risk masa depan.
-
-Selain mekanisme key+hash, task yang statusnya sudah bukan `pending` (sudah diputuskan) mengembalikan `409 IDEMPOTENCY_CONFLICT` juga — lapis keamanan tambahan yang sama seperti preseden `POST /sync/conflicts/{id}/resolve` (cek status alih-alih hanya mengandalkan header).
-
-## Belum tersedia
-
-- Tidak ada endpoint publik create-definition/start-instance (lihat di atas) — backlog untuk aplikasi turunan yang punya aksi bisnis nyata untuk digerbangi.
-- Tidak ada UI approval inbox (`/admin/workflows`) — di luar scope issue ini (murni backend/API); lihat skill `awcms-mini-ui-screen` untuk issue UI masa depan.
-- Retention/purge job untuk `awcms_mini_idempotency_keys` (doc 04: retensi 7–30 hari) belum ada — pembersihan berkala menjadi backlog terpisah.
-- `status: 'skipped'` pada `awcms_mini_workflow_tasks` dan `status: 'cancelled'` pada instance dideklarasikan di constraint tapi belum ada jalur kode yang menghasilkannya (tidak ada kebutuhan nyata di base ini saat ini) — disediakan agar skema tidak perlu migration lanjutan begitu ada kebutuhan skip/cancel.
+- **`force-decision` self-approval bypass (High)** — the route authorized via `workflow.recovery.force_decide` without populating `resourceAttributes.requestedByTenantUserId`, and `access-control.ts`'s self-approval-deny check was hardwired to the `"approve"` action only — so a caller who filed their own instance and held `force_decide` could force-approve their own request, bypassing quorum entirely. Fixed by looking up the task/instance before the guard (same pattern `decisions.ts` uses) and extending the self-approval-deny check to also cover `"force_decide"` (blocks both force-approve and force-reject of one's own instance).
+- **Missing audit log entries (High)** — `publish`, `retire`, the definitions `DELETE` handler, and delegation create/revoke did not call `recordAuditEvent` despite being high-risk mutations; all 5 now do. `DELETE .../definitions/{id}` and both delegation endpoints were also missing `Idempotency-Key` enforcement; now added.
+- **Unenforced `workflow.delegation.revoke` permission (Low)** — the revoke route gated on `workflow.delegation.read` and relied solely on the ownership check; the seeded `revoke` permission (doc 17: Owner/Manager `RCV`) was dead. Fixed to gate on `workflow.delegation.revoke`.
+- **Escalation-job worker role over-grant (Low)** — migration `060` granted `SELECT, UPDATE` on `awcms_mini_workflow_instances` to `awcms_mini_worker`, but the escalation job only ever `SELECT`s from that table. Trimmed to `SELECT`-only.

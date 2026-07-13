@@ -2,14 +2,13 @@ import type { APIRoute } from "astro";
 import { fail, ok } from "../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../lib/database/client";
 import { withTenant } from "../../../../../lib/database/tenant-context";
-import { hashSessionToken } from "../../../../../lib/auth/session-token";
-import { extractBearerToken } from "../../../../../modules/identity-access/application/session-lookup";
 import {
-  fetchGrantedPermissionKeys,
-  resolveTenantContext
-} from "../../../../../modules/identity-access/application/auth-context";
-import { recordDecisionLog } from "../../../../../modules/identity-access/application/decision-log";
-import { evaluateAccess } from "../../../../../modules/identity-access/domain/access-control";
+  authorizeInTransaction,
+  resolveAuthInputs
+} from "../../../../../modules/identity-access/application/access-guard";
+import { hashSessionToken } from "../../../../../lib/auth/session-token";
+import { decodeKeysetCursor } from "../../../../../modules/_shared/keyset-pagination";
+import { listWorkflowInboxTasks } from "../../../../../modules/workflow-approval/application/workflow-inbox-directory";
 
 const GUARD_REQUEST = {
   moduleKey: "workflow",
@@ -17,41 +16,46 @@ const GUARD_REQUEST = {
   action: "read" as const
 };
 
-const PENDING_TASK_LIMIT = 100;
-
-type PendingTaskRow = {
-  id: string;
-  step_order: number;
-  created_at: Date;
-  instance_id: string;
-  resource_type: string;
-  resource_id: string;
-  requested_by_tenant_user_id: string;
-  current_step_order: number;
-  definition_id: string;
-  workflow_key: string;
-  definition_name: string;
-};
+const VALID_STATUSES = new Set([
+  "pending",
+  "completed",
+  "skipped",
+  "cancelled"
+]);
 
 /**
- * `GET /api/v1/workflows/tasks` (Issue 11.1). Bearer-session auth, guarded by
- * `workflow.approval.read`. Lists this tenant's pending tasks joined with
- * their instance and definition for context. There is no public
- * create-definition/start-instance endpoint in this base (doc 17's seed
- * model grants no `create`/`configure` action for `workflow.approval`) — see
- * `src/modules/workflow-approval/README.md`.
+ * `GET /api/v1/workflows/tasks` (Issue 11.1, extended by Issue #747 into
+ * the consolidated admin approval inbox). Bearer-session/SSR-cookie auth,
+ * guarded by `workflow.approval.read`. Keyset pagination (`cursor` query
+ * param, opaque, `(created_at, id)`-based — doc 16 §Pagination keyset),
+ * filters `workflowKey`/`resourceType`/`status`/`overdue`, and a safe
+ * parameterized `search`.
  */
-export const GET: APIRoute = async ({ request }) => {
-  const tenantId = request.headers.get("x-awcms-mini-tenant-id");
+export const GET: APIRoute = async ({ request, url, cookies, locals }) => {
+  const { tenantId, token } = resolveAuthInputs(request, cookies);
 
   if (!tenantId) {
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
   }
-
-  const token = extractBearerToken(request.headers.get("authorization"));
-
   if (!token) {
     return fail(401, "AUTH_REQUIRED", "Authentication required.");
+  }
+
+  const statusParam = url.searchParams.get("status") ?? "pending";
+
+  if (!VALID_STATUSES.has(statusParam)) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "status must be pending, completed, skipped, or cancelled."
+    );
+  }
+
+  const cursorParam = url.searchParams.get("cursor");
+  const cursor = cursorParam ? decodeKeysetCursor(cursorParam) : null;
+
+  if (cursorParam && !cursor) {
+    return fail(400, "VALIDATION_ERROR", "cursor is malformed.");
   }
 
   const sql = getDatabaseClient();
@@ -62,63 +66,52 @@ export const GET: APIRoute = async ({ request }) => {
     sql,
     tenantId,
     async (tx) => {
-      const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
-
-      if (!context) {
-        return fail(401, "AUTH_REQUIRED", "Session is invalid or expired.");
-      }
-
-      const grantedPermissionKeys = await fetchGrantedPermissionKeys(
+      const auth = await authorizeInTransaction(
         tx,
         tenantId,
-        context.tenantUserId
+        tokenHash,
+        now,
+        GUARD_REQUEST
       );
-      const decision = evaluateAccess(
-        context,
-        GUARD_REQUEST,
-        grantedPermissionKeys
-      );
+      if (!auth.allowed) return auth.denied;
 
-      await recordDecisionLog(
+      const result = await listWorkflowInboxTasks(
         tx,
         tenantId,
-        context.tenantUserId,
-        GUARD_REQUEST,
-        decision
+        {
+          workflowKey: url.searchParams.get("workflowKey") ?? undefined,
+          resourceType: url.searchParams.get("resourceType") ?? undefined,
+          status: statusParam as
+            "pending" | "completed" | "skipped" | "cancelled",
+          overdueOnly: url.searchParams.get("overdue") === "true",
+          search: url.searchParams.get("search") ?? undefined
+        },
+        now,
+        cursor
       );
 
-      if (!decision.allowed) {
-        return fail(403, "ACCESS_DENIED", decision.reason);
-      }
-
-      const rows = (await tx`
-        SELECT t.id, t.step_order, t.created_at,
-               i.id AS instance_id, i.resource_type, i.resource_id,
-               i.requested_by_tenant_user_id, i.current_step_order,
-               d.id AS definition_id, d.workflow_key, d.name AS definition_name
-        FROM awcms_mini_workflow_tasks t
-        JOIN awcms_mini_workflow_instances i ON i.id = t.workflow_instance_id
-        JOIN awcms_mini_workflow_definitions d ON d.id = i.workflow_definition_id
-        WHERE t.tenant_id = ${tenantId} AND t.status = 'pending'
-        ORDER BY t.created_at ASC
-        LIMIT ${PENDING_TASK_LIMIT}
-      `) as PendingTaskRow[];
-
-      return ok({
-        tasks: rows.map((row) => ({
-          id: row.id,
-          stepOrder: Number(row.step_order),
-          createdAt: row.created_at.toISOString(),
-          instanceId: row.instance_id,
-          resourceType: row.resource_type,
-          resourceId: row.resource_id,
-          requestedByTenantUserId: row.requested_by_tenant_user_id,
-          currentStepOrder: Number(row.current_step_order),
-          workflowDefinitionId: row.definition_id,
-          workflowKey: row.workflow_key,
-          workflowName: row.definition_name
-        }))
-      });
+      return ok(
+        {
+          tasks: result.tasks.map((task) => ({
+            id: task.id,
+            nodeId: task.nodeId,
+            status: task.status,
+            quorumRule: task.quorumRule,
+            dueAt: task.dueAt ?? undefined,
+            overdue: task.overdue,
+            createdAt: task.createdAt.toISOString(),
+            instanceId: task.instanceId,
+            resourceType: task.resourceType,
+            resourceId: task.resourceId,
+            requestedByTenantUserId: task.requestedByTenantUserId,
+            workflowDefinitionId: task.workflowDefinitionId,
+            workflowKey: task.workflowKey,
+            workflowName: task.workflowName
+          })),
+          nextCursor: result.nextCursor
+        },
+        { correlationId: locals.correlationId }
+      );
     },
     { workClass: "interactive" }
   );

@@ -2955,9 +2955,32 @@ Connection pool config, work-class backpressure gate, and circuit breaker health
 
 Generic multi-step approval engine (definitions, instances, tasks, decisions). Only the decision API is public (doc 17 seed grants no create/configure action for workflow.approval) — no create-definition/start-instance endpoint by design.
 
-### `GET /api/v1/workflows/tasks` — List this tenant's pending workflow tasks (limit 100, oldest first)
+### `GET /api/v1/workflows/definitions` — List workflow definitions (latest version per workflow key)
 
-- **operationId**: `workflowsGetPendingTasks`
+- **operationId**: `workflowsListDefinitions`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                               | Description                                 |
+| ------------------ | ------ | -------- | ---------------------------------- | ------------------------------------------- |
+| `lifecycleStatus`  | query  | no       | enum(`draft`, `active`, `retired`) |                                             |
+| `X-Correlation-ID` | header | no       | string                             | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                             | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                 | Schema                                                                                                                       |
+| ------ | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 200    | Latest version per distinct workflow key (or per `lifecycleStatus` filter). | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowDefinitionListResponse`](#schema-workflowdefinitionlistresponse)&gt; |
+| 400    | Validation or request error.                                                | [`ApiError`](#standard-error-envelope)                                                                                       |
+| 401    | Authentication required or expired.                                         | [`ApiError`](#standard-error-envelope)                                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                              | [`ApiError`](#standard-error-envelope)                                                                                       |
+| 500    | Internal server error without stack trace.                                  | [`ApiError`](#standard-error-envelope)                                                                                       |
+
+### `POST /api/v1/workflows/definitions` — Create a new draft workflow definition (version 1, or next draft version for an existing workflow key)
+
+- **operationId**: `workflowsCreateDefinition`
 - **Security**: bearerAuth + tenantHeader
 
 **Parameters**
@@ -2967,15 +2990,345 @@ Generic multi-step approval engine (definitions, instances, tasks, decisions). O
 | `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
 
+**Request body** (required): [`WorkflowDefinitionCreateRequest`](#schema-workflowdefinitioncreaterequest)
+
 **Responses**
 
-| Status | Description                                                               | Schema                                                                                                           |
-| ------ | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 200    | Pending workflow tasks for the caller's tenant (limit 100, oldest first). | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowTaskListResponse`](#schema-workflowtasklistresponse)&gt; |
-| 400    | Validation or request error.                                              | [`ApiError`](#standard-error-envelope)                                                                           |
-| 401    | Authentication required or expired.                                       | [`ApiError`](#standard-error-envelope)                                                                           |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                            | [`ApiError`](#standard-error-envelope)                                                                           |
-| 500    | Internal server error without stack trace.                                | [`ApiError`](#standard-error-envelope)                                                                           |
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Draft definition created.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/workflows/definitions/{id}` — Get a workflow definition and its full version history
+
+- **operationId**: `workflowsGetDefinition`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                    | Schema                                                   |
+| ------ | -------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Definition detail plus every version of the same workflow key. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                 | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.            | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                     | [`ApiError`](#standard-error-envelope)                   |
+
+### `PUT /api/v1/workflows/definitions/{id}` — Update a draft workflow definition in place
+
+- **operationId**: `workflowsUpdateDefinition`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`WorkflowDefinitionUpdateRequest`](#schema-workflowdefinitionupdaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Draft definition updated.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | The definition is not a draft (edit non-draft versions via `new-version` instead).                                                                                                                               | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/workflows/definitions/{id}` — Soft-delete a draft workflow definition
+
+- **operationId**: `workflowsDeleteDefinition`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Draft definition soft-deleted.                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Only a draft definition can be deleted.             | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/workflows/definitions/{id}/new-version` — Fork a new draft version from an existing (active/retired/draft) definition
+
+- **operationId**: `workflowsCreateDefinitionNewVersion`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                                                                                                             |
+| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200    | New draft version created.                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowDefinitionLifecycleActionResponse`](#schema-workflowdefinitionlifecycleactionresponse)&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                                                             |
+
+### `POST /api/v1/workflows/definitions/{id}/publish` — Publish/activate a draft workflow definition version
+
+- **operationId**: `workflowsPublishDefinition`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                      | Schema                                                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200    | Definition published; any previously-active version of the same workflow key is retired in the same transaction. | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowDefinitionLifecycleActionResponse`](#schema-workflowdefinitionlifecycleactionresponse)&gt; |
+| 400    | Validation or request error.                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 401    | Authentication required or expired.                                                                              | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                   | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 404    | Resource not found or hidden by soft-delete policy.                                                              | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 409    | Idempotency-Key reused with a different request, or the definition is not a draft.                               | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 500    | Internal server error without stack trace.                                                                       | [`ApiError`](#standard-error-envelope)                                                                                                             |
+
+### `POST /api/v1/workflows/definitions/{id}/retire` — Voluntarily retire an active workflow definition version
+
+- **operationId**: `workflowsRetireDefinition`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                       | Schema                                                                                                                                             |
+| ------ | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200    | Definition retired.                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowDefinitionLifecycleActionResponse`](#schema-workflowdefinitionlifecycleactionresponse)&gt; |
+| 401    | Authentication required or expired.                                               | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                    | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 404    | Resource not found or hidden by soft-delete policy.                               | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 409    | Idempotency-Key reused with a different request, or the definition is not active. | [`ApiError`](#standard-error-envelope)                                                                                                             |
+| 500    | Internal server error without stack trace.                                        | [`ApiError`](#standard-error-envelope)                                                                                                             |
+
+### `POST /api/v1/workflows/definitions/{id}/validate` — Dry-run validate a workflow definition's graph (stored, or a candidate provided in the body)
+
+- **operationId**: `workflowsValidateDefinition`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                                                | Schema                                                                                                                     |
+| ------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 200    | Validation result — never fails the HTTP call itself for an invalid graph. | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowGraphValidationResult`](#schema-workflowgraphvalidationresult)&gt; |
+| 401    | Authentication required or expired.                                        | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                             | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 404    | Resource not found or hidden by soft-delete policy.                        | [`ApiError`](#standard-error-envelope)                                                                                     |
+| 500    | Internal server error without stack trace.                                 | [`ApiError`](#standard-error-envelope)                                                                                     |
+
+### `GET /api/v1/workflows/delegations` — List workflow delegations
+
+- **operationId**: `workflowsListDelegations`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name                    | In     | Required | Type          | Description                                 |
+| ----------------------- | ------ | -------- | ------------- | ------------------------------------------- |
+| `delegatorTenantUserId` | query  | no       | string (uuid) |                                             |
+| `X-Correlation-ID`      | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`          | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Delegations (limit 100), newest first.         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/workflows/delegations` — Create a workflow delegation/substitute assignment from the calling tenant user
+
+- **operationId**: `workflowsCreateDelegation`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`WorkflowDelegationCreateRequest`](#schema-workflowdelegationcreaterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Delegation created.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/workflows/delegations/{id}/revoke` — Revoke a workflow delegation (delegator only)
+
+- **operationId**: `workflowsRevokeDelegation`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Delegation revoked.                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Only the delegator may revoke their own delegation. | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/workflows/instances/{id}` — Get a workflow instance's detail and immutable action history
+
+- **operationId**: `workflowsGetInstance`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                | Schema                                                                                                                       |
+| ------ | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 200    | Instance detail plus decision/audit history, newest first. | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowInstanceDetailResponse`](#schema-workflowinstancedetailresponse)&gt; |
+| 401    | Authentication required or expired.                        | [`ApiError`](#standard-error-envelope)                                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.             | [`ApiError`](#standard-error-envelope)                                                                                       |
+| 404    | Resource not found or hidden by soft-delete policy.        | [`ApiError`](#standard-error-envelope)                                                                                       |
+| 500    | Internal server error without stack trace.                 | [`ApiError`](#standard-error-envelope)                                                                                       |
+
+### `POST /api/v1/workflows/instances/{id}/cancel` — Administrative recovery — cancel a running (pending) workflow instance
+
+- **operationId**: `workflowsCancelInstance`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Instance cancelled, along with every one of its pending tasks.                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request, or the instance is not pending.                                                                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/workflows/tasks` — Consolidated approval inbox — keyset-paginated, filterable task list
+
+- **operationId**: `workflowsGetPendingTasks`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                 | Description                                 |
+| ------------------ | ------ | -------- | ---------------------------------------------------- | ------------------------------------------- |
+| `workflowKey`      | query  | no       | string                                               |                                             |
+| `resourceType`     | query  | no       | string                                               |                                             |
+| `status`           | query  | no       | enum(`pending`, `completed`, `skipped`, `cancelled`) |                                             |
+| `overdue`          | query  | no       | boolean                                              |                                             |
+| `search`           | query  | no       | string                                               |                                             |
+| `cursor`           | query  | no       | string                                               |                                             |
+| `X-Correlation-ID` | header | no       | string                                               | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                               | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                                                                                           |
+| ------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 200    | Tasks matching the filters (limit 100), oldest first, with an opaque `nextCursor` for the next page. | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowTaskListResponse`](#schema-workflowtasklistresponse)&gt; |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)                                                                           |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)                                                                           |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)                                                                           |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)                                                                           |
 
 ### `POST /api/v1/workflows/tasks/{id}/decisions` — Record a decision (approve/reject) for a pending workflow task
 
@@ -2997,14 +3350,72 @@ Generic multi-step approval engine (definitions, instances, tasks, decisions). O
 
 | Status | Description                                                                                                                                                                                                      | Schema                                                                                                                   |
 | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| 200    | Decision recorded. Instance advances to the next step, is approved, or is rejected depending on the decision and remaining steps.                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowTaskDecisionResponse`](#schema-workflowtaskdecisionresponse)&gt; |
+| 200    | Decision recorded. The task completes only once its quorum rule is satisfied; the instance advances through the graph only once the task completes.                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;[`WorkflowTaskDecisionResponse`](#schema-workflowtaskdecisionresponse)&gt; |
 | 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                                   |
 | 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy — including self-approval denial when the caller is the same tenant user who requested the workflow instance.                                                      | [`ApiError`](#standard-error-envelope)                                                                                   |
+| 403    | Access denied by RBAC/ABAC/self-approval, or the caller is not an eligible decider for this task (not assigned, no active delegation).                                                                           | [`ApiError`](#standard-error-envelope)                                                                                   |
 | 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                                   |
 | 409    | Idempotency-Key reused with a different request, or the task's decision has already been recorded.                                                                                                               | [`ApiError`](#standard-error-envelope)                                                                                   |
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                                   |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                                   |
+
+### `POST /api/v1/workflows/tasks/{id}/force-decision` — Administrative recovery — force-approve or force-reject a pending task, bypassing quorum
+
+- **operationId**: `workflowsForceTaskDecision`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`WorkflowTaskForceDecisionRequest`](#schema-workflowtaskforcedecisionrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Task force-decided and the instance advanced accordingly.                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request, or the task is not pending.                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/workflows/tasks/{id}/reassign` — Administrative recovery — reassign a pending task to another tenant user
+
+- **operationId**: `workflowsReassignTask`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`WorkflowTaskReassignRequest`](#schema-workflowtaskreassignrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Task reassigned.                                                                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request, or the task is not pending.                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ## Form Drafts
 
@@ -12561,6 +12972,238 @@ At least one of displayName or status is required.
 }
 ```
 
+### Schema: WorkflowDefinition
+
+| Field             | Type                               | Required | Nullable | Description |
+| ----------------- | ---------------------------------- | -------- | -------- | ----------- |
+| `id`              | string (uuid)                      | yes      | no       |             |
+| `workflowKey`     | string                             | yes      | no       |             |
+| `name`            | string                             | yes      | no       |             |
+| `description`     | string                             | no       | no       |             |
+| `version`         | integer                            | yes      | no       |             |
+| `lifecycleStatus` | enum(`draft`, `active`, `retired`) | yes      | no       |             |
+| `graph`           | unknown                            | yes      | no       |             |
+| `factsSchema`     | unknown                            | yes      | no       |             |
+| `publishedAt`     | string (date-time)                 | no       | no       |             |
+| `retiredAt`       | string (date-time)                 | no       | no       |             |
+| `createdAt`       | string (date-time)                 | yes      | no       |             |
+| `updatedAt`       | string (date-time)                 | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "workflowKey": "string",
+  "name": "string",
+  "description": "string",
+  "version": 1,
+  "lifecycleStatus": "draft",
+  "graph": null,
+  "factsSchema": null,
+  "publishedAt": "2026-01-01T00:00:00.000Z",
+  "retiredAt": "2026-01-01T00:00:00.000Z",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "updatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: WorkflowDefinitionCreateRequest
+
+| Field         | Type    | Required | Nullable | Description |
+| ------------- | ------- | -------- | -------- | ----------- |
+| `workflowKey` | string  | yes      | no       |             |
+| `name`        | string  | yes      | no       |             |
+| `description` | string  | no       | no       |             |
+| `graph`       | unknown | yes      | no       |             |
+| `factsSchema` | unknown | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "workflowKey": "string",
+  "name": "string",
+  "description": "string",
+  "graph": null,
+  "factsSchema": null
+}
+```
+
+### Schema: WorkflowDefinitionLifecycleActionResponse
+
+| Field             | Type                               | Required | Nullable | Description |
+| ----------------- | ---------------------------------- | -------- | -------- | ----------- |
+| `id`              | string (uuid)                      | yes      | no       |             |
+| `workflowKey`     | string                             | yes      | no       |             |
+| `version`         | integer                            | yes      | no       |             |
+| `lifecycleStatus` | enum(`draft`, `active`, `retired`) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "workflowKey": "string",
+  "version": 0,
+  "lifecycleStatus": "draft"
+}
+```
+
+### Schema: WorkflowDefinitionListResponse
+
+| Field         | Type                                                        | Required | Nullable | Description |
+| ------------- | ----------------------------------------------------------- | -------- | -------- | ----------- |
+| `definitions` | array of [`WorkflowDefinition`](#schema-workflowdefinition) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "definitions": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "workflowKey": "string",
+      "name": "string",
+      "description": "string",
+      "version": 1,
+      "lifecycleStatus": "draft",
+      "graph": null,
+      "factsSchema": null,
+      "publishedAt": "2026-01-01T00:00:00.000Z",
+      "retiredAt": "2026-01-01T00:00:00.000Z",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+### Schema: WorkflowDefinitionUpdateRequest
+
+| Field         | Type    | Required | Nullable | Description |
+| ------------- | ------- | -------- | -------- | ----------- |
+| `name`        | string  | no       | no       |             |
+| `description` | string  | no       | no       |             |
+| `graph`       | unknown | no       | no       |             |
+| `factsSchema` | unknown | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "description": "string",
+  "graph": null,
+  "factsSchema": null
+}
+```
+
+### Schema: WorkflowDelegationCreateRequest
+
+| Field                  | Type               | Required | Nullable | Description |
+| ---------------------- | ------------------ | -------- | -------- | ----------- |
+| `delegateTenantUserId` | string (uuid)      | yes      | no       |             |
+| `workflowKey`          | string             | no       | no       |             |
+| `resourceType`         | string             | no       | no       |             |
+| `effectiveFrom`        | string (date-time) | no       | no       |             |
+| `effectiveTo`          | string (date-time) | no       | no       |             |
+| `reason`               | string             | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "delegateTenantUserId": "00000000-0000-0000-0000-000000000000",
+  "workflowKey": "string",
+  "resourceType": "string",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z",
+  "reason": "string"
+}
+```
+
+### Schema: WorkflowGraphValidationResult
+
+| Field    | Type            | Required | Nullable | Description |
+| -------- | --------------- | -------- | -------- | ----------- |
+| `valid`  | boolean         | yes      | no       |             |
+| `errors` | array of object | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "valid": false,
+  "errors": [
+    {
+      "field": "string",
+      "message": "string"
+    }
+  ]
+}
+```
+
+### Schema: WorkflowInstanceDetailResponse
+
+| Field      | Type                                                                            | Required | Nullable | Description |
+| ---------- | ------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `instance` | object                                                                          | yes      | no       |             |
+| `history`  | array of [`WorkflowInstanceHistoryEntry`](#schema-workflowinstancehistoryentry) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "instance": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "workflowDefinitionId": "00000000-0000-0000-0000-000000000000",
+    "workflowDefinitionVersion": 0,
+    "workflowKey": "string",
+    "workflowName": "string",
+    "resourceType": "string",
+    "resourceId": "string",
+    "status": "pending",
+    "requestedByTenantUserId": "00000000-0000-0000-0000-000000000000",
+    "facts": null,
+    "cancelReason": "string",
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "updatedAt": "2026-01-01T00:00:00.000Z"
+  },
+  "history": [
+    {
+      "kind": "decision",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "actorTenantUserId": "00000000-0000-0000-0000-000000000000",
+      "action": "string",
+      "detail": null
+    }
+  ]
+}
+```
+
+### Schema: WorkflowInstanceHistoryEntry
+
+| Field               | Type                      | Required | Nullable | Description |
+| ------------------- | ------------------------- | -------- | -------- | ----------- |
+| `kind`              | enum(`decision`, `audit`) | yes      | no       |             |
+| `createdAt`         | string (date-time)        | yes      | no       |             |
+| `actorTenantUserId` | string (uuid)             | no       | no       |             |
+| `action`            | string                    | yes      | no       |             |
+| `detail`            | unknown                   | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "kind": "decision",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "actorTenantUserId": "00000000-0000-0000-0000-000000000000",
+  "action": "string",
+  "detail": null
+}
+```
+
 ### Schema: WorkflowTaskDecisionRequest
 
 | Field      | Type                      | Required | Nullable | Description |
@@ -12579,13 +13222,14 @@ At least one of displayName or status is required.
 
 ### Schema: WorkflowTaskDecisionResponse
 
-| Field            | Type                                    | Required | Nullable | Description |
-| ---------------- | --------------------------------------- | -------- | -------- | ----------- |
-| `taskId`         | string (uuid)                           | yes      | no       |             |
-| `decision`       | enum(`approve`, `reject`)               | yes      | no       |             |
-| `instanceId`     | string (uuid)                           | yes      | no       |             |
-| `instanceStatus` | enum(`approved`, `rejected`, `pending`) | yes      | no       |             |
-| `nextStepOrder`  | integer                                 | yes      | yes      |             |
+| Field              | Type                                    | Required | Nullable | Description                                                                    |
+| ------------------ | --------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------ |
+| `taskId`           | string (uuid)                           | yes      | no       |                                                                                |
+| `decision`         | enum(`approve`, `reject`)               | yes      | no       |                                                                                |
+| `instanceId`       | string (uuid)                           | yes      | no       |                                                                                |
+| `taskCompleted`    | boolean                                 | yes      | no       | False when the task's quorum rule is not yet satisfied by this decision alone. |
+| `instanceFinished` | boolean                                 | yes      | no       |                                                                                |
+| `instanceStatus`   | enum(`approved`, `rejected`, `pending`) | yes      | no       |                                                                                |
 
 **Example**
 
@@ -12594,39 +13238,62 @@ At least one of displayName or status is required.
   "taskId": "00000000-0000-0000-0000-000000000000",
   "decision": "approve",
   "instanceId": "00000000-0000-0000-0000-000000000000",
-  "instanceStatus": "approved",
-  "nextStepOrder": 1
+  "taskCompleted": false,
+  "instanceFinished": false,
+  "instanceStatus": "approved"
+}
+```
+
+### Schema: WorkflowTaskForceDecisionRequest
+
+| Field      | Type                      | Required | Nullable | Description |
+| ---------- | ------------------------- | -------- | -------- | ----------- |
+| `decision` | enum(`approve`, `reject`) | yes      | no       |             |
+| `reason`   | string                    | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "decision": "approve",
+  "reason": "string"
 }
 ```
 
 ### Schema: WorkflowTaskItem
 
-| Field                     | Type               | Required | Nullable | Description |
-| ------------------------- | ------------------ | -------- | -------- | ----------- |
-| `id`                      | string (uuid)      | yes      | no       |             |
-| `stepOrder`               | integer            | yes      | no       |             |
-| `createdAt`               | string (date-time) | yes      | no       |             |
-| `instanceId`              | string (uuid)      | yes      | no       |             |
-| `resourceType`            | string             | yes      | no       |             |
-| `resourceId`              | string             | yes      | no       |             |
-| `requestedByTenantUserId` | string (uuid)      | yes      | no       |             |
-| `currentStepOrder`        | integer            | yes      | no       |             |
-| `workflowDefinitionId`    | string (uuid)      | yes      | no       |             |
-| `workflowKey`             | string             | yes      | no       |             |
-| `workflowName`            | string             | yes      | no       |             |
+| Field                     | Type                                                 | Required | Nullable | Description |
+| ------------------------- | ---------------------------------------------------- | -------- | -------- | ----------- |
+| `id`                      | string (uuid)                                        | yes      | no       |             |
+| `nodeId`                  | string                                               | yes      | no       |             |
+| `status`                  | enum(`pending`, `completed`, `skipped`, `cancelled`) | yes      | no       |             |
+| `quorumRule`              | enum(`all`, `any`, `quorum`)                         | yes      | no       |             |
+| `dueAt`                   | string (date-time)                                   | no       | no       |             |
+| `overdue`                 | boolean                                              | yes      | no       |             |
+| `createdAt`               | string (date-time)                                   | yes      | no       |             |
+| `instanceId`              | string (uuid)                                        | yes      | no       |             |
+| `resourceType`            | string                                               | yes      | no       |             |
+| `resourceId`              | string                                               | yes      | no       |             |
+| `requestedByTenantUserId` | string (uuid)                                        | yes      | no       |             |
+| `workflowDefinitionId`    | string (uuid)                                        | yes      | no       |             |
+| `workflowKey`             | string                                               | yes      | no       |             |
+| `workflowName`            | string                                               | yes      | no       |             |
 
 **Example**
 
 ```json
 {
   "id": "00000000-0000-0000-0000-000000000000",
-  "stepOrder": 1,
+  "nodeId": "string",
+  "status": "pending",
+  "quorumRule": "all",
+  "dueAt": "2026-01-01T00:00:00.000Z",
+  "overdue": false,
   "createdAt": "2026-01-01T00:00:00.000Z",
   "instanceId": "00000000-0000-0000-0000-000000000000",
   "resourceType": "string",
   "resourceId": "string",
   "requestedByTenantUserId": "00000000-0000-0000-0000-000000000000",
-  "currentStepOrder": 1,
   "workflowDefinitionId": "00000000-0000-0000-0000-000000000000",
   "workflowKey": "string",
   "workflowName": "string"
@@ -12635,9 +13302,10 @@ At least one of displayName or status is required.
 
 ### Schema: WorkflowTaskListResponse
 
-| Field   | Type                                                    | Required | Nullable | Description |
-| ------- | ------------------------------------------------------- | -------- | -------- | ----------- |
-| `tasks` | array of [`WorkflowTaskItem`](#schema-workflowtaskitem) | yes      | no       |             |
+| Field        | Type                                                    | Required | Nullable | Description |
+| ------------ | ------------------------------------------------------- | -------- | -------- | ----------- |
+| `tasks`      | array of [`WorkflowTaskItem`](#schema-workflowtaskitem) | yes      | no       |             |
+| `nextCursor` | string                                                  | yes      | yes      |             |
 
 **Example**
 
@@ -12646,18 +13314,38 @@ At least one of displayName or status is required.
   "tasks": [
     {
       "id": "00000000-0000-0000-0000-000000000000",
-      "stepOrder": 1,
+      "nodeId": "string",
+      "status": "pending",
+      "quorumRule": "all",
+      "dueAt": "2026-01-01T00:00:00.000Z",
+      "overdue": false,
       "createdAt": "2026-01-01T00:00:00.000Z",
       "instanceId": "00000000-0000-0000-0000-000000000000",
       "resourceType": "string",
       "resourceId": "string",
       "requestedByTenantUserId": "00000000-0000-0000-0000-000000000000",
-      "currentStepOrder": 1,
       "workflowDefinitionId": "00000000-0000-0000-0000-000000000000",
       "workflowKey": "string",
       "workflowName": "string"
     }
-  ]
+  ],
+  "nextCursor": "string"
+}
+```
+
+### Schema: WorkflowTaskReassignRequest
+
+| Field            | Type          | Required | Nullable | Description |
+| ---------------- | ------------- | -------- | -------- | ----------- |
+| `toTenantUserId` | string (uuid) | yes      | no       |             |
+| `reason`         | string        | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "toTenantUserId": "00000000-0000-0000-0000-000000000000",
+  "reason": "string"
 }
 ```
 
@@ -12704,7 +13392,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (54)
+### Channels (62)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -12760,6 +13448,14 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.social-publishing.rule.deleted` — A social publish rule was soft-deleted (Issue #643). Producer: `social-publish-rule-directory.ts`'s `softDeleteSocialPublishRule`.
 - `awcms-mini.social-publishing.rule.updated` — A social publish rule was updated (Issue #643). Producer: `social-publish-rule-directory.ts`'s `updateSocialPublishRule`.
 - `awcms-mini.sync.push.requested` — Baseline sync push event envelope for future sync-storage implementation.
+- `awcms-mini.workflow.delegation.created` — A workflow delegation/substitute assignment was created (Issue #747). Producer: `workflow-approval/application/ workflow-delegation-directory.ts`'s `createWorkflowDelegation`.
+- `awcms-mini.workflow.delegation.revoked` — A workflow delegation/substitute assignment was revoked (Issue #747). Producer: `workflow-approval/application/ workflow-delegation-directory.ts`'s `revokeWorkflowDelegation`.
+- `awcms-mini.workflow.instance.advanced` — A workflow instance's active task was decided (or force-decided) and the instance advanced to its next node(s), without yet reaching a terminal outcome (Issue #747). Producer: `workflow-approval/application/workflow-instance-decision.ts`'s `completeApprovalTaskAndAdvance`.
+- `awcms-mini.workflow.instance.approved` — A workflow instance reached an `end` node with outcome `approved` (Issue #747). Producer: `workflow-approval/application/ workflow-instance.ts`/`workflow-instance-decision.ts`.
+- `awcms-mini.workflow.instance.cancelled` — An administrator cancelled a running workflow instance (Issue #747). Producer: `workflow-approval/application/workflow-recovery.ts`'s `cancelWorkflowInstance`, via `POST /api/v1/workflows/instances/{id}/ cancel`.
+- `awcms-mini.workflow.instance.rejected` — A workflow instance reached an `end` node with outcome `rejected`, or was force-rejected (Issue #747). Producer: `workflow-approval/ application/workflow-instance.ts`/`workflow-instance-decision.ts`.
+- `awcms-mini.workflow.instance.started` — A workflow instance was started, pinned to the currently-active workflow definition version (Issue #747, epic `platform-evolution` #738). Producer: `workflow-approval/application/workflow-instance.ts`'s `startWorkflowInstance`, via `appendDomainEvent` in the same transaction as the instance's creation.
+- `awcms-mini.workflow.task.escalated` — A pending workflow task passed its due date and was escalated by the scheduled escalation/timeout job (Issue #747). Producer: `workflow-approval/application/workflow-escalation.ts`'s `escalateDueTasksForTenant`, run via `bun run workflow:escalations:dispatch`.
 
 ## Compatibility & deprecation policy
 

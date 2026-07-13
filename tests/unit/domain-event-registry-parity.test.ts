@@ -11,6 +11,7 @@ import {
   isValidEventVersion
 } from "../../src/modules/domain-event-runtime/domain/envelope";
 import { listModules } from "../../src/modules/index";
+import { domainEventRuntimeModule } from "../../src/modules/domain-event-runtime/module";
 
 /**
  * Bidirectional parity between the runtime's own code-level registries and
@@ -71,22 +72,42 @@ describe("domain-event-runtime registry <-> AsyncAPI parity (Issue #742)", () =>
     }
   });
 
+  test("module.ts's events.publishes includes every domain_event_runtime-OWNED DOMAIN_EVENT_TYPE_REGISTRY entry", () => {
+    // Issue #747 (epic `platform-evolution` #738, Wave 2) is the first
+    // OTHER module (`workflow`) to add its own entries to this shared
+    // registry, exactly as `event-type-registry.ts`'s own doc comment
+    // anticipates ("Future producer modules add their OWN entries here...
+    // and their own module.ts events.publishes entries") — those entries
+    // are correctly declared in `workflow-approval/module.ts`'s OWN
+    // `events.publishes`, not this module's. Scoped to this runtime's own
+    // namespace (`awcms-mini.domain-event-runtime.*`) so this assertion
+    // stays meaningful as more producer modules register here.
+    const publishes = new Set(domainEventRuntimeModule.events?.publishes ?? []);
+    const ownedEntries = DOMAIN_EVENT_TYPE_REGISTRY.filter((entry) =>
+      entry.eventType.startsWith("awcms-mini.domain-event-runtime.")
+    );
+
+    expect(ownedEntries.length).toBeGreaterThan(0);
+
+    for (const entry of ownedEntries) {
+      expect(publishes.has(entry.eventType)).toBe(true);
+    }
+  });
+
   test("every DOMAIN_EVENT_TYPE_REGISTRY entry is published by SOME module's module.ts", () => {
-    // Issue #748 (profile_identity, epic #738 Wave 2) is the first REAL
-    // external producer to add an entry to this shared registry — exactly
-    // what `event-type-registry.ts`'s own doc comment anticipates ("Future
+    // Issue #748 (profile_identity, epic #738 Wave 2) is another REAL
+    // external producer added to this shared registry — exactly what
+    // `event-type-registry.ts`'s own doc comment anticipates ("Future
     // producer modules add their OWN entries here... and their own
-    // module.ts events.publishes entries"). Before that, every entry here
-    // happened to be published by `domain_event_runtime`'s OWN module.ts
-    // (the only producer was its self-contained reference event), so this
-    // test originally only checked that one module — now scoped to ANY
-    // module's `events.publishes`, since the registry is explicitly a
-    // shared, multi-producer catalog, not exclusively this module's own.
-    // The repo-wide `checkModuleEventChannels` (`scripts/api-spec-check.ts`,
-    // part of `bun run check`) already validates each module's own
-    // `events.publishes` against AsyncAPI channels; this test additionally
-    // confirms nothing in THIS registry is orphaned (published by no module
-    // at all).
+    // module.ts events.publishes entries"). Scoped to ANY module's
+    // `events.publishes`, since the registry is explicitly a shared,
+    // multi-producer catalog, not exclusively domain_event_runtime's own
+    // (the test above already covers that narrower, domain_event_runtime-
+    // specific invariant). The repo-wide `checkModuleEventChannels`
+    // (`scripts/api-spec-check.ts`, part of `bun run check`) already
+    // validates each module's own `events.publishes` against AsyncAPI
+    // channels; this test additionally confirms nothing in THIS registry
+    // is orphaned (published by no module at all).
     const allPublishedEventTypes = new Set(
       listModules().flatMap((module) => module.events?.publishes ?? [])
     );

@@ -431,7 +431,7 @@ rather than a new one (identity_access already owns RBAC/ABAC; a scope
 assignment is a narrower grant on top of an existing role, not a new
 authorization primitive).
 
-### Schema (`sql/060`, `sql/061`)
+### Schema (`sql/061`, `sql/062`)
 
 Four tenant-scoped tables (`ENABLE`+`FORCE ROW LEVEL SECURITY`,
 `tenant_id`-first composite indexes):
@@ -455,7 +455,7 @@ Four tenant-scoped tables (`ENABLE`+`FORCE ROW LEVEL SECURITY`,
   decision log, recorded regardless of outcome (mirrors
   `awcms_mini_abac_decision_logs`'s "append-always" convention).
 
-`sql/061` seeds nine new `identity_access` permissions:
+`sql/062` seeds nine new `identity_access` permissions:
 `business_scope_assignments.{read,create,revoke}`,
 `business_scope_conflicts.read`,
 `business_scope_exceptions.{read,create,approve,reject,revoke}`.
@@ -600,7 +600,7 @@ records lifecycle events + audit entries, refreshes
 `business_scope_assignments_active`/`_temporary` gauges. Registered in
 `work-class-registry.ts` (`workClass: "maintenance"`, same profile as
 `audit-log-purge`/`data-lifecycle-archive-purge`) and granted
-least-privilege `awcms_mini_worker` access in `sql/060` (`SELECT`/`UPDATE`
+least-privilege `awcms_mini_worker` access in `sql/061` (`SELECT`/`UPDATE`
 on assignments and exceptions, `SELECT`/`INSERT` on the assignment-events
 history — no access to `awcms_mini_sod_conflict_evaluations`, which the
 worker never writes).
