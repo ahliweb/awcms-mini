@@ -172,13 +172,19 @@ metadata, `ModuleDescriptor.permissions`) and the actual
   it to write permissions too is a real, separate capability the
   acceptance criteria for this issue doesn't actually require (only the
   read-side report does), so it's left out rather than half-built.
-- **Only `module_management`, `blog_content`, and `tenant_domain`'s
-  descriptors currently declare `permissions`** (`blog_content` added its
-  full 36-entry array in Issue #543, closing epic #536; `tenant_domain`
-  added a six-entry array in Issue #558, epic #555 — grep `permissions:`
-  across `src/modules/*/module.ts` to confirm which modules declare it as
-  code evolves, since this list has already grown twice). The other 9
-  registered modules' permissions (email, form-drafts, identity-access,
+- **`module_management`, `blog_content`, `idn_admin_regions`,
+  `news_portal`, `social_publishing`, `tenant_domain`, and
+  `visitor_analytics`'s descriptors currently declare `permissions`** (7
+  of the 16 registered modules — `blog_content` added its original
+  36-entry array in Issue #543, closing epic #536, then grew to a
+  39-entry array via Issue #641 (epic `news_portal`), which added the
+  `internal_links.{read,configure,preview}` trio through migration
+  `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`;
+  `tenant_domain` added a six-entry array in Issue #558, epic #555 — grep
+  `permissions:` across `src/modules/*/module.ts` to confirm which
+  modules declare it as code evolves, since this list keeps growing as
+  new domain modules land). The other 9 registered modules' permissions
+  (email, form-drafts, identity-access,
   logging, profile-identity, reporting, sync-storage, tenant-admin,
   workflow-approval) were seeded directly by their own migrations, e.g.
   migration 005/010/014, without ever being added to their `module.ts`.
@@ -224,11 +230,19 @@ specific permission key) — out of scope for this issue, which only needs
 to add the registry _alongside_ the existing items, not migrate them onto
 it. The registry-driven list is appended after those 4 — at the time
 this was written it surfaced exactly one entry (`module_management`'s
-own `/admin/modules`); `blog_content` (`/admin/blog`, Issue #543) and
-`tenant_domain` (`/admin/tenant/domains`, Issue #563) have since added
-their own `navigation` entries, so it now surfaces three (grep
-`navigation:` across `src/modules/*/module.ts` to confirm the current
-count as more modules add entries). A failure loading the registry (e.g.
+own `/admin/modules`); several modules have since added their own
+`navigation` entries — `module_management` itself grew to two
+(`/admin/modules`, `/admin/modules/tenants`, Issue #566), `blog_content`
+(`/admin/blog`, Issue #543), `identity-access` (`/admin/security`, Issue
+#592, epic full-online auth hardening #587-#593), `news_portal` (two:
+`/admin/news-portal/homepage-sections` Issue #637 and
+`/admin/news-portal/ad-placements` Issue #638), `social_publishing`
+(three: `/admin/social-publishing/{accounts,rules,jobs}`),
+`tenant_domain` (`/admin/tenant/domains`, Issue #563), and
+`visitor_analytics` (`/admin/analytics`) — so it now
+surfaces 11 entries across 7 modules (grep `navigation:` across
+`src/modules/*/module.ts` to confirm the current count as more modules
+add entries). A failure loading the registry (e.g.
 a transient DB hiccup) falls back to
 an empty list — same defensive pattern as `tenantName`/`syncActive` above
 it — so it never hides the 4 hardcoded items or otherwise locks an admin
@@ -262,6 +276,14 @@ Job ownership (`ModuleDescriptor.jobs`) by module:
 - `blog_content` — `blog:publish:scheduled` (Issue #541, epic #536 —
   publishes every due `status='scheduled'` post; idempotent, no external
   provider call, safe in any deployment profile).
+- `news_portal` — `news-media:reconcile` (Issue #690, epic #679,
+  platform-hardening — reconciles `awcms_mini_news_media_objects`
+  metadata against real R2 bucket contents; no-op unless
+  `NEWS_MEDIA_R2_ENABLED` is `"true"`).
+- `social_publishing` — `social-publishing:dispatch` (Issue #643, epic
+  #643-#647 — claim/call/finalize outbox dispatcher for
+  `awcms_mini_social_publish_jobs`; no-op unless `SOCIAL_PUBLISHING_ENABLED`
+  is `"true"` and `SOCIAL_PUBLISHING_PROFILE` is `"full_online"`).
 - `module_management` — `security:readiness`, `config:validate`,
   `production:preflight` (platform-wide/deployment-level checks that
   aren't owned by any single domain module — `module_management` is
@@ -350,10 +372,10 @@ also syncs the registry first (same reasoning as
 `/admin/modules/{moduleKey}` (full detail) — the last issue in epic #510.
 
 - **List**: catalog table + client-side type/status/health filters (pure
-  `data-*` attribute show/hide — only a dozen or so modules exist in this
-  base (12 as of epic #555, see `src/modules/index.ts`'s `modules` array
-  for the current count), a server round-trip per filter change would be
-  pure overhead) + a health
+  `data-*` attribute show/hide — only 16 modules exist in this
+  base as of the current registry (see `src/modules/index.ts`'s `modules`
+  array for the current count), a server round-trip per filter change
+  would be pure overhead) + a health
   status column (every module's `fetchModuleHealthReport`, #520, computed
   in parallel — each check is individually cheap/bounded by design, and
   this only runs on an explicit admin page load).
