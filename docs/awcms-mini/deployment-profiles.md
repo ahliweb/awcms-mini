@@ -717,15 +717,15 @@ daftar lengkap dan alasan tiap job dimiliki modul mana. Dua kategori:
 idempoten/aman dijalankan berulang, no-op aman bila fiturnya nonaktif:
 
 | Command                        | Modul                | Jadwal disarankan                                                     |
-| ------------------------------ | --------------------- | --------------------------------------------------------------------- |
-| `sync:objects:dispatch`        | sync_storage          | Setiap 1-2 menit                                                      |
-| `logs:audit:purge`             | logging               | Harian                                                                |
-| `form-drafts:purge`            | form_drafts           | Harian                                                                |
-| `analytics:rollup`             | visitor_analytics     | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai)              |
-| `analytics:purge`              | visitor_analytics     | Harian, setelah `analytics:rollup`                                    |
-| `news-media:reconcile`         | news_portal           | Harian (Issue #690)                                                   |
-| `domain-events:dispatch`       | domain_event_runtime  | Setiap 30-60 detik (Issue #742)                                       |
-| `data-lifecycle:archive-purge` | data_lifecycle        | Harian (Issue #745, lihat §Data lifecycle archive/purge job di bawah) |
+| ------------------------------ | -------------------- | --------------------------------------------------------------------- |
+| `sync:objects:dispatch`        | sync_storage         | Setiap 1-2 menit                                                      |
+| `logs:audit:purge`             | logging              | Harian                                                                |
+| `form-drafts:purge`            | form_drafts          | Harian                                                                |
+| `analytics:rollup`             | visitor_analytics    | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai)              |
+| `analytics:purge`              | visitor_analytics    | Harian, setelah `analytics:rollup`                                    |
+| `news-media:reconcile`         | news_portal          | Harian (Issue #690)                                                   |
+| `domain-events:dispatch`       | domain_event_runtime | Setiap 30-60 detik (Issue #742)                                       |
+| `data-lifecycle:archive-purge` | data_lifecycle       | Harian (Issue #745, lihat §Data lifecycle archive/purge job di bawah) |
 
 Semua bersifat operasi database murni (kecuali `sync:objects:dispatch`
 yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`, dan

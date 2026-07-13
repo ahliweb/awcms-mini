@@ -6,11 +6,12 @@
 
 ## Modules
 
-17 modules registered in `src/modules/index.ts` `listModules()`.
+18 modules registered in `src/modules/index.ts` `listModules()`.
 
 | Key                    | Version | Status         | Type     | Dependencies                                               |
 | ---------------------- | ------- | -------------- | -------- | ---------------------------------------------------------- |
 | `blog_content`         | `0.9.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                          |
+| `data_lifecycle`       | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`               |
 | `domain_event_runtime` | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`               |
 | `email`                | `0.5.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`, `identity_access`      |
 | `form_drafts`          | `1.0.0` | `active`       | `-`      | `identity_access`                                          |
@@ -30,7 +31,7 @@
 
 ## Migrations
 
-56 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `056_awcms_mini_domain_event_runtime_schema.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
+58 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `058_awcms_mini_data_lifecycle_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -90,10 +91,12 @@
 | 054 | `054_awcms_mini_idn_admin_regions_schema.sql`                     |
 | 055 | `055_awcms_mini_social_publishing_verify_permission.sql`          |
 | 056 | `056_awcms_mini_domain_event_runtime_schema.sql`                  |
+| 057 | `057_awcms_mini_data_lifecycle_schema.sql`                        |
+| 058 | `058_awcms_mini_data_lifecycle_permissions.sql`                   |
 
 ## Tables & Row-Level Security
 
-92 tables created across all migrations; 82 carry a `tenant_id` column; 81 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
+96 tables created across all migrations; 86 carry a `tenant_id` column; 85 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
@@ -115,19 +118,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-259 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+265 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 79         |
+| `integration` | 82         |
 | `modules`     | 5          |
-| `unit`        | 120        |
+| `unit`        | 123        |
 
 ## Routes / Operations (summary)
 
-156 OpenAPI paths, 207 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+161 OpenAPI paths, 213 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 
