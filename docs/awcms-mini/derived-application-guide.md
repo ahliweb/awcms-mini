@@ -3,6 +3,8 @@
 > **Dokumen base (bukan contoh domain).** Dokumen ini menjelaskan cara membangun aplikasi turunan **di atas** AWCMS-Mini setelah base generik selesai (v0.23.5, seluruh 18 issue backlog doc06 + peningkatan pasca-backlog M9 tuntas — lihat [`README.md`](README.md) §Langkah berikutnya dan [`AGENTS.md`](../../AGENTS.md) §Mulai dari sini). Lima contoh aplikasi di §Contoh aplikasi turunan adalah **ilustrasi**, bukan modul yang ditambahkan ke base ini.
 >
 > **Lapisan ekstensi (epic #738).** Semua aplikasi turunan di dokumen ini hidup di lapisan **Derived Application** — satu dari tiga lapisan "di luar base" (Derived Application generik, SaaS Control Plane, ERP Extension) yang didefinisikan `docs/adr/0013-extension-layers-and-boundary-model.md`. ADR itu juga mendefinisikan batas tenant vs legal entity vs organization unit, dan aturan "no shared-table write" untuk kolaborasi lintas-repo — baca sebelum aplikasi turunan Anda perlu berbagi data dengan repo turunan lain (mis. sebuah SaaS billing control-plane yang menagih tenant yang sama).
+>
+> **Komposisi modul build-time (Issue #740, ADR-0014).** Sejak Issue #740, aplikasi turunan **tidak lagi perlu mengedit `src/modules/index.ts`** untuk mendaftarkan modul domainnya. Ganti nilai `undefined` di `src/modules/application-registry.ts` milik repo turunan Anda dengan `ApplicationModuleRegistry` sendiri (`{ id, modules, migrationNamespace? }`, tipe di `_shared/module-contract.ts`) — satu-satunya file yang perlu diedit. `composeModuleRegistry()` (`module-management/domain/module-composition.ts`) menggabungkan registry base + registry Anda dan memvalidasi key/dependency DAG/capability binding/migration-namespace/deployment-profile sebelum build dianggap sah. Lihat `docs/adr/0014-deterministic-build-time-module-composition.md` untuk keputusan lengkap dan `tests/fixtures/derived-application-example/` untuk contoh nyata yang bisa langsung dijalankan (`bun test tests/unit/module-composition-fixture.test.ts`).
 
 ## Base reusable vs domain-specific extension
 
@@ -32,7 +34,7 @@ Prinsip: **pertahankan** kolom kiri apa adanya; **tambahkan** kolom kanan mengik
 Setiap langkah dipetakan ke skill nyata (`.claude/skills/`) — panggil skill itu, jangan menebak polanya sendiri.
 
 1. **Definisikan PRD/SRS domain** — pola doc 02/03 (isi generik-nya sudah base; entitas retail/POS di dalamnya adalah contoh AWPOS, ganti dengan domain Anda). Tentukan entitas, aktor, dan alur bisnis inti.
-2. **Scaffold modul domain** — `src/modules/<domain-key>/` dengan struktur `domain/application/infrastructure/api` + `module.ts` + `README.md`. Skill: `awcms-mini-new-module`. Modul baru mulai `version: "0.1.0"`, `status: "experimental"` (ADR-0008) — naik ke `active`/`1.0.0` setelah matang (lihat §Definisi "matang" di bawah).
+2. **Scaffold modul domain** — `src/modules/<domain-key>/` dengan struktur `domain/application/infrastructure/api` + `module.ts` + `README.md`. Skill: `awcms-mini-new-module`. Modul baru mulai `version: "0.1.0"`, `status: "experimental"` (ADR-0008) — naik ke `active`/`1.0.0` setelah matang (lihat §Definisi "matang" di bawah). **Daftarkan modul di `src/modules/application-registry.ts` milik repo turunan Anda sendiri** (Issue #740, ADR-0014) — bukan `src/modules/index.ts` base, yang tetap tidak pernah diedit oleh repo turunan.
 3. **Migration PostgreSQL + RLS** — tabel tenant-scoped **wajib** `tenant_id`, `ENABLE`+`FORCE ROW LEVEL SECURITY`, policy `app.current_tenant_id`, index berprefiks `(tenant_id, …)`. Skill: `awcms-mini-new-migration`.
 4. **Seed RBAC/ABAC domain** — permission/role/policy baru mengikuti pola doc 17 (bukan menyalin isi ilustratifnya); evaluator ABAC yang sudah ada (`evaluateAccess`, default-deny) dipakai ulang, bukan ditulis ulang. Skill: `awcms-mini-abac-guard`.
 5. **Endpoint REST + OpenAPI, domain event + AsyncAPI** — route tipis (auth → tenant context → ABAC guard → validasi → idempotency bila high-risk → service+transaction → response helper standar). Skill: `awcms-mini-new-endpoint` (REST), `awcms-mini-new-event` (event domain). Mutation high-risk wajib `Idempotency-Key` — skill `awcms-mini-idempotency`.
@@ -91,6 +93,11 @@ Wajib dipenuhi modul domain baru sebelum dianggap siap produksi (turunan dari do
   Extension), batas tenant vs legal entity vs organization unit,
   data-ownership matrix, dan kriteria evidence-based ekstraksi layanan
   yang berlaku untuk seluruh aplikasi turunan.
+- [`docs/adr/0014-deterministic-build-time-module-composition.md`](../adr/0014-deterministic-build-time-module-composition.md)
+  — cara aplikasi turunan mendaftarkan modulnya lewat
+  `src/modules/application-registry.ts` tanpa mengedit `src/modules/
+index.ts` base, taksonomi kegagalan komposisi, dan konvensi namespace
+  migration (Issue #740).
 - [`21_module_admission_governance.md`](21_module_admission_governance.md)
   — pohon keputusan admission yang menentukan kategori sebuah kemampuan
   baru (Core/System/Official Optional Module/Derived Application/External
