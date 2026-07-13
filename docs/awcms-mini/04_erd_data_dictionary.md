@@ -437,6 +437,52 @@ Permission seed: 6 permission
 `legal_hold.{read,create,release}` (create/release SENGAJA terpisah,
 "default-deny release"), `plan.analyze`, `runs.read`.
 
+### Business-Scope Assignments & SoD (Issue #746, epic `platform-evolution` #738 Wave 2, `sql/060`–`061`)
+
+Owned by `identity_access` (Core) — lihat
+`src/modules/identity-access/README.md` §Business-scope assignments &
+segregation-of-duties (SoD) hooks untuk detail lengkap. Empat tabel,
+semua tenant-scoped `ENABLE`+`FORCE ROW LEVEL SECURITY`,
+`tenant_id`-first pada setiap composite index (`060_awcms_mini_business_
+scope_assignments_schema.sql`):
+
+- **`awcms_mini_business_scope_assignments`** — satu baris = satu
+  `tenant_user_id` diberi `role_id` (nullable) yang dibatasi pada satu
+  referensi `(scope_type, scope_id)` GENERIK — bukan foreign key ke
+  tabel modul opsional mana pun (divalidasi via `BusinessScopeHierarchyPort`
+  di application layer, tidak pernah dipercaya dari input request).
+  `effective_from`/`effective_to`/`is_temporary`/`reason`/
+  `granted_by_tenant_user_id`/`approved_by_tenant_user_id`/`status`
+  (`active`/`expired`/`revoked`)/`revoked_at`/`revoked_by_tenant_user_id`/
+  `revoke_reason`. CHECK constraint memastikan assignment temporary
+  wajib punya `effective_to`.
+- **`awcms_mini_business_scope_assignment_events`** — append-only
+  riwayat lifecycle (`granted`/`revoked`/`expired`/`renewed`).
+- **`awcms_mini_sod_conflict_exceptions`** — flow exception/override
+  temporer: `rule_key` (mencocokkan `SoDRuleDescriptor.ruleKey` di
+  REGISTRY KODE, bukan foreign key — registry adalah kode, bukan
+  tabel), `scope_type`/`scope_id` nullable (blanket vs. scope-specific),
+  `justification`, `requested_by_tenant_user_id`/
+  `approved_by_tenant_user_id` (harus berbeda, ditegakkan di application
+  layer), `status` (`pending`/`approved`/`rejected`/`expired`/`revoked`),
+  `effective_from`/`effective_to` (WAJIB diisi — tanpa override tak
+  berbatas waktu).
+- **`awcms_mini_sod_conflict_evaluations`** — append-only decision log
+  untuk setiap evaluasi konflik SoD (mirip
+  `awcms_mini_abac_decision_logs`), dicatat terlepas dari hasilnya.
+
+Permission seed: 9 permission (`061_awcms_mini_business_scope_
+permissions.sql`) — `business_scope_assignments.{read,create,revoke}`,
+`business_scope_conflicts.read`,
+`business_scope_exceptions.{read,create,approve,reject,revoke}`.
+
+`awcms_mini_worker` (Issue #683) diberi `SELECT`/`UPDATE` pada
+assignments, `SELECT`/`INSERT` pada assignment-events, dan `SELECT`/
+`UPDATE` pada sod-conflict-exceptions (job expiry terjadwal,
+`identity-access:business-scope:expiry`) — TIDAK pernah akses
+`awcms_mini_sod_conflict_evaluations` (tabel itu hanya ditulis
+request-path chokepoint pada `awcms_mini_app`).
+
 ### Domain Event Runtime (Issue #742, epic `platform-evolution` #738 Wave 1, `sql/056`)
 
 Outbox transaksional generik multi-consumer untuk modul `domain_event_runtime`

@@ -31,7 +31,7 @@
 
 ## Migrations
 
-58 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `058_awcms_mini_data_lifecycle_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
+60 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `061_awcms_mini_business_scope_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -93,10 +93,12 @@
 | 056 | `056_awcms_mini_domain_event_runtime_schema.sql`                  |
 | 057 | `057_awcms_mini_data_lifecycle_schema.sql`                        |
 | 058 | `058_awcms_mini_data_lifecycle_permissions.sql`                   |
+| 060 | `060_awcms_mini_business_scope_assignments_schema.sql`            |
+| 061 | `061_awcms_mini_business_scope_permissions.sql`                   |
 
 ## Tables & Row-Level Security
 
-96 tables created across all migrations; 86 carry a `tenant_id` column; 85 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
+100 tables created across all migrations; 90 carry a `tenant_id` column; 89 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
@@ -118,19 +120,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-280 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+285 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 85         |
+| `integration` | 87         |
 | `modules`     | 5          |
-| `unit`        | 135        |
+| `unit`        | 138        |
 
 ## Routes / Operations (summary)
 
-161 OpenAPI paths, 213 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+168 OpenAPI paths, 222 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

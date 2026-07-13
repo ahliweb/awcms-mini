@@ -2987,3 +2987,134 @@ msgstr "Social Publish Rules"
 msgid "admin.social_publishing.rules.update_success"
 msgstr "Social publish rule updated."
 
+
+#. Issue #746, epic #738 platform-evolution Wave 2 — business-scope
+#. assignments + segregation-of-duties (SoD) admin screen.
+msgid "admin.layout.nav_business_scope"
+msgstr "Business Scope"
+
+msgid "admin.business_scope.access_denied_body"
+msgstr "You do not have permission to view business-scope assignments, exceptions, or conflicts."
+
+msgid "admin.business_scope.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.business_scope.approve_button"
+msgstr "Approve"
+
+msgid "admin.business_scope.approve_exception_success"
+msgstr "SoD conflict exception approved."
+
+msgid "admin.business_scope.assignments_empty"
+msgstr "No business-scope assignments yet."
+
+msgid "admin.business_scope.assignments_heading"
+msgstr "Business-scope assignments"
+
+msgid "admin.business_scope.col_actions"
+msgstr "Actions"
+
+msgid "admin.business_scope.col_effective_to"
+msgstr "Effective until"
+
+msgid "admin.business_scope.col_outcome"
+msgstr "Outcome"
+
+msgid "admin.business_scope.col_reason"
+msgstr "Reason"
+
+msgid "admin.business_scope.col_rule"
+msgstr "Rule"
+
+msgid "admin.business_scope.col_scope"
+msgstr "Scope"
+
+msgid "admin.business_scope.col_status"
+msgstr "Status"
+
+msgid "admin.business_scope.col_subject"
+msgstr "Subject"
+
+msgid "admin.business_scope.col_trigger"
+msgstr "Trigger"
+
+msgid "admin.business_scope.conflicts_empty"
+msgstr "No SoD conflict evaluations recorded yet."
+
+msgid "admin.business_scope.conflicts_heading"
+msgstr "Segregation-of-duties conflicts"
+
+msgid "admin.business_scope.create_assignment_button"
+msgstr "Create assignment"
+
+msgid "admin.business_scope.create_assignment_heading"
+msgstr "Create a business-scope assignment"
+
+msgid "admin.business_scope.create_assignment_success"
+msgstr "Business-scope assignment created."
+
+msgid "admin.business_scope.create_exception_button"
+msgstr "Request exception"
+
+msgid "admin.business_scope.create_exception_heading"
+msgstr "Request a SoD conflict exception"
+
+msgid "admin.business_scope.create_exception_success"
+msgstr "SoD conflict exception requested."
+
+msgid "admin.business_scope.exceptions_empty"
+msgstr "No SoD conflict exceptions yet."
+
+msgid "admin.business_scope.exceptions_heading"
+msgstr "Segregation-of-duties conflict exceptions"
+
+msgid "admin.business_scope.field_effective_to"
+msgstr "Effective until"
+
+msgid "admin.business_scope.field_is_temporary"
+msgstr "Temporary assignment"
+
+msgid "admin.business_scope.field_justification"
+msgstr "Justification"
+
+msgid "admin.business_scope.field_reason"
+msgstr "Reason"
+
+msgid "admin.business_scope.field_role"
+msgstr "Role"
+
+msgid "admin.business_scope.field_role_none"
+msgstr "No role (scope only)"
+
+msgid "admin.business_scope.field_scope_id"
+msgstr "Scope ID"
+
+msgid "admin.business_scope.field_scope_type"
+msgstr "Scope type"
+
+msgid "admin.business_scope.field_scope_type_hint"
+msgstr "Only \"office\" resolves today; other scope types require an organization module."
+
+msgid "admin.business_scope.page_description"
+msgstr "Manage business-scope assignments, review segregation-of-duties conflicts, and handle conflict exceptions."
+
+msgid "admin.business_scope.page_title"
+msgstr "Business Scope & SoD"
+
+msgid "admin.business_scope.reject_button"
+msgstr "Reject"
+
+msgid "admin.business_scope.reject_exception_success"
+msgstr "SoD conflict exception rejected."
+
+msgid "admin.business_scope.revoke_assignment_success"
+msgstr "Business-scope assignment revoked."
+
+msgid "admin.business_scope.revoke_button"
+msgstr "Revoke"
+
+msgid "admin.business_scope.revoke_exception_success"
+msgstr "SoD conflict exception revoked."
+
+msgid "admin.business_scope.revoke_reason_prompt"
+msgstr "Enter a reason for revoking this:"

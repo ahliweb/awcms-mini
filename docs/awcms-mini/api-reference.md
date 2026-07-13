@@ -1108,6 +1108,266 @@ Full-online-only (Issue #591). High-risk, audited (`sso_account_unlinked`). Neve
 | 409    | No SSO account is currently linked (`SSO_NOT_LINKED`).               | [`ApiError`](#standard-error-envelope)                                                             |
 | 500    | Internal server error without stack trace.                           | [`ApiError`](#standard-error-envelope)                                                             |
 
+### `GET /api/v1/identity/business-scope/assignments` — List this tenant's business-scope assignments
+
+- **operationId**: `identityBusinessScopeAssignmentsList`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. Permission-gated (`identity_access.business_scope_assignments.read`). Bounded list (200), newest first.
+
+**Parameters**
+
+| Name               | In     | Required | Type                                 | Description                                 |
+| ------------------ | ------ | -------- | ------------------------------------ | ------------------------------------------- |
+| `status`           | query  | no       | enum(`active`, `expired`, `revoked`) |                                             |
+| `tenantUserId`     | query  | no       | string (uuid)                        |                                             |
+| `scopeType`        | query  | no       | string                               |                                             |
+| `X-Correlation-ID` | header | no       | string                               | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                               | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Business-scope assignments listed.             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/identity/business-scope/assignments` — Create a business-scope assignment
+
+- **operationId**: `identityBusinessScopeAssignmentsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. Permission-gated (`identity_access.business_scope_assignments.create`). Scope validated through the hierarchy capability port (never trusted from the request alone); self-grant denied; SoD conflicts evaluated against the subject's other active assignments.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`CreateBusinessScopeAssignmentRequest`](#schema-createbusinessscopeassignmentrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Business-scope assignment created.                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation error, or the requested scope could not be resolved (`SCOPE_UNRESOLVED`).                                                                                                                             | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Forbidden, self-grant denied (`SELF_GRANT_DENIED`), or a module/tenant guard denial.                                                                                                                             | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Segregation-of-duties conflict detected with no approved exception on file (`SOD_CONFLICT`), or `IDEMPOTENCY_CONFLICT`.                                                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/identity/business-scope/assignments/{id}/revoke` — Revoke an active business-scope assignment
+
+- **operationId**: `identityBusinessScopeAssignmentsRevoke`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. High-risk mutation: `identity_access.business_scope_assignments.revoke`, `Idempotency-Key` required, reason-required, audited critical.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Business-scope assignment revoked.                                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Assignment is not active (`ALREADY_REVOKED`), or `IDEMPOTENCY_CONFLICT`.                                                                                                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/identity/business-scope/conflicts` — List segregation-of-duties conflict evaluation history
+
+- **operationId**: `identityBusinessScopeConflictsList`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. Keyset-paginated, permission-gated (`identity_access.business_scope_conflicts.read`). Safe projection minimizing PII — rule key, subject id, trigger context, outcome, reason, timestamp only, no request/resource payload.
+
+**Parameters**
+
+| Name               | In     | Required | Type    | Description                                                                                   |
+| ------------------ | ------ | -------- | ------- | --------------------------------------------------------------------------------------------- |
+| `cursor`           | query  | no       | string  | Opaque keyset pagination cursor from a previous page's `nextCursor`. Omit for the first page. |
+| `ruleKey`          | query  | no       | string  |                                                                                               |
+| `conflictDetected` | query  | no       | boolean |                                                                                               |
+| `X-Correlation-ID` | header | no       | string  | Optional server-side trace correlation ID.                                                    |
+| `X-Request-ID`     | header | no       | string  | Optional client-generated request trace ID.                                                   |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                                                                                             |
+| ------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 200    | SoD conflict evaluation history, newest first. | [`ApiSuccess`](#standard-success-envelope)&lt;[`SoDConflictEvaluationListResponse`](#schema-sodconflictevaluationlistresponse)&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                                                                                             |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                                                                                             |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                                                                                             |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                                                                                             |
+
+### `GET /api/v1/identity/business-scope/exceptions` — List segregation-of-duties conflict exceptions
+
+- **operationId**: `identityBusinessScopeExceptionsList`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. Permission-gated (`identity_access.business_scope_exceptions.read`). Bounded list (200), newest first.
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                          | Description                                 |
+| ------------------ | ------ | -------- | ------------------------------------------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`pending`, `approved`, `rejected`, `expired`, `revoked`) |                                             |
+| `ruleKey`          | query  | no       | string                                                        |                                             |
+| `X-Correlation-ID` | header | no       | string                                                        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                                        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | SoD conflict exceptions listed.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/identity/business-scope/exceptions` — Request a segregation-of-duties conflict exception
+
+- **operationId**: `identityBusinessScopeExceptionsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. Permission-gated (`identity_access.business_scope_exceptions.create`). Creates a `pending` exception request; a DIFFERENT tenant user must separately approve it (see `.../approve`).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`CreateSoDConflictExceptionRequest`](#schema-createsodconflictexceptionrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | SoD conflict exception requested.                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation error, unknown rule key (`RULE_NOT_FOUND`), or exception duration exceeds the rule's maximum (`EXCEEDS_MAX_DURATION`).                                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Forbidden, or the rule does not allow exceptions (`EXCEPTION_NOT_ALLOWED`).                                                                                                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 409    | `IDEMPOTENCY_CONFLICT`.                                                                                                                                                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/identity/business-scope/exceptions/{id}/approve` — Approve a segregation-of-duties conflict exception
+
+- **operationId**: `identityBusinessScopeExceptionsApprove`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. High-risk mutation: `identity_access.business_scope_exceptions.approve` (deliberately distinct from `.create`). Denies self-approval (re-checked from the stored request, never trusted from the request body). `Idempotency-Key` required, audited critical.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | SoD conflict exception approved.                                                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Forbidden, or self-approval denied (`SELF_APPROVAL_DENIED`).                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Exception is not pending (`INVALID_STATE`), or `IDEMPOTENCY_CONFLICT`.                                                                                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/identity/business-scope/exceptions/{id}/reject` — Reject a segregation-of-duties conflict exception
+
+- **operationId**: `identityBusinessScopeExceptionsReject`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. `identity_access.business_scope_exceptions.reject`, `Idempotency-Key` required, audited warning.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | SoD conflict exception rejected.                                                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Exception is not pending (`INVALID_STATE`), or `IDEMPOTENCY_CONFLICT`.                                                                                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/identity/business-scope/exceptions/{id}/revoke` — Revoke a previously approved segregation-of-duties conflict exception
+
+- **operationId**: `identityBusinessScopeExceptionsRevoke`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #746. High-risk mutation: `identity_access.business_scope_exceptions.revoke`, `Idempotency-Key` required, reason-required, audited critical.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | SoD conflict exception revoked.                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Exception is not approved (`INVALID_STATE`), or `IDEMPOTENCY_CONFLICT`.                                                                                                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
 ### `GET /api/v1/identity/sso/policy` — Read this tenant's authentication policy
 
 - **operationId**: `identitySsoPolicyGet`
@@ -7310,6 +7570,34 @@ One content quality checklist rule's evaluation result (Issue
 }
 ```
 
+### Schema: CreateBusinessScopeAssignmentRequest
+
+| Field           | Type               | Required | Nullable | Description                                                                                                                                                                                                              |
+| --------------- | ------------------ | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tenantUserId`  | string (uuid)      | yes      | no       |                                                                                                                                                                                                                          |
+| `roleId`        | string (uuid)      | no       | yes      |                                                                                                                                                                                                                          |
+| `scopeType`     | string             | yes      | no       | Only "office" is resolvable against a real table today (identity-access's default hierarchy port adapter); any other value resolves to `SCOPE_UNRESOLVED` until a future organization module registers its own resolver. |
+| `scopeId`       | string (uuid)      | yes      | no       |                                                                                                                                                                                                                          |
+| `effectiveFrom` | string (date-time) | no       | no       | Defaults to now when omitted.                                                                                                                                                                                            |
+| `effectiveTo`   | string (date-time) | no       | yes      |                                                                                                                                                                                                                          |
+| `isTemporary`   | boolean            | no       | no       | When true, effectiveTo is required.                                                                                                                                                                                      |
+| `reason`        | string             | no       | yes      |                                                                                                                                                                                                                          |
+
+**Example**
+
+```json
+{
+  "tenantUserId": "00000000-0000-0000-0000-000000000000",
+  "roleId": "00000000-0000-0000-0000-000000000000",
+  "scopeType": "string",
+  "scopeId": "00000000-0000-0000-0000-000000000000",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z",
+  "isTemporary": false,
+  "reason": "string"
+}
+```
+
 ### Schema: CreateEmailTemplateRequest
 
 | Field              | Type                                                     | Required | Nullable | Description                                                              |
@@ -7420,6 +7708,32 @@ One content quality checklist rule's evaluation result (Issue
 ```json
 {
   "roleId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+### Schema: CreateSoDConflictExceptionRequest
+
+| Field                 | Type               | Required | Nullable | Description                                                                                                |
+| --------------------- | ------------------ | -------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `ruleKey`             | string             | yes      | no       | Must match a registered SoDRuleDescriptor.ruleKey.                                                         |
+| `subjectTenantUserId` | string (uuid)      | yes      | no       |                                                                                                            |
+| `scopeType`           | string             | no       | yes      | Set together with scopeId for a scope-specific exception; omit both for a blanket (tenant-wide) exception. |
+| `scopeId`             | string (uuid)      | no       | yes      |                                                                                                            |
+| `justification`       | string             | yes      | no       |                                                                                                            |
+| `effectiveFrom`       | string (date-time) | no       | no       | Defaults to now when omitted.                                                                              |
+| `effectiveTo`         | string (date-time) | yes      | no       | Required — exceptions must have a bounded lifetime (no indefinite override).                               |
+
+**Example**
+
+```json
+{
+  "ruleKey": "string",
+  "subjectTenantUserId": "00000000-0000-0000-0000-000000000000",
+  "scopeType": "string",
+  "scopeId": "00000000-0000-0000-0000-000000000000",
+  "justification": "string",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z"
 }
 ```
 
@@ -9743,6 +10057,63 @@ Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
   "captionTemplate": "string",
   "isDefault": false,
   "isActive": false
+}
+```
+
+### Schema: SoDConflictEvaluationEntry
+
+Issue
+
+| Field                 | Type                                            | Required | Nullable | Description |
+| --------------------- | ----------------------------------------------- | -------- | -------- | ----------- |
+| `id`                  | string (uuid)                                   | yes      | no       |             |
+| `ruleKey`             | string                                          | yes      | no       |             |
+| `subjectTenantUserId` | string (uuid)                                   | yes      | yes      |             |
+| `triggerContext`      | enum(`assignment_create`, `high_risk_decision`) | yes      | no       |             |
+| `conflictDetected`    | boolean                                         | yes      | no       |             |
+| `resolvedVia`         | enum(`none`, `exception`, `denied`)             | yes      | no       |             |
+| `decisionReason`      | string                                          | yes      | no       |             |
+| `occurredAt`          | string (date-time)                              | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "ruleKey": "string",
+  "subjectTenantUserId": "00000000-0000-0000-0000-000000000000",
+  "triggerContext": "assignment_create",
+  "conflictDetected": false,
+  "resolvedVia": "none",
+  "decisionReason": "string",
+  "occurredAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: SoDConflictEvaluationListResponse
+
+| Field        | Type                                                                        | Required | Nullable | Description                                                                                                                           |
+| ------------ | --------------------------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `conflicts`  | array of [`SoDConflictEvaluationEntry`](#schema-sodconflictevaluationentry) | yes      | no       |                                                                                                                                       |
+| `nextCursor` | string                                                                      | yes      | yes      | Opaque keyset pagination cursor; pass back as the `cursor` query parameter to fetch the next page. `null` when this is the last page. |
+
+**Example**
+
+```json
+{
+  "conflicts": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "ruleKey": "string",
+      "subjectTenantUserId": "00000000-0000-0000-0000-000000000000",
+      "triggerContext": "assignment_create",
+      "conflictDetected": false,
+      "resolvedVia": "none",
+      "decisionReason": "string",
+      "occurredAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "nextCursor": "string"
 }
 ```
 

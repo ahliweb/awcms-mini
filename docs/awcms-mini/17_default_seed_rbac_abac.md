@@ -30,41 +30,44 @@ flowchart LR
 
 `module_key.activity_code` mengidentifikasi kemampuan. Contoh utama:
 
-| Module key                      | Activity code         | Action tersedia                       |
-| ------------------------------- | --------------------- | ------------------------------------- |
-| `tenant_admin`                  | `office_management`   | read, create, update                  |
-| `identity_access`               | `user_management`     | read, create, update, assign          |
-| `identity_access`               | `access_control`      | read, assign, configure               |
-| `profile_identity`              | `profile_management`  | read, create, update, delete, restore |
-| `profile_identity`              | `profile_merge`       | read, approve                         |
-| `catalog_inventory`             | `product_management`  | read, create, update, delete, restore |
-| `catalog_inventory`             | `price_management`    | read, update                          |
-| `catalog_inventory`             | `stock_management`    | read, update, adjust                  |
-| `sales_pos`                     | `checkout`            | read, create, update                  |
-| `sales_pos`                     | `transaction_posting` | post                                  |
-| `sales_pos`                     | `transaction_cancel`  | cancel, approve                       |
-| `sales_pos`                     | `discount`            | update                                |
-| `warehouse_management`          | `transfer`            | read, create, approve, send, receive  |
-| `warehouse_management`          | `cycle_count`         | read, create, approve                 |
-| `accounting_tax`                | `tax_profile`         | read, configure                       |
-| `accounting_tax`                | `vat_invoice`         | read, create                          |
-| `accounting_tax`                | `coretax_export`      | export, approve                       |
-| `crm_communication`             | `contact`             | read, create, update, delete, restore |
-| `crm_communication`             | `receipt_delivery`    | read, send                            |
-| `sync_storage`                  | `sync`                | read, configure                       |
-| `sync_storage`                  | `conflict_resolution` | read, approve                         |
-| `ai_analyst`                    | `analysis`            | analyze                               |
-| `management_reporting`          | `reports`             | read                                  |
-| `workflow_approval`             | `approval`            | read, approve                         |
-| `observability_logging`         | `logs`                | read                                  |
-| `production_security_readiness` | `go_live`             | read, approve                         |
-| `module_management`             | `modules`             | read, sync                            |
-| `module_management`             | `tenant_modules`      | read, enable, disable                 |
-| `module_management`             | `settings`            | read, update                          |
-| `module_management`             | `permissions`         | read                                  |
-| `module_management`             | `navigation`          | read                                  |
-| `module_management`             | `jobs`                | read                                  |
-| `module_management`             | `health`              | read, check                           |
+| Module key                      | Activity code                | Action tersedia                                    |
+| ------------------------------- | ---------------------------- | -------------------------------------------------- |
+| `tenant_admin`                  | `office_management`          | read, create, update                               |
+| `identity_access`               | `user_management`            | read, create, update, assign                       |
+| `identity_access`               | `access_control`             | read, assign, configure                            |
+| `identity_access`               | `business_scope_assignments` | read, create, revoke (Issue #746)                  |
+| `identity_access`               | `business_scope_conflicts`   | read (Issue #746)                                  |
+| `identity_access`               | `business_scope_exceptions`  | read, create, approve, reject, revoke (Issue #746) |
+| `profile_identity`              | `profile_management`         | read, create, update, delete, restore              |
+| `profile_identity`              | `profile_merge`              | read, approve                                      |
+| `catalog_inventory`             | `product_management`         | read, create, update, delete, restore              |
+| `catalog_inventory`             | `price_management`           | read, update                                       |
+| `catalog_inventory`             | `stock_management`           | read, update, adjust                               |
+| `sales_pos`                     | `checkout`                   | read, create, update                               |
+| `sales_pos`                     | `transaction_posting`        | post                                               |
+| `sales_pos`                     | `transaction_cancel`         | cancel, approve                                    |
+| `sales_pos`                     | `discount`                   | update                                             |
+| `warehouse_management`          | `transfer`                   | read, create, approve, send, receive               |
+| `warehouse_management`          | `cycle_count`                | read, create, approve                              |
+| `accounting_tax`                | `tax_profile`                | read, configure                                    |
+| `accounting_tax`                | `vat_invoice`                | read, create                                       |
+| `accounting_tax`                | `coretax_export`             | export, approve                                    |
+| `crm_communication`             | `contact`                    | read, create, update, delete, restore              |
+| `crm_communication`             | `receipt_delivery`           | read, send                                         |
+| `sync_storage`                  | `sync`                       | read, configure                                    |
+| `sync_storage`                  | `conflict_resolution`        | read, approve                                      |
+| `ai_analyst`                    | `analysis`                   | analyze                                            |
+| `management_reporting`          | `reports`                    | read                                               |
+| `workflow_approval`             | `approval`                   | read, approve                                      |
+| `observability_logging`         | `logs`                       | read                                               |
+| `production_security_readiness` | `go_live`                    | read, approve                                      |
+| `module_management`             | `modules`                    | read, sync                                         |
+| `module_management`             | `tenant_modules`             | read, enable, disable                              |
+| `module_management`             | `settings`                   | read, update                                       |
+| `module_management`             | `permissions`                | read                                               |
+| `module_management`             | `navigation`                 | read                                               |
+| `module_management`             | `jobs`                       | read                                               |
+| `module_management`             | `health`                     | read, check                                        |
 
 ## Role default
 
@@ -129,19 +132,21 @@ Permission `delete`, `restore`, dan `purge` untuk soft delete tidak tersirat dar
 
 Prinsip: **default deny**, **deny overrides allow**, RLS tetap wajib.
 
-| #   | Policy              | Efek                                                                                                                   |
-| --- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| 1   | Default             | **Deny** semua yang tidak diizinkan eksplisit                                                                          |
-| 2   | Role allow          | Allow sesuai matriks role → permission                                                                                 |
-| 3   | Tenant isolation    | Deny bila `resource.tenant_id != context.tenant_id`                                                                    |
-| 4   | Office scope        | Deny bila resource office di luar office user (kecuali role lintas-office)                                             |
-| 5   | Cashier restriction | Deny `accounting_tax.*`, `coretax_export`, `identity_access.*` untuk Kasir                                             |
-| 6   | Discount limit      | Deny diskon operator melebihi batas kebijakan                                                                          |
-| 7   | Self-approval       | Deny bila `approver == requester` pada workflow                                                                        |
-| 8   | Tax masking         | Deny tampilkan tax identity penuh untuk non-tax role                                                                   |
-| 9   | AI safety           | Deny AI mengakses raw SQL/mutation/PII mentah                                                                          |
-| 10  | Export approval     | Deny Coretax export tanpa approval bila policy aktif                                                                   |
-| 11  | Soft delete archive | Deny `includeDeleted`, `restore`, atau `purge` tanpa permission eksplisit; deny delete untuk posted/append-only entity |
+| #   | Policy              | Efek                                                                                                                                                                                                                 |
+| --- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Default             | **Deny** semua yang tidak diizinkan eksplisit                                                                                                                                                                        |
+| 2   | Role allow          | Allow sesuai matriks role → permission                                                                                                                                                                               |
+| 3   | Tenant isolation    | Deny bila `resource.tenant_id != context.tenant_id`                                                                                                                                                                  |
+| 4   | Office scope        | Deny bila resource office di luar office user (kecuali role lintas-office)                                                                                                                                           |
+| 5   | Cashier restriction | Deny `accounting_tax.*`, `coretax_export`, `identity_access.*` untuk Kasir                                                                                                                                           |
+| 6   | Discount limit      | Deny diskon operator melebihi batas kebijakan                                                                                                                                                                        |
+| 7   | Self-approval       | Deny bila `approver == requester` pada workflow                                                                                                                                                                      |
+| 8   | Tax masking         | Deny tampilkan tax identity penuh untuk non-tax role                                                                                                                                                                 |
+| 9   | AI safety           | Deny AI mengakses raw SQL/mutation/PII mentah                                                                                                                                                                        |
+| 10  | Export approval     | Deny Coretax export tanpa approval bila policy aktif                                                                                                                                                                 |
+| 11  | Soft delete archive | Deny `includeDeleted`, `restore`, atau `purge` tanpa permission eksplisit; deny delete untuk posted/append-only entity                                                                                               |
+| 12  | Business-scope fact | Deny bila `resourceAttributes.requiredScopeType`/`.requiredScopeId` diset tapi subjek tidak punya business-scope fact yang cocok/resolved (Issue #746, `evaluateAccess`) — additive, default-deny konsisten          |
+| 13  | SoD conflict        | Deny high-risk action bila subjek memegang permission lain via business-scope assignment yang berkonflik (registry `SoDRuleDescriptor`) tanpa exception approved yang berlaku (Issue #746, `authorizeInTransaction`) |
 
 Setiap **deny high-risk** dicatat di `awcms_mini_abac_decision_logs` (doc 04).
 

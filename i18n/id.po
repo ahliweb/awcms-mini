@@ -2986,3 +2986,134 @@ msgstr "Aturan Publikasi Sosial"
 msgid "admin.social_publishing.rules.update_success"
 msgstr "Aturan publikasi sosial berhasil diperbarui."
 
+
+#. Issue #746, epic #738 platform-evolution Wave 2 — business-scope
+#. assignments + segregation-of-duties (SoD) admin screen.
+msgid "admin.layout.nav_business_scope"
+msgstr "Scope Bisnis"
+
+msgid "admin.business_scope.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat assignment scope bisnis, pengecualian, atau konflik."
+
+msgid "admin.business_scope.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.business_scope.approve_button"
+msgstr "Setujui"
+
+msgid "admin.business_scope.approve_exception_success"
+msgstr "Pengecualian konflik SoD disetujui."
+
+msgid "admin.business_scope.assignments_empty"
+msgstr "Belum ada assignment scope bisnis."
+
+msgid "admin.business_scope.assignments_heading"
+msgstr "Assignment scope bisnis"
+
+msgid "admin.business_scope.col_actions"
+msgstr "Aksi"
+
+msgid "admin.business_scope.col_effective_to"
+msgstr "Berlaku sampai"
+
+msgid "admin.business_scope.col_outcome"
+msgstr "Hasil"
+
+msgid "admin.business_scope.col_reason"
+msgstr "Alasan"
+
+msgid "admin.business_scope.col_rule"
+msgstr "Aturan"
+
+msgid "admin.business_scope.col_scope"
+msgstr "Cakupan"
+
+msgid "admin.business_scope.col_status"
+msgstr "Status"
+
+msgid "admin.business_scope.col_subject"
+msgstr "Subjek"
+
+msgid "admin.business_scope.col_trigger"
+msgstr "Pemicu"
+
+msgid "admin.business_scope.conflicts_empty"
+msgstr "Belum ada evaluasi konflik SoD yang tercatat."
+
+msgid "admin.business_scope.conflicts_heading"
+msgstr "Konflik pemisahan tugas (SoD)"
+
+msgid "admin.business_scope.create_assignment_button"
+msgstr "Buat assignment"
+
+msgid "admin.business_scope.create_assignment_heading"
+msgstr "Buat assignment scope bisnis"
+
+msgid "admin.business_scope.create_assignment_success"
+msgstr "Assignment scope bisnis berhasil dibuat."
+
+msgid "admin.business_scope.create_exception_button"
+msgstr "Ajukan pengecualian"
+
+msgid "admin.business_scope.create_exception_heading"
+msgstr "Ajukan pengecualian konflik SoD"
+
+msgid "admin.business_scope.create_exception_success"
+msgstr "Pengecualian konflik SoD berhasil diajukan."
+
+msgid "admin.business_scope.exceptions_empty"
+msgstr "Belum ada pengecualian konflik SoD."
+
+msgid "admin.business_scope.exceptions_heading"
+msgstr "Pengecualian konflik pemisahan tugas (SoD)"
+
+msgid "admin.business_scope.field_effective_to"
+msgstr "Berlaku sampai"
+
+msgid "admin.business_scope.field_is_temporary"
+msgstr "Assignment sementara"
+
+msgid "admin.business_scope.field_justification"
+msgstr "Justifikasi"
+
+msgid "admin.business_scope.field_reason"
+msgstr "Alasan"
+
+msgid "admin.business_scope.field_role"
+msgstr "Peran"
+
+msgid "admin.business_scope.field_role_none"
+msgstr "Tanpa peran (hanya scope)"
+
+msgid "admin.business_scope.field_scope_id"
+msgstr "ID Scope"
+
+msgid "admin.business_scope.field_scope_type"
+msgstr "Jenis scope"
+
+msgid "admin.business_scope.field_scope_type_hint"
+msgstr "Hanya \"office\" yang dapat diresolusikan saat ini; jenis scope lain memerlukan modul organisasi."
+
+msgid "admin.business_scope.page_description"
+msgstr "Kelola assignment scope bisnis, tinjau konflik pemisahan tugas (SoD), dan tangani pengecualian konflik."
+
+msgid "admin.business_scope.page_title"
+msgstr "Scope Bisnis & SoD"
+
+msgid "admin.business_scope.reject_button"
+msgstr "Tolak"
+
+msgid "admin.business_scope.reject_exception_success"
+msgstr "Pengecualian konflik SoD ditolak."
+
+msgid "admin.business_scope.revoke_assignment_success"
+msgstr "Assignment scope bisnis berhasil dicabut."
+
+msgid "admin.business_scope.revoke_button"
+msgstr "Cabut"
+
+msgid "admin.business_scope.revoke_exception_success"
+msgstr "Pengecualian konflik SoD berhasil dicabut."
+
+msgid "admin.business_scope.revoke_reason_prompt"
+msgstr "Masukkan alasan pencabutan:"

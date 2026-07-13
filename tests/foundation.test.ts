@@ -534,7 +534,9 @@ describe("database migration runner helpers", () => {
       "055_awcms_mini_social_publishing_verify_permission.sql",
       "056_awcms_mini_domain_event_runtime_schema.sql",
       "057_awcms_mini_data_lifecycle_schema.sql",
-      "058_awcms_mini_data_lifecycle_permissions.sql"
+      "058_awcms_mini_data_lifecycle_permissions.sql",
+      "060_awcms_mini_business_scope_assignments_schema.sql",
+      "061_awcms_mini_business_scope_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

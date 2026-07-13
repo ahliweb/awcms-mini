@@ -261,6 +261,72 @@ export const METRIC_DEFINITIONS = {
     allowedLabelKeys: ["consumerName"],
     approxCardinality: "A handful of registered consumer names (2 today).",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  // Issue #746 (epic #738 platform-evolution Wave 2) — business-scope
+  // assignments/SoD observability. `scopeType` is a small, code-defined
+  // set today (only "office" resolves) but is technically operator/
+  // deployment-declared (a future organization module could register more)
+  // — bounded by convention (short lowercase snake_case identifiers,
+  // never a UUID/tenant id), same class of bound `provider`/`jobName`
+  // already rely on.
+  business_scope_assignments_active: {
+    name: "business_scope_assignments_active",
+    type: "gauge",
+    description:
+      "Current count of active business-scope assignments, by scopeType.",
+    allowedLabelKeys: ["scopeType"],
+    approxCardinality:
+      'A handful of scope types in practice (1 today: "office").',
+    privacyNote:
+      'scopeType is a short, code-defined identifier (e.g. "office") declared by the owning capability — never a scopeId, tenant id, or subject id. ' +
+      PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  business_scope_assignments_temporary: {
+    name: "business_scope_assignments_temporary",
+    type: "gauge",
+    description:
+      "Current count of active, temporary (isTemporary=true) business-scope assignments, by scopeType.",
+    allowedLabelKeys: ["scopeType"],
+    approxCardinality: "Same bound as business_scope_assignments_active.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  business_scope_expirations_total: {
+    name: "business_scope_expirations_total",
+    type: "counter",
+    description:
+      "Count of business-scope assignments/exceptions transitioned to expired by the scheduled expiry job, by itemType.",
+    allowedLabelKeys: ["itemType"],
+    approxCardinality: 'Exactly 2 — itemType is "assignment" or "exception".',
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  business_scope_cross_tenant_denied_total: {
+    name: "business_scope_cross_tenant_denied_total",
+    type: "counter",
+    description:
+      "Count of cross-tenant business-scope/hierarchy resolution attempts denied by RLS/ABAC tenant isolation.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  sod_conflicts_detected_total: {
+    name: "sod_conflicts_detected_total",
+    type: "counter",
+    description:
+      "Count of segregation-of-duties conflict evaluations that detected a conflict, by ruleKey and resolvedVia.",
+    allowedLabelKeys: ["ruleKey", "resolvedVia"],
+    approxCardinality:
+      "A handful of registered SoD rule keys (3 today) x 3 resolvedVia values (none, exception, denied) ≈ low tens of series.",
+    privacyNote:
+      'ruleKey is the literal, code-declared SoDRuleDescriptor.ruleKey (e.g. "data_lifecycle.legal_hold_maker_checker") — never a tenant/subject id. ' +
+      PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  sod_exceptions_granted_total: {
+    name: "sod_exceptions_granted_total",
+    type: "counter",
+    description: "Count of SoD conflict exceptions approved, by ruleKey.",
+    allowedLabelKeys: ["ruleKey"],
+    approxCardinality: "A handful of registered SoD rule keys (3 today).",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   }
 } as const satisfies Record<string, MetricDefinition>;
 

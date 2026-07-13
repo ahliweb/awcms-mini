@@ -1004,3 +1004,46 @@ bukan diklaim sudah ditangani. Konsumen/produsen nyata untuk modul lain
 hanya dua reference consumer self-contained yang ada di issue ini; risiko
 keamanan integrasi lintas-modul nyata akan dinilai ulang saat wiring nyata
 itu terjadi di issue lanjutan, bukan diklaim sudah tercakup di sini.
+
+## Standar tambahan dipicu epic platform-evolution (Issue #746, epic #738 Wave 2)
+
+Modul `identity_access` menambah **business-scope assignments** dan
+**segregation-of-duties (SoD) policy hooks**. Detail lengkap kontrol dan
+arsitektur ada di `src/modules/identity-access/README.md` §Business-scope
+assignments & segregation-of-duties (SoD) hooks — bagian ini merangkum
+model ancaman inti, tidak mengulang kontrol generik (RLS, ABAC
+default-deny, audit) yang sudah berlaku sama di sini.
+
+| Kategori risiko                                                          | Mitigasi                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Business-scope melemahkan isolasi tenant (ADR-0013 §2)**               | `scope_type`/`scope_id` HANYA disimpan/dibaca dalam transaksi `withTenant` (RLS FORCE) — tidak pernah predicate RLS kedua, tidak pernah menggantikan `tenant_id`. `BusinessScopeHierarchyPort.resolveScope` menerima `tenantId` eksplisit dan defensif tenant-scoped (`WHERE tenant_id = ...`); resolusi scope milik tenant lain SELALU mengembalikan `resolved: false`, tidak pernah membocorkan keberadaan baris tenant lain.                                              |
+| **Scope tidak dikenal/tidak resolve dieksploitasi untuk bypass**         | `resolved: false` (unknown scope type, id tidak ada, atau lintas-tenant) SELALU default-deny untuk aksi high-risk — diverifikasi `tests/unit/business-scope-assignment.test.ts`/integration chokepoint test. Identity-access tidak pernah menebak/mengasumsikan hierarchy untuk scope type yang tidak dikenalnya.                                                                                                                                                            |
+| **Self-grant/self-approval bypass SoD**                                  | Grantor == subject pada `createBusinessScopeAssignment` selalu ditolak (`self_grant_denied`); approver == requester pada `approveSoDConflictException` selalu ditolak (`self_approval_denied`), keduanya re-check dari baris DB, TIDAK PERNAH dipercaya dari request body — pola sama `tenant-sso.ts`'s break-glass re-check.                                                                                                                                                |
+| **SoD conflict mechanism dibangun tapi tidak ditegakkan di jalur nyata** | `checkHighRiskSoDConflicts` dipanggil dari `authorizeInTransaction` — chokepoint universal yang SEMUA endpoint terproteksi lewati, bukan mekanisme paralel yang hanya dipanggil dari endpoint milik issue ini sendiri. Dibuktikan `tests/integration/business-scope-sod-chokepoint.integration.test.ts` melawan endpoint NYATA milik modul lain (`data_lifecycle`'s legal-hold release) yang TIDAK diubah issue ini.                                                         |
+| **Exception/override jadi celah permanen**                               | `awcms_mini_sod_conflict_exceptions.effective_to` WAJIB diisi (CHECK constraint + validasi domain) — tidak ada override tanpa batas waktu. Status `approved` adalah cache; `effective_to` vs `now()` adalah gerbang sesungguhnya (`isSoDConflictExceptionCurrentlyValid`), sehingga exception kedaluwarsa berhenti mengotorisasi bahkan sebelum job expiry berjalan. Job terjadwal (`identity-access:business-scope:expiry`) mentransisikan status secara eksplisit + audit. |
+| **Regresi diam-diam terhadap tenant existing saat fitur diluncurkan**    | `checkHighRiskSoDConflicts` HANYA bereaksi pada permission yang dipegang lewat business-scope assignment (tabel baru, nol baris untuk semua tenant existing pada hari rilis) — bukan permission RBAC role biasa yang sudah dipegang tenant sebelum fitur ini ada. Fitur ini genuinely no-op untuk semua tenant existing sampai mereka mulai memakai business-scope assignment — keputusan desain didokumentasikan eksplisit di `application/high-risk-sod-guard.ts`.         |
+| **Identifier scope dipalsukan dari request tanpa validasi**              | Setiap `scopeType`/`scopeId` pada create assignment WAJIB lolos `BusinessScopeHierarchyPort.resolveScope` (validasi lewat capability pemilik, bukan dipercaya dari body) sebelum baris pernah ditulis — issue #746 security requirement "Scope identifiers are validated through the owning capability and cannot be trusted from request input alone".                                                                                                                      |
+| **Kebocoran PII lewat proyeksi list conflict/exception**                 | `GET .../conflicts` mengembalikan proyeksi aman (rule key, subject id, trigger, outcome, reason, timestamp) — tidak ada payload request/resource. Keyset-paginated, permission-gated (`business_scope_conflicts.read`), error standar tanpa stack trace.                                                                                                                                                                                                                     |
+
+### Batasan yang dicatat, bukan diabaikan (business-scope & SoD)
+
+- **Hanya `scopeType: "office"` yang benar-benar resolve hari ini** —
+  `defaultBusinessScopeHierarchyPortAdapter` adalah adapter FLAT
+  (tanpa ancestor/descendant propagation); modul `organization_structure`
+  (kandidat Wave 2 ADR-0013 §1, Issue #749) yang akan menyediakan
+  resolusi hierarki nyata untuk scope type lain.
+- **Tiga rule fixture SoD** (bukan katalog domain lengkap) — dua dimiliki
+  `identity_access` sendiri (maker/checker atas mekanisme exception itu
+  sendiri, dan atas assignment create/revoke pada scope yang sama), satu
+  dikontribusikan `data_lifecycle` (`legal_hold.create`/`.release`,
+  pasangan permission nyata yang sudah ada sejak Issue #745) — base tidak
+  menambah rule domain-spesifik (finance/procurement/payroll) apa pun,
+  konsisten dengan out-of-scope issue #746.
+- **SoD conflict enforcement di chokepoint dibatasi pada permission yang
+  dipegang lewat business-scope assignment**, bukan re-evaluasi retroaktif
+  seluruh kombinasi role RBAC yang sudah ada — keputusan desain sengaja
+  (lihat tabel di atas), bukan celah yang belum ditemukan.
+- **Tidak ada admin UI picker hierarki organisasi** — form assignment
+  hari ini memakai input UUID scope_id manual dengan hint field scope
+  type; picker berbasis hierarki menyusul begitu `organization_structure`
+  ada.

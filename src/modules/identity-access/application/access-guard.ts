@@ -6,13 +6,14 @@ import {
   TENANT_COOKIE_NAME
 } from "../../../lib/auth/ssr-session";
 import type { AccessRequest, TenantContext } from "../domain/access-control";
-import { evaluateAccess } from "../domain/access-control";
+import { evaluateAccess, isHighRiskAction } from "../domain/access-control";
 import {
   fetchGrantedPermissionKeys,
   resolveModuleEnabled,
   resolveTenantContext
 } from "./auth-context";
 import { recordDecisionLog } from "./decision-log";
+import { checkHighRiskSoDConflicts } from "./high-risk-sod-guard";
 import { extractBearerToken } from "./session-lookup";
 
 /**
@@ -118,6 +119,30 @@ export async function authorizeInTransaction(
       allowed: false,
       denied: fail(403, "ACCESS_DENIED", decision.reason)
     };
+  }
+
+  // Issue #746 — segregation-of-duties conflict enforcement, additive to
+  // the ordinary ABAC decision above (deny-overrides-allow: this can only
+  // turn an already-`allowed` high-risk decision into a deny, never the
+  // reverse). See `high-risk-sod-guard.ts`'s own header for why this is
+  // scoped to business-scope-assignment-granted permissions only (a
+  // deliberate, documented, zero-regression-by-construction choice), not a
+  // re-evaluation of ordinary RBAC role grants.
+  if (isHighRiskAction(guard.action)) {
+    const sodCheck = await checkHighRiskSoDConflicts(
+      tx,
+      tenantId,
+      context,
+      guard,
+      now
+    );
+
+    if (sodCheck.blocked) {
+      return {
+        allowed: false,
+        denied: fail(403, "SOD_CONFLICT", sodCheck.reason)
+      };
+    }
   }
 
   return { allowed: true, context, grantedPermissionKeys };

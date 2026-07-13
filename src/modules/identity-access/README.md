@@ -420,3 +420,211 @@ tanpa I/O — bukan bagian modul ini juga, tapi dipakai halaman ini).
 - Detail lengkap + rasional lintas-issue (termasuk kuirk
   Playwright+Bun `page.request` yang ditemukan saat menulis E2E spec-nya):
   skill `awcms-mini-auth-online-hardening` §Admin policy UI.
+
+## Business-scope assignments & segregation-of-duties (SoD) hooks (Issue #746)
+
+Epic #738 `platform-evolution` Wave 2 — reusable, tenant-contained
+business-scope authorization refinement (legal entity/branch/department/
+cost center/warehouse/project/operational location, ADR-0013 §2/§4) and a
+module-contributed SoD conflict-rule hook, built inside this Core module
+rather than a new one (identity_access already owns RBAC/ABAC; a scope
+assignment is a narrower grant on top of an existing role, not a new
+authorization primitive).
+
+### Schema (`sql/060`, `sql/061`)
+
+Four tenant-scoped tables (`ENABLE`+`FORCE ROW LEVEL SECURITY`,
+`tenant_id`-first composite indexes):
+
+- `awcms_mini_business_scope_assignments` — one row = one tenant_user
+  granted a role restricted to one `(scope_type, scope_id)` reference,
+  with effective dates, temporary expiry, revocation, grantor/approver.
+  **Generic reference, not a foreign key**: `scope_type`/`scope_id`
+  (text + uuid) never point at any specific optional module's table —
+  validity is resolved through `BusinessScopeHierarchyPort` at the
+  application layer (see below), never trusted from request input alone
+  (issue #746 security requirement) and never a DB-level FK (impossible
+  anyway across an unknown future table).
+- `awcms_mini_business_scope_assignment_events` — append-only lifecycle
+  history (granted/revoked/expired/renewed).
+- `awcms_mini_sod_conflict_exceptions` — temporary exception/override
+  flow: bounded-lifetime (no indefinite override) approval to proceed
+  despite a detected SoD conflict, with justification, requester/approver
+  (different tenant users, re-checked from DB), and expiry.
+- `awcms_mini_sod_conflict_evaluations` — append-only SoD conflict
+  decision log, recorded regardless of outcome (mirrors
+  `awcms_mini_abac_decision_logs`'s "append-always" convention).
+
+`sql/061` seeds nine new `identity_access` permissions:
+`business_scope_assignments.{read,create,revoke}`,
+`business_scope_conflicts.read`,
+`business_scope_exceptions.{read,create,approve,reject,revoke}`.
+
+### `BusinessScopeHierarchyPort` (`_shared/ports/business-scope-hierarchy-port.ts`)
+
+Capability port so an optional future organization module (e.g. the
+`organization_structure` candidate ADR-0013 §1 names for Wave 2) can
+resolve a scope's validity/ancestors/descendants **without
+identity-access ever importing its tables** — the acceptance criterion
+"Identity-access has no direct import/table write to an optional
+organization module". `resolveScope(tx, tenantId, scopeType, scopeId)`
+returns `{ resolved, ancestorScopeIds, descendantScopeIds }`;
+`resolved: false` (unknown scope type, missing row, or cross-tenant row)
+is a distinct outcome from "resolved but flat" and callers must
+default-deny high-risk actions on it.
+
+No organization module exists in this repo yet, so identity-access
+itself supplies the only implementation today:
+`application/business-scope-hierarchy-port-adapter.ts`'s
+`defaultBusinessScopeHierarchyPortAdapter` — validates exactly
+`scopeType: "office"` against `awcms_mini_offices` (a direct, precedented
+read of a `tenant_admin`-owned table — see that adapter's own header for
+why this specific read does not need a new port, unlike hierarchy
+resolution for a module identity-access has no lifecycle dependency on
+at all) and returns `resolved: false` for every other scope type. A
+future `organization_structure` adapter supersedes this one for the scope
+types it owns; the composition root (route handlers, the expiry job
+script) decides which adapter to inject.
+
+### ABAC extension (`domain/access-control.ts`)
+
+Purely additive to the existing default-deny chain (ADR-0004): a new
+optional `businessScopeFacts` parameter on `evaluateAccess`, and a new
+`resourceAttributes.requiredScopeType`/`.requiredScopeId` convention on
+`AccessRequest` — a request that does not set these two fields behaves
+identically to before. When set, the caller must already hold a resolved
+business-scope fact covering exactly that scope, or the request is
+denied (`matchedPolicy: "business_scope_unresolved"`) — every
+pre-existing call site is unaffected. Two new `AccessAction` values,
+`"revoke"` and `"override"`, both added to `HIGH_RISK_ACTIONS`.
+
+### SoD rule registry (`domain/sod-rule-registry.ts`, `_shared/module-contract.ts`)
+
+Mirrors `data_lifecycle/domain/lifecycle-registry.ts`'s
+"module declares, central function aggregates+validates" shape exactly:
+`ModuleDescriptor.sodRules?: SoDRuleDescriptor[]` (new optional field,
+`MODULE_CONTRACT_VERSION` bumped 1.0.0 → 1.1.0, a MINOR/additive change
+per that constant's own bump policy). Each rule declares
+`conflictingPermissionKeys` (>= 2 `module.activity.action` keys),
+`scopeApplicability` (`"global_within_tenant"` | `"same_scope_only"` |
+reserved `"any"`), `severity`, and `exceptionPolicy`
+(`allowed`/`requiresApprovalPermission`/`maxDurationDays`).
+`bun run identity-access:sod-registry:check` (wired into `bun run check`
+**and** `.github/workflows/ci.yml`'s `quality` job as an explicit named
+step — not relying on `bun run check` alone) validates the whole
+registry.
+
+Three real module-contributed rule fixtures (issue #746 acceptance
+criterion — deliberately real permission pairs, not contrived examples):
+
+1. `identity_access.business_scope_exception_maker_checker`
+   (`global_within_tenant`, `exceptionPolicy.allowed: false` — the
+   control that gates SoD overrides is itself never override-able,
+   preventing a recursive bypass) — a subject who can request an
+   exception must not also approve one.
+2. `identity_access.business_scope_assignment_scope_maker_checker`
+   (`same_scope_only`) — creating vs. revoking a business-scope
+   assignment at the identical scope.
+3. `data_lifecycle.legal_hold_maker_checker`
+   (`global_within_tenant`, contributed by `data_lifecycle/module.ts`,
+   additive-only edit) — `legal_hold.create` vs. `legal_hold.release`
+   (Issue #745's own pre-existing, deliberately-separate permission
+   pair) is a genuine maker/checker candidate, not invented for this
+   issue.
+
+### Conflict enforcement — wired at the REAL universal chokepoint
+
+`application/high-risk-sod-guard.ts`'s `checkHighRiskSoDConflicts` is
+called from `access-guard.ts`'s `authorizeInTransaction` — the one
+function every guarded endpoint in this codebase already calls through —
+for every `isHighRiskAction` decision, immediately after an ordinary ABAC
+decision has already allowed it (deny-overrides-allow: this can only
+additionally deny, never upgrade a deny to an allow). See that file's own
+header for the full, deliberate scope decision: it reasons **only** about
+permissions the subject holds via an **active business-scope assignment**
+(never the subject's ordinary RBAC role grant ordinary ABAC already
+checked) — a documented, zero-regression-by-construction choice, since
+business-scope assignments are a brand-new table with zero rows on the
+day this ships, so the check is a genuine no-op for every tenant until
+they start using the feature. A cheap code-defined `Set` membership
+short-circuit (`SOD_RELEVANT_PERMISSION_KEYS`) means extending the
+universal chokepoint costs nothing measurable for the hundreds of
+endpoints this feature does not touch.
+`tests/integration/business-scope-sod-chokepoint.integration.test.ts`
+proves this against a real, unrelated guarded endpoint
+(`POST /api/v1/data-lifecycle/legal-holds/{id}/release`) this issue did
+not modify — not just a unit test of the pure conflict-detection
+function.
+
+SoD conflict evaluation also runs at assignment **creation** time
+(`application/business-scope-assignment-service.ts`'s
+`createBusinessScopeAssignment`) against the subject's other active
+assignments, recording to `awcms_mini_sod_conflict_evaluations`
+regardless of outcome.
+
+### Exception flow
+
+`application/sod-exception-service.ts` — request (pending) → approve/
+reject/revoke. Approval requires a **different** tenant user than the
+requester, re-checked from the fetched row itself (never trusted from
+the request body — same "re-check from DB, don't trust body" idiom
+`tenant-sso.ts`'s break-glass evaluation documents). An exception's
+`status: "approved"` is a cache; `effectiveTo` compared against `now()`
+is the real gate (`isSoDConflictExceptionCurrentlyValid`) — an approved
+exception past its `effectiveTo` no longer authorizes anything even
+before the expiry job has run.
+
+### Scheduled expiry job
+
+`application/business-scope-expiry-job.ts` + `scripts/identity-access-
+business-scope-expiry.ts` (`bun run identity-access:business-scope:expiry`,
+hourly recommended) — built on the shared worker runner (`runJob`) and
+`iterateTenantsInBatches`, same shape as `data-lifecycle:archive-purge`:
+transitions assignments/exceptions past `effective_to` to `expired`,
+records lifecycle events + audit entries, refreshes
+`business_scope_assignments_active`/`_temporary` gauges. Registered in
+`work-class-registry.ts` (`workClass: "maintenance"`, same profile as
+`audit-log-purge`/`data-lifecycle-archive-purge`) and granted
+least-privilege `awcms_mini_worker` access in `sql/060` (`SELECT`/`UPDATE`
+on assignments and exceptions, `SELECT`/`INSERT` on the assignment-events
+history — no access to `awcms_mini_sod_conflict_evaluations`, which the
+worker never writes).
+
+### API + admin UI
+
+`GET/POST /api/v1/identity/business-scope/assignments`,
+`POST .../assignments/{id}/revoke`,
+`GET/POST /api/v1/identity/business-scope/exceptions`,
+`POST .../exceptions/{id}/{approve,reject,revoke}`,
+`GET /api/v1/identity/business-scope/conflicts` (keyset-paginated, safe
+projection — rule key/subject id/trigger/outcome/reason/timestamp only,
+no request/resource payload). All mutations require `Idempotency-Key`
+and write an audit event; `create`/`revoke` on assignments and
+`approve`/`revoke` on exceptions are classified high-risk.
+
+`src/pages/admin/business-scope.astro` (nav entry
+`requiredPermission: "identity_access.business_scope_assignments.read"`,
+order 56, right after `/admin/security`) — three permission-gated
+sections (assignments, exceptions, conflict history), each independently
+checked against its own endpoint's guard, following
+`admin/access-users.astro`'s established pattern (SSR read via
+`withTenant`, mutation via `submitJson` against the real endpoints, no
+privileged shortcut).
+
+### Metrics
+
+`business_scope_assignments_active`/`_temporary` (gauges, by
+`scopeType`), `business_scope_expirations_total` (counter, by
+`itemType`), `business_scope_cross_tenant_denied_total` (counter,
+scope-resolution failures — a proxy for unknown-type/missing-row/
+cross-tenant, not a precise cross-tenant-only signal),
+`sod_conflicts_detected_total` (counter, by `ruleKey`/`resolvedVia`),
+`sod_exceptions_granted_total` (counter, by `ruleKey`).
+
+### Out of scope (unchanged from issue #746's own text)
+
+Legal-entity/organization-unit tables, replacing tenant RLS with
+business-scope filters, and domain-specific finance/procurement/payroll/
+approval rules all remain out of scope for the base — this issue is
+purely the reusable mechanism + hook, matching ADR-0013 §4's own
+"business-role...defined here purely as a boundary concept" framing.

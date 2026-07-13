@@ -61,7 +61,10 @@ describe("fetchModuleJobs", () => {
   });
 
   test("returns an empty list for a registered module with no declared jobs", () => {
-    expect(fetchModuleJobs("identity_access")).toEqual([]);
+    // Issue #746 gave `identity_access` its own first job
+    // (`identity-access:business-scope:expiry`) — `profile_identity` is now
+    // the representative "no jobs declared" example instead.
+    expect(fetchModuleJobs("profile_identity")).toEqual([]);
   });
 
   test("returns jobs scoped to one module, each tagged with its moduleKey", () => {
@@ -89,6 +92,7 @@ describe("fetchModuleJobs", () => {
         "bun run email:provider:health",
         "bun run email:templates:seed-defaults",
         "bun run form-drafts:purge",
+        "bun run identity-access:business-scope:expiry",
         "bun run logs:audit:purge",
         "bun run news-media:reconcile",
         "bun run production:preflight",

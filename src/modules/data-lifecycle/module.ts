@@ -123,6 +123,32 @@ export const dataLifecycleModule = defineModule({
         "Included in ordinary full-database backup/restore (docs/awcms-mini/resilience-dr-verification.md); archived rows additionally have a standalone JSONL artifact restorable independently of a full database restore.",
       executionMode: "generic"
     }
+  ],
+  // Issue #746 (epic #738 platform-evolution Wave 2) — one of this issue's
+  // three real SoD rule fixtures, contributed here rather than invented in
+  // identity_access: `legal_hold.create`/`.release` (Issue #745, this
+  // module's OWN pre-existing permission pair, already deliberately
+  // separate — see `data-lifecycle-permissions.ts`'s header) is a genuine
+  // maker/checker candidate, not contrived.
+  sodRules: [
+    {
+      ruleKey: "data_lifecycle.legal_hold_maker_checker",
+      ownerModuleKey: "data_lifecycle",
+      description:
+        "A subject who can CREATE a legal hold must not also be able to RELEASE one — maker/checker over data-protection holds. Global-within-tenant: holding both permissions anywhere in the tenant is itself the conflict (a legal hold has no per-scope narrowing today).",
+      conflictingPermissionKeys: [
+        "data_lifecycle.legal_hold.create",
+        "data_lifecycle.legal_hold.release"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "critical",
+      exceptionPolicy: {
+        allowed: true,
+        requiresApprovalPermission:
+          "identity_access.business_scope_exceptions.approve",
+        maxDurationDays: 14
+      }
+    }
   ]
 });
 

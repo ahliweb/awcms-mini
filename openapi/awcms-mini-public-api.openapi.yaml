@@ -5977,6 +5977,578 @@ paths:
                         $ref: "#/components/schemas/HealthResponse"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/identity/business-scope/assignments:
+    get:
+      tags:
+        - Identity & Access
+      summary: List this tenant's business-scope assignments
+      description: "Issue #746. Permission-gated (`identity_access.business_scope_assignments.read`). Bounded list (200), newest first."
+      operationId: identityBusinessScopeAssignmentsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - expired
+              - revoked
+        - name: tenantUserId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: scopeType
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Business-scope assignments listed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - assignments
+                        additionalProperties: false
+                        properties:
+                          assignments:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/BusinessScopeAssignmentView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Create a business-scope assignment
+      description: "Issue #746. Permission-gated (`identity_access.business_scope_assignments.create`). Scope validated through the hierarchy capability port (never trusted from the request alone); self-grant denied; SoD conflicts evaluated against the subject's other active assignments."
+      operationId: identityBusinessScopeAssignmentsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessScopeAssignmentRequest"
+      responses:
+        "200":
+          description: Business-scope assignment created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - assignment
+                        additionalProperties: false
+                        properties:
+                          assignment:
+                            $ref: "#/components/schemas/BusinessScopeAssignmentView"
+        "400":
+          description: Validation error, or the requested scope could not be resolved (`SCOPE_UNRESOLVED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden, self-grant denied (`SELF_GRANT_DENIED`), or a module/tenant guard denial.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Segregation-of-duties conflict detected with no approved exception on file (`SOD_CONFLICT`), or `IDEMPOTENCY_CONFLICT`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/business-scope/assignments/{id}/revoke:
+    post:
+      tags:
+        - Identity & Access
+      summary: Revoke an active business-scope assignment
+      description: "Issue #746. High-risk mutation: `identity_access.business_scope_assignments.revoke`, `Idempotency-Key` required, reason-required, audited critical."
+      operationId: identityBusinessScopeAssignmentsRevoke
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - revokeReason
+              properties:
+                revokeReason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Business-scope assignment revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - assignment
+                        additionalProperties: false
+                        properties:
+                          assignment:
+                            $ref: "#/components/schemas/BusinessScopeAssignmentView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Assignment is not active (`ALREADY_REVOKED`), or `IDEMPOTENCY_CONFLICT`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/business-scope/conflicts:
+    get:
+      tags:
+        - Identity & Access
+      summary: List segregation-of-duties conflict evaluation history
+      description: "Issue #746. Keyset-paginated, permission-gated (`identity_access.business_scope_conflicts.read`). Safe projection minimizing PII — rule key, subject id, trigger context, outcome, reason, timestamp only, no request/resource payload."
+      operationId: identityBusinessScopeConflictsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - name: ruleKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: conflictDetected
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: SoD conflict evaluation history, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SoDConflictEvaluationListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/business-scope/exceptions:
+    get:
+      tags:
+        - Identity & Access
+      summary: List segregation-of-duties conflict exceptions
+      description: "Issue #746. Permission-gated (`identity_access.business_scope_exceptions.read`). Bounded list (200), newest first."
+      operationId: identityBusinessScopeExceptionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - approved
+              - rejected
+              - expired
+              - revoked
+        - name: ruleKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: SoD conflict exceptions listed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - exceptions
+                        additionalProperties: false
+                        properties:
+                          exceptions:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/SoDConflictExceptionView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Request a segregation-of-duties conflict exception
+      description: "Issue #746. Permission-gated (`identity_access.business_scope_exceptions.create`). Creates a `pending` exception request; a DIFFERENT tenant user must separately approve it (see `.../approve`)."
+      operationId: identityBusinessScopeExceptionsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSoDConflictExceptionRequest"
+      responses:
+        "200":
+          description: SoD conflict exception requested.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - exception
+                        additionalProperties: false
+                        properties:
+                          exception:
+                            $ref: "#/components/schemas/SoDConflictExceptionView"
+        "400":
+          description: Validation error, unknown rule key (`RULE_NOT_FOUND`), or exception duration exceeds the rule's maximum (`EXCEEDS_MAX_DURATION`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden, or the rule does not allow exceptions (`EXCEPTION_NOT_ALLOWED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: "`IDEMPOTENCY_CONFLICT`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/business-scope/exceptions/{id}/approve:
+    post:
+      tags:
+        - Identity & Access
+      summary: Approve a segregation-of-duties conflict exception
+      description: "Issue #746. High-risk mutation: `identity_access.business_scope_exceptions.approve` (deliberately distinct from `.create`). Denies self-approval (re-checked from the stored request, never trusted from the request body). `Idempotency-Key` required, audited critical."
+      operationId: identityBusinessScopeExceptionsApprove
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                decisionReason:
+                  type: string
+      responses:
+        "200":
+          description: SoD conflict exception approved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - exception
+                        additionalProperties: false
+                        properties:
+                          exception:
+                            $ref: "#/components/schemas/SoDConflictExceptionView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Forbidden, or self-approval denied (`SELF_APPROVAL_DENIED`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Exception is not pending (`INVALID_STATE`), or `IDEMPOTENCY_CONFLICT`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/business-scope/exceptions/{id}/reject:
+    post:
+      tags:
+        - Identity & Access
+      summary: Reject a segregation-of-duties conflict exception
+      description: "Issue #746. `identity_access.business_scope_exceptions.reject`, `Idempotency-Key` required, audited warning."
+      operationId: identityBusinessScopeExceptionsReject
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                decisionReason:
+                  type: string
+      responses:
+        "200":
+          description: SoD conflict exception rejected.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - exception
+                        additionalProperties: false
+                        properties:
+                          exception:
+                            $ref: "#/components/schemas/SoDConflictExceptionView"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Exception is not pending (`INVALID_STATE`), or `IDEMPOTENCY_CONFLICT`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/identity/business-scope/exceptions/{id}/revoke:
+    post:
+      tags:
+        - Identity & Access
+      summary: Revoke a previously approved segregation-of-duties conflict exception
+      description: "Issue #746. High-risk mutation: `identity_access.business_scope_exceptions.revoke`, `Idempotency-Key` required, reason-required, audited critical."
+      operationId: identityBusinessScopeExceptionsRevoke
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - revokeReason
+              properties:
+                revokeReason:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: SoD conflict exception revoked.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - exception
+                        additionalProperties: false
+                        properties:
+                          exception:
+                            $ref: "#/components/schemas/SoDConflictExceptionView"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Exception is not approved (`INVALID_STATE`), or `IDEMPOTENCY_CONFLICT`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/identity/sso/policy:
     get:
       tags:
@@ -12118,6 +12690,86 @@ components:
         updatedAt:
           type: string
           format: date-time
+    BusinessScopeAssignmentView:
+      type: object
+      description: Issue
+      required:
+        - id
+        - tenantUserId
+        - roleId
+        - scopeType
+        - scopeId
+        - effectiveFrom
+        - effectiveTo
+        - isTemporary
+        - reason
+        - grantedByTenantUserId
+        - approvedByTenantUserId
+        - status
+        - revokedAt
+        - revokedByTenantUserId
+        - revokeReason
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantUserId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          format: uuid
+          nullable: true
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+          format: uuid
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        isTemporary:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+        grantedByTenantUserId:
+          type: string
+          format: uuid
+        approvedByTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum:
+            - active
+            - expired
+            - revoked
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedByTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        revokeReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     ContentQualityChecklistPolicy:
       type: object
       description: "Tenant override of the content quality checklist's (Issue #640) non-security rule severities. Keys are restricted to excerpt_present, meta_description_present, featured_image_exists, featured_image_alt_text, featured_image_dimensions, og_image_trusted, taxonomy_exists, social_preview_image_ready, social_preview_image_alt_text — a security rule id (e.g. unsafe_html_rejected, no_local_image_path) is rejected with 400, never accepted here, in any environment."
@@ -12395,6 +13047,41 @@ components:
           type: string
           maxLength: 500
           nullable: true
+    CreateBusinessScopeAssignmentRequest:
+      type: object
+      required:
+        - tenantUserId
+        - scopeType
+        - scopeId
+      additionalProperties: false
+      properties:
+        tenantUserId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          format: uuid
+          nullable: true
+        scopeType:
+          type: string
+          description: Only "office" is resolvable against a real table today (identity-access's default hierarchy port adapter); any other value resolves to `SCOPE_UNRESOLVED` until a future organization module registers its own resolver.
+        scopeId:
+          type: string
+          format: uuid
+        effectiveFrom:
+          type: string
+          format: date-time
+          description: Defaults to now when omitted.
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        isTemporary:
+          type: boolean
+          description: When true, effectiveTo is required.
+        reason:
+          type: string
+          nullable: true
     CreateEmailTemplateRequest:
       type: object
       required:
@@ -12501,6 +13188,40 @@ components:
         roleId:
           type: string
           format: uuid
+    CreateSoDConflictExceptionRequest:
+      type: object
+      required:
+        - ruleKey
+        - subjectTenantUserId
+        - justification
+        - effectiveTo
+      additionalProperties: false
+      properties:
+        ruleKey:
+          type: string
+          description: Must match a registered SoDRuleDescriptor.ruleKey.
+        subjectTenantUserId:
+          type: string
+          format: uuid
+        scopeType:
+          type: string
+          nullable: true
+          description: Set together with scopeId for a scope-specific exception; omit both for a blanket (tenant-wide) exception.
+        scopeId:
+          type: string
+          format: uuid
+          nullable: true
+        justification:
+          type: string
+          minLength: 10
+        effectiveFrom:
+          type: string
+          format: date-time
+          description: Defaults to now when omitted.
+        effectiveTo:
+          type: string
+          format: date-time
+          description: Required — exceptions must have a bounded lifetime (no indefinite override).
     CreateTenantDomainRequest:
       type: object
       required:
@@ -15353,6 +16074,125 @@ components:
           type: boolean
         isActive:
           type: boolean
+    SoDConflictEvaluationEntry:
+      type: object
+      description: Issue
+      required:
+        - id
+        - ruleKey
+        - subjectTenantUserId
+        - triggerContext
+        - conflictDetected
+        - resolvedVia
+        - decisionReason
+        - occurredAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        ruleKey:
+          type: string
+        subjectTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        triggerContext:
+          type: string
+          enum:
+            - assignment_create
+            - high_risk_decision
+        conflictDetected:
+          type: boolean
+        resolvedVia:
+          type: string
+          enum:
+            - none
+            - exception
+            - denied
+        decisionReason:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+    SoDConflictEvaluationListResponse:
+      type: object
+      required:
+        - conflicts
+        - nextCursor
+      additionalProperties: false
+      properties:
+        conflicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SoDConflictEvaluationEntry"
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque keyset pagination cursor; pass back as the `cursor` query parameter to fetch the next page. `null` when this is the last page.
+    SoDConflictExceptionView:
+      type: object
+      description: Issue
+      required:
+        - id
+        - ruleKey
+        - subjectTenantUserId
+        - scopeType
+        - scopeId
+        - justification
+        - requestedByTenantUserId
+        - approvedByTenantUserId
+        - status
+        - effectiveFrom
+        - effectiveTo
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        ruleKey:
+          type: string
+        subjectTenantUserId:
+          type: string
+          format: uuid
+        scopeType:
+          type: string
+          nullable: true
+        scopeId:
+          type: string
+          format: uuid
+          nullable: true
+        justification:
+          type: string
+        requestedByTenantUserId:
+          type: string
+          format: uuid
+        approvedByTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum:
+            - pending
+            - approved
+            - rejected
+            - expired
+            - revoked
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     SoftDeleteQuery:
       type: object
       additionalProperties: false

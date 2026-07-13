@@ -84,7 +84,33 @@ export type AccessAction =
   // `Idempotency-Key` (replay) and are explicitly audited regardless of
   // this classification.
   | "replay"
-  | "manage";
+  | "manage"
+  // Issue #746 (business-scope assignments/SoD): `revoke` is deliberately
+  // its OWN action, distinct from `delete`/`disconnect`/`release` — a
+  // business-scope assignment or a SoD conflict exception is never
+  // physically deleted, only transitioned to `revoked` (append-only
+  // lifecycle history, `awcms_mini_business_scope_assignment_events`).
+  // High-risk: revoking removes an access grant or a standing exception,
+  // same "removes a safeguard/grant" reasoning `release`'s own comment
+  // above documents.
+  | "revoke"
+  // `override` — reserved for a future "grant access despite a detected
+  // conflict" hook distinct from the ordinary `approve` decision on an
+  // exception REQUEST (see `reject` below) — not consumed by this issue's
+  // own endpoints (`business_scope.exceptions.approve` reuses `approve`,
+  // matching the "reuse existing approve/assign/read/create rather than
+  // inventing redundant actions" precedent `workflow.approval.approve`
+  // already sets for its own approve/reject decision). Declared now,
+  // classified high-risk up front, so a future narrower override hook
+  // never has to retroactively reclassify an already-shipped action.
+  | "override"
+  // `reject` — deny a pending segregation-of-duties conflict exception
+  // request. Distinct from `cancel` (which this codebase already uses for
+  // ending an in-progress transaction/workflow) and from `override`/
+  // `approve` — rejecting an exception is the SAFE outcome (the conflict
+  // stays denied), not high-risk, matching `verify`/`preview`'s
+  // non-destructive reasoning above.
+  | "reject";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -92,8 +118,39 @@ export type AccessRequest = {
   action: AccessAction;
   resourceType?: string;
   resourceId?: string;
+  /**
+   * Issue #746 — `resourceAttributes.requiredScopeType`/
+   * `.requiredScopeId` (both `string`, set together) are an ADDITIVE
+   * convention: when present, `evaluateAccess` also requires the caller
+   * to hold a resolved business-scope fact covering exactly that
+   * `(scopeType, scopeId)` pair (see `businessScopeFacts` param below),
+   * denying otherwise. Absent (the default for every pre-existing
+   * `AccessRequest` call site) means "no business-scope constraint on
+   * this request" — behavior is completely unchanged for every endpoint
+   * that does not opt in.
+   *
+   * NOT the same as `resourceAttributes.sodScopeType`/`.sodScopeId`
+   * (`application/high-risk-sod-guard.ts`) — that pair tells SoD conflict
+   * detection which scope the SUBJECT's conflicting permission should be
+   * matched against for a `"same_scope_only"` rule, an entirely different
+   * question from "does the ACTOR hold a scope fact", answered by a
+   * different mechanism outside this pure function. Deliberately separate
+   * keys so the two are never accidentally conflated at a call site.
+   */
   resourceAttributes?: Record<string, unknown>;
   environmentAttributes?: Record<string, unknown>;
+};
+
+/**
+ * One resolved-and-verified business-scope fact for the acting subject —
+ * always produced ahead of time by a caller via
+ * `BusinessScopeHierarchyPort`/`business-scope-facts.ts` (I/O), never
+ * resolved inside this file (`evaluateAccess` stays pure, no I/O, matching
+ * every other ABAC decision in this module).
+ */
+export type BusinessScopeFact = {
+  scopeType: string;
+  scopeId: string;
 };
 
 export type AccessDecision = {
@@ -113,7 +170,13 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "purge",
   "connect",
   "disconnect",
-  "release"
+  "release",
+  // Issue #746: revoking a business-scope assignment/SoD exception removes
+  // an access grant or a standing safeguard override.
+  "revoke",
+  // Issue #746: reserved override hook (see AccessAction's own comment) —
+  // classified high-risk up front even though no endpoint consumes it yet.
+  "override"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {
@@ -135,7 +198,8 @@ export function permissionKey(
 export function evaluateAccess(
   context: TenantContext,
   request: AccessRequest,
-  grantedPermissionKeys: ReadonlySet<string>
+  grantedPermissionKeys: ReadonlySet<string>,
+  businessScopeFacts?: readonly BusinessScopeFact[]
 ): AccessDecision {
   const resourceTenantId = request.resourceAttributes?.tenantId;
 
@@ -155,6 +219,37 @@ export function evaluateAccess(
       reason: "Self-approval is not allowed.",
       matchedPolicy: "self_approval_deny"
     };
+  }
+
+  // Issue #746 — additive business-scope constraint. Only evaluated when a
+  // caller opts a request into it via `requiredScopeType`/`requiredScopeId`
+  // (see `AccessRequest`'s own doc comment); every pre-existing call site
+  // that never sets these two fields is completely unaffected. Default-deny
+  // when the fact set is missing/empty or does not contain a match for the
+  // required scope — "unresolved scope ... default to deny for high-risk
+  // actions" (issue #746 security requirement), applied here even for
+  // non-high-risk actions that explicitly opt in, since declaring a
+  // required scope at all is itself an explicit request for this guarantee.
+  const requiredScopeType = request.resourceAttributes?.requiredScopeType;
+  const requiredScopeId = request.resourceAttributes?.requiredScopeId;
+
+  if (
+    typeof requiredScopeType === "string" &&
+    typeof requiredScopeId === "string"
+  ) {
+    const covered = (businessScopeFacts ?? []).some(
+      (fact) =>
+        fact.scopeType === requiredScopeType && fact.scopeId === requiredScopeId
+    );
+
+    if (!covered) {
+      return {
+        allowed: false,
+        reason:
+          "Required business scope is not resolved or not assigned to this subject.",
+        matchedPolicy: "business_scope_unresolved"
+      };
+    }
   }
 
   const key = permissionKey(
