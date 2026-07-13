@@ -77,6 +77,18 @@ slot bebas atau `timeoutMs` habis. Timeout menolak dengan
 `WorkClassTimeoutError` (bukan string-matching pesan error), sehingga
 pemanggil bisa memetakannya ke `503 DATABASE_BUSY` secara type-safe.
 
+**Antrean dibatasi (Issue #743, epic #738 platform-evolution)**: sejak
+issue ini, antrean per work class TIDAK LAGI unbounded — begitu antrean
+mencapai `max konkurensi x DATABASE_WORK_CLASS_QUEUE_MULTIPLIER` (default
+`4`, di-clamp `[1, 20]`), pemanggil berikutnya ditolak SEKETIKA dengan
+`WorkClassQueueFullError` (beda dari `WorkClassTimeoutError` — tidak pernah
+menunggu sama sekali), dipetakan ke `503 DATABASE_BUSY` + header
+`Retry-After`. Ini menutup risiko "cascading timeout chain" (antrean
+tumbuh tak terbatas, setiap pemanggil menunggu `timeoutMs` penuh sebelum
+akhirnya gagal) — lihat
+[`database-capacity-runbook.md`](database-capacity-runbook.md) §Graceful
+saturation behavior.
+
 `critical_transaction` dan `maintenance` sudah ada di tipe/konfigurasi untuk
 kebutuhan aplikasi turunan (mis. endpoint posting POS) tetapi **tidak
 dipakai oleh endpoint manapun di base generik ini** — base ini tidak membuat
@@ -113,11 +125,16 @@ withTenant(sql, tenantId, fn, {
 Alur:
 
 1. Cek `circuitBreaker.canAttempt(now)` — jika `false`, langsung
-   `503 DATABASE_BUSY` (skip antrean sepenuhnya, fail-fast).
-2. `acquireWorkClassSlot(workClass, queueTimeoutMs)` — jika timeout,
-   catat `database.pool.saturated` via logger terstruktur Issue 10.1
-   (`src/lib/logging/logger.ts`) dengan work class dan snapshot saturasi,
-   lalu `503 DATABASE_BUSY`.
+   `503 DATABASE_BUSY` + `Retry-After: 30` (skip antrean sepenuhnya,
+   fail-fast).
+2. `acquireWorkClassSlot(workClass, queueTimeoutMs)`:
+   - Antrean sudah penuh (Issue #743, lihat §2 di atas) → tolak seketika
+     dengan `WorkClassQueueFullError`; catat `database.pool.rejected`
+     lewat logger terstruktur Issue 10.1 (`src/lib/logging/logger.ts`),
+     lalu `503 DATABASE_BUSY` + `Retry-After: 2`.
+   - Menunggu lalu timeout → `WorkClassTimeoutError`; catat
+     `database.pool.saturated`, lalu `503 DATABASE_BUSY` +
+     `Retry-After: 2`.
 3. Jalankan transaction seperti biasa (`SET LOCAL app.current_tenant_id`,
    lalu `fn(tx)`).
 4. `finally`: lepas slot work-class.
@@ -193,13 +210,44 @@ dengan asumsi implisit `T = Response` yang sudah dipakai endpoint Issue
         "workClass": "critical_transaction",
         "active": 0,
         "max": 10,
-        "queued": 0
+        "queued": 0,
+        "maxQueueDepth": 40
       },
-      { "workClass": "interactive", "active": 0, "max": 8, "queued": 0 },
-      { "workClass": "reporting", "active": 0, "max": 4, "queued": 0 },
-      { "workClass": "background_sync", "active": 0, "max": 4, "queued": 0 },
-      { "workClass": "maintenance", "active": 0, "max": 1, "queued": 0 }
+      {
+        "workClass": "interactive",
+        "active": 0,
+        "max": 8,
+        "queued": 0,
+        "maxQueueDepth": 32
+      },
+      {
+        "workClass": "reporting",
+        "active": 0,
+        "max": 4,
+        "queued": 0,
+        "maxQueueDepth": 16
+      },
+      {
+        "workClass": "background_sync",
+        "active": 0,
+        "max": 4,
+        "queued": 0,
+        "maxQueueDepth": 16
+      },
+      {
+        "workClass": "maintenance",
+        "active": 0,
+        "max": 1,
+        "queued": 0,
+        "maxQueueDepth": 4
+      }
     ],
+    "capacity": {
+      "processClass": "app",
+      "poolMax": 20,
+      "approvedConnections": 100,
+      "reservedAdminHeadroom": 5
+    },
     "generatedAt": "2026-07-05T00:00:00.000Z"
   },
   "meta": {}
@@ -214,6 +262,14 @@ atau isi query — cek DB dilakukan lewat satu `SELECT 1` langsung memakai
 `getDatabaseClient()` (bukan `withTenant`, karena endpoint ini bukan
 tenant-scoped), dibungkus try/catch agar outage DB tidak membuat health
 check-nya sendiri crash.
+
+`maxQueueDepth` (Issue #743) dan blok `capacity` (Issue #743,
+`src/lib/database/capacity-config.ts`) hanya melaporkan angka KONFIGURASI
+proses ini sendiri (bukan agregat lintas-instance — satu proses tidak
+mengetahui instance lain) — untuk validasi lintas-instance sebelum
+scale-out, lihat
+[`database-capacity-runbook.md`](database-capacity-runbook.md) dan
+`bun run database:capacity:check`.
 
 ## 6. Domain event `database.pool.saturated`
 
@@ -260,6 +316,18 @@ Implikasi saat `DATABASE_PGBOUNCER=true`:
   otomatis terbatas pada satu transaction — kompatibel dengan PgBouncer
   transaction mode.
 
+## 8. Kapasitas deployment-aware (Issue #743, epic #738 platform-evolution)
+
+Bagian 1-7 di atas melindungi SATU proses. Kapasitas PostgreSQL/PgBouncer
+yang disetujui berlaku untuk SELURUH armada instance — `src/lib/database/
+capacity-config.ts` memodelkan itu (instance count per process class, pool
+budget, kapasitas PgBouncer, budget koneksi disetujui, headroom admin) dan
+divalidasi read-only lewat `bun run database:capacity:check` /
+`production:preflight`'s stage `database:capacity`. Detail lengkap: doc 18
+§Kapasitas deployment-aware dan
+[`database-capacity-runbook.md`](database-capacity-runbook.md) (rumus,
+contoh perhitungan, SOP incident saturasi/connection-storm).
+
 ## Gap yang belum ditutup
 
 - Circuit breaker sulit dipicu secara live tanpa cara memaksa kegagalan
@@ -269,3 +337,7 @@ Implikasi saat `DATABASE_PGBOUNCER=true`:
   karena request cenderung selesai lebih cepat daripada observasi manual;
   lihat entri audit untuk apa yang berhasil/tidak berhasil diamati secara
   live.
+- Job worker (`scripts/*.ts`) belum runtime-gated lewat `work-class.ts`'s
+  concurrency gate — lihat `database-capacity-runbook.md` §Known
+  limitation untuk alasan (advisory lock `job-runner.ts` sudah menutup
+  risiko dominan: overlapping re-run job yang sama) dan status follow-up.
