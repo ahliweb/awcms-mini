@@ -446,6 +446,41 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/identity/business-scope/assignments/[id]/revoke.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/business-scope/assignments/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/business-scope/conflicts/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/business-scope/exceptions/[id]/approve.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/business-scope/exceptions/[id]/reject.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/business-scope/exceptions/[id]/revoke.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/identity/business-scope/exceptions/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/identity/sso/policy/index.ts",
       "workClass": "interactive",
       "source": "default"
@@ -957,6 +992,12 @@
       "workClass": "maintenance",
       "source": "registry",
       "rationale": "Scheduled retention purge (form-drafts:purge) — same profile as audit-log-purge."
+    },
+    {
+      "path": "scripts/identity-access-business-scope-expiry.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Scheduled expiry sweep for business-scope assignments/SoD conflict exceptions (identity-access:business-scope:expiry, Issue #746) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; every withTenant call inside business-scope-expiry-job.ts already passes workClass: \"maintenance\" explicitly."
     },
     {
       "path": "scripts/news-media-r2-reconcile.ts",

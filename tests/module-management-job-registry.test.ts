@@ -61,7 +61,16 @@ describe("fetchModuleJobs", () => {
   });
 
   test("returns an empty list for a registered module with no declared jobs", () => {
-    expect(fetchModuleJobs("identity_access")).toEqual([]);
+    // Issue #746 gave `identity_access` its own first job
+    // (`identity-access:business-scope:expiry`) — `tenant_admin` is now the
+    // representative "no jobs declared" example instead. Deliberately NOT
+    // `profile_identity` (a plausible-looking alternative): a sibling
+    // in-flight epic (#748, "profile-identity-completion") is actively
+    // adding surface to that module and could give it a job before this
+    // lands, breaking this exact assertion again — `tenant_admin` (Core,
+    // tenant/office data only, no scheduled-job candidate on any open
+    // epic today) is a much more stable "zero jobs" fixture.
+    expect(fetchModuleJobs("tenant_admin")).toEqual([]);
   });
 
   test("returns jobs scoped to one module, each tagged with its moduleKey", () => {
@@ -89,6 +98,7 @@ describe("fetchModuleJobs", () => {
         "bun run email:provider:health",
         "bun run email:templates:seed-defaults",
         "bun run form-drafts:purge",
+        "bun run identity-access:business-scope:expiry",
         "bun run logs:audit:purge",
         "bun run news-media:reconcile",
         "bun run production:preflight",

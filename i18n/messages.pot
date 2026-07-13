@@ -1820,6 +1820,174 @@ msgstr ""
 msgid "admin.blog.widgets.update_success"
 msgstr ""
 
+#: src/pages/admin/business-scope.astro:180
+msgid "admin.business_scope.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:179
+msgid "admin.business_scope.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:358
+msgid "admin.business_scope.approve_button"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:72
+msgid "admin.business_scope.approve_exception_success"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:194
+msgid "admin.business_scope.assignments_empty"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:188
+msgid "admin.business_scope.assignments_heading"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:203
+msgid "admin.business_scope.col_actions"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:201
+msgid "admin.business_scope.col_effective_to"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:462
+msgid "admin.business_scope.col_outcome"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:202
+msgid "admin.business_scope.col_reason"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:329
+msgid "admin.business_scope.col_rule"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:199
+msgid "admin.business_scope.col_scope"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:200
+msgid "admin.business_scope.col_status"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:198
+msgid "admin.business_scope.col_subject"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:461
+msgid "admin.business_scope.col_trigger"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:456
+msgid "admin.business_scope.conflicts_empty"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:450
+msgid "admin.business_scope.conflicts_heading"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:308
+msgid "admin.business_scope.create_assignment_button"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:242
+msgid "admin.business_scope.create_assignment_heading"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:69
+msgid "admin.business_scope.create_assignment_success"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:439
+msgid "admin.business_scope.create_exception_button"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:387
+msgid "admin.business_scope.create_exception_heading"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:71
+msgid "admin.business_scope.create_exception_success"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:325
+msgid "admin.business_scope.exceptions_empty"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:319
+msgid "admin.business_scope.exceptions_heading"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:289
+msgid "admin.business_scope.field_effective_to"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:299
+msgid "admin.business_scope.field_is_temporary"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:416
+msgid "admin.business_scope.field_justification"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:303
+msgid "admin.business_scope.field_reason"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:256
+msgid "admin.business_scope.field_role"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:260
+msgid "admin.business_scope.field_role_none"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:282
+msgid "admin.business_scope.field_scope_id"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:269
+msgid "admin.business_scope.field_scope_type"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:271
+msgid "admin.business_scope.field_scope_type_hint"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:159
+msgid "admin.business_scope.page_description"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:157
+msgid "admin.business_scope.page_title"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:367
+msgid "admin.business_scope.reject_button"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:73
+msgid "admin.business_scope.reject_exception_success"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:70
+msgid "admin.business_scope.revoke_assignment_success"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:231
+msgid "admin.business_scope.revoke_button"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:74
+msgid "admin.business_scope.revoke_exception_success"
+msgstr ""
+
+#: src/pages/admin/business-scope.astro:75
+msgid "admin.business_scope.revoke_reason_prompt"
+msgstr ""
+
 #: src/pages/admin/index.astro:121
 msgid "admin.dashboard.access_audit_title"
 msgstr ""
@@ -2043,6 +2211,11 @@ msgstr ""
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/blog-content/module.ts:45
 msgid "admin.layout.nav_blog"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/identity-access/module.ts:34
+msgid "admin.layout.nav_business_scope"
 msgstr ""
 
 #: src/layouts/AdminLayout.astro:263

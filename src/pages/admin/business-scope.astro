@@ -1,0 +1,695 @@
+---
+/**
+ * Business-scope assignments + segregation-of-duties (SoD) admin screen
+ * (Issue #746, epic #738 platform-evolution Wave 2). Three permission-gated
+ * sections, each independently checked (same "each fieldset gated on its
+ * own permission" convention `admin/access-users.astro`/`admin/security.astro`
+ * already establish — hiding a control here is a UX nicety only, the real
+ * enforcement is the endpoints' own `authorizeInTransaction` guard):
+ *
+ *   - identity_access.business_scope_assignments.{read,create,revoke}
+ *   - identity_access.business_scope_exceptions.{read,create,approve,reject,revoke}
+ *   - identity_access.business_scope_conflicts.read
+ *
+ * SSR reads the application-layer list functions directly inside this
+ * page's own `withTenant` transaction (same pattern `admin/access-users.astro`/
+ * `admin/security.astro` already use, avoiding a self round-trip through
+ * this app's own HTTP API). All mutations go through the real
+ * `/api/v1/identity/business-scope/*` endpoints via `submitJson` — every
+ * mutation still runs through ABAC + SoD-conflict-chokepoint + idempotency
+ * + audit exactly as any other API client would, this page has no
+ * privileged shortcut.
+ *
+ * Scope resolution note: only `scopeType: "office"` resolves today (the
+ * default `BusinessScopeHierarchyPort` adapter, see that file's own
+ * header) — the scope-id input below is a raw UUID field with an office
+ * picker hint, not yet a full org-hierarchy picker (that arrives with a
+ * future `organization_structure` module and its own adapter).
+ */
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import StateNotice from "../../components/ui/StateNotice.astro";
+import ActionBanner from "../../components/ui/ActionBanner.astro";
+import DataTable from "../../components/ui/DataTable.astro";
+import StatusBadge from "../../components/ui/StatusBadge.astro";
+import FormField from "../../components/ui/FormField.astro";
+import { getDatabaseClient } from "../../lib/database/client";
+import { withTenant } from "../../lib/database/tenant-context";
+import { permissionKey } from "../../modules/identity-access/domain/access-control";
+import {
+  listBusinessScopeAssignments,
+  type BusinessScopeAssignmentRow
+} from "../../modules/identity-access/application/business-scope-assignment-service";
+import {
+  listSoDConflictExceptions,
+  type SoDConflictExceptionRow
+} from "../../modules/identity-access/application/sod-exception-service";
+import {
+  listSoDConflictEvaluations,
+  type SoDConflictEvaluationRow
+} from "../../modules/identity-access/application/sod-conflict-evaluation-log";
+import { collectSoDRuleDescriptors } from "../../modules/identity-access/domain/sod-rule-registry";
+import { fetchTenantUsersWithRoles } from "../../modules/identity-access/application/user-directory";
+import { fetchRolesWithPermissions } from "../../modules/identity-access/application/user-directory";
+import { listModules } from "../../modules";
+import { createTranslator } from "../../lib/i18n/translate";
+import { logAdminPageError } from "../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/business-scope.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const clientStrings = {
+  createAssignmentSuccess: t("admin.business_scope.create_assignment_success"),
+  revokeAssignmentSuccess: t("admin.business_scope.revoke_assignment_success"),
+  createExceptionSuccess: t("admin.business_scope.create_exception_success"),
+  approveExceptionSuccess: t("admin.business_scope.approve_exception_success"),
+  rejectExceptionSuccess: t("admin.business_scope.reject_exception_success"),
+  revokeExceptionSuccess: t("admin.business_scope.revoke_exception_success"),
+  revokeReasonPrompt: t("admin.business_scope.revoke_reason_prompt"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+const CAN_READ_ASSIGNMENTS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_assignments", "read")
+);
+const CAN_CREATE_ASSIGNMENTS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_assignments", "create")
+);
+const CAN_REVOKE_ASSIGNMENTS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_assignments", "revoke")
+);
+const CAN_READ_EXCEPTIONS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_exceptions", "read")
+);
+const CAN_CREATE_EXCEPTIONS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_exceptions", "create")
+);
+const CAN_APPROVE_EXCEPTIONS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_exceptions", "approve")
+);
+const CAN_REJECT_EXCEPTIONS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_exceptions", "reject")
+);
+const CAN_REVOKE_EXCEPTIONS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_exceptions", "revoke")
+);
+const CAN_READ_CONFLICTS = context.permissions.has(
+  permissionKey("identity_access", "business_scope_conflicts", "read")
+);
+
+let assignments: BusinessScopeAssignmentRow[] = [];
+let exceptions: SoDConflictExceptionRow[] = [];
+let conflicts: SoDConflictEvaluationRow[] = [];
+let tenantUsers: Awaited<ReturnType<typeof fetchTenantUsersWithRoles>> = [];
+let roles: Awaited<ReturnType<typeof fetchRolesWithPermissions>> = [];
+let loadError = false;
+
+const sodRules = collectSoDRuleDescriptors(listModules());
+
+try {
+  await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+    if (CAN_READ_ASSIGNMENTS) {
+      assignments = await listBusinessScopeAssignments(tx, context.tenantId);
+      tenantUsers = await fetchTenantUsersWithRoles(tx, context.tenantId);
+      roles = await fetchRolesWithPermissions(tx, context.tenantId);
+    }
+    if (CAN_READ_EXCEPTIONS) {
+      exceptions = await listSoDConflictExceptions(tx, context.tenantId);
+    }
+    if (CAN_READ_CONFLICTS) {
+      conflicts = await listSoDConflictEvaluations(tx, context.tenantId, {
+        limit: 50
+      });
+    }
+  });
+} catch (error) {
+  loadError = true;
+  logAdminPageError("admin/business-scope", error);
+}
+
+function assignmentStatusVariant(
+  status: BusinessScopeAssignmentRow["status"]
+): "success" | "neutral" | "danger" {
+  if (status === "active") return "success";
+  if (status === "revoked") return "danger";
+  return "neutral";
+}
+
+function exceptionStatusVariant(
+  status: SoDConflictExceptionRow["status"]
+): "success" | "warning" | "danger" | "neutral" {
+  if (status === "approved") return "success";
+  if (status === "pending") return "warning";
+  if (status === "rejected" || status === "revoked") return "danger";
+  return "neutral";
+}
+---
+
+<AdminLayout title={t("admin.business_scope.page_title")}>
+  <h1>{t("admin.business_scope.page_title")}</h1>
+  <p>{t("admin.business_scope.page_description")}</p>
+
+  <ActionBanner id="action-banner" />
+
+  {
+    loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+
+  {
+    !CAN_READ_ASSIGNMENTS && !CAN_READ_EXCEPTIONS && !CAN_READ_CONFLICTS && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.business_scope.access_denied_title")}
+        body={t("admin.business_scope.access_denied_body")}
+      />
+    )
+  }
+
+  {
+    CAN_READ_ASSIGNMENTS && (
+      <section>
+        <h2>{t("admin.business_scope.assignments_heading")}</h2>
+
+        <DataTable
+          caption={t("admin.business_scope.assignments_heading")}
+          columnCount={6}
+          isEmpty={assignments.length === 0}
+          emptyMessage={t("admin.business_scope.assignments_empty")}
+        >
+          <Fragment slot="head">
+            <tr>
+              <th scope="col">{t("admin.business_scope.col_subject")}</th>
+              <th scope="col">{t("admin.business_scope.col_scope")}</th>
+              <th scope="col">{t("admin.business_scope.col_status")}</th>
+              <th scope="col">{t("admin.business_scope.col_effective_to")}</th>
+              <th scope="col">{t("admin.business_scope.col_reason")}</th>
+              <th scope="col">{t("admin.business_scope.col_actions")}</th>
+            </tr>
+          </Fragment>
+          {assignments.map((assignment) => {
+            const subject = tenantUsers.find(
+              (user) => user.tenantUserId === assignment.tenantUserId
+            );
+            return (
+              <tr>
+                <td>{subject?.displayName ?? assignment.tenantUserId}</td>
+                <td>
+                  {assignment.scopeType}:{assignment.scopeId}
+                </td>
+                <td>
+                  <StatusBadge
+                    label={assignment.status}
+                    variant={assignmentStatusVariant(assignment.status)}
+                  />
+                </td>
+                <td>{assignment.effectiveTo?.toISOString() ?? "—"}</td>
+                <td>{assignment.reason ?? "—"}</td>
+                <td>
+                  {CAN_REVOKE_ASSIGNMENTS && assignment.status === "active" && (
+                    <button
+                      type="button"
+                      class="revoke-assignment-button"
+                      data-assignment-id={assignment.id}
+                    >
+                      {t("admin.business_scope.revoke_button")}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </DataTable>
+
+        {CAN_CREATE_ASSIGNMENTS && (
+          <form id="create-assignment-form">
+            <h3>{t("admin.business_scope.create_assignment_heading")}</h3>
+            <FormField
+              id="assignment-subject"
+              label={t("admin.business_scope.col_subject")}
+              required
+            >
+              <select id="assignment-subject" name="tenantUserId" required>
+                {tenantUsers.map((user) => (
+                  <option value={user.tenantUserId}>{user.displayName}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              id="assignment-role"
+              label={t("admin.business_scope.field_role")}
+            >
+              <select id="assignment-role" name="roleId">
+                <option value="">
+                  {t("admin.business_scope.field_role_none")}
+                </option>
+                {roles.map((role) => (
+                  <option value={role.roleId}>{role.roleName}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              id="assignment-scope-type"
+              label={t("admin.business_scope.field_scope_type")}
+              required
+              hint={t("admin.business_scope.field_scope_type_hint")}
+            >
+              <input
+                id="assignment-scope-type"
+                name="scopeType"
+                required
+                value="office"
+              />
+            </FormField>
+            <FormField
+              id="assignment-scope-id"
+              label={t("admin.business_scope.field_scope_id")}
+              required
+            >
+              <input id="assignment-scope-id" name="scopeId" required />
+            </FormField>
+            <FormField
+              id="assignment-effective-to"
+              label={t("admin.business_scope.field_effective_to")}
+            >
+              <input
+                id="assignment-effective-to"
+                name="effectiveTo"
+                type="datetime-local"
+              />
+            </FormField>
+            <label>
+              <input type="checkbox" name="isTemporary" value="true" />
+              {t("admin.business_scope.field_is_temporary")}
+            </label>
+            <FormField
+              id="assignment-reason"
+              label={t("admin.business_scope.field_reason")}
+            >
+              <textarea id="assignment-reason" name="reason" />
+            </FormField>
+            <button type="submit">
+              {t("admin.business_scope.create_assignment_button")}
+            </button>
+          </form>
+        )}
+      </section>
+    )
+  }
+
+  {
+    CAN_READ_EXCEPTIONS && (
+      <section>
+        <h2>{t("admin.business_scope.exceptions_heading")}</h2>
+
+        <DataTable
+          caption={t("admin.business_scope.exceptions_heading")}
+          columnCount={5}
+          isEmpty={exceptions.length === 0}
+          emptyMessage={t("admin.business_scope.exceptions_empty")}
+        >
+          <Fragment slot="head">
+            <tr>
+              <th scope="col">{t("admin.business_scope.col_rule")}</th>
+              <th scope="col">{t("admin.business_scope.col_subject")}</th>
+              <th scope="col">{t("admin.business_scope.col_status")}</th>
+              <th scope="col">{t("admin.business_scope.col_effective_to")}</th>
+              <th scope="col">{t("admin.business_scope.col_actions")}</th>
+            </tr>
+          </Fragment>
+          {exceptions.map((exception) => {
+            const subject = tenantUsers.find(
+              (user) => user.tenantUserId === exception.subjectTenantUserId
+            );
+            return (
+              <tr>
+                <td>{exception.ruleKey}</td>
+                <td>{subject?.displayName ?? exception.subjectTenantUserId}</td>
+                <td>
+                  <StatusBadge
+                    label={exception.status}
+                    variant={exceptionStatusVariant(exception.status)}
+                  />
+                </td>
+                <td>{exception.effectiveTo.toISOString()}</td>
+                <td>
+                  {CAN_APPROVE_EXCEPTIONS && exception.status === "pending" && (
+                    <button
+                      type="button"
+                      class="approve-exception-button"
+                      data-exception-id={exception.id}
+                    >
+                      {t("admin.business_scope.approve_button")}
+                    </button>
+                  )}
+                  {CAN_REJECT_EXCEPTIONS && exception.status === "pending" && (
+                    <button
+                      type="button"
+                      class="reject-exception-button"
+                      data-exception-id={exception.id}
+                    >
+                      {t("admin.business_scope.reject_button")}
+                    </button>
+                  )}
+                  {CAN_REVOKE_EXCEPTIONS && exception.status === "approved" && (
+                    <button
+                      type="button"
+                      class="revoke-exception-button"
+                      data-exception-id={exception.id}
+                    >
+                      {t("admin.business_scope.revoke_button")}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </DataTable>
+
+        {CAN_CREATE_EXCEPTIONS && (
+          <form id="create-exception-form">
+            <h3>{t("admin.business_scope.create_exception_heading")}</h3>
+            <FormField
+              id="exception-rule"
+              label={t("admin.business_scope.col_rule")}
+              required
+            >
+              <select id="exception-rule" name="ruleKey" required>
+                {sodRules.map((rule) => (
+                  <option value={rule.ruleKey}>{rule.ruleKey}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              id="exception-subject"
+              label={t("admin.business_scope.col_subject")}
+              required
+            >
+              <select
+                id="exception-subject"
+                name="subjectTenantUserId"
+                required
+              >
+                {tenantUsers.map((user) => (
+                  <option value={user.tenantUserId}>{user.displayName}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              id="exception-justification"
+              label={t("admin.business_scope.field_justification")}
+              required
+            >
+              <textarea
+                id="exception-justification"
+                name="justification"
+                required
+                minlength="10"
+              />
+            </FormField>
+            <FormField
+              id="exception-effective-to"
+              label={t("admin.business_scope.field_effective_to")}
+              required
+            >
+              <input
+                id="exception-effective-to"
+                name="effectiveTo"
+                type="datetime-local"
+                required
+              />
+            </FormField>
+            <button type="submit">
+              {t("admin.business_scope.create_exception_button")}
+            </button>
+          </form>
+        )}
+      </section>
+    )
+  }
+
+  {
+    CAN_READ_CONFLICTS && (
+      <section>
+        <h2>{t("admin.business_scope.conflicts_heading")}</h2>
+
+        <DataTable
+          caption={t("admin.business_scope.conflicts_heading")}
+          columnCount={4}
+          isEmpty={conflicts.length === 0}
+          emptyMessage={t("admin.business_scope.conflicts_empty")}
+        >
+          <Fragment slot="head">
+            <tr>
+              <th scope="col">{t("admin.business_scope.col_rule")}</th>
+              <th scope="col">{t("admin.business_scope.col_trigger")}</th>
+              <th scope="col">{t("admin.business_scope.col_outcome")}</th>
+              <th scope="col">{t("admin.business_scope.col_reason")}</th>
+            </tr>
+          </Fragment>
+          {conflicts.map((evaluation) => (
+            <tr>
+              <td>{evaluation.ruleKey}</td>
+              <td>{evaluation.triggerContext}</td>
+              <td>{evaluation.resolvedVia}</td>
+              <td>{evaluation.decisionReason}</td>
+            </tr>
+          ))}
+        </DataTable>
+      </section>
+    )
+  }
+
+  <script
+    type="application/json"
+    id="i18n-strings"
+    set:html={JSON.stringify(clientStrings)}
+  />
+
+  <script>
+    import {
+      lockElement,
+      newIdempotencyKey,
+      readClientStrings,
+      showBanner,
+      submitJson
+    } from "../../lib/ui/admin-form-client";
+
+    const strings = readClientStrings<{
+      createAssignmentSuccess: string;
+      revokeAssignmentSuccess: string;
+      createExceptionSuccess: string;
+      approveExceptionSuccess: string;
+      rejectExceptionSuccess: string;
+      revokeExceptionSuccess: string;
+      revokeReasonPrompt: string;
+      networkError: string;
+      pleaseWait: string;
+      errorMessages: Record<string, string>;
+    }>();
+
+    function reloadAfterDelay(): void {
+      setTimeout(() => window.location.reload(), 600);
+    }
+
+    document
+      .getElementById("create-assignment-form")
+      ?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target as HTMLFormElement;
+        const button = form.querySelector<HTMLButtonElement>(
+          "button[type=submit]"
+        );
+        const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+        try {
+          const data = new FormData(form);
+          const effectiveTo = data.get("effectiveTo");
+          const result = await submitJson(
+            "/api/v1/identity/business-scope/assignments",
+            "POST",
+            {
+              tenantUserId: data.get("tenantUserId"),
+              roleId: data.get("roleId") || null,
+              scopeType: data.get("scopeType"),
+              scopeId: data.get("scopeId"),
+              effectiveTo: effectiveTo
+                ? new Date(effectiveTo as string).toISOString()
+                : null,
+              isTemporary: data.get("isTemporary") === "true",
+              reason: data.get("reason") || null
+            },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.createAssignmentSuccess : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock?.();
+        }
+      });
+
+    document.querySelectorAll(".revoke-assignment-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const revokeReason = window.prompt(strings.revokeReasonPrompt);
+        if (!revokeReason) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const assignmentId = button.dataset.assignmentId;
+          const result = await submitJson(
+            `/api/v1/identity/business-scope/assignments/${assignmentId}/revoke`,
+            "POST",
+            { revokeReason },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.revokeAssignmentSuccess : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+    document
+      .getElementById("create-exception-form")
+      ?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target as HTMLFormElement;
+        const button = form.querySelector<HTMLButtonElement>(
+          "button[type=submit]"
+        );
+        const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+        try {
+          const data = new FormData(form);
+          const result = await submitJson(
+            "/api/v1/identity/business-scope/exceptions",
+            "POST",
+            {
+              ruleKey: data.get("ruleKey"),
+              subjectTenantUserId: data.get("subjectTenantUserId"),
+              justification: data.get("justification"),
+              effectiveTo: new Date(
+                data.get("effectiveTo") as string
+              ).toISOString()
+            },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.createExceptionSuccess : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock?.();
+        }
+      });
+
+    document.querySelectorAll(".approve-exception-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const exceptionId = button.dataset.exceptionId;
+          const result = await submitJson(
+            `/api/v1/identity/business-scope/exceptions/${exceptionId}/approve`,
+            "POST",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.approveExceptionSuccess : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+    document.querySelectorAll(".reject-exception-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const exceptionId = button.dataset.exceptionId;
+          const result = await submitJson(
+            `/api/v1/identity/business-scope/exceptions/${exceptionId}/reject`,
+            "POST",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.rejectExceptionSuccess : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+    document.querySelectorAll(".revoke-exception-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const revokeReason = window.prompt(strings.revokeReasonPrompt);
+        if (!revokeReason) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const exceptionId = button.dataset.exceptionId;
+          const result = await submitJson(
+            `/api/v1/identity/business-scope/exceptions/${exceptionId}/revoke`,
+            "POST",
+            { revokeReason },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.revokeExceptionSuccess : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+  </script>
+</AdminLayout>

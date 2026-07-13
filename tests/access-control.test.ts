@@ -54,6 +54,15 @@ describe("isHighRiskAction", () => {
   test("does not classify check as high risk (Issue #520 — read-mostly, bounded health check)", () => {
     expect(isHighRiskAction("check")).toBe(false);
   });
+
+  test("classifies revoke/override as high risk (Issue #746 — business-scope assignments/SoD)", () => {
+    expect(isHighRiskAction("revoke")).toBe(true);
+    expect(isHighRiskAction("override")).toBe(true);
+  });
+
+  test("does not classify reject as high risk (Issue #746 — the safe outcome of an exception decision)", () => {
+    expect(isHighRiskAction("reject")).toBe(false);
+  });
 });
 
 describe("evaluateAccess", () => {
@@ -176,5 +185,81 @@ describe("evaluateAccess", () => {
         grantedWithApprove
       ).allowed
     ).toBe(true);
+  });
+
+  test("Issue #746: a request with no requiredScopeType/requiredScopeId is unaffected by businessScopeFacts (opt-in, backward compatible)", () => {
+    expect(
+      evaluateAccess(
+        CONTEXT,
+        {
+          moduleKey: "tenant_admin",
+          activityCode: "office_management",
+          action: "read"
+        },
+        granted,
+        []
+      ).allowed
+    ).toBe(true);
+  });
+
+  test("Issue #746: a required scope covered by a supplied businessScopeFacts entry is allowed", () => {
+    expect(
+      evaluateAccess(
+        CONTEXT,
+        {
+          moduleKey: "tenant_admin",
+          activityCode: "office_management",
+          action: "read",
+          resourceAttributes: {
+            requiredScopeType: "office",
+            requiredScopeId: "scope-a"
+          }
+        },
+        granted,
+        [{ scopeType: "office", scopeId: "scope-a" }]
+      ).allowed
+    ).toBe(true);
+  });
+
+  test("Issue #746: a required scope NOT covered by businessScopeFacts is denied (default-deny, matchedPolicy business_scope_unresolved)", () => {
+    expect(
+      evaluateAccess(
+        CONTEXT,
+        {
+          moduleKey: "tenant_admin",
+          activityCode: "office_management",
+          action: "read",
+          resourceAttributes: {
+            requiredScopeType: "office",
+            requiredScopeId: "scope-a"
+          }
+        },
+        granted,
+        [{ scopeType: "office", scopeId: "scope-b" }]
+      )
+    ).toEqual({
+      allowed: false,
+      reason:
+        "Required business scope is not resolved or not assigned to this subject.",
+      matchedPolicy: "business_scope_unresolved"
+    });
+  });
+
+  test("Issue #746: a required scope with NO businessScopeFacts argument at all is denied — unresolved defaults to deny", () => {
+    expect(
+      evaluateAccess(
+        CONTEXT,
+        {
+          moduleKey: "tenant_admin",
+          activityCode: "office_management",
+          action: "read",
+          resourceAttributes: {
+            requiredScopeType: "office",
+            requiredScopeId: "scope-a"
+          }
+        },
+        granted
+      ).allowed
+    ).toBe(false);
   });
 });

@@ -109,6 +109,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       'Scheduled bounded archive/purge (data-lifecycle:archive-purge, Issue #745) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/form-draft-purge; every withTenant call inside archive-purge-job.ts already passes workClass: "maintenance" explicitly.'
   },
+  "scripts/identity-access-business-scope-expiry.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Scheduled expiry sweep for business-scope assignments/SoD conflict exceptions (identity-access:business-scope:expiry, Issue #746) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; every withTenant call inside business-scope-expiry-job.ts already passes workClass: "maintenance" explicitly.'
+  },
   "scripts/workflow-escalations-dispatch.ts": {
     workClass: "background_sync",
     rationale:

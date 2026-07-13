@@ -307,6 +307,61 @@ export type ModuleDescriptor = {
   maintainers?: string[];
   /** High-volume table lifecycle descriptors this module owns (Issue #745) — see `HighVolumeTableDescriptor`'s own doc comment above. */
   dataLifecycle?: HighVolumeTableDescriptor[];
+  /** Segregation-of-duties conflict rules this module owns (Issue #746) — see `SoDRuleDescriptor`'s own doc comment above. */
+  sodRules?: SoDRuleDescriptor[];
+};
+
+/**
+ * Segregation-of-duties conflict rule descriptor (Issue #746, epic #738
+ * platform-evolution Wave 2, ADR-0013 §4). Same "module declares its own
+ * descriptor, a central engine reads `listModules()`" shape `permissions`/
+ * `dataLifecycle` above already use — `identity_access`'s
+ * `domain/sod-rule-registry.ts` is the aggregator/validator, mirroring
+ * `data-lifecycle/domain/lifecycle-registry.ts` exactly. A module
+ * contributes ONE of these per real SoD policy it wants enforced (maker/
+ * checker, requester/approver, posting/period-control, ...) — the base
+ * never hardcodes a domain-specific rule itself (issue #746 out-of-scope:
+ * "Implementing domain-specific finance/procurement/payroll/approval rules
+ * in the base"); every entry here is a GENERIC conflicting-permission-pair
+ * declaration, never a business rule about what those permissions actually
+ * do.
+ *
+ * TRUSTED CODE-ONLY METADATA (same rule as every descriptor type above) —
+ * declared by the owning module's source, never tenant/request-controlled.
+ */
+export type SoDRuleScopeApplicability =
+  "any" | "same_scope_only" | "global_within_tenant";
+
+export type SoDRuleSeverity = "low" | "medium" | "high" | "critical";
+
+export type SoDRuleExceptionPolicy = {
+  allowed: boolean;
+  /** Required when `allowed` is `true` — the permission key a different tenant user must hold to approve an exception to THIS rule (never the same permission the rule itself conflicts over). */
+  requiresApprovalPermission?: string;
+  /** Required only when `allowed` is `true` — an exception must always have a bounded lifetime (issue #746: "exceptions MUST have an end date — no indefinite override"); moot (must be absent) when `allowed` is `false`. */
+  maxDurationDays?: number;
+};
+
+export type SoDRuleDescriptor = {
+  /** Stable, unique across the whole registry, e.g. `"data_lifecycle.legal_hold_maker_checker"`. */
+  ruleKey: string;
+  /** Must equal the declaring module's own `key` — validated by the registry gate, not the type system (see `identity-access/domain/sod-rule-registry.ts`). */
+  ownerModuleKey: string;
+  description: string;
+  /** At least 2 `module.activity.action` permission keys (the `permissionKey()` format, `identity-access/domain/access-control.ts`) that must never all be held/exercised by the same subject for the same scope (or anywhere in the tenant, per `scopeApplicability`) without an approved exception. */
+  conflictingPermissionKeys: string[];
+  /**
+   * `"global_within_tenant"` — the conflict applies even without any shared
+   * business scope (holding both permissions anywhere in the tenant is
+   * itself the conflict). `"same_scope_only"` — the conflict only applies
+   * when both permissions would apply to the SAME `scopeType`+`scopeId`.
+   * `"any"` is reserved for a future rule kind that is scope-agnostic by
+   * design (neither global nor scope-matched) — no rule in this repo uses
+   * it yet.
+   */
+  scopeApplicability: SoDRuleScopeApplicability;
+  severity: SoDRuleSeverity;
+  exceptionPolicy: SoDRuleExceptionPolicy;
 };
 
 export function defineModule(descriptor: ModuleDescriptor): ModuleDescriptor {
@@ -361,7 +416,7 @@ export type ModuleMigrationNamespace = {
  * convention, just never assigned a number a derived repository could
  * check against.
  */
-export const MODULE_CONTRACT_VERSION = "1.0.0";
+export const MODULE_CONTRACT_VERSION = "1.1.0";
 
 /**
  * One derived/downstream repository's contribution to the final composed
