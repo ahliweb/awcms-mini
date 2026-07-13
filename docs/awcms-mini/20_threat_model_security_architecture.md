@@ -872,3 +872,95 @@ metrics agregat bukan SIEM/alerting terpusat; tetap tanggung jawab
 lapisan operasional aplikasi turunan untuk memasang adapter nyata
 (Prometheus/OpenTelemetry, lihat `observability-metrics.md`) dan
 alerting di atasnya.
+
+## Standar tambahan dipicu epic platform-evolution (Issue #742, epic #738 Wave 1)
+
+`domain_event_runtime` — outbox transaksional generik multi-consumer.
+Lihat `src/modules/domain-event-runtime/README.md` untuk desain lengkap;
+bagian ini hanya mencatat model ancaman/mitigasi yang mengikat.
+
+**Invariant transaksional (STRIDE — Tampering/Denial of Service)**:
+
+- Event hanya bisa di-dispatch setelah transaksi sumbernya commit —
+  `appendDomainEvent` murni menulis DB (tanpa panggilan eksternal, ADR-0006)
+  di DALAM transaksi pemanggil; rollback pemanggil menghapus event DAN
+  seluruh delivery row-nya sekaligus (tidak pernah "event yatim" dari
+  transaksi yang gagal).
+- Kegagalan consumer TIDAK PERNAH me-rollback transaksi sumber yang sudah
+  commit — dispatcher berjalan di transaksi terpisah, jauh setelah event
+  di-commit.
+- Duplicate delivery tidak boleh menduplikasi side effect — ditegakkan
+  MEKANIS (bukan hanya konvensi dokumentasi) lewat
+  `awcms_mini_domain_event_consumer_effects`'s
+  `INSERT ... ON CONFLICT DO NOTHING RETURNING id` (`applyConsumerEffectOnce`),
+  dibuktikan test integrasi "redelivering an already-delivered row
+  (simulated worker restart) does not duplicate the side effect".
+- Tidak ada panggilan provider/broker di dalam transaksi DB — dua reference
+  consumer modul ini murni DB-only; port broker opsional
+  (`infrastructure/broker-adapter-port.ts`) belum diimplementasikan sama
+  sekali (tidak ada jalur kode yang melanggar aturan ini karena jalur itu
+  belum ada).
+
+**Tenant isolation (STRIDE — Elevation of Privilege/Information Disclosure)**:
+
+Keenam tabel migration 056 tenant-scoped dengan `ENABLE`+`FORCE ROW LEVEL
+SECURITY` dan predikat standar `tenant_id = current_setting('app.current_
+tenant_id')::uuid` — tidak ada tabel RLS-free baru. Setiap query aplikasi
+di `application/domain-event-directory.ts`/`delivery-replay.ts`/
+`consumer-state-directory.ts` memfilter `tenant_id` secara eksplisit di
+samping RLS (defense in depth, doc 16). Dibuktikan test integrasi
+multi-tenant: tenant tanpa permission `domain_event_runtime.*` mendapat
+403 (bukan silently kosong), dan tenant B tidak bisa melihat/replay event
+atau delivery milik tenant A (404, bukan 403 — RLS + filter tenant_id
+eksplisit membuatnya benar-benar tidak terlihat, konsisten dengan pola
+"resource belongs to different tenant" modul lain).
+
+**Payload hygiene (STRIDE — Information Disclosure)**:
+
+`domain/envelope.ts`'s `validateDomainEventPayload` MENOLAK (bukan
+redaksi-lalu-simpan) payload yang mengandung nama key berbentuk credential
+(`password`/`token`/`apiKey`/`secret`/`credential`/`authorization`) atau
+value berbentuk credential apa pun (reuse `findSecretShapedValues`, JWT/PEM
+key/AWS key id/Bearer header/connection string) — payload semacam itu
+tidak pernah tersimpan sama sekali. PII biasa (email/telepon/NPWP/NIK)
+SENGAJA tidak ditolak di titik ini (lihat README modul §Security notes
+untuk alasan lengkap: memaksa referensi `profile_identity` alih-alih
+duplikasi PII adalah keputusan level-producer, bukan blokir mekanis
+generik) — dimitigasi di sisi baca lewat `domain/payload-redaction.ts`
+(redaksi penuh `REDACTION_KEYS`, termasuk PII) yang diterapkan ke SETIAP
+respons API/admin yang membawa payload (list/detail event, detail
+delivery/DLQ), sementara handler consumer internal tetap menerima payload
+mentah (dibutuhkan untuk menjalankan side effect nyata).
+
+**Replay (STRIDE — Elevation of Privilege/Repudiation)**:
+
+Endpoint replay (`POST /api/v1/domain-events/deliveries/{id}/replay`)
+permission-gated (`domain_event_runtime.deliveries.replay`, TIDAK
+otomatis dari `deliveries.read`), reason wajib (1-500 karakter, divalidasi
+di route DAN `CHECK` constraint DB sebagai backstop), idempotent
+(`Idempotency-Key` standar — replay ganda dengan key+payload sama
+mengembalikan baris replay yang SAMA, bukan menduplikasi), dan diaudit
+(`recordAuditEvent` action `domain_event_runtime.delivery.replayed` DAN
+baris terstruktur `awcms_mini_domain_event_replays` untuk lineage). Replay
+menolak (409 `DOMAIN_EVENT_SCHEMA_INCOMPATIBLE`) bila consumer terdaftar
+sudah tidak lagi mendeklarasikan dukungan untuk `event_version` milik
+delivery yang mau di-replay — mencegah handler versi baru dipanggil diam-
+diam dengan payload berbentuk lama yang mungkin sudah tidak valid untuknya.
+
+**Dead-letter inspection (STRIDE — Information Disclosure)**:
+
+`GET .../deliveries?status=dead_letter` dan `GET .../deliveries/{id}`
+mengembalikan metadata aman (kode/pesan error yang SUDAH disanitasi lewat
+`sanitizeErrorForLog`/`redactSecretsInText` sebelum pernah disimpan ke
+kolom `last_error_message`/`dead_letter_reason` — tidak pernah stack trace
+mentah) dan proyeksi payload yang diredaksi (`payload-redaction.ts`) — tidak
+ada jalur API yang mengembalikan payload event mentah tak-teredaksi.
+
+**Batasan yang dicatat, bukan diabaikan**: retensi/purge keenam tabel
+migration 056 belum dibangun di issue ini — dicatat sebagai titik integrasi
+untuk `data_lifecycle` (kandidat System Foundation, epic #738 Wave 1),
+bukan diklaim sudah ditangani. Konsumen/produsen nyata untuk modul lain
+(blog_content, social_publishing, email, dst.) sengaja belum di-wire —
+hanya dua reference consumer self-contained yang ada di issue ini; risiko
+keamanan integrasi lintas-modul nyata akan dinilai ulang saat wiring nyata
+itu terjadi di issue lanjutan, bukan diklaim sudah tercakup di sini.

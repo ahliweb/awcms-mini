@@ -1,5 +1,6 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
 import { blogContentModule } from "./blog-content/module";
+import { domainEventRuntimeModule } from "./domain-event-runtime/module";
 import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
@@ -32,7 +33,8 @@ export const modules: ModuleDescriptor[] = [
   visitorAnalyticsModule,
   newsPortalModule,
   idnAdminRegionsModule,
-  socialPublishingModule
+  socialPublishingModule,
+  domainEventRuntimeModule
 ];
 
 export function getModuleByKey(

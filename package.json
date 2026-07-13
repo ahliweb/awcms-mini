@@ -54,6 +54,7 @@
     "email:templates:seed-defaults": "bun scripts/email-templates-seed-defaults.ts",
     "news-media:reconcile": "bun scripts/news-media-r2-reconcile.ts",
     "social-publishing:dispatch": "bun scripts/social-publish-dispatch.ts",
+    "domain-events:dispatch": "bun scripts/domain-events-dispatch.ts",
     "modules:sync": "bun scripts/modules-sync.ts",
     "modules:dag:check": "bun scripts/validate-module-graph.ts",
     "i18n:extract": "bun scripts/i18n-extract.ts",

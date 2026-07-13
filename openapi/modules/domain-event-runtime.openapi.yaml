@@ -1,0 +1,655 @@
+# Source fragment for the "Domain Events" module/tag (Issue #742, epic
+# `platform-evolution` #738 Wave 1).
+#
+# Owns every path tagged "Domain Events" and every schema referenced ONLY
+# by this tag's operations. Schemas shared with another module/tag live in
+# the root file (openapi/awcms-mini-public-api.src.yaml) instead.
+#
+# This is a READ-MOSTLY admin API: outbox events and per-consumer
+# deliveries are inspected here (redacted payload projections only), and
+# exactly two mutations exist — replay a dead-lettered delivery, and
+# pause/resume a registered consumer. Consumers themselves are a static,
+# reviewed-source-code registry (`infrastructure/consumer-registry.ts`),
+# never created/edited via this API. The actual claim/execute/finalize
+# dispatch (`bun run domain-events:dispatch`) is a trusted internal worker,
+# never exposed over HTTP — same convention every other outbox dispatcher
+# in this repo already follows (object-sync/email/social-publishing).
+#
+# NOT independently valid OpenAPI -- $ref targets pointing at shared
+# components (securitySchemes/parameters/responses, and cross-module
+# schemas) only resolve after `bun run openapi:bundle` merges this file with
+# the root file and every sibling module file into
+# openapi/awcms-mini-public-api.openapi.yaml. Edit this file (or the root
+# file for shared components), never the generated bundle.
+paths:
+  /api/v1/domain-events/events:
+    get:
+      tags:
+        - Domain Events
+      summary: List domain event outbox entries
+      description: Bounded list (max 200), redacted payload projections only. Optional `eventType`/`aggregateType`/`aggregateId` filters.
+      operationId: domainEventsEventsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: eventType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: aggregateType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: aggregateId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Domain events.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - events
+                        properties:
+                          events:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DomainEventItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/domain-events/events/{id}:
+    get:
+      tags:
+        - Domain Events
+      summary: Get a domain event outbox entry by id
+      description: Redacted payload projection only.
+      operationId: domainEventsEventsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Domain event.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - event
+                        properties:
+                          event:
+                            $ref: "#/components/schemas/DomainEventItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/domain-events/deliveries:
+    get:
+      tags:
+        - Domain Events
+      summary: List domain event consumer deliveries
+      description: Bounded list (max 200). `status=dead_letter` is the DLQ inspection view. Optional `status`/`consumerName`/`eventType` filters.
+      operationId: domainEventsDeliveriesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - delivered
+              - dead_letter
+              - skipped
+        - name: consumerName
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: eventType
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Domain event deliveries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - deliveries
+                        properties:
+                          deliveries:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DomainEventDeliveryItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/domain-events/deliveries/{id}:
+    get:
+      tags:
+        - Domain Events
+      summary: Get a domain event delivery by id
+      description: Includes the joined event with a redacted payload projection — the DLQ single-record inspection view when `status` is `dead_letter`.
+      operationId: domainEventsDeliveriesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Domain event delivery.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - delivery
+                        properties:
+                          delivery:
+                            $ref: "#/components/schemas/DomainEventDeliveryItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/domain-events/deliveries/{id}/replay:
+    post:
+      tags:
+        - Domain Events
+      summary: Replay a dead-lettered domain event delivery
+      description: Permission-gated (`deliveries.replay`), reason-required, idempotent (`Idempotency-Key`), and audited. Only valid from a `dead_letter` delivery. Refuses (409) if the registered consumer no longer supports the delivery's `eventVersion` — never replays against an incompatible schema silently.
+      operationId: domainEventsDeliveriesReplay
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "200":
+          description: Replay delivery created (a NEW delivery row, `replayOfDeliveryId` pointing at the original).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - delivery
+                        properties:
+                          delivery:
+                            $ref: "#/components/schemas/DomainEventDeliveryItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, delivery is not dead-lettered, or the registered consumer no longer supports the delivery's event version (DOMAIN_EVENT_SCHEMA_INCOMPATIBLE).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/domain-events/consumers:
+    get:
+      tags:
+        - Domain Events
+      summary: List the registered domain event consumers
+      description: The static, source-code-defined registry, plus per-tenant pause state and pending/dead-letter backlog counts (consumer lag/checkpoint + DLQ count).
+      operationId: domainEventsConsumersList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Domain event consumers.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - consumers
+                        properties:
+                          consumers:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DomainEventConsumerItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/domain-events/consumers/{name}/pause:
+    post:
+      tags:
+        - Domain Events
+      summary: Pause a domain event consumer for this tenant
+      description: Naturally idempotent (no `Idempotency-Key` required, same lighter-weight pattern as module enable/disable) — the dispatcher skips claiming any delivery for a paused (tenant, consumer) pair. Reason required. Audited.
+      operationId: domainEventsConsumersPause
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "200":
+          description: Consumer paused.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - consumer
+                        properties:
+                          consumer:
+                            $ref: "#/components/schemas/DomainEventConsumerItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/domain-events/consumers/{name}/resume:
+    post:
+      tags:
+        - Domain Events
+      summary: Resume a paused domain event consumer for this tenant
+      description: Naturally idempotent (no `Idempotency-Key` required, same reasoning as `.../pause`). Audited.
+      operationId: domainEventsConsumersResume
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Consumer resumed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - consumer
+                        properties:
+                          consumer:
+                            $ref: "#/components/schemas/DomainEventConsumerItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    DomainEventItem:
+      type: object
+      required:
+        - id
+        - eventSequence
+        - eventType
+        - eventVersion
+        - aggregateType
+        - aggregateId
+        - orderKey
+        - producerModule
+        - occurredAt
+        - recordedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventSequence:
+          type: integer
+          description: Strictly monotonic outbox insertion counter — an ordering tiebreaker only, never a business identifier.
+        eventType:
+          type: string
+        eventVersion:
+          type: string
+        aggregateType:
+          type: string
+        aggregateId:
+          type: string
+          format: uuid
+        aggregateVersion:
+          type: integer
+          nullable: true
+        orderKey:
+          type: string
+        correlationId:
+          type: string
+          nullable: true
+        causationId:
+          type: string
+          nullable: true
+        producerModule:
+          type: string
+        schemaRef:
+          type: string
+          nullable: true
+        payload:
+          type: object
+          description: Redacted payload projection — credential-shaped keys/values are replaced with "[REDACTED]" before this response is built. Never the raw payload a consumer handler receives internally.
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
+        recordedAt:
+          type: string
+          format: date-time
+    DomainEventDeliveryItem:
+      type: object
+      required:
+        - id
+        - eventId
+        - eventType
+        - eventVersion
+        - orderKey
+        - consumerName
+        - status
+        - attemptCount
+        - maxAttempts
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        eventVersion:
+          type: string
+        orderKey:
+          type: string
+        consumerName:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - delivered
+            - dead_letter
+            - skipped
+        attemptCount:
+          type: integer
+          minimum: 0
+        maxAttempts:
+          type: integer
+          minimum: 1
+        nextAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastErrorCode:
+          type: string
+          nullable: true
+          description: Sanitized, safe-to-display error code — never a raw exception message.
+        lastErrorMessage:
+          type: string
+          nullable: true
+          description: Sanitized, safe-to-display error message.
+        lastRetryClassification:
+          type: string
+          nullable: true
+          enum:
+            - retryable
+            - not_retryable
+            - unknown
+        deliveredAt:
+          type: string
+          format: date-time
+          nullable: true
+        deadLetterAt:
+          type: string
+          format: date-time
+          nullable: true
+        deadLetterReason:
+          type: string
+          nullable: true
+        replayOfDeliveryId:
+          type: string
+          format: uuid
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        event:
+          allOf:
+            - $ref: "#/components/schemas/DomainEventItem"
+          nullable: true
+          description: Present on the single-record GET and replay responses only — omitted from list responses.
+    DomainEventConsumerItem:
+      type: object
+      required:
+        - name
+        - description
+        - eventTypes
+        - eventVersions
+        - maxAttempts
+        - isPaused
+        - pendingCount
+        - deadLetterCount
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        eventTypes:
+          type: array
+          items:
+            type: string
+        eventVersions:
+          type: array
+          items:
+            type: string
+        maxAttempts:
+          type: integer
+          minimum: 1
+        isPaused:
+          type: boolean
+        pausedAt:
+          type: string
+          format: date-time
+          nullable: true
+        pausedReason:
+          type: string
+          nullable: true
+        pendingCount:
+          type: integer
+          minimum: 0
+          description: Consumer lag/checkpoint distance — count of non-terminal (pending) deliveries.
+        deadLetterCount:
+          type: integer
+          minimum: 0
+          description: DLQ count for this consumer.

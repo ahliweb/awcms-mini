@@ -549,6 +549,23 @@ channels:
       (Issue #643 acceptance criterion: "Support reauthorization flow when
       token expires") — the linked account is also flipped to
       `needs_reauth`. Producer: `social-publish-dispatch.ts`.
+  awcms-mini.domain-event-runtime.sample.recorded:
+    address: awcms-mini.domain-event-runtime.sample.recorded
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      Reference/example event (Issue #742, epic `platform-evolution` #738)
+      used to exercise the domain-event-runtime outbox, dispatcher,
+      ordering, retry/backoff, dead-letter, and replay mechanism end-to-end.
+      Real producer modules publish their OWN event types the same way, via
+      `appendDomainEvent` — this one is intentionally self-contained rather
+      than tied to another module's business logic in this foundation
+      issue (see `src/modules/domain-event-runtime/domain/event-type-
+      registry.ts`'s own doc comment). Producer: any caller of
+      `application/append-domain-event.ts`'s `appendDomainEvent` for this
+      event type (test fixtures in this issue); consumers:
+      `infrastructure/consumer-registry.ts`'s two reference consumers.
 operations:
   publishSyncPushRequested:
     action: send
@@ -856,6 +873,18 @@ operations:
       $ref: "#/channels/awcms-mini.social-publishing.job.needs-reauth"
     messages:
       - $ref: "#/channels/awcms-mini.social-publishing.job.needs-reauth/messages/DomainEvent"
+  publishDomainEventRuntimeSampleRecorded:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.domain-event-runtime.sample.recorded"
+    messages:
+      - $ref: "#/channels/awcms-mini.domain-event-runtime.sample.recorded/messages/DomainEvent"
+  subscribeDomainEventRuntimeSampleRecorded:
+    action: receive
+    channel:
+      $ref: "#/channels/awcms-mini.domain-event-runtime.sample.recorded"
+    messages:
+      - $ref: "#/channels/awcms-mini.domain-event-runtime.sample.recorded/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

@@ -268,6 +268,14 @@ msgstr "Buka/tutup menu navigasi"
 msgid "admin.layout.nav_dashboard"
 msgstr "Dashboard"
 
+#. Issue #742, epic platform-evolution #738 Wave 1
+msgid "admin.layout.nav_domain_events_deliveries"
+msgstr "Pengiriman Domain Event"
+
+#. Issue #742, epic platform-evolution #738 Wave 1
+msgid "admin.layout.nav_domain_events_consumers"
+msgstr "Consumer Domain Event"
+
 msgid "admin.layout.nav_access_users"
 msgstr "Access & Users"
 

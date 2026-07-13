@@ -62,7 +62,21 @@ export type AccessAction =
   // access) — same "seed permission first, add the action when a real
   // endpoint needs it" precedent as `verify`/`set_primary` above. Read-only,
   // not added to `HIGH_RISK_ACTIONS`.
-  | "preview";
+  | "preview"
+  // Issue #742 (domain_event_runtime): migration 056 seeds
+  // `domain_event_runtime.deliveries.replay`/`.consumers.manage`, first
+  // consumers `POST /api/v1/domain-events/deliveries/{id}/replay` and
+  // `POST /api/v1/domain-events/consumers/{name}/{pause,resume}` in this
+  // issue. Neither added to `HIGH_RISK_ACTIONS` — `replay` re-attempts a
+  // delivery whose side effect is required to be idempotent by event ID
+  // (same non-destructive reasoning as `retry`), and `manage` (pause/
+  // resume) only flips a per-tenant boolean that can always be flipped
+  // back (same reasoning as `enable`/`disable`), neither deletes or
+  // irreversibly changes data. Both endpoints still require
+  // `Idempotency-Key` (replay) and are explicitly audited regardless of
+  // this classification.
+  | "replay"
+  | "manage";
 
 export type AccessRequest = {
   moduleKey: string;
