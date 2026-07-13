@@ -13,7 +13,8 @@ terverifikasi) — khusus deployment **full-online** yang mengaktifkan flag
 (fondasi) selesai lebih dulu; #644 (Meta/Facebook+Instagram), #645
 (LinkedIn), #646 (Telegram) masing-masing menambah SATU provider adapter
 NYATA di atas fondasi ini; #647 (dokumentasi/SOP) butuh semua issue
-sebelumnya sudah ada.
+sebelumnya sudah ada. **Seluruh epic (#643-#647) kini selesai** — lihat
+§647 di bawah untuk lima dokumen yang ditambahkan issue penutup ini.
 
 ## Kapan pakai skill ini vs skill generik
 
@@ -35,11 +36,11 @@ issue lanjutan.
 | #644  | Adapter Meta (Facebook Page + Instagram Business)                                                                             | **Selesai** — lihat §644 di bawah |
 | #645  | Adapter LinkedIn (organization page)                                                                                          | **Selesai** — lihat §645 di bawah |
 | #646  | Adapter Telegram (channel, bot token)                                                                                         | **Selesai** — lihat §646 di bawah |
-| #647  | Dokumentasi/SOP lintas provider, butuh #643-#646 semua ada                                                                    | Belum dikerjakan                  |
+| #647  | Dokumentasi/SOP lintas provider, butuh #643-#646 semua ada                                                                    | **Selesai** — lihat §647 di bawah |
 
 Urutan dependency (dari objective masing-masing issue): 643 -> {644, 645,
 646 independen satu sama lain, masing-masing hanya butuh #643} -> 647
-(butuh semuanya).
+(butuh semuanya — seluruh prasyarat sudah terpenuhi, epic tuntas).
 
 ## §643 — Fondasi outbox/connector (Selesai)
 
@@ -1051,3 +1052,55 @@ verify_button,verify_success,verify_failed_prefix}`).
   mendukung indirection `env:VAR_NAME`) — residual yang sama dari #643.
 - Auto-requeue/hard-gate verifikasi sebelum enable auto-publish — sengaja
   readiness signal, bukan runtime gate (lihat Keputusan #2).
+
+## §647 — Dokumentasi/SOP (Selesai)
+
+Issue dokumentasi murni — tidak ada kode/migration/endpoint baru. PR #756
+(merged 2026-07-13) menambah lima dokumen baru di
+`docs/awcms-mini/news-portal/` plus pembaruan index
+`docs/awcms-mini/README.md`, menutup epic `social_publishing` (#643-#647)
+seluruhnya dengan dokumentasi arsitektur, operasional, batasan provider,
+dan keamanan yang sebelumnya hanya tersebar di komentar kode/skill ini.
+
+### Lima dokumen yang ditambahkan
+
+- **`social-sharing.md`** — mendokumentasikan fitur **social sharing
+  manual** (Issue #642, tombol share milik PEMBACA, tanpa kredensial atau
+  panggilan API eksternal) dan secara eksplisit membedakannya dari
+  **social publishing / auto-posting** — tabel perbandingan §1 mencegah
+  pembaca mengira keduanya sistem yang sama (modul, kredensial, dan
+  persistence-nya sepenuhnya berbeda).
+- **`social-publishing-architecture.md`** — arsitektur sistem auto-posting
+  itu sendiri: gerbang dua-flag `SOCIAL_PUBLISHING_ENABLED`/
+  `SOCIAL_PUBLISHING_PROFILE` (§1), model data 6 tabel (§2), dan alur
+  outbox/dispatcher/approval/retry — ringkasan arsitektur yang melengkapi
+  (bukan menggantikan) keputusan kunci #643-#646 yang sudah didetailkan
+  di skill ini.
+- **`social-publishing-sop.md`** — panduan **operator/redaksi** (bukan
+  panduan kode): prasyarat sebelum mengaktifkan auto-posting, checklist
+  setup per provider (Meta/LinkedIn/Telegram) termasuk langkah OAuth di
+  luar aplikasi, dan permission yang dibutuhkan tiap peran.
+- **`social-provider-limitations.md`** — batasan NYATA yang benar-benar
+  terimplementasi per provider (bukan rencana/aspirasi): tipe akun yang
+  didukung/ditolak, jenis post, ketiadaan idempotency-key native di Graph
+  API, pemetaan pesan error, dan skema `token_reference` yang benar-benar
+  bisa diresolusi (`env:VAR_NAME` saja).
+- **`social-publishing-security-checklist.md`** — checklist keamanan dan
+  incident response: token storage (referensi, bukan token nyata), scope
+  query yang boleh mengembalikan `token_reference`, dan penegasan bahwa
+  seluruh nilai contoh di dokumen ini sengaja placeholder palsu (mis.
+  `"env:META_APP_SECRET_EXAMPLE"`) — jangan pernah menempelkan kredensial
+  nyata di dokumentasi/tiket/log.
+
+### File yang dibuat/diubah (referensi cepat)
+
+- `docs/awcms-mini/news-portal/social-sharing.md` (baru).
+- `docs/awcms-mini/news-portal/social-publishing-architecture.md` (baru).
+- `docs/awcms-mini/news-portal/social-publishing-sop.md` (baru).
+- `docs/awcms-mini/news-portal/social-provider-limitations.md` (baru).
+- `docs/awcms-mini/news-portal/social-publishing-security-checklist.md`
+  (baru).
+- `docs/awcms-mini/README.md` (index, tautan ke lima dokumen di atas).
+
+Epic `social_publishing` (#643-#647) sekarang **selesai seluruhnya** —
+lihat §Status per issue di atas.
