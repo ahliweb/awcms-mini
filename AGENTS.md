@@ -249,7 +249,7 @@ berjalan, bukan target/rencana:
 
 ```bash
 bun install
-bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + modules:compose:check + modules:composition:inventory:check + extension:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
 bun run dev                      # bun --bun astro dev
 bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
@@ -289,6 +289,10 @@ bun run analytics:rollup         # job terjadwal: rollup visitor analytics haria
 bun run analytics:purge          # job terjadwal: purge/anonymisasi visitor analytics kedaluwarsa
 bun run modules:sync             # sinkronisasi descriptor modul ke awcms_mini_modules
 bun run modules:dag:check        # validasi seluruh registry adalah DAG valid (bagian dari `bun run check`)
+bun run modules:compose:check    # validasi registry base + application-registry.ts terkomposisi valid (bagian dari `bun run check`, Issue #740)
+bun run modules:composition:inventory:generate # generate docs/awcms-mini/module-composition-inventory.json dari registry terkomposisi (Issue #740) — jalankan sebelum commit tiap kali registry/capability/migration-namespace berubah
+bun run modules:composition:inventory:check    # validasi module-composition-inventory.json tidak stale (read-only, bagian dari `bun run check`, Issue #740)
+bun run extension:check          # validasi extension.manifest.json (bila ada) + komposisi registry — jalan identik di repo base ini & repo turunan (bagian dari `bun run check`, `ci.yml`, dan `production:preflight`, Issue #741/ADR-0015)
 bun run domain-events:dispatch   # job terjadwal: claim/eksekusi/finalize domain event deliveries (outbox generik multi-consumer, Issue #742)
 bun run i18n:extract             # generate ulang i18n/messages.pot dari scan t("...") di src/ (mutasi file, TIDAK di `bun run check` — Issue #694)
 bun run i18n:pot:check           # validasi i18n/messages.pot identik dengan hasil i18n:extract (read-only, bagian dari `bun run check`, Issue #694)

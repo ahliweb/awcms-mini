@@ -331,6 +331,39 @@ export type ModuleMigrationNamespace = {
 };
 
 /**
+ * SemVer of the `ModuleDescriptor`/`ApplicationModuleRegistry` TYPE SHAPE
+ * itself — independent of `package.json` (release version) and the
+ * OpenAPI/AsyncAPI `info.version` (REST/event contract version), same
+ * "three independent versioning schemes" precedent ADR-0008 already
+ * establishes for those two. This is the fourth: the module descriptor
+ * *contract* (this file's own exported types), added by Issue #741 (epic
+ * #738 `platform-evolution`, Wave 1) so a derived repository's
+ * compatibility manifest (`docs/adr/0015-derived-application-
+ * compatibility-manifest.md`) can declare which shape of this file it was
+ * written against and fail with an actionable diagnostic
+ * (`bun run extension:check`) instead of a raw TypeScript compile error
+ * when a future breaking change lands.
+ *
+ * Bump policy (mirrors ADR-0008 §2's contract bump rules exactly):
+ * - **MAJOR** — a field is removed, renamed, or an existing optional
+ *   field becomes required (a derived repository's existing `module.ts`
+ *   could stop compiling or change meaning).
+ * - **MINOR** — a new optional field is added (every addition to this
+ *   file so far, including Issue #740's own `capabilities`/
+ *   `compatibility.deploymentProfiles`/`ApplicationModuleRegistry`, has
+ *   been exactly this kind of change).
+ * - **PATCH** — documentation-only clarification, no shape change.
+ *
+ * `1.0.0` here is a first declaration, not a "declared stable" milestone
+ * the way ADR-0008 §2 uses `1.0.0` for the REST/event contract — this
+ * file's shape was never versioned before Issue #741; every prior
+ * addition (Issue #511, #681, #740) was already additive/non-breaking by
+ * convention, just never assigned a number a derived repository could
+ * check against.
+ */
+export const MODULE_CONTRACT_VERSION = "1.0.0";
+
+/**
  * One derived/downstream repository's contribution to the final composed
  * module registry (Issue #740, epic #738 `platform-evolution`, Wave 1).
  * Supplied ONLY through the designated build-time extension point
