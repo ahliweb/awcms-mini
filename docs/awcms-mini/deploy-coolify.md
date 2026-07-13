@@ -172,6 +172,24 @@ nyata bergantung pada beban query, ukuran database, frekuensi build
 (Coolify build process ikut memakai CPU/RAM/disk saat deploy berjalan),
 dan retensi backup/log yang aktif secara bersamaan pada host yang sama.
 
+### Menjalankan lebih dari satu replika aplikasi (Issue #743)
+
+Tabel di atas soal CPU/RAM per VPS untuk _beberapa aplikasi berbeda_ pada
+satu host. Menaikkan **replika/instance dari aplikasi YANG SAMA** (mis.
+Coolify horizontal scaling, atau beberapa container app di belakang satu
+load balancer) adalah dimensi berbeda — setiap replika membuka pool
+koneksinya sendiri ke PostgreSQL/PgBouncer yang sama. Sebelum menaikkan
+jumlah replika, jalankan:
+
+```bash
+DATABASE_CAPACITY_APP_INSTANCES_MAX=<jumlah replika target> \
+bun run database:capacity:check
+```
+
+Read-only, murni aritmatika config — tidak menyentuh Coolify/PostgreSQL
+apa pun. Detail rumus dan contoh perhitungan:
+[`database-capacity-runbook.md`](database-capacity-runbook.md).
+
 ## Kapan perlu memisahkan database atau aplikasi ke VPS/managed database lain
 
 Pertimbangkan memisahkan (database eksternal/managed, atau VPS terpisah)
@@ -347,6 +365,9 @@ satu VPS/Coolify:
   — referensi environment variable lengkap.
 - [`../../deploy/backup/README.md`](../../deploy/backup/README.md) —
   detail backup/restore.
+- [`database-capacity-runbook.md`](database-capacity-runbook.md) — model
+  kapasitas koneksi lintas-instance, wajib dicek sebelum menaikkan jumlah
+  replika aplikasi (Issue #743).
 - `Dockerfile.production` — image production registry-based (komentar
   header berkas menjelaskan alasan desain multi-stage-nya).
 - [Dokumentasi resmi Coolify](https://coolify.io/docs) — instalasi,

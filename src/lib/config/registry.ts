@@ -264,7 +264,7 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     sensitivity: "secret",
     profiles: ["staging", "production"],
     description:
-      "Connection string for the least-privilege `awcms_mini_worker` role (Issue #683) used by the 7 unattended background scripts. Falls back to DATABASE_URL (src/lib/database/client.ts's getWorkerDatabaseClient) when unset."
+      "Connection string for the least-privilege `awcms_mini_worker` role (Issue #683) used by the 9 unattended background scripts (count corrected by Issue #743). Falls back to DATABASE_URL (src/lib/database/client.ts's getWorkerDatabaseClient) when unset."
   },
   {
     name: "SETUP_DATABASE_URL",
@@ -295,6 +295,192 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     profiles: ["staging", "production"],
     description:
       "Password used by deploy/postgres/11-create-worker-setup-roles.sh/docker-compose.yml to activate LOGIN on the optional `awcms_mini_setup` role. Not read by TypeScript code."
+  },
+
+  // ---------------------------------------------------------------------
+  // Database capacity model (Issue #743, epic #738 platform-evolution).
+  // ADDITIVE block — every entry below is optional with a conservative
+  // default matching the existing single-instance offline/LAN profile (see
+  // src/lib/database/capacity-config.ts's DEFAULT_* constants, the single
+  // source of truth these defaults must stay in sync with). Keep this block
+  // append-only/self-contained: a sibling issue in the same platform-
+  // evolution epic (#745, data-lifecycle) may also add entries to this
+  // file — resolve any merge conflict by keeping BOTH sides' additions,
+  // never picking one over the other.
+  // ---------------------------------------------------------------------
+  {
+    name: "DATABASE_POOL_MAX_WORKER",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    description:
+      "Overrides the `awcms_mini_worker` pool's max connections independently of DATABASE_POOL_MAX — src/lib/database/client.ts's resolvePoolMaxForKind. Falls back to DATABASE_POOL_MAX when unset (pre-#743 behavior)."
+  },
+  {
+    name: "DATABASE_POOL_MAX_SETUP",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    description:
+      "Overrides the `awcms_mini_setup` pool's max connections independently of DATABASE_POOL_MAX — src/lib/database/client.ts's resolvePoolMaxForKind. Falls back to DATABASE_POOL_MAX when unset (pre-#743 behavior)."
+  },
+  {
+    name: "DATABASE_WORK_CLASS_QUEUE_MULTIPLIER",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "4",
+    description:
+      "Bounded FIFO queue depth per work class = its concurrency max x this multiplier (clamped to [1, 20]) — src/lib/database/work-class.ts. Once a class's queue is at that cap, a new caller is rejected immediately (WorkClassQueueFullError, 503 + Retry-After) instead of queueing further."
+  },
+  {
+    name: "DATABASE_CAPACITY_APP_INSTANCES_MIN",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "1",
+    description:
+      "Minimum expected concurrently-running web/SSR (`app`) instances — src/lib/database/capacity-config.ts, used by `database:capacity:check`/production-preflight's capacity stage."
+  },
+  {
+    name: "DATABASE_CAPACITY_APP_INSTANCES_EXPECTED",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "1",
+    description:
+      "Steady-state expected concurrently-running `app` instances — src/lib/database/capacity-config.ts."
+  },
+  {
+    name: "DATABASE_CAPACITY_APP_INSTANCES_MAX",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "1",
+    description:
+      "Configured horizontal ceiling on concurrently-running `app` instances — the number production:preflight's database:capacity stage validates `sum(instance_count x pool_max) + reserved_headroom <= approved capacity` against."
+  },
+  {
+    name: "DATABASE_CAPACITY_WORKER_INSTANCES_MIN",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "0",
+    description:
+      "Minimum expected concurrently-running `worker` processes (the 9 scripts calling getWorkerDatabaseClient) — src/lib/database/capacity-config.ts. Default 0: worker scripts are periodic CLI invocations, not always-running daemons."
+  },
+  {
+    name: "DATABASE_CAPACITY_WORKER_INSTANCES_EXPECTED",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "1",
+    description:
+      "Steady-state expected concurrently-running `worker` processes — src/lib/database/capacity-config.ts."
+  },
+  {
+    name: "DATABASE_CAPACITY_WORKER_INSTANCES_MAX",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "1",
+    description:
+      "Configured horizontal ceiling on concurrently-running `worker` processes (e.g. multiple cron/scheduler hosts) — src/lib/database/capacity-config.ts."
+  },
+  {
+    name: "DATABASE_CAPACITY_SETUP_INSTANCES_MIN",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "0",
+    description:
+      "Minimum expected concurrent `POST /api/v1/setup/initialize` callers — src/lib/database/capacity-config.ts. Default 0: the setup wizard is not steady-state traffic."
+  },
+  {
+    name: "DATABASE_CAPACITY_SETUP_INSTANCES_EXPECTED",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "0",
+    description:
+      "Steady-state expected concurrent setup-wizard callers — src/lib/database/capacity-config.ts."
+  },
+  {
+    name: "DATABASE_CAPACITY_SETUP_INSTANCES_MAX",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "1",
+    description:
+      "Configured ceiling on concurrent setup-wizard callers — src/lib/database/capacity-config.ts."
+  },
+  {
+    name: "DATABASE_CAPACITY_PGBOUNCER_MAX_CLIENT_CONN",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ["staging", "production"],
+    default: "200",
+    description:
+      "Expected `pgbouncer.ini` max_client_conn — src/lib/database/capacity-config.ts's app-side capacity check when DATABASE_PGBOUNCER=true. Must match the operator's real pgbouncer.ini (deploy/pgbouncer/pgbouncer.ini.example) for the preflight capacity check to be meaningful; only read when DATABASE_PGBOUNCER=true."
+  },
+  {
+    name: "DATABASE_CAPACITY_PGBOUNCER_DEFAULT_POOL_SIZE",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ["staging", "production"],
+    default: "20",
+    description:
+      "Expected `pgbouncer.ini` default_pool_size — src/lib/database/capacity-config.ts's server-side (PgBouncer-to-PostgreSQL) capacity check when DATABASE_PGBOUNCER=true."
+  },
+  {
+    name: "DATABASE_CAPACITY_APPROVED_CONNECTIONS",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "100",
+    description:
+      "Approved PostgreSQL (or PgBouncer-fronted PostgreSQL) connection budget for this deployment — src/lib/database/capacity-config.ts. Defaults to PostgreSQL's own documented default max_connections (100); operators on a hosted/managed Postgres with a different approved budget MUST set this to the real approved number."
+  },
+  {
+    name: "DATABASE_CAPACITY_RESERVED_ADMIN_CONNECTIONS",
+    type: "integer",
+    required: "optional",
+    ownerModule: "database-connectivity",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "5",
+    description:
+      "Connections reserved for admin/migration/backup-restore recovery, carved out of DATABASE_CAPACITY_APPROVED_CONNECTIONS and NEVER available to app/worker/setup runtime pool sizing — src/lib/database/capacity-config.ts. `bun run db:migrate` and deploy/backup/*.sh connect ad hoc against this headroom, not a named pool."
   },
 
   // ---------------------------------------------------------------------

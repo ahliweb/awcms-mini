@@ -114,15 +114,17 @@ Ketiga variabel lain sudah opsional hari ini dan tidak berubah.
 
 ### Database & pool
 
-| Var                             | Wajib | Default                    | Sensitif | Fungsi                                                                                                                                                                                                                           |
-| ------------------------------- | ----- | -------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                  | Ya    | –                          | Ya       | Koneksi PostgreSQL (role `awcms_mini_app`)                                                                                                                                                                                       |
-| `AWCMS_MINI_APP_DB_PASSWORD`    | –     | `awcms_mini_app_password`  | Ya       | Password role `awcms_mini_app` dipakai `deploy/postgres/10-create-app-role.sh`/`docker-compose.yml` saat init container; harus sama dengan password di `DATABASE_URL`. Tidak dibaca kode TypeScript apa pun (shell/compose saja) |
-| `DATABASE_POOL_MAX`             | –     | `20`                       | –        | Maks koneksi pool                                                                                                                                                                                                                |
-| `DATABASE_STATEMENT_TIMEOUT_MS` | –     | `15000`                    | –        | Timeout statement                                                                                                                                                                                                                |
-| `DATABASE_PGBOUNCER`            | –     | `false`                    | –        | Mode PgBouncer (transaction)                                                                                                                                                                                                     |
-| `WORKER_DATABASE_URL`           | –     | fallback ke `DATABASE_URL` | Ya       | Koneksi role `awcms_mini_worker` (7 background script)                                                                                                                                                                           |
-| `SETUP_DATABASE_URL`            | –     | fallback ke `DATABASE_URL` | Ya       | Koneksi role `awcms_mini_setup` (`POST /api/v1/setup/initialize`)                                                                                                                                                                |
+| Var                             | Wajib | Default                         | Sensitif | Fungsi                                                                                                                                                                                                                           |
+| ------------------------------- | ----- | ------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | Ya    | –                               | Ya       | Koneksi PostgreSQL (role `awcms_mini_app`)                                                                                                                                                                                       |
+| `AWCMS_MINI_APP_DB_PASSWORD`    | –     | `awcms_mini_app_password`       | Ya       | Password role `awcms_mini_app` dipakai `deploy/postgres/10-create-app-role.sh`/`docker-compose.yml` saat init container; harus sama dengan password di `DATABASE_URL`. Tidak dibaca kode TypeScript apa pun (shell/compose saja) |
+| `DATABASE_POOL_MAX`             | –     | `20`                            | –        | Maks koneksi pool (role `app`; default untuk `worker`/`setup` juga, kecuali di-override — lihat §Kapasitas deployment-aware)                                                                                                     |
+| `DATABASE_POOL_MAX_WORKER`      | –     | fallback ke `DATABASE_POOL_MAX` | –        | Override maks koneksi pool khusus role `awcms_mini_worker` (Issue #743)                                                                                                                                                          |
+| `DATABASE_POOL_MAX_SETUP`       | –     | fallback ke `DATABASE_POOL_MAX` | –        | Override maks koneksi pool khusus role `awcms_mini_setup` (Issue #743)                                                                                                                                                           |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | –     | `15000`                         | –        | Timeout statement                                                                                                                                                                                                                |
+| `DATABASE_PGBOUNCER`            | –     | `false`                         | –        | Mode PgBouncer (transaction)                                                                                                                                                                                                     |
+| `WORKER_DATABASE_URL`           | –     | fallback ke `DATABASE_URL`      | Ya       | Koneksi role `awcms_mini_worker` (9 background script)                                                                                                                                                                           |
+| `SETUP_DATABASE_URL`            | –     | fallback ke `DATABASE_URL`      | Ya       | Koneksi role `awcms_mini_setup` (`POST /api/v1/setup/initialize`)                                                                                                                                                                |
 
 #### Model role database (Issue #683, epic #679, platform-hardening)
 
@@ -142,11 +144,14 @@ role Postgres, bukan dua:
    request — lihat header `sql/045...sql` untuk matriks lengkap per
    tabel.
 3. **`awcms_mini_worker`** ("background worker", `WORKER_DATABASE_URL`,
-   BARU) — 7 script cron/systemd-timer tanpa endpoint HTTP
-   (`analytics:rollup`, `analytics:purge`, `logs:audit:purge`,
-   `sync:objects:dispatch`, `email:dispatch`, `blog:publish:scheduled`,
-   `form-drafts:purge`). Nol akses ke 9 tabel global kecuali `SELECT` di
-   `awcms_mini_tenants` (untuk iterasi tenant aktif).
+   BARU) — 9 script cron/systemd-timer tanpa endpoint HTTP (jumlah
+   dikoreksi Issue #743; lihat `src/lib/database/work-class-registry.ts`'s
+   `JOB_WORK_CLASS_REGISTRY` untuk daftar hidup): `analytics:rollup`,
+   `analytics:purge`, `logs:audit:purge`, `sync:objects:dispatch`,
+   `email:dispatch`, `blog:publish:scheduled`, `form-drafts:purge`,
+   `social-publishing:dispatch`, `news-media:reconcile`. Nol akses ke 9
+   tabel global kecuali `SELECT` di `awcms_mini_tenants` (untuk iterasi
+   tenant aktif).
 4. **`awcms_mini_setup`** ("bootstrap/setup", `SETUP_DATABASE_URL`, BARU)
    — hanya `POST /api/v1/setup/initialize` (wizard setup sekali-jalan).
    Defense-in-depth di atas kunci singleton `awcms_mini_setup_state` yang
@@ -166,6 +171,47 @@ alasan yang sama. `bun run security:readiness`'s
 `checkRuntimeRoleGlobalTableGrants` adalah regression guard-nya —
 menolak (critical) migration masa depan yang tanpa sengaja memberi grant
 tambahan di salah satu dari 9 tabel global tersebut.
+
+#### Kapasitas deployment-aware (Issue #743, epic #738 platform-evolution)
+
+`src/lib/database/capacity-config.ts` memodelkan kapasitas koneksi
+LINTAS-INSTANCE — pool/work-class di atas hanya mengetahui satu proses
+sendiri, sementara kapasitas PostgreSQL/PgBouncer disetujui untuk SELURUH
+armada instance. `bun run database:capacity:check` (juga stage
+`database:capacity` di `production:preflight`) memvalidasi rumus:
+
+```text
+sum(instance_count[class] x pool_max[class]) + reserved_headroom
+  <= approved PgBouncer/PostgreSQL capacity
+```
+
+pada jumlah instance MAKS yang dikonfigurasi (skenario terburuk sebelum
+scale-out), read-only — tidak pernah mengubah konfigurasi pool/DB. Detail
+lengkap model, rumus PgBouncer vs direct-PostgreSQL, dan SOP incident
+saturasi: [`database-capacity-runbook.md`](database-capacity-runbook.md).
+
+| Var                                             | Wajib | Default | Sensitif | Fungsi                                                                                                                                         |
+| ----------------------------------------------- | ----- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_WORK_CLASS_QUEUE_MULTIPLIER`          | –     | `4`     | –        | Kedalaman antrean FIFO per work class = max konkurensi x angka ini (clamp [1,20]); penuh -> reject langsung (503 + `Retry-After`), bukan antre |
+| `DATABASE_CAPACITY_APP_INSTANCES_MIN`           | –     | `1`     | –        | Instance `app` (web/SSR) minimum yang diharapkan berjalan bersamaan                                                                            |
+| `DATABASE_CAPACITY_APP_INSTANCES_EXPECTED`      | –     | `1`     | –        | Instance `app` steady-state yang diharapkan                                                                                                    |
+| `DATABASE_CAPACITY_APP_INSTANCES_MAX`           | –     | `1`     | –        | Batas atas horizontal instance `app` — angka yang divalidasi preflight                                                                         |
+| `DATABASE_CAPACITY_WORKER_INSTANCES_MIN`        | –     | `0`     | –        | Instance `worker` minimum (script periodik, bukan daemon selalu-jalan)                                                                         |
+| `DATABASE_CAPACITY_WORKER_INSTANCES_EXPECTED`   | –     | `1`     | –        | Instance `worker` steady-state yang diharapkan                                                                                                 |
+| `DATABASE_CAPACITY_WORKER_INSTANCES_MAX`        | –     | `1`     | –        | Batas atas horizontal instance `worker`                                                                                                        |
+| `DATABASE_CAPACITY_SETUP_INSTANCES_MIN`         | –     | `0`     | –        | Instance `setup` minimum (wizard sekali-jalan, bukan trafik steady-state)                                                                      |
+| `DATABASE_CAPACITY_SETUP_INSTANCES_EXPECTED`    | –     | `0`     | –        | Instance `setup` steady-state yang diharapkan                                                                                                  |
+| `DATABASE_CAPACITY_SETUP_INSTANCES_MAX`         | –     | `1`     | –        | Batas atas horizontal instance `setup`                                                                                                         |
+| `DATABASE_CAPACITY_PGBOUNCER_MAX_CLIENT_CONN`   | –     | `200`   | –        | `pgbouncer.ini`'s `max_client_conn` yang diharapkan (dipakai hanya bila `DATABASE_PGBOUNCER=true`)                                             |
+| `DATABASE_CAPACITY_PGBOUNCER_DEFAULT_POOL_SIZE` | –     | `20`    | –        | `pgbouncer.ini`'s `default_pool_size` yang diharapkan (dipakai hanya bila `DATABASE_PGBOUNCER=true`)                                           |
+| `DATABASE_CAPACITY_APPROVED_CONNECTIONS`        | –     | `100`   | –        | Budget koneksi PostgreSQL/PgBouncer yang disetujui untuk deployment ini (default = `max_connections` default PostgreSQL)                       |
+| `DATABASE_CAPACITY_RESERVED_ADMIN_CONNECTIONS`  | –     | `5`     | –        | Koneksi dicadangkan untuk admin/migration/backup-restore — TIDAK PERNAH dipakai sizing runtime app/worker/setup                                |
+
+Default di atas sengaja aman untuk topologi LAN-first satu-instance tanpa
+PgBouncer (doc ini §Topologi deployment) — `bun run database:capacity:check`
+harus PASS tanpa satu pun env var ini di-set. Naikkan
+`DATABASE_CAPACITY_APP_INSTANCES_MAX` (dan var terkait lain) hanya saat
+benar-benar scale-out horizontal; lihat runbook untuk contoh perhitungan.
 
 ### Auth & keamanan
 

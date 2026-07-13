@@ -21,10 +21,14 @@ mutates its target even when it blocks go-live is not safe to run
 repeatedly, which defeats the point of a preflight.
 
 `bun run production:preflight` is now **read-only by default**. It runs
-eight stages (`config:validate`, `security:readiness`, `db:connectivity`,
-`api:spec:check`, `test`, `build`, `db:pool:health`, `migration:plan`) and
-reports a go/no-go verdict — none of them write to the database. Applying
-pending migrations is a separate, explicit, gated action.
+nine stages (`config:validate`, `security:readiness`, `database:capacity`
+— Issue #743, epic #738 platform-evolution, deployment-aware connection-
+capacity budget check, see
+[`database-capacity-runbook.md`](database-capacity-runbook.md) —
+`db:connectivity`, `api:spec:check`, `test`, `build`, `db:pool:health`,
+`migration:plan`) and reports a go/no-go verdict — none of them write to
+the database. Applying pending migrations is a separate, explicit, gated
+action.
 
 ## Stage 1 — Rehearsal (staging, always first)
 
