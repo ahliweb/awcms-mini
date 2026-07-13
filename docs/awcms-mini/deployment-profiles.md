@@ -716,14 +716,15 @@ daftar lengkap dan alasan tiap job dimiliki modul mana. Dua kategori:
 `email:dispatch` di atas (ganti nama command pada contoh crontab),
 idempoten/aman dijalankan berulang, no-op aman bila fiturnya nonaktif:
 
-| Command                 | Modul             | Jadwal disarankan                                        |
-| ----------------------- | ----------------- | -------------------------------------------------------- |
-| `sync:objects:dispatch` | sync_storage      | Setiap 1-2 menit                                         |
-| `logs:audit:purge`      | logging           | Harian                                                   |
-| `form-drafts:purge`     | form_drafts       | Harian                                                   |
-| `analytics:rollup`      | visitor_analytics | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai) |
-| `analytics:purge`       | visitor_analytics | Harian, setelah `analytics:rollup`                       |
-| `news-media:reconcile`  | news_portal       | Harian (Issue #690)                                      |
+| Command                  | Modul                | Jadwal disarankan                                        |
+| ------------------------ | -------------------- | -------------------------------------------------------- |
+| `sync:objects:dispatch`  | sync_storage         | Setiap 1-2 menit                                         |
+| `logs:audit:purge`       | logging              | Harian                                                   |
+| `form-drafts:purge`      | form_drafts          | Harian                                                   |
+| `analytics:rollup`       | visitor_analytics    | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai) |
+| `analytics:purge`        | visitor_analytics    | Harian, setelah `analytics:rollup`                       |
+| `news-media:reconcile`   | news_portal          | Harian (Issue #690)                                      |
+| `domain-events:dispatch` | domain_event_runtime | Setiap 30-60 detik (Issue #742)                          |
 
 Semua bersifat operasi database murni (kecuali `sync:objects:dispatch`
 yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`, dan
@@ -740,6 +741,18 @@ TIDAK berguna di profil offline/LAN murni (`NEWS_MEDIA_R2_ENABLED` selalu
 saat fiturnya nonaktif, tapi hanya benar-benar melakukan sesuatu di
 deployment full-online dengan R2-only news media aktif
 (`docs/awcms-mini/news-portal/r2-backup-lifecycle.md` §Operator SOP).
+
+`domain-events:dispatch` (Issue #742) adalah operasi PostgreSQL/in-process
+murni — tidak ada broker eksternal wajib, tidak ada panggilan jaringan
+sama sekali untuk dua reference consumer bawaan modul ini — aman
+dijadwalkan di profil offline/LAN tanpa syarat, beda dari
+`sync:objects:dispatch`/`news-media:reconcile` di atas. Jadwal 30-60 detik
+lebih rapat dari dispatcher lain di tabel ini karena outbox generik ini
+dirancang untuk fan-out lintas-consumer dengan ordering per-key — backlog
+yang menumpuk pada satu consumer/aggregate memblokir HANYA aggregate itu
+sendiri (lihat `src/modules/domain-event-runtime/README.md` §Ordering),
+jadi interval pendek menjaga lag tetap rendah tanpa risiko menghantam
+provider eksternal (tidak ada).
 
 `analytics:rollup` (Issue #624) tanpa argumen merangkum "kemarin" (UTC) —
 `--date=YYYY-MM-DD` untuk satu tanggal spesifik atau

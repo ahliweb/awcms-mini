@@ -5,6 +5,8 @@
 > **Lapisan ekstensi (epic #738).** Semua aplikasi turunan di dokumen ini hidup di lapisan **Derived Application** — satu dari tiga lapisan "di luar base" (Derived Application generik, SaaS Control Plane, ERP Extension) yang didefinisikan `docs/adr/0013-extension-layers-and-boundary-model.md`. ADR itu juga mendefinisikan batas tenant vs legal entity vs organization unit, dan aturan "no shared-table write" untuk kolaborasi lintas-repo — baca sebelum aplikasi turunan Anda perlu berbagi data dengan repo turunan lain (mis. sebuah SaaS billing control-plane yang menagih tenant yang sama).
 >
 > **Komposisi modul build-time (Issue #740, ADR-0014).** Sejak Issue #740, aplikasi turunan **tidak lagi perlu mengedit `src/modules/index.ts`** untuk mendaftarkan modul domainnya. Ganti nilai `undefined` di `src/modules/application-registry.ts` milik repo turunan Anda dengan `ApplicationModuleRegistry` sendiri (`{ id, modules, migrationNamespace? }`, tipe di `_shared/module-contract.ts`) — satu-satunya file yang perlu diedit. `composeModuleRegistry()` (`module-management/domain/module-composition.ts`) menggabungkan registry base + registry Anda dan memvalidasi key/dependency DAG/capability binding/migration-namespace/deployment-profile sebelum build dianggap sah. Lihat `docs/adr/0014-deterministic-build-time-module-composition.md` untuk keputusan lengkap dan `tests/fixtures/derived-application-example/` untuk contoh nyata yang bisa langsung dijalankan (`bun test tests/unit/module-composition-fixture.test.ts`).
+>
+> **Manifest kompatibilitas (Issue #741, ADR-0015).** Komposisi modul (di atas) membuktikan registry Anda VALID hari ini — bukan bahwa dia TETAP kompatibel begitu base ini merilis versi baru. Publikasikan `extension.manifest.json` di root repo turunan Anda (skema: `src/modules/_shared/extension-manifest-contract.ts`, contoh nyata: `tests/fixtures/derived-application-example/extension.manifest.json`) mendeklarasikan range SemVer base yang kompatibel, versi module-contract/capability yang Anda pakai, namespace+checksum historis migration Anda, profil deployment yang wajib didukung, dan versi kontrak OpenAPI/AsyncAPI yang Anda konsumsi. `bun run extension:check` (`scripts/extension-check.ts`) memvalidasinya — jalan identik di repo base ini maupun repo turunan Anda (bagian dari `bun run check`, `.github/workflows/ci.yml`, dan `bun run production:preflight`, sehingga manifest yang tidak kompatibel benar-benar memblokir CI/deployment, bukan sekadar laporan berdiri sendiri). Lihat `docs/adr/0015-derived-application-compatibility-manifest.md` untuk keputusan lengkap dan `tests/fixtures/extension-contract-incompatible/` untuk delapan contoh kegagalan yang masing-masing berbeda alasan.
 
 ## Base reusable vs domain-specific extension
 
@@ -41,7 +43,7 @@ Setiap langkah dipetakan ke skill nyata (`.claude/skills/`) — panggil skill it
 6. **UI/admin screen** — token desain, 4-state pattern (loading/empty/error/ready), a11y WCAG 2.1 AA, string via katalog `.po` (bukan hardcode). Skill: `awcms-mini-ui-screen` (layar baru), `awcms-mini-i18n` (katalog terjemahan), `awcms-mini-ux-review` (audit layar yang sudah jadi). Untuk input panjang/bertahap (identitas → detail → lampiran → review) — skill `awcms-mini-wizard-form` (reusable wizard pattern, Issue #479).
 7. **Audit & observability** — aksi high-risk domain (approve, price change, transaksi posted/cancel, dst.) wajib `recordAuditEvent`. Skill: `awcms-mini-audit-log` (apa yang diaudit), `awcms-mini-observability` (correlation ID otomatis, retensi/purge, extension point bila aplikasi turunan butuh forward ke SIEM eksternal).
 8. **Test berlapis + security review** — unit (domain logic murni), integration (endpoint terhadap Postgres nyata), kontrak (`api:spec:check`), keamanan (ABAC default-deny, RLS FORCE, redaksi). Skill: `awcms-mini-testing`, `awcms-mini-security-review` (checklist DoD per modul), `awcms-mini-security-hardening` (audit OWASP/ASVS/ISO bila menjelang audit eksternal/go-live besar).
-9. **Deployment & go-live** — `bun run production:preflight` (orkestrasi migrate → api:spec:check → test → build → db:pool:health → security:readiness). Skill: `awcms-mini-production-preflight`. Pilih & jalankan profil deployment (doc `deployment-profiles.md`): LAN-first (`docker-compose.yml`) atau registry-based (`Dockerfile.production`, Issue #454; panduan Coolify di [`deploy-coolify.md`](deploy-coolify.md), Issue #462) — skill `awcms-mini-deploy`.
+9. **Deployment & go-live** — `bun run production:preflight` (orkestrasi migrate → api:spec:check → modules:compose:check → extension:check → test → build → db:pool:health → security:readiness; `extension:check` memvalidasi `extension.manifest.json` Anda bila sudah dipublikasikan, Issue #741/ADR-0015). Skill: `awcms-mini-production-preflight`. Pilih & jalankan profil deployment (doc `deployment-profiles.md`): LAN-first (`docker-compose.yml`) atau registry-based (`Dockerfile.production`, Issue #454; panduan Coolify di [`deploy-coolify.md`](deploy-coolify.md), Issue #462) — skill `awcms-mini-deploy`.
 
 Orkestrasi satu unit kerja penuh (baca docs → implementasi → migration/OpenAPI/AsyncAPI/test/docs → laporan): skill `awcms-mini-implement-issue`.
 
@@ -98,6 +100,16 @@ Wajib dipenuhi modul domain baru sebelum dianggap siap produksi (turunan dari do
   `src/modules/application-registry.ts` tanpa mengedit `src/modules/
 index.ts` base, taksonomi kegagalan komposisi, dan konvensi namespace
   migration (Issue #740).
+- [`docs/adr/0015-derived-application-compatibility-manifest.md`](../adr/0015-derived-application-compatibility-manifest.md)
+  — skema `extension.manifest.json`, kebijakan versioning module-contract/
+  capability/manifest-schema, immutabilitas checksum migration historis,
+  dan di mana `bun run extension:check` benar-benar memblokir CI/preflight
+  (Issue #741).
+- [`extension-compatibility-policy.md`](extension-compatibility-policy.md)
+  — kebijakan compatibility/deprecation/support-window lengkap untuk
+  keenam skema versioning independen (package, REST, event, module
+  contract, capability, manifest schema), termasuk cara breaking capability
+  change dikomunikasikan dan panduan memilih `compatibleAwcmsMiniRange`.
 - [`21_module_admission_governance.md`](21_module_admission_governance.md)
   — pohon keputusan admission yang menentukan kategori sebuah kemampuan
   baru (Core/System/Official Optional Module/Derived Application/External
