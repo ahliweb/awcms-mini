@@ -134,36 +134,45 @@ flowchart LR
 
 ## Matrix Modul vs Migration
 
-| Modul                 | Migration                                                                      |
-| --------------------- | ------------------------------------------------------------------------------ |
-| Foundation            | `001_awcms_mini_foundation_schema.sql`                                         |
-| Tenant Admin          | `002_awcms_mini_tenant_identity_schema.sql`                                    |
-| Catalog Inventory     | `003_awcms_mini_catalog_inventory_schema.sql`                                  |
-| Sales POS             | `004_awcms_mini_sales_pos_schema.sql`                                          |
-| Sync Storage          | `005_awcms_mini_sync_storage_r2_schema.sql`                                    |
-| CRM                   | `006_awcms_mini_crm_receipt_communication_schema.sql`                          |
-| Accounting Tax        | `007_awcms_mini_accounting_tax_coretax_schema.sql`                             |
-| AI                    | `008_awcms_mini_ai_hermes_business_analyst_schema.sql`                         |
-| i18n                  | `009_awcms_mini_i18n_po_schema.sql`                                            |
-| Theme                 | `010_awcms_mini_theme_mode_schema.sql`                                         |
-| ABAC                  | `011_awcms_mini_abac_access_control_schema.sql`                                |
-| Contracts             | `012_awcms_mini_modular_monolith_contracts_schema.sql`                         |
-| Logging               | `013_awcms_mini_logging_observability_schema.sql`                              |
-| Profile               | `014_awcms_mini_central_profile_management_schema.sql`                         |
-| Profile Stabilization | `015_awcms_mini_profile_stabilization_schema.sql`                              |
-| Workflow              | `016_awcms_mini_workflow_approval_audit_schema.sql`                            |
-| Reporting             | `017_awcms_mini_management_dashboard_reporting_schema.sql`                     |
-| Legacy Migration      | `018_awcms_mini_legacy_migration_backfill_toolkit_schema.sql`                  |
-| Performance Sync      | `019_awcms_mini_performance_sync_validation_schema.sql`                        |
-| Production Security   | `020_awcms_mini_production_security_readiness_schema.sql`                      |
-| DB Pooling            | `021_awcms_mini_database_connection_pooling_schema.sql`                        |
-| UI Experience         | `022_awcms_mini_ui_ux_persona_experience_schema.sql`                           |
-| Warehouse             | `023_awcms_mini_warehouse_management_schema.sql`                               |
-| Idempotency           | `024_awcms_mini_transaction_integrity_idempotency_hardening.sql`               |
-| Setup Wizard          | `025_awcms_mini_setup_wizard_extension.sql`                                    |
-| Dashboard Views       | `026_awcms_mini_dashboard_materialized_views.sql`                              |
-| Module Management     | `sql/025_awcms_mini_module_management_schema.sql` (epic #510, Issue #511-#521) |
-| Blog Content          | `sql/026`-`030_awcms_mini_blog_content_*.sql` (epic #536, Issue #537-#543)     |
+Sumber: `docs/awcms-mini/repo-inventory.md` §Migrations (GENERATED via
+`bun run repo:inventory:generate`) dan `src/modules/index.ts`, keduanya
+dibaca ulang saat menulis tabel ini. **55 file migration nyata** di
+`sql/` (`001`..`055`), dipetakan ke **16 modul terdaftar**. Tabel ini
+menggantikan versi sebelumnya yang mengutip nama file fiktif (mis.
+`003_awcms_mini_catalog_inventory_schema.sql`,
+`004_awcms_mini_sales_pos_schema.sql`) dari sebuah sistem POS/retail yang
+tidak pernah dibangun di repo base ini — berbeda dari tabel-tabel lain di
+dokumen ini yang sengaja memakai domain retail/POS **ilustratif** (lihat
+banner di puncak dokumen), tabel ini secara spesifik mendokumentasikan
+struktur repo NYATA, sehingga mengikuti data real, bukan ilustrasi.
+
+| Modul (`key`)                | Migration                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(Foundation, lintas-modul)_ | `001_awcms_mini_foundation_schema.sql`, `013_awcms_mini_enforce_rls_least_privilege.sql`, `045_awcms_mini_db_role_separation.sql`                                                                                                                                                                                                                                                                                                                                               |
+| `tenant_admin`               | `002_awcms_mini_tenant_office_schema.sql`, `006_awcms_mini_setup_wizard_schema.sql`, `015_awcms_mini_tenant_settings_management_permission_schema.sql`, `016_awcms_mini_tenant_default_locale_english_schema.sql`                                                                                                                                                                                                                                                               |
+| `profile_identity`           | `003_awcms_mini_central_profile_management_schema.sql`                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `identity_access`            | `004_awcms_mini_identity_login_schema.sql`, `005_awcms_mini_abac_access_control_schema.sql`, `022_awcms_mini_password_reset_schema.sql`, `034_awcms_mini_mfa_totp_schema.sql`, `035_awcms_mini_google_oidc_schema.sql`, `036_awcms_mini_tenant_oidc_sso_schema.sql`, `037_awcms_mini_tenant_oidc_sso_permissions.sql`                                                                                                                                                           |
+| `sync_storage`               | `007_awcms_mini_sync_storage_outbox_inbox_schema.sql`, `008_awcms_mini_sync_storage_conflict_schema.sql`, `009_awcms_mini_object_sync_queue_schema.sql`, `014_awcms_mini_sync_node_management_permission_schema.sql`, `017_awcms_mini_sync_queue_conflict_performance_indexes.sql`, `018_awcms_mini_object_sync_queue_dispatcher_schema.sql`                                                                                                                                    |
+| `reporting`                  | `010_awcms_mini_management_reporting_permission_schema.sql`                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `logging`                    | `011_awcms_mini_audit_logging_schema.sql`, `047_awcms_mini_observability_metrics_permission.sql`                                                                                                                                                                                                                                                                                                                                                                                |
+| `workflow`                   | `012_awcms_mini_workflow_approval_schema.sql`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `form_drafts`                | `019_awcms_mini_form_drafts_schema.sql`                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `email`                      | `020_awcms_mini_email_schema.sql`, `021_awcms_mini_email_template_i18n_schema.sql`, `023_awcms_mini_email_announcement_permission_schema.sql`, `024_awcms_mini_email_message_cancel_permission_schema.sql`                                                                                                                                                                                                                                                                      |
+| `module_management`          | `025_awcms_mini_module_management_schema.sql` (epic #510, Issue #511-#521)                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `blog_content`               | `026_awcms_mini_blog_content_schema.sql`, `027_awcms_mini_blog_content_permissions.sql`, `028_awcms_mini_blog_content_search_vector.sql`, `029_awcms_mini_blog_content_presentation_schema.sql`, `030_awcms_mini_blog_content_presentation_permissions.sql`, `050_awcms_mini_blog_posts_seo_image.sql`, `051_awcms_mini_blog_content_internal_tag_links_schema.sql`, `052_awcms_mini_blog_content_internal_tag_links_permissions.sql` (epic #536, Issue #537-#543 + follow-ups) |
+| `tenant_domain`              | `031_awcms_mini_tenant_domain_schema.sql`, `032_awcms_mini_tenant_domain_permissions.sql`, `033_awcms_mini_tenant_domain_lookup_function.sql`                                                                                                                                                                                                                                                                                                                                   |
+| `visitor_analytics`          | `038_awcms_mini_visitor_analytics_permissions.sql`, `039_awcms_mini_visitor_analytics_schema.sql`, `040_awcms_mini_visitor_analytics_session_lookup_index.sql`                                                                                                                                                                                                                                                                                                                  |
+| `news_portal`                | `041_awcms_mini_news_media_object_registry_schema.sql`, `042_awcms_mini_news_media_permissions.sql`, `043_awcms_mini_news_portal_tenant_state_schema.sql`, `044_awcms_mini_news_portal_homepage_sections_schema.sql`, `046_awcms_mini_news_media_orphan_lifecycle.sql`, `049_awcms_mini_news_portal_ad_placements_schema.sql`                                                                                                                                                   |
+| `idn_admin_regions`          | `048_awcms_mini_idn_admin_regions_permissions.sql`, `054_awcms_mini_idn_admin_regions_schema.sql`                                                                                                                                                                                                                                                                                                                                                                               |
+| `social_publishing`          | `053_awcms_mini_social_publishing_schema.sql`, `055_awcms_mini_social_publishing_verify_permission.sql`                                                                                                                                                                                                                                                                                                                                                                         |
+
+Tiga migration di baris "Foundation, lintas-modul" tidak dipetakan ke
+satu modul karena sifatnya benar-benar lintas-modul: `001` adalah
+bootstrap murni (ledger migrasi + extension Postgres, sebelum modul
+apa pun terdaftar); `013` dan `045` adalah hardening keamanan
+lintas-tabel (RLS enforcement, pemisahan role DB least-privilege) yang
+menyentuh tabel banyak modul sekaligus, bukan schema satu modul — lihat
+`docs/awcms-mini/20_threat_model_security_architecture.md`.
 
 ## Matrix Modul vs Security Control
 
@@ -334,7 +343,7 @@ Alasan:
 - `AGENTS.md`
 - `README.md`
 - `CHANGELOG.md` + `.changeset/` (versioning via Changesets)
-- `.claude/skills/` (29 skill proyek + katalog README)
+- `.claude/skills/` (39 skill proyek + katalog README)
 - `.claude/agents/` (3 subagent: coder, reviewer, security-auditor)
 - `package.json`
 - `astro.config.mjs`
@@ -356,23 +365,31 @@ Tiap folder standar menyertakan `README.md` sebagai kontrak isi/aturan folder:
 
 ### Source modules
 
-- `_shared`
-- tenant-admin
+16 modul terdaftar nyata di `src/modules/index.ts` (`ls -d src/modules/*/`,
+dikonfirmasi `bun run modules:dag:check` — "16 registered modules"),
+menggantikan daftar fiktif sebelumnya (`catalog-inventory`, `sales-pos`,
+`warehouse-management`, `accounting-tax`, `crm-communication`,
+`ai-analyst`, `observability-logging`, `database-connectivity`,
+`ui-experience`, `production-security-readiness` — tidak satu pun folder
+ini pernah ada di repo base):
+
+- `_shared` (bukan modul terdaftar — kontrak/helper lintas-modul)
+- blog-content
+- email
+- form-drafts
 - identity-access
+- idn-admin-regions
+- logging
+- module-management
+- news-portal
 - profile-identity
-- catalog-inventory
-- sales-pos
-- warehouse-management
-- accounting-tax
-- crm-communication
+- reporting
+- social-publishing
 - sync-storage
-- ai-analyst
-- observability-logging
-- database-connectivity
+- tenant-admin
+- tenant-domain
+- visitor-analytics
 - workflow-approval
-- management-reporting
-- ui-experience
-- production-security-readiness
 
 ### Docs
 

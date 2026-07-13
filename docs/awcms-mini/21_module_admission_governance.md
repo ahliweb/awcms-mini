@@ -7,12 +7,14 @@
 ## 1. Konteks dan tujuan
 
 Repo ini awalnya dideskripsikan sebagai base generik dengan sedikit modul
-domain. Registry sekarang berisi **14 modul terdaftar** (`src/modules/
-index.ts`), termasuk dua modul domain nyata (`blog_content`, `news_portal`)
-yang didaftarkan langsung di base (pengecualian yang sudah didokumentasikan
-di `AGENTS.md` §Peta modul), serta rencana modul region/Hermes di masa
-depan. Sebelum modul produk baru masuk ke base, admission dan ownership
-rules harus eksplisit — itulah tujuan dokumen ini.
+domain. Registry sekarang berisi **16 modul terdaftar** (`src/modules/
+index.ts`), termasuk tiga modul domain nyata (`blog_content`, `news_portal`,
+`social_publishing`) yang didaftarkan langsung di base (pengecualian yang
+sudah didokumentasikan di `AGENTS.md` §Peta modul), modul `idn_admin_regions`
+yang sudah terdaftar sebagai scaffold eksperimental (`status: "experimental"`,
+belum ada schema/API/UI — lihat §8), serta rencana modul Hermes-agent di masa
+depan yang belum dimulai. Sebelum modul produk baru masuk ke base, admission
+dan ownership rules harus eksplisit — itulah tujuan dokumen ini.
 
 Dokumen ini mendefinisikan:
 
@@ -24,7 +26,7 @@ Dokumen ini mendefinisikan:
    runtime code upload/install/marketplace.
 5. Proposal template ringan + architecture decision checklist
    (`docs/awcms-mini/templates/`).
-6. Pemetaan 14 modul saat ini ke kategori + remediasi yang terdeteksi.
+6. Pemetaan 16 modul saat ini ke kategori + remediasi yang terdeteksi.
 
 **Yang TIDAK berubah oleh dokumen ini** (guardrail keras epic #679, tidak
 dilonggarkan): registry tetap **statis, tepercaya, hanya lewat kode yang
@@ -250,9 +252,9 @@ eksplisit sesuai permintaan Issue #696):
    semacam ini **ditolak di tahap pohon keputusan §3** (node Q5), tanpa
    pengecualian implementasi apa pun.
 
-## 8. Peta 14 modul saat ini → kategori
+## 8. Peta 16 modul saat ini → kategori
 
-Sumber kebenaran: `src/modules/index.ts` (14 entri) dan setiap `module.ts`-
+Sumber kebenaran: `src/modules/index.ts` (16 entri) dan setiap `module.ts`-
 nya. Kolom **Owner** mengikuti `.github/CODEOWNERS` (satu maintainer,
 `@ahliweb`, untuk seluruh repo hari ini) karena field opsional
 `ModuleDescriptor.maintainers` belum diisi di modul manapun — lihat
@@ -274,12 +276,28 @@ remediasi R3 di bawah.
 | `workflow`          | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
 | `blog_content`      | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `news_portal`       | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `social_publishing` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 
-Total: 3 Core + 9 System + 2 Official Optional Module = 14, cocok dengan
-`src/modules/index.ts`. Tidak ada modul kategori Derived Application atau
-External Integration top-level di registry ini hari ini (sesuai definisi
-§2 — integration hidup sebagai sub-komponen, lihat kolom "provider
-eksternal" di bawah).
+Total: 3 Core + 9 System + 3 Official Optional Module = 15 dari 16 modul
+terdaftar diklasifikasikan di tabel ini, cocok dengan `src/modules/
+index.ts`. Tidak ada modul kategori Derived Application atau External
+Integration top-level di registry ini hari ini (sesuai definisi §2 —
+integration hidup sebagai sub-komponen, lihat kolom "provider eksternal"
+di bawah).
+
+**Modul ke-16, `idn_admin_regions`, sengaja tidak dimasukkan ke tabel di
+atas.** Descriptor-nya (`src/modules/idn-admin-regions/module.ts`) men-set
+`type: "base"`, yang secara literal memetakan ke Core per §2 — tapi
+komentarnya sendiri menyebutnya "reusable reference/master data
+infrastructure every derived application can depend on", jauh lebih dekat
+secara konsep ke kandidat primitif masa depan **`reference_data`**
+(Official Optional Business Foundation) daripada ke definisi Core §4.1
+("platform tidak bisa boot/berfungsi tanpanya" — jelas tidak berlaku untuk
+modul yang masih `status: "experimental"` tanpa schema/API/UI apa pun).
+Mengikuti preseden `docs/adr/0013-extension-layers-and-boundary-model.md`
+§1: dokumen ini juga **tidak** memutuskan kategori final `idn_admin_regions`
+di sini — itu reklasifikasi yang butuh admission decision tersendiri (§9)
+— hanya mencatat tumpang tindih konseptual ini secara eksplisit.
 
 **Provider eksternal yang dibungkus tiap modul System/Optional** (kategori
 External Integration menurut §2, bukan entri registry terpisah):
@@ -294,13 +312,14 @@ External Integration menurut §2, bukan entri registry terpisah):
 
 ### Remediasi yang terdeteksi (bukan blocker rilis dokumen ini — tercatat sebagai follow-up)
 
-1. **R1 — `type` tidak konsisten diisi.** Hanya 5 dari 14 modul
+1. **R1 — `type` tidak konsisten diisi.** Hanya 7 dari 16 modul
    (`module_management`, `tenant_domain`, `visitor_analytics` = `system`;
-   `blog_content`, `news_portal` = `domain`) men-set field `type` di
-   `module.ts`. 9 modul lain (`tenant_admin`, `identity_access`,
-   `profile_identity`, `logging`, `sync_storage`, `email`, `form_drafts`,
-   `reporting`, `workflow`) meninggalkannya `undefined`, walau kategori
-   efektifnya sudah jelas dari deskripsi + posisi dependency graph.
+   `blog_content`, `news_portal`, `social_publishing` = `domain`;
+   `idn_admin_regions` = `base`) men-set field `type` di `module.ts`. 9
+   modul lain (`tenant_admin`, `identity_access`, `profile_identity`,
+   `logging`, `sync_storage`, `email`, `form_drafts`, `reporting`,
+   `workflow`) meninggalkannya `undefined`, walau kategori efektifnya
+   sudah jelas dari deskripsi + posisi dependency graph.
    **Rekomendasi**: issue follow-up terpisah untuk mengisi `type` di
    sembilan modul ini agar cocok dengan tabel §8 (`base`/`"core"` untuk
    tiga modul Core — catatan: `ModuleType` union saat ini tidak punya nilai
@@ -327,7 +346,7 @@ External Integration menurut §2, bukan entri registry terpisah):
    sepihak dokumen governance.
 3. **R3 — `maintainers` tidak pernah diisi.** Field opsional
    `ModuleDescriptor.maintainers?: string[]` ada di kontrak sejak awal
-   tapi 0 dari 14 modul mengisinya — ownership hari ini murni berasal dari
+   tapi 0 dari 16 modul mengisinya — ownership hari ini murni berasal dari
    `.github/CODEOWNERS` (satu maintainer untuk seluruh repo). Tidak masalah
    selama tim tetap satu maintainer, tapi tabel §8 akan butuh diperbarui
    dari `maintainers` per modul, bukan CODEOWNERS repo-wide, begitu tim

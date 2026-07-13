@@ -5,6 +5,18 @@
 - **Pengambil keputusan:** @ahliweb
 - **Terkait:** Issue #696 (epic #679, platform-hardening), Issue #510 (epic Module Management), `docs/awcms-mini/21_module_admission_governance.md` (detail lengkap), ADR-0001, ADR-0002, ADR-0008, ADR-0011
 
+> **Catatan currency (2026-07-13).** Angka "14 modul" di Konteks/Keputusan
+> di bawah adalah snapshot saat ADR ini di-Accept (Issue #696) dan
+> **sengaja tidak diperbarui di sini** — kebijakan `docs/adr/README.md`:
+> ADR yang sudah Accepted tidak ditulis ulang diam-diam saat fakta
+> bergeser, hanya lewat ADR baru/superseding. Jumlah modul terdaftar
+> sudah bertambah sejak itu (16 modul, dikonfirmasi `bun run
+modules:dag:check`); figur terkini dan pemetaan kategori dua modul yang
+> lebih baru (`social_publishing`, `idn_admin_regions`) ada di
+> `docs/adr/0013-extension-layers-and-boundary-model.md` §1 dan
+> `docs/awcms-mini/21_module_admission_governance.md` §8 — rujuk keduanya
+> untuk angka terkini, bukan angka di bawah.
+
 ## Konteks
 
 Registry modul (`src/modules/index.ts`) tumbuh dari base generik ke 14
