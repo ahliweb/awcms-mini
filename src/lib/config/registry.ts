@@ -1492,6 +1492,81 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
   },
 
   // ---------------------------------------------------------------------
+  // Social publishing — Meta (Facebook Page + Instagram Business) adapter
+  // (Issue #644, epic `social_publishing` #643-#647)
+  // ---------------------------------------------------------------------
+  {
+    name: "META_PROVIDER_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default: "false",
+    description:
+      "Adapter-level switch for the Meta (Facebook Page + Instagram Business) provider — independent of SOCIAL_PUBLISHING_ENABLED (a deployment can run social publishing with only a different provider configured). src/modules/social-publishing/domain/meta-provider-config.ts.",
+    validatorGroup: "checkMetaSocialPublishingProviderConfig"
+  },
+  {
+    name: "META_APP_ID",
+    type: "string",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      "Meta App ID (developers.facebook.com) — required when META_PROVIDER_ENABLED=true. Not a credential by itself (public, used in appAccessToken construction alongside the app secret).",
+    validatorGroup: "checkMetaSocialPublishingProviderConfig"
+  },
+  {
+    name: "META_APP_SECRET_REFERENCE",
+    type: "string",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      "Opaque reference into external secret storage for the Meta App Secret — required when META_PROVIDER_ENABLED=true. NEVER the raw app secret (rejected by checkMetaSocialPublishingProviderConfig if it looks like one — reuses social-account-validation.ts's looksLikeRawSecretToken, the same heuristic that protects awcms_mini_social_accounts.token_reference). Resolved to a real value the same way an account's token_reference is (meta-token-reference-resolver.ts) — only the \"env:VAR_NAME\" scheme is concretely supported today (no real secret-manager integration in this repo yet).",
+    validatorGroup: "checkMetaSocialPublishingProviderConfig"
+  },
+  {
+    name: "META_GRAPH_API_VERSION",
+    type: "string",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default: "v21.0",
+    description:
+      "Graph API version this adapter targets (e.g. \"v21.0\") — required when META_PROVIDER_ENABLED=true. Operator responsibility to keep current with Meta's own deprecation schedule; only shape-validated here (^v\\d{1,2}\\.\\d{1,2}$), never checked against Meta's actually-supported versions.",
+    validatorGroup: "checkMetaSocialPublishingProviderConfig"
+  },
+  {
+    name: "META_OAUTH_REDIRECT_URI",
+    type: "url",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      "Absolute HTTPS OAuth redirect URI registered in the Meta App dashboard — required when META_PROVIDER_ENABLED=true. Documented for app-review/Meta-dashboard configuration purposes; this issue ships no live OAuth authorization-code exchange route (accounts are connected via the existing generic POST /api/v1/social-publishing/accounts admin form, same as every other provider in this foundation) — see docs/awcms-mini/18_configuration_env_reference.md's Social publishing section.",
+    validatorGroup: "checkMetaSocialPublishingProviderConfig"
+  },
+  {
+    name: "META_REQUIRED_SCOPES",
+    type: "csv",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default:
+      "pages_manage_posts,pages_read_engagement,instagram_content_publish",
+    description:
+      "Comma-separated least-privilege Meta permission scopes this deployment requires a connected account's token to carry — required when META_PROVIDER_ENABLED=true. Enforced two ways: checkMetaSocialPublishingProviderConfig validates the list is non-empty/well-formed at boot, and the live 'verify connection' admin action (POST /api/v1/social-publishing/accounts/{id}/verify) compares this list against Meta's own debug_token response for a specific connected account.",
+    validatorGroup: "checkMetaSocialPublishingProviderConfig"
+  },
+
+  // ---------------------------------------------------------------------
   // Social publishing — LinkedIn organization-page adapter (Issue #645,
   // epic `social_publishing` #643-#647). Independent of
   // SOCIAL_PUBLISHING_ENABLED/_PROFILE above — a deployment can run the

@@ -460,6 +460,30 @@ export async function dispatchSocialPublishQueue(
             errorCode: "missing_token_reference",
             errorMessage: "Connected account has no token reference on file."
           };
+        } else if (
+          adapter.supportedAccountTypes &&
+          !adapter.supportedAccountTypes.includes(
+            accountCredentials.providerAccountType
+          )
+        ) {
+          // Issue #644 review follow-up (blocking): connect-time validation
+          // (`validateCreateSocialAccountInput`) only checks
+          // `providerAccountType` against the generic 5-value enum shared
+          // by every provider — it never cross-checks against the adapter
+          // actually registered for the submitted `providerKey`, so this is
+          // the one place in the REAL dispatch pipeline that can enforce
+          // "Instagram/Facebook Page publishing validates account
+          // eligibility ... before job execution" (Issue #644 acceptance
+          // criterion) and the explicit out-of-scope rule against personal
+          // profile/personal Instagram posting. Non-retryable — the
+          // account's type never changes on its own; a human must
+          // reconnect it as a supported type.
+          finalizeInput = {
+            kind: "failed",
+            errorCode: "unsupported_account_type",
+            errorMessage: `Provider "${job.provider_key}" does not support account type "${accountCredentials.providerAccountType}".`,
+            retryable: false
+          };
         } else {
           try {
             const publishResult = await withTimeout(

@@ -22,8 +22,12 @@ import type { Translator } from "./translate";
  * `SSO_MISCONFIGURED`/`SSO_PROVIDER_KEY_CONFLICT`/`BREAK_GLASS_REQUIRED`/
  * `PASSWORD_LOGIN_DISABLED`/Issue #638's `AD_PLACEMENT_REFERENCE_INVALID`)
  * and Issue #640's content quality checklist code
- * (`CONTENT_QUALITY_CHECKLIST_BLOCKED`) to i18n catalog keys
- * under the `error.` namespace. Used both server-side (SSR error panels)
+ * (`CONTENT_QUALITY_CHECKLIST_BLOCKED`) and Issue #644's
+ * `SOCIAL_ACCOUNT_UNSUPPORTED_TYPE` (connect-time AND dispatch-time
+ * rejection of a `providerAccountType` the submitted `providerKey`'s
+ * registered adapter doesn't support, e.g. a Meta account connected as
+ * `"profile"`) to i18n catalog keys under the `error.` namespace. Used
+ * both server-side (SSR error panels)
  * and to build the
  * client-string JSON blob admin pages inline for their fetch-based action
  * banners (see `AdminLayout.astro`'s client i18n script pattern).
@@ -89,7 +93,8 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
     "error.homepage_section_reference_invalid",
   HOMEPAGE_SECTION_KEY_CONFLICT: "error.homepage_section_key_conflict",
   AD_PLACEMENT_REFERENCE_INVALID: "error.ad_placement_reference_invalid",
-  CONTENT_QUALITY_CHECKLIST_BLOCKED: "error.content_quality_checklist_blocked"
+  CONTENT_QUALITY_CHECKLIST_BLOCKED: "error.content_quality_checklist_blocked",
+  SOCIAL_ACCOUNT_UNSUPPORTED_TYPE: "error.social_account_unsupported_type"
 };
 
 /**

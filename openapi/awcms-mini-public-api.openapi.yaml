@@ -7227,6 +7227,12 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: The registered provider adapter for `providerKey` (Issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/social-publishing/accounts/{id}:
@@ -7394,7 +7400,7 @@ paths:
       tags:
         - Social Publishing
       summary: Verify a connected account can be posted to
-      description: 'Generic, provider-neutral "verify connection" action (Issue #646) — calls the registered provider adapter''s `verifyCredentials` (e.g. the Telegram channel adapter checks the bot is a channel administrator with post permission). Requires `Idempotency-Key` (real outbound provider call, same external-call class as `accounts.connect`/ `.disconnect`), gated by `accounts.verify` (not classified high-risk — only updates `lastVerifiedAt`/`scopes`, never `tokenReference`). A failed check is still a `200` with `valid: false` — informational, never itself a state transition on the account.'
+      description: 'Generic, provider-neutral "verify connection" action (Issue #646) — calls the registered provider adapter''s `verifyCredentials` (e.g. the Telegram channel adapter checks the bot is a channel administrator with post permission; the Meta adapter, Issue #644, checks the access token via `debug_token` and that it can reach the connected Page/Instagram Business account). Requires `Idempotency-Key` (real outbound provider call, same external-call class as `accounts.connect`/`.disconnect`), gated by `accounts.verify` (not classified high-risk — only updates `lastVerifiedAt`/`scopes`, never `tokenReference`). A failed check is still a `200` with `valid: false` — informational, never itself a state transition on the account.'
       operationId: socialPublishingAccountsVerify
       security:
         - bearerAuth: []

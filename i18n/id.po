@@ -117,6 +117,9 @@ msgstr "Sistem sedang sibuk. Coba lagi sebentar."
 msgid "error.provider_error"
 msgstr "Layanan eksternal gagal. Coba lagi."
 
+msgid "error.social_account_unsupported_type"
+msgstr "Provider ini tidak mendukung tipe akun tersebut."
+
 msgid "error.internal_error"
 msgstr "Terjadi kesalahan. Coba lagi."
 
