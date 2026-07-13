@@ -7267,15 +7267,38 @@ One content quality checklist rule's evaluation result (Issue
 }
 ```
 
+### Schema: DatabasePoolCapacitySummary
+
+Issue #743 — this PROCESS's own capacity configuration only (never an aggregate across other instances; a single process cannot know the fleet-wide count). See docs/awcms-mini/database-capacity-runbook.md for the fleet-wide validation this endpoint does not perform.
+
+| Field                   | Type                           | Required | Nullable | Description                                                                    |
+| ----------------------- | ------------------------------ | -------- | -------- | ------------------------------------------------------------------------------ |
+| `processClass`          | enum(`app`, `worker`, `setup`) | yes      | no       | Always "app" for this endpoint (it only ever runs inside the web/SSR process). |
+| `poolMax`               | integer                        | yes      | no       |                                                                                |
+| `approvedConnections`   | integer                        | yes      | no       |                                                                                |
+| `reservedAdminHeadroom` | integer                        | yes      | no       |                                                                                |
+
+**Example**
+
+```json
+{
+  "processClass": "app",
+  "poolMax": 1,
+  "approvedConnections": 1,
+  "reservedAdminHeadroom": 0
+}
+```
+
 ### Schema: DatabasePoolHealthResponse
 
-| Field                 | Type                                                          | Required | Nullable | Description |
-| --------------------- | ------------------------------------------------------------- | -------- | -------- | ----------- |
-| `status`              | enum(`healthy`, `degraded`, `unhealthy`)                      | yes      | no       |             |
-| `databaseReachable`   | boolean                                                       | yes      | no       |             |
-| `circuitBreakerState` | enum(`closed`, `open`, `half_open`)                           | yes      | no       |             |
-| `workClasses`         | array of [`WorkClassSaturation`](#schema-workclasssaturation) | yes      | no       |             |
-| `generatedAt`         | string (date-time)                                            | yes      | no       |             |
+| Field                 | Type                                                                 | Required | Nullable | Description |
+| --------------------- | -------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `status`              | enum(`healthy`, `degraded`, `unhealthy`)                             | yes      | no       |             |
+| `databaseReachable`   | boolean                                                              | yes      | no       |             |
+| `circuitBreakerState` | enum(`closed`, `open`, `half_open`)                                  | yes      | no       |             |
+| `workClasses`         | array of [`WorkClassSaturation`](#schema-workclasssaturation)        | yes      | no       |             |
+| `capacity`            | [`DatabasePoolCapacitySummary`](#schema-databasepoolcapacitysummary) | yes      | no       |             |
+| `generatedAt`         | string (date-time)                                                   | yes      | no       |             |
 
 **Example**
 
@@ -7289,9 +7312,16 @@ One content quality checklist rule's evaluation result (Issue
       "workClass": "critical_transaction",
       "active": 0,
       "max": 0,
-      "queued": 0
+      "queued": 0,
+      "maxQueueDepth": 0
     }
   ],
+  "capacity": {
+    "processClass": "app",
+    "poolMax": 1,
+    "approvedConnections": 1,
+    "reservedAdminHeadroom": 0
+  },
   "generatedAt": "2026-01-01T00:00:00.000Z"
 }
 ```
@@ -10794,12 +10824,13 @@ At least one of displayName or status is required.
 
 ### Schema: WorkClassSaturation
 
-| Field       | Type                                                                                       | Required | Nullable | Description |
-| ----------- | ------------------------------------------------------------------------------------------ | -------- | -------- | ----------- |
-| `workClass` | enum(`critical_transaction`, `interactive`, `reporting`, `background_sync`, `maintenance`) | yes      | no       |             |
-| `active`    | integer                                                                                    | yes      | no       |             |
-| `max`       | integer                                                                                    | yes      | no       |             |
-| `queued`    | integer                                                                                    | yes      | no       |             |
+| Field           | Type                                                                                       | Required | Nullable | Description                                                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------ | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workClass`     | enum(`critical_transaction`, `interactive`, `reporting`, `background_sync`, `maintenance`) | yes      | no       |                                                                                                                                                                                                                        |
+| `active`        | integer                                                                                    | yes      | no       |                                                                                                                                                                                                                        |
+| `max`           | integer                                                                                    | yes      | no       |                                                                                                                                                                                                                        |
+| `queued`        | integer                                                                                    | yes      | no       |                                                                                                                                                                                                                        |
+| `maxQueueDepth` | integer                                                                                    | yes      | no       | Issue #743 — bounded queue cap for this work class (max concurrency x DATABASE_WORK_CLASS_QUEUE_MULTIPLIER). Once `queued` would reach this number, a new caller is rejected immediately instead of joining the queue. |
 
 **Example**
 
@@ -10808,7 +10839,8 @@ At least one of displayName or status is required.
   "workClass": "critical_transaction",
   "active": 0,
   "max": 0,
-  "queued": 0
+  "queued": 0,
+  "maxQueueDepth": 0
 }
 ```
 
@@ -10955,7 +10987,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (51)
+### Channels (52)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -10984,6 +11016,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.blog-content.widget.created` — A widget was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/widgets/index.ts`'s `POST` handler (`blog-content.widget.created` log line).
 - `awcms-mini.blog-content.widget.deleted` — A widget was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/widgets/[id].ts`'s `DELETE` handler (`blog-content.widget.deleted` log line).
 - `awcms-mini.blog-content.widget.updated` — A widget was updated (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/widgets/[id].ts`'s `PATCH` handler (`blog-content.widget.updated` log line).
+- `awcms-mini.database.pool.rejected` — Emitted when a work-class concurrency gate's bounded FIFO queue is already full and a caller is rejected IMMEDIATELY, without ever waiting (Issue #743, epic #738 platform-evolution — distinct from `database.pool.saturated` above, which is a caller that waited and THEN timed out; doc 16 §Connection pooling dan backpressure, doc 05 "DB Connectivity" category). Documented contract only, same convention as `database.pool.saturated` — the concrete producer is the structured JSON logger (`src/lib/logging/logger.ts`) invoked from `withTenant` (`src/lib/database/tenant-context.ts`) on a `WorkClassQueueFullError`.
 - `awcms-mini.database.pool.saturated` — Emitted when a work-class concurrency gate times out a queued caller (Issue 10.2, doc 16 §Connection pooling dan backpressure, doc 05 "DB Connectivity" category). Documented contract only — this repo has no live pub/sub dispatcher for any domain event yet; the concrete producer is the structured JSON logger (`src/lib/logging/logger.ts`) invoked from `withTenant` (`src/lib/database/tenant-context.ts`), consistent with how AsyncAPI events have been documented since Issue 0.3 without requiring a live producer.
 - `awcms-mini.email.message.cancelled` — An operator cancelled a still-queued message (Issue #499, `POST /api/v1/email/messages/{id}/cancel`) — the technical mitigation for the "accidental bulk send" incident scenario. Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/email/messages/[id]/cancel.ts` (`email.message.cancelled` log line).
 - `awcms-mini.email.message.failed` — The email dispatcher exhausted retries (or hit a non-retryable failure) for a queued message. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.failed` log line).

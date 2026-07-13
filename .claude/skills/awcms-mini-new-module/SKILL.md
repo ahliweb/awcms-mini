@@ -75,8 +75,24 @@ security review) dan isi
 terkait. Modul spesifik satu domain bisnis (POS, gudang, pajak, CRM, dll.)
 **tidak masuk repo ini** — lihat pohon keputusan di doc 21 §3.
 
+**Modul di REPO BASE ini** (langkah 1 di atas) vs **modul di REPO TURUNAN**
+(Issue #740, ADR-0014) adalah dua alur berbeda: bila modulmu memang
+spesifik satu domain bisnis dan pohon keputusan doc 21 §3 mengarahkan ke
+"bukan untuk repo base ini", **jangan** daftarkan di `src/modules/index.ts`
+repo ini — buat repo turunan sendiri lalu daftarkan modulnya di
+`src/modules/application-registry.ts` MILIK REPO TURUNAN itu (satu-satunya
+file yang perlu diedit; struktur `module.ts` + `domain/application/
+infrastructure/api` di atas tetap sama persis). `composeModuleRegistry()`
+(`module-management/domain/module-composition.ts`) yang menggabungkan
+registry base + registry turunan saat build. Detail: skill
+`awcms-mini-module-management` §Komposisi modul build-time,
+`docs/awcms-mini/derived-application-guide.md`, dan
+`docs/adr/0014-deterministic-build-time-module-composition.md`.
+
 ## Verifikasi
 
 - `bun run build` pass.
-- Modul terdaftar di registry.
+- Modul terdaftar di registry (base: `src/modules/index.ts`; turunan:
+  `src/modules/application-registry.ts` milik repo turunan sendiri, lalu
+  `bun run modules:compose:check` hijau).
 - README modul terisi.

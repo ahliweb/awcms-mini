@@ -1003,6 +1003,9 @@ health endpoint.
 - [`18_configuration_env_reference.md`](18_configuration_env_reference.md)
   — referensi environment variable lengkap dan topologi LAN-first.
 - [`database-pooling.md`](database-pooling.md) — kapan PgBouncer relevan.
+- [`database-capacity-runbook.md`](database-capacity-runbook.md) — model
+  kapasitas koneksi lintas-instance, kalkulator, dan SOP incident saturasi
+  (Issue #743, epic #738 platform-evolution).
 - [`observability-metrics.md`](observability-metrics.md) — metrics port,
   SLI/SLO awal, dependency health endpoint (Issue #698).
 - [`07_sprint_testing_production_readiness.md`](07_sprint_testing_production_readiness.md)

@@ -87,7 +87,12 @@ export const DOC18_NON_VARIABLE_TOKENS: ReadonlySet<string> = new Set([
   // §Telegram channel adapter), not itself an env var name — `MarkdownV2`
   // doesn't match the token regex (contains lowercase letters), but `HTML`
   // is a standalone all-caps backtick span and needs an explicit exemption.
-  "HTML"
+  "HTML",
+  // Issue #743: an internal code constant (src/lib/database/
+  // work-class-registry.ts's exported map), mentioned in doc 18 §Model
+  // role database prose to point readers at the live job list — not an
+  // env var.
+  "JOB_WORK_CLASS_REGISTRY"
 ]);
 
 export type DriftProblem = {

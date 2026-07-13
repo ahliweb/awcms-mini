@@ -23,8 +23,12 @@ import {
 } from "./harness";
 
 import { getDatabaseClient } from "../../src/lib/database/client";
-import { syncModuleDescriptors } from "../../src/modules/module-management/application/descriptor-sync";
+import {
+  ModuleCompositionInvalidError,
+  syncModuleDescriptors
+} from "../../src/modules/module-management/application/descriptor-sync";
 import { listModules } from "../../src/modules";
+import type { ModuleDescriptor } from "../../src/modules/_shared/module-contract";
 
 const suite = integrationEnabled ? describe : describe.skip;
 
@@ -137,5 +141,112 @@ suite("module descriptor sync service", () => {
       SELECT lifecycle_status FROM awcms_mini_modules WHERE module_key = 'email'
     `) as { lifecycle_status: string }[];
     expect(rows[0]?.lifecycle_status).toBe("disabled");
+  });
+
+  // Issue #740 security follow-up — PR #769 security-auditor BLOCKED
+  // finding, empirically reproduced there: an application module whose
+  // `key` collides with a real base module (e.g. "identity_access") used
+  // to reach `upsertModule`'s `INSERT ... ON CONFLICT (module_key) DO
+  // UPDATE SET ...` and silently overwrite the base module's row, because
+  // nothing on this write path (the ONLY path that persists to
+  // `awcms_mini_modules`) ever called composition validation —
+  // `bun run modules:compose:check` existed as a standalone CI script, but
+  // was never actually reachable from here. These tests exercise the ACTUAL
+  // write path with a real Postgres instance, not just the (already
+  // extensively covered, `tests/unit/module-composition.test.ts`)
+  // `composeModuleRegistry` diagnostics in isolation.
+  describe("adversarial: a colliding module key must never reach the database (Issue #740 / PR #769 fix)", () => {
+    function evilOverride(
+      overrides: Partial<ModuleDescriptor> = {}
+    ): ModuleDescriptor {
+      return {
+        key: "identity_access", // collides with the real base module
+        name: "Evil Identity Access Override",
+        version: "99.99.99",
+        status: "active",
+        description:
+          "Adversarial module attempting to shadow/replace the base identity_access module's row.",
+        dependencies: [],
+        type: "derived",
+        ...overrides
+      };
+    }
+
+    test("syncModuleDescriptors refuses to sync a descriptor list containing a collision, and writes ZERO rows", async () => {
+      const sql = getDatabaseClient();
+      const maliciousDescriptors = [...listModules(), evilOverride()];
+
+      let caughtError: unknown;
+      try {
+        await syncModuleDescriptors(sql, maliciousDescriptors);
+      } catch (error) {
+        caughtError = error;
+      }
+
+      expect(caughtError).toBeInstanceOf(ModuleCompositionInvalidError);
+      expect(
+        (caughtError as ModuleCompositionInvalidError).issues.length
+      ).toBeGreaterThan(0);
+
+      // The check runs BEFORE `fetchExistingModules`/any upsert — a
+      // rejected sync must never partially write, so NO row exists at
+      // all, not even for the non-colliding modules.
+      const admin = getAdminSql();
+      const rows = (await admin`
+        SELECT count(*)::int AS count FROM awcms_mini_modules
+      `) as { count: number }[];
+      expect(rows[0]?.count).toBe(0);
+    });
+
+    test("a prior valid sync's identity_access row is left untouched by a subsequent malicious sync attempt", async () => {
+      const sql = getDatabaseClient();
+      await syncModuleDescriptors(sql);
+
+      const admin = getAdminSql();
+      const before = (await admin`
+        SELECT module_name, version FROM awcms_mini_modules WHERE module_key = 'identity_access'
+      `) as { module_name: string; version: string }[];
+      expect(before[0]?.module_name).not.toBe("Evil Identity Access Override");
+
+      const maliciousDescriptors = [...listModules(), evilOverride()];
+      let caughtError: unknown;
+      try {
+        await syncModuleDescriptors(sql, maliciousDescriptors);
+      } catch (error) {
+        caughtError = error;
+      }
+      expect(caughtError).toBeInstanceOf(ModuleCompositionInvalidError);
+
+      const after = (await admin`
+        SELECT module_name, version FROM awcms_mini_modules WHERE module_key = 'identity_access'
+      `) as { module_name: string; version: string }[];
+      expect(after[0]?.module_name).toBe(before[0]?.module_name);
+      expect(after[0]?.version).toBe(before[0]?.version);
+      expect(after[0]?.module_name).not.toBe("Evil Identity Access Override");
+    });
+
+    test("a self-colliding application registry (two application modules sharing a key) is also rejected, not just base collisions", async () => {
+      const sql = getDatabaseClient();
+      const maliciousDescriptors = [
+        ...listModules(),
+        evilOverride({ key: "totally_new_app_module" }),
+        evilOverride({ key: "totally_new_app_module", name: "Duplicate" })
+      ];
+
+      let caughtError: unknown;
+      try {
+        await syncModuleDescriptors(sql, maliciousDescriptors);
+      } catch (error) {
+        caughtError = error;
+      }
+
+      expect(caughtError).toBeInstanceOf(ModuleCompositionInvalidError);
+
+      const admin = getAdminSql();
+      const rows = (await admin`
+        SELECT count(*)::int AS count FROM awcms_mini_modules
+      `) as { count: number }[];
+      expect(rows[0]?.count).toBe(0);
+    });
   });
 });

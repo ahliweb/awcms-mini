@@ -20,21 +20,33 @@
  *   1. config:validate       — config must be valid before anything else
  *                               attempts to connect to a database.
  *   2. security:readiness
- *   3. db:connectivity        (NEW) — confirms DATABASE_URL is reachable
+ *   3. database:capacity      (NEW, Issue #743) — deployment-aware
+ *                               connection-capacity budget check: pure
+ *                               config arithmetic over `DATABASE_CAPACITY_*`/
+ *                               `DATABASE_POOL_MAX*` env vars, no database
+ *                               connection at all. Fails when
+ *                               `sum(instance_count[class] x pool_max[class])
+ *                               + reserved_headroom` would exceed the
+ *                               approved PgBouncer/PostgreSQL budget at the
+ *                               configured MAX instance counts, or when the
+ *                               capacity configuration is otherwise unsafe/
+ *                               internally inconsistent — see
+ *                               `src/lib/database/capacity-config.ts`.
+ *   4. db:connectivity        (NEW) — confirms DATABASE_URL is reachable
  *                               and the migration ledger table is
  *                               queryable. Issues exactly one `SELECT`,
  *                               never a write.
- *   4. api:spec:check
- *   5. test
- *   6. build
- *   7. db:pool:health          — needs a running server; skipped (not
+ *   5. api:spec:check
+ *   6. test
+ *   7. build
+ *   8. db:pool:health          — needs a running server; skipped (not
  *                               failed) if nothing answers, UNLESS
  *                               `APP_ENV=production`, in which case a skip
  *                               now blocks go-live (a production preflight
  *                               that can't reach a running instance's pool
  *                               metrics has not actually verified
  *                               production readiness).
- *   8. migration:plan          (NEW) — the actual pending-vs-applied diff,
+ *   9. migration:plan          (NEW) — the actual pending-vs-applied diff,
  *                               deliberately placed as the LAST read-only
  *                               step, immediately before the decision to
  *                               apply. Still zero writes: reuses
@@ -47,7 +59,7 @@
  * APPLYING MIGRATIONS is now a separate, explicit, gated step — never part
  * of the stage list above:
  *
- *   - Only attempted if `go` (the verdict after all 8 stages) is `true`.
+ *   - Only attempted if `go` (the verdict after all 9 stages) is `true`.
  *     A failed quality gate — or, in `APP_ENV=production`, a skipped
  *     `db:pool:health` — makes it structurally impossible to reach the
  *     apply step, regardless of flags (`shouldApplyMigrations`'s caller,
@@ -75,6 +87,8 @@ import {
   type MigrationFile
 } from "./db-migrate";
 import { isServerReachable, resolveAppBaseUrl } from "./lib/app-url";
+import { formatCapacityReport } from "./database-capacity-check";
+import { evaluateCapacityBudget } from "../src/lib/database/capacity-config";
 
 export type StageStatus = "pass" | "fail" | "skipped";
 
@@ -92,6 +106,18 @@ type StageDefinition = {
 
 const REMAINING_CHILD_PROCESS_STAGES: StageDefinition[] = [
   { name: "api:spec:check", command: ["bun", "run", "api:spec:check"] },
+  // Issue #740 (epic #738) security follow-up (PR #769 security-auditor
+  // review): a derived repository's own production deployment is exactly
+  // the scenario where build-time module composition could be invalid
+  // (e.g. an application module colliding with a base module's key) — a
+  // production preflight that never checks this would go live without
+  // ever having verified it. Read-only, no I/O beyond the in-memory
+  // registry (same as `modules:dag:check`, which this is a superset of),
+  // fits this stage list's "every stage is read-only" requirement exactly.
+  {
+    name: "modules:compose:check",
+    command: ["bun", "run", "modules:compose:check"]
+  },
   { name: "test", command: ["bun", "test"] },
   { name: "build", command: ["bun", "run", "build"] }
   // db:connectivity, db:pool:health, and migration:plan are handled
@@ -118,6 +144,38 @@ async function runStage(name: string, command: string[]): Promise<StageResult> {
     status: exitCode === 0 ? "pass" : "fail",
     detail: exitCode === 0 ? undefined : `exit code ${exitCode}`,
     durationMs
+  };
+}
+
+/**
+ * Read-only, Issue #743: pure config arithmetic (no database connection at
+ * all) over `DATABASE_CAPACITY_*`/`DATABASE_POOL_MAX*` env vars — fails
+ * when the configured MAX instance counts would exceed the approved
+ * PgBouncer/PostgreSQL connection budget, or when the capacity
+ * configuration is otherwise unsafe/internally inconsistent. Placed right
+ * after `security:readiness`, before any stage that actually attempts a
+ * database connection, since — like `config:validate` — it needs nothing
+ * but `process.env`.
+ */
+export async function checkDatabaseCapacity(): Promise<StageResult> {
+  const start = performance.now();
+  console.log(`\n=== production:preflight — database:capacity ===`);
+
+  const report = evaluateCapacityBudget();
+
+  console.log(formatCapacityReport(report));
+
+  const failCount = report.findings.filter(
+    (finding) => finding.severity === "fail"
+  ).length;
+
+  return {
+    name: "database:capacity",
+    status: report.ok ? "pass" : "fail",
+    detail: report.ok
+      ? undefined
+      : `${failCount} unsafe/inconsistent capacity finding(s) — see output above`,
+    durationMs: performance.now() - start
   };
 }
 
@@ -289,6 +347,7 @@ export async function runProductionPreflight(): Promise<{
   results.push(
     await runStage("security:readiness", ["bun", "run", "security:readiness"])
   );
+  results.push(await checkDatabaseCapacity());
   results.push(await checkDatabaseConnectivity());
 
   for (const stage of REMAINING_CHILD_PROCESS_STAGES) {

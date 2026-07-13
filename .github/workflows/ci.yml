@@ -106,8 +106,22 @@ jobs:
       - name: Module dependency graph check
         run: bun run modules:dag:check
 
+      # Issue #740 (epic #738): added alongside `modules:dag:check` in
+      # `package.json`'s `check` script — PR #769 security-auditor review
+      # found these two were missing here, reproducing exactly the "CI
+      # silently runs a subset of `bun run check`" gap Issue #685 (this
+      # file's own header comment) was written to prevent.
+      - name: Module composition validation check
+        run: bun run modules:compose:check
+
+      - name: Module composition inventory freshness check
+        run: bun run modules:composition:inventory:check
+
       - name: i18n EN/ID/POT key parity check
         run: bun run i18n:parity:check
+
+      - name: Database work-class registry drift check
+        run: bun run db:work-class:check
 
       - name: Typecheck (tsc --noEmit)
         run: bun run typecheck

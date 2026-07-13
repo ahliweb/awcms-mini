@@ -218,9 +218,36 @@ export type HighVolumeTableDescriptor = {
   existingAdopter?: LifecycleExistingAdopter;
 };
 
+/**
+ * Deployment profile names (Issue #740, epic #738 `platform-evolution`).
+ * Same four values as `src/lib/config/registry.ts`'s own `DeploymentProfile`
+ * — redeclared here rather than imported, to keep this contract file
+ * dependency-free (it has always had zero imports; every module.ts across
+ * every module, and now every derived repository's own
+ * `application-registry.ts`, transitively depends on this file). Keep both
+ * lists in sync if `docs/awcms-mini/deployment-profiles.md` ever adds a
+ * profile — `src/modules/module-management/domain/module-composition.ts`
+ * cross-checks values structurally (plain string comparison), not by
+ * nominal type identity, so this is a documentation obligation, not a
+ * compile-time-enforced one.
+ */
+export type ModuleDeploymentProfile =
+  "development" | "staging" | "production" | "offline-lan";
+
 /** Compatibility metadata used by Issue #515's dependency-graph validation to report version incompatibility when present — absence means "no constraint declared", not "incompatible". */
 export type ModuleCompatibilityContract = {
   minAppVersion?: string;
+  /**
+   * Deployment profiles (`docs/awcms-mini/deployment-profiles.md`) this
+   * module — base or contributed application module — is declared
+   * compatible with (Issue #740). Absence means "no constraint declared",
+   * same convention `minAppVersion`'s absence already uses — compatible
+   * with every profile. Build-time composition
+   * (`module-management/domain/module-composition.ts`) reports a
+   * `deployment_profile_incompatible` issue when a module claims a profile
+   * one of its own `dependencies` does not support.
+   */
+  deploymentProfiles?: readonly ModuleDeploymentProfile[];
 };
 
 /**
@@ -285,3 +312,47 @@ export type ModuleDescriptor = {
 export function defineModule(descriptor: ModuleDescriptor): ModuleDescriptor {
   return descriptor;
 }
+
+/**
+ * One derived/downstream repository's declared reservation of the numeric
+ * `NNN_` migration-filename prefix range its own `sql/` directory owns
+ * (Issue #740). Purely declarative composition metadata — this contract
+ * does not read real `sql/*.sql` filenames (see
+ * `module-management/domain/module-composition.ts`'s file header for why
+ * that check stays a pure, filesystem-free, declared-data comparison).
+ */
+export type ModuleMigrationNamespace = {
+  /** Human label for diagnostics, e.g. "awpos" or "smart-school-portal". */
+  label: string;
+  /** Inclusive lower bound of the numeric `NNN_` migration filename prefix this registry owns. */
+  rangeStart: number;
+  /** Inclusive upper bound. */
+  rangeEnd: number;
+};
+
+/**
+ * One derived/downstream repository's contribution to the final composed
+ * module registry (Issue #740, epic #738 `platform-evolution`, Wave 1).
+ * Supplied ONLY through the designated build-time extension point
+ * (`src/modules/application-registry.ts`) — never by editing
+ * `src/modules/index.ts` itself. Still 100% static, compile-time
+ * TypeScript — no runtime discovery/upload/package scanning/`eval`, per
+ * `docs/awcms-mini/21_module_admission_governance.md` §7 and
+ * `docs/adr/0013-extension-layers-and-boundary-model.md` §9. See
+ * `src/modules/module-management/domain/module-composition.ts` for the
+ * validation engine that composes this against the base registry.
+ */
+export type ApplicationModuleRegistry = {
+  /** Stable, human-readable identifier for the contributing repository/application — used in diagnostics and the composed inventory only, never persisted to a database or used for authorization. */
+  id: string;
+  modules: readonly ModuleDescriptor[];
+  /**
+   * This application registry's own reserved migration-number range,
+   * validated against the base's reserved range
+   * (`module-composition.ts`'s `BASE_MODULE_MIGRATION_NAMESPACE`) to catch
+   * a numbering collision before any migration file is even written.
+   * Optional: composition skips the overlap check when omitted (a
+   * documented caveat, not a silent pass).
+   */
+  migrationNamespace?: ModuleMigrationNamespace;
+};
