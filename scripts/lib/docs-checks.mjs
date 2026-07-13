@@ -33,7 +33,7 @@ export const MERMAID_TYPES = [
  */
 
 /**
- * Validasi blok ```mermaid: setiap blok tertutup dan diawali tipe diagram dikenal.
+ * Validasi blok kode berpagar mermaid: setiap blok tertutup dan diawali tipe diagram dikenal.
  * @param {string} file
  * @param {string[]} lines
  * @returns {Problem[]}
