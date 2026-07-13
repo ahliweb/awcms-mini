@@ -27,11 +27,17 @@ menempelkan kredensial nyata di dokumentasi, tiket, atau log.
       mereka benar-benar terhubung ke secret manager sungguhan sampai
       diimplementasikan.
 - [ ] `token_reference` **tidak pernah** diselect kembali oleh query
-      apa pun kecuali satu fungsi internal per keperluan
-      (`fetchSocialAccountTokenReferenceForDispatch`/`...ForVerification`),
-      dipanggil hanya dari dispatcher/endpoint verify — **tidak
-      pernah** dari response endpoint `GET /accounts` yang dibaca
-      admin.
+      apa pun kecuali dua fungsi internal, masing-masing untuk satu
+      keperluan sempit:
+      `fetchSocialAccountTokenReferenceForDispatch` (dipanggil
+      **hanya** dari dispatcher) dan
+      `fetchSocialAccountCredentialsForVerification` (dipanggil
+      **hanya** dari endpoint `POST .../accounts/{id}/verify`). Jaminan
+      sebenarnya adalah **"tidak pernah dikembalikan dari
+      `GET /accounts`"** (endpoint yang dibaca admin untuk daftar
+      akun) — bukan "tidak pernah dari route HTTP apa pun", karena
+      endpoint verify di atas memang sebuah route HTTP yang secara
+      sengaja butuh nilai ini untuk memanggil provider.
 - [ ] Disconnect akun membersihkan `token_reference` ke `NULL` — bukan
       sekadar flip status `connectionStatus`.
 - [ ] Setiap penambahan var `*_TOKEN_REFERENCE`/`*_SECRET_REFERENCE`

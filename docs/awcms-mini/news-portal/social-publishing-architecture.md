@@ -40,7 +40,8 @@ harus zero-write-surface untuk tenant.
 ## 2. Model data — 6 tabel
 
 Migration `sql/053_awcms_mini_social_publishing_schema.sql` (+
-`sql/054_.../sql/055_...` untuk permission `accounts.verify`):
+`sql/055_awcms_mini_social_publishing_verify_permission.sql` untuk
+permission `accounts.verify`):
 
 | Tabel                                   | Peran                                                                 |
 | --------------------------------------- | --------------------------------------------------------------------- |
@@ -66,12 +67,19 @@ retry}`, `.logs.read`) — `accounts.connect`/`.disconnect` masuk
 storage eksternal. **Repo ini belum punya integrasi secret-manager
 nyata** — ini adalah residual/follow-up yang terdokumentasi, bukan
 sesuatu yang diselesaikan epic ini. `token_reference` **tidak pernah**
-diselect kembali oleh query mana pun kecuali satu fungsi internal
-(`fetchSocialAccountTokenReferenceForDispatch`, dipanggil dispatcher
-saja, tidak pernah dari route HTTP) — pola yang sama
-`tenant-domain-directory.ts`'s `verification_token_hash` pakai.
-Disconnect membersihkan `token_reference` ke `NULL`, bukan sekadar
-flip status.
+diselect kembali oleh query mana pun kecuali dua fungsi internal,
+masing-masing untuk satu keperluan sempit:
+`fetchSocialAccountTokenReferenceForDispatch` (dipanggil **hanya** dari
+dispatcher) dan `fetchSocialAccountCredentialsForVerification`
+(dipanggil **hanya** dari endpoint `POST .../accounts/{id}/verify`,
+lihat §7). Jaminan sebenarnya adalah **"tidak pernah dikembalikan dari
+`GET /accounts`"** (endpoint yang dibaca admin untuk daftar akun) —
+bukan "tidak pernah dari route HTTP apa pun", karena endpoint verify di
+atas memang route HTTP yang sengaja butuh nilai ini untuk memanggil
+provider — pola yang sama `tenant-domain-directory.ts`'s
+`verification_token_hash` pakai untuk prinsip "hanya diselect oleh
+fungsi yang benar-benar butuh nilainya". Disconnect membersihkan
+`token_reference` ke `NULL`, bukan sekadar flip status.
 
 Detail lengkap heuristic penolakan token mentah
 (`looksLikeRawSecretToken`) dan resolusi `env:VAR_NAME` per-adapter ada
@@ -201,14 +209,35 @@ lain — pola port Issue #681) untuk resolusi gambar terverifikasi.
 objek R2 `verified`/`attached` milik tenant yang sama oleh
 `create-social-publish-jobs.ts` — setiap adapter yang benar-benar
 mengunggah/mereferensikan gambar (Meta, LinkedIn) melakukan
-**pengecekan ulang** (`new URL(url).host` **persis sama** dengan
-`new URL(NEWS_MEDIA_R2_PUBLIC_BASE_URL).host` — bukan
-substring/prefix check, pelajaran trailing-dot FQDN Issue #635)
-sebagai jaring pengaman titik-terakhir sebelum panggilan eksternal —
-bukan mekanisme enforcement baru, murni defense-in-depth. Kegagalan
-apa pun pada gambar (tidak terpercaya, tidak ada, upload gagal)
-terdegradasi baik ke post teks/link-share — gambar tidak pernah
-memblokir publish yang sah.
+**pengecekan ulang** sebagai jaring pengaman titik-terakhir sebelum
+panggilan eksternal, tapi **kekuatan pengecekan berbeda per adapter**
+(bukan satu implementasi seragam — koreksi dari draf sebelumnya
+dokumen ini, yang keliru mengklaim keduanya identik):
+
+- **Meta** (`isAcceptableProviderMediaUrl`,
+  `domain/meta-publish-content.ts`) melakukan pengecekan **host
+  persis**: parse `new URL(url)`, wajib `protocol === "https:"`, lalu
+  `target.host === base.host` terhadap
+  `NEWS_MEDIA_R2_PUBLIC_BASE_URL` — bukan substring/prefix check,
+  pelajaran trailing-dot FQDN Issue #635.
+- **LinkedIn** (`isTrustedR2MediaUrl`,
+  `infrastructure/linkedin-provider-adapter.ts`) hanya melakukan
+  `url.startsWith(publicBaseUrl)` — **prefix/substring check biasa**,
+  **tidak** melakukan `new URL()` parse, **tidak** membandingkan host,
+  **tidak** memvalidasi protokol. Ini justru persis kelas pengecekan
+  lemah yang pelajaran Issue #635 hindari untuk Meta — belum
+  di-hardening ke pola `URL.host` yang sama (dicatat sebagai gap nyata,
+  bukan diklaim sudah setara).
+
+Kedua pengecekan tetap murni **defense-in-depth** (bukan mekanisme
+enforcement baru — data sudah diverifikasi lebih dulu oleh
+`create-social-publish-jobs.ts`), jadi eksploitasi butuh sumber
+`content.imageUrl` yang sudah lolos gerbang verifikasi R2 di hulu
+terlebih dahulu. Kegagalan apa pun pada gambar (tidak terpercaya,
+tidak ada, upload gagal) terdegradasi baik ke post teks/link-share —
+gambar tidak pernah memblokir publish yang sah. Lihat
+[`social-provider-limitations.md`](social-provider-limitations.md) §3
+untuk detail per-provider.
 
 ## 9. Canonical URL — dari domain tenant terverifikasi
 

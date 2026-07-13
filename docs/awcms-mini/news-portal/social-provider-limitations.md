@@ -79,11 +79,22 @@ arsitektur umum, lihat
   LinkedIn App yang didaftarkan operator di LinkedIn Developer portal
   (syarat app-review), bukan endpoint nyata di kode ini.
 - **Gambar**: Images API asli LinkedIn (`initializeUpload` → fetch
-  bytes → `PUT`), digerbang cek trust R2 yang sama (host persis, bukan
-  substring). **Gambar tidak esensial** — kegagalan APA PUN saat
-  upload (tidak terpercaya, tidak ada, error jaringan) terdegradasi
-  baik ke post link-share (`content.article`), tidak pernah memblokir
-  publish yang sah.
+  bytes → `PUT`), digerbang cek trust R2 (`isTrustedR2MediaUrl`) —
+  **lebih lemah dari cek Meta**: hanya `url.startsWith(publicBaseUrl)`
+  (prefix/substring check biasa), **bukan** pengecekan host persis
+  seperti Meta's `isAcceptableProviderMediaUrl` (host dibandingkan
+  lewat `new URL()`, lihat
+  [`social-publishing-architecture.md`](social-publishing-architecture.md)
+  §8) — tidak melakukan `new URL()` parse, tidak membandingkan host,
+  tidak memvalidasi protokol. Ini defense-in-depth titik-terakhir saja
+  (data sudah diverifikasi lebih dulu di hulu oleh
+  `create-social-publish-jobs.ts`), bukan satu-satunya lapisan
+  proteksi, tapi belum di-hardening ke pola exact-host yang sama —
+  dicatat sebagai gap nyata, bukan sesuatu yang sudah setara Meta.
+  **Gambar tidak esensial** — kegagalan APA PUN saat upload (tidak
+  terpercaya, tidak ada, error jaringan) terdegradasi baik ke post
+  link-share (`content.article`), tidak pernah memblokir publish yang
+  sah.
 - **Idempotensi**: `idempotencyKey` diteruskan sebagai header
   `X-Idempotency-Key` — **best-effort**, LinkedIn tidak
   mendokumentasikan mekanisme idempotency resmi untuk Posts API
