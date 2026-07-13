@@ -29,13 +29,13 @@ issue lanjutan.
 
 ## Status per issue (jangan bangun ulang yang sudah ada)
 
-| Issue | Scope                                                                                                                         | Status                            |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| #643  | Fondasi: schema 6 tabel, outbox/dispatcher, approval, retry/backoff, provider-adapter interface (kosong), admin UI, readiness | **Selesai** — lihat §643 di bawah |
-| #644  | Adapter Meta (Facebook Page + Instagram Business)                                                                             | Belum dikerjakan                  |
-| #645  | Adapter LinkedIn (organization page)                                                                                          | Belum dikerjakan                  |
-| #646  | Adapter Telegram (channel, bot token)                                                                                         | **Selesai** — lihat §646 di bawah |
-| #647  | Dokumentasi/SOP lintas provider, butuh #643-#646 semua ada                                                                    | Belum dikerjakan                  |
+| Issue | Scope                                                                                                                         | Status                                                        |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| #643  | Fondasi: schema 6 tabel, outbox/dispatcher, approval, retry/backoff, provider-adapter interface (kosong), admin UI, readiness | **Selesai** — lihat §643 di bawah                             |
+| #644  | Adapter Meta (Facebook Page + Instagram Business)                                                                             | Belum dikerjakan (paralel dengan #645/#646 — lihat §645/§646) |
+| #645  | Adapter LinkedIn (organization page)                                                                                          | **Selesai** — lihat §645 di bawah                             |
+| #646  | Adapter Telegram (channel, bot token)                                                                                         | **Selesai** — lihat §646 di bawah                             |
+| #647  | Dokumentasi/SOP lintas provider, butuh #643-#646 semua ada                                                                    | Belum dikerjakan                                              |
 
 Urutan dependency (dari objective masing-masing issue): 643 -> {644, 645,
 646 independen satu sama lain, masing-masing hanya butuh #643} -> 647
@@ -344,6 +344,234 @@ publishing/rules`), bukan halaman sendiri (sama pola "cukup di satu
 - Full keyset pagination untuk `GET /api/v1/social-publishing/jobs` —
   hari ini bounded `LIMIT` sederhana (maks 200), didokumentasikan sebagai
   follow-up bila volume job jadi besar.
+
+## §645 — Adapter LinkedIn organization page (Selesai)
+
+Provider `provider_key: "linkedin_organization"` — adapter NYATA pertama di
+modul ini (`src/modules/social-publishing/infrastructure/
+linkedin-provider-adapter.ts`). `providerAccountId` diasumsikan SUDAH berupa
+full URN (`urn:li:organization:{id}`), sesuai nama field `organization_urn`
+di body issue — adapter ini tidak pernah mem-parsing/membangun URN sendiri.
+
+### Round 1 reviewer + security-auditor findings (PR #737) — read before touching secret-resolution/redaction code here again
+
+Empat temuan, semua diperbaiki sebelum merge:
+
+1. **Critical** — `resolveLinkedInSecretReference` (`linkedin-provider-config.ts`)
+   me-re-validasi nilai HASIL RESOLVE terhadap `looksLikeRawSecretToken`
+   (bukan hanya reference-nya SEBELUM diresolusi). Bug ini FATAL, bukan
+   sekadar redundan: token akses LinkedIn asli (150-1000+ karakter opaque)
+   PERSIS berbentuk blob high-entropy 64+ karakter yang memang dirancang
+   ditolak heuristic itu — versi lama menolak SETIAP resolusi token asli
+   sebagai `"unresolvable"`, membuat `publish()`/`verifyCredentials()`
+   TIDAK PERNAH bisa berhasil untuk akun yang benar-benar terkonfigurasi.
+   Test suite sendiri tidak menangkap ini karena `TEST_TOKEN` fixture
+   sengaja pendek (~35 char), di bawah ambang 64 karakter. Diperbaiki:
+   hapus pengecekan kedua pada nilai hasil resolve — heuristic HANYA
+   berjalan pada reference string mentah (caller-supplied), sama pola
+   adapter Meta (`resolveMetaTokenReference`, PR sibling #644) yang hanya
+   cek bentuk `env:` + nilai hasil resolve non-empty. Regression test:
+   `tests/unit/linkedin-provider-config.test.ts`'s dua test token
+   realistis (>64 char, salah satu >200 char) — JANGAN biarkan hanya
+   fixture token pendek jadi satu-satunya kasus "resolusi berhasil" yang
+   diuji.
+2. **Critical** — tiga titik panggilan di `linkedin-provider-adapter.ts`
+   memanggil `redact(truncate(message, 500), token)` — urutan TERBALIK.
+   `redact()` hanya cocok pada kemunculan LENGKAP token via
+   `.split(token)`; bila token mentah terpotong tepat di titik 500
+   karakter, HANYA fragmen token yang tersisa (tidak sama dengan token
+   penuh), sehingga `.split()` gagal cocok dan fragmen itu (terbukti:
+   belasan karakter awal token asli) tersimpan APA ADANYA ke
+   `awcms_mini_social_publish_jobs.last_error_message`/
+   `..._social_publish_attempts.error_message` — keduanya admin-readable.
+   Diperbaiki: balik urutan jadi `truncate(redact(message, token), 500)`
+   di ketiga titik (organizationAcls http_error, post-creation http_error,
+   exception catch). Regression test WAJIB memposisikan token agar
+   BENAR-BENAR straddle batas 500 karakter (bukan body pendek yang tidak
+   pernah menyentuh titik potong) — lihat
+   `tests/unit/linkedin-provider-adapter.test.ts`'s test "never leaks a
+   partial token fragment when the token straddles the truncation
+   boundary", yang menghitung margin secara eksplisit dan mem-verifikasi
+   (`guaranteedLeakLengthUnderOldBug >= FRAGMENT_CHECK_LENGTH`) bahwa
+   fixture-nya BENAR-benar akan gagal terhadap urutan lama sebelum
+   mengklaim fix-nya benar.
+3. **Medium** — `LINKEDIN_CLIENT_SECRET_REFERENCE` diklaim (changeset, doc
+   18, deskripsi `registry.ts`) divalidasi `looksLikeRawSecretToken`,
+   padahal `findMissingOrInvalidLinkedInConfig` hanya cek presence, tidak
+   pernah benar-benar memanggil heuristic itu untuk var ini. Diperbaiki
+   dengan MEWUJUDKAN klaim tersebut (menambah pengecekan bentuk langsung
+   di `findMissingOrInvalidLinkedInConfig`, reuse `looksLikeRawSecretToken`
+   pada reference string-nya, TANPA melalui `resolveLinkedInSecretReference`
+   karena var ini tidak pernah benar-benar diresolusi oleh kode apa pun) —
+   bukan melemahkan dokumentasi, karena pengecekan murah dan menangkap
+   kesalahan operator nyata (menempel client secret asli di var ini).
+4. **Low** — deskripsi `providerKey` yang ditambahkan issue ini terpotong
+   di tengah kalimat pada bundle OpenAPI/`api-reference.md` hasil generate
+   (berhenti persis di "...(Issue"). Akar masalah: `# ` (spasi lalu hash)
+   di dalam PLAIN SCALAR YAML tanpa tanda kutip memulai KOMENTAR YAML —
+   parser `yaml` package memang benar secara spek, bukan bug bundler.
+   `"(Issue #645, ..."` punya spasi sebelum `#645`; pola AMAN yang sudah
+   dipakai di baris yang SAMA adalah `"(#644/#645/#646)"` (hash langsung
+   menempel tanda kurung buka, tanpa spasi). Diperbaiki dengan mengikuti
+   pola aman itu: `"(#645, LinkedIn organization pages; ...)"`. **Catatan
+   untuk seluruh repo**: pola " #NNN" (spasi + hash + angka) di manapun
+   dalam string YAML PLAIN SCALAR tanpa tanda kutip berisiko silently
+   truncate — belum diaudit lintas file lain di `openapi/`/`asyncapi/`,
+   dicatat sebagai temuan baru untuk kewaspadaan, bukan diperbaiki di luar
+   scope issue ini.
+
+### CONFLICT RISK dengan #644/#646 (dikerjakan paralel)
+
+Tiga agen mengerjakan #644 (Meta), #645 (LinkedIn ini), #646 (Telegram)
+BERSAMAAN di worktree terpisah. Titik sentuh bersama:
+
+- `social-provider-registry.ts` — HANYA disentuh secara aditif: tidak ada
+  panggilan `registerSocialProviderAdapter` DI DALAM file ini (tetap
+  kosong sesuai desain #643), tidak direstrukturisasi.
+- `scripts/social-publish-dispatch.ts` dan `scripts/security-readiness.ts`
+  — masing-masing mendapat SATU import + SATU baris pemanggilan fungsi
+  registrasi milik provider ini (`registerLinkedInProviderAdapterIfEnabled`)
+  di dalam `main()`. #644/#646 diharapkan menambah pola yang SAMA (import +
+  panggilan fungsi registrasi MEREKA sendiri) — bukan mengubah baris punya
+  provider lain. Lihat komentar di titik pemanggilan masing-masing script
+  untuk konvensi ini.
+- `src/lib/config/registry.ts`, `.env.example`, doc 18, `scripts/
+validate-env.ts`'s `runEnvValidation`, `scripts/security-readiness.ts`'s
+  `runSecurityReadinessChecks` — setiap provider menambah entri/baris
+  SENDIRI, tidak menyentuh baris provider lain.
+- `SKILL.md` ini sendiri (tabel status + section baru per provider) dan
+  `docs/awcms-mini/repo-inventory.md`/i18n hasil generate — pola merge-
+  conflict standar epic ini (lihat
+  [[news-portal-social-publishing-epic-progress]]): resolusi dengan
+  MENGGABUNGKAN kedua sisi, jangan pilih salah satu.
+
+Tidak ada migration baru untuk issue ini (lihat alasan desain di bawah) —
+mengurangi satu titik konflik lagi dibanding perkiraan awal.
+
+### Kenapa TIDAK ada migration baru
+
+Field "Account metadata" di body issue (`organization_urn`,
+`organization_name`, `member_role`, `permissions_json`, `token_expires_at`,
+`last_verified_at`) dipetakan SELURUHNYA ke kolom generik yang sudah ada di
+`awcms_mini_social_accounts` (Issue #643) TANPA kolom baru:
+
+- `organization_urn` -> `provider_account_id` (sudah ada).
+- `organization_name` -> `provider_account_name` (sudah ada).
+- `token_expires_at` -> `expires_at` (sudah ada).
+- `last_verified_at` -> sudah ada, tidak disentuh field baru.
+- `member_role` dan `permissions_json` **SENGAJA TIDAK DIPERSISTEN** —
+  role organisasi LinkedIn seorang member bisa berubah/dicabut di sisi
+  LinkedIn tanpa notifikasi ke aplikasi ini; menyimpan snapshot lama bisa
+  memberi rasa aman palsu. Adapter ini mengecek role LIVE (dipanggil
+  `organizationAcls`, di-mock di test) pada SETIAP percobaan publish
+  (`publish()`) — bukan hanya sekali saat connect — persis menegakkan
+  requirement "require supported permission and organization role" issue
+  ini secara literal. `verifyCredentials()` juga melakukan pengecekan
+  scope (dari `scopesJson`, parameter yang SUDAH ada di interface) dan
+  validitas token (panggilan live ke `/v2/userinfo`, endpoint OpenID
+  Connect LinkedIn), terpisah dari pengecekan role (yang butuh URN
+  organisasi — parameter yang TIDAK ada di signature `verifyCredentials`,
+  sehingga jadi tanggung jawab `publish()`, bukan `verifyCredentials()`).
+
+### Kenapa TIDAK ada alur OAuth authorize/callback interaktif
+
+Berbeda dari `google-oauth-client.ts` (redirect flow nyata, ada route
+`/callback`), adapter ini TIDAK membangun redirect OAuth LinkedIn. Dua
+alasan: (1) `token_reference` tidak boleh pernah berupa token mentah
+(`looksLikeRawSecretToken` menolaknya) — sebuah callback OAuth nyata akan
+menerima token asli dari LinkedIn, dan repo ini belum punya integrasi
+secret-manager nyata untuk mengubahnya jadi referensi aman; (2) alur
+connect fondasi (`POST /api/v1/social-publishing/accounts`) sudah generik
+dan manual/operator-driven untuk SEMUA provider — LinkedIn tidak
+dikecualikan. `LINKEDIN_CLIENT_ID`/`LINKEDIN_CLIENT_SECRET_REFERENCE`/
+`LINKEDIN_OAUTH_REDIRECT_URI` tetap konfigurasi NYATA dan wajib
+(divalidasi `config:validate`/`security:readiness`) — mendeskripsikan
+LinkedIn App yang didaftarkan operator secara manual di LinkedIn Developer
+portal (syarat app-review LinkedIn), bukan dipakai untuk redirect nyata di
+kode ini. Detail penuh di `linkedin-provider-config.ts`'s header comment.
+
+### Reuse `looksLikeRawSecretToken` — TIDAK ada heuristic baru
+
+Sesuai instruksi security issue ini: `resolveLinkedInSecretReference`
+(`linkedin-provider-config.ts`) memanggil `looksLikeRawSecretToken` DARI
+`social-account-validation.ts` secara verbatim (bukan menduplikasi
+heuristic-nya) untuk memvalidasi BAIK `LINKEDIN_CLIENT_SECRET_REFERENCE`
+maupun setiap `token_reference` akun sebelum diresolusi. Resolusi sendiri
+hanya memahami konvensi `env:VAR_NAME` (satu-satunya yang benar-benar bisa
+diresolusi tanpa integrasi secret-manager nyata) — prefix lain
+(`secretsmanager:`/`vault:`/dst.) lolos pengecekan bentuk tapi dilaporkan
+`"unresolvable"`, jujur soal keterbatasan repo ini.
+
+### Header API versi + protokol Rest.li
+
+Setiap panggilan HTTP ke LinkedIn (`checkOrganizationRole`,
+`uploadOrganizationImage`, pembuatan post, `verifyCredentials`) mengirim
+`LinkedIn-Version` (dari `LINKEDIN_API_VERSION`, format "YYYYMM", divalidasi
+`isValidLinkedInApiVersion`) dan `X-Restli-Protocol-Version: 2.0.0`
+(konstanta tetap, bukan config — ini versi protokol wire Rest.li, beda
+konsep dari versi API).
+
+### Gambar — Images API asli LinkedIn, digerbang cek kepercayaan R2
+
+`content.imageUrl` (sudah dijamin berasal dari objek R2 terverifikasi oleh
+`create-social-publish-jobs.ts`'s `NewsMediaPort.resolveMediaReferences`)
+diperiksa ULANG (defense-in-depth, `isTrustedR2MediaUrl`, membandingkan
+terhadap `NEWS_MEDIA_R2_PUBLIC_BASE_URL` — import lintas modul yang
+sengaja dan sempit, sama pola Keputusan kunci #6's "Catatan khusus" di
+atas) sebelum adapter melakukan alur upload gambar LinkedIn asli
+(`initializeUpload` -> fetch bytes -> `PUT`) dan memposting sebagai
+`content.media`. Gambar tidak-terpercaya/tidak ada, atau kegagalan APA PUN
+selama upload, terdegradasi dengan baik ke post link-share
+(`content.article`, `source: canonicalUrl`) — gambar bersifat non-esensial
+dan tidak boleh pernah memblokir publish yang sah.
+
+### Idempotensi & redaksi
+
+`idempotencyKey` (dari `job.id`, sudah dijamin idempoten di level DB oleh
+Keputusan kunci #8) diteruskan sebagai header `X-Idempotency-Key` ke
+LinkedIn (best-effort — LinkedIn tidak mendokumentasikan mekanisme
+idempotency resmi untuk Posts API sejauh yang diketahui; jaminan idempotensi
+NYATA tetap dari mekanisme outbox #643 sendiri: job yang sudah `published`
+tidak pernah di-dispatch ulang). Setiap pesan error yang mungkin
+menyertakan token diredaksi via substring-replacement literal (`redact()`,
+bukan heuristic bentuk) menggunakan token bearer yang SUDAH diketahui
+persis dalam scope panggilan tersebut — lebih andal daripada heuristic
+karena nilai rahasianya sudah pasti diketahui, bukan ditebak.
+
+### Tidak ada endpoint admin "verify connection" baru
+
+`verify_linkedin_connection` (salah satu dari 3 "Supported initial
+actions" di body issue) diimplementasikan penuh sebagai fungsi
+`verifyCredentials()` (diuji langsung via unit test), TAPI TIDAK digerbang
+ke endpoint HTTP baru — acceptance criteria issue ini tidak pernah meminta
+tenant admin bisa MEMICU verifikasi secara manual (hanya connect/disconnect
+yang eksplisit diminta, sudah dipenuhi endpoint generik yang ada sejak
+#643). Mengurangi satu titik registrasi tambahan (SSR request path) yang
+kalau tidak akan butuh wiring registrasi adapter ke proses server SSR juga
+selain 2 script yang sudah ada — dicatat sebagai keputusan scope yang
+disengaja, bukan kelalaian, bila endpoint ini dibutuhkan issue lanjutan.
+
+### File yang dibuat/diubah
+
+- `src/modules/social-publishing/domain/linkedin-provider-config.ts`
+  (baru).
+- `src/modules/social-publishing/infrastructure/linkedin-provider-adapter.ts`
+  (baru) — `createLinkedInProviderAdapter`,
+  `registerLinkedInProviderAdapterIfEnabled`, `isTrustedR2MediaUrl`.
+- `scripts/social-publish-dispatch.ts`,
+  `scripts/security-readiness.ts` (registrasi + `checkLinkedInProviderReadiness`),
+  `scripts/validate-env.ts` (`checkLinkedInProviderConfig`).
+- `src/lib/config/registry.ts`, `.env.example`, doc 18 (6 var baru
+  `LINKEDIN_*`).
+- `openapi/modules/social-publishing.openapi.yaml` (contoh
+  `linkedin_organization` di skema akun, bukan endpoint baru — tidak ada
+  endpoint HTTP baru diperkenalkan issue ini).
+- Tidak ada migration baru, tidak ada perubahan AsyncAPI (tidak ada domain
+  event baru — event outbox generik dari #643 sudah mencakup publish/fail/
+  retry/reauth untuk provider apa pun termasuk LinkedIn).
+- Test: `tests/unit/linkedin-provider-config.test.ts`,
+  `tests/unit/linkedin-provider-adapter.test.ts`.
+- Changeset: `.changeset/social-publishing-linkedin-adapter-issue-645.md`.
 
 ## §646 — Adapter Telegram channel (Selesai)
 

@@ -37,6 +37,11 @@ import type { SocialProviderCredentialCheck } from "../../../../../../modules/so
 // alongside this one — this route is provider-neutral and serves whichever
 // adapters are registered.
 import "../../../../../../modules/social-publishing/infrastructure/telegram-provider-registration";
+// Issue #645 — side-effect import registers the real LinkedIn adapter into
+// the same registry for this process (a no-op unless
+// LINKEDIN_PROVIDER_ENABLED=true — see
+// `linkedin-provider-registration.ts`'s header comment).
+import "../../../../../../modules/social-publishing/infrastructure/linkedin-provider-registration";
 
 const VERIFY_GUARD = {
   moduleKey: "social_publishing",

@@ -192,6 +192,10 @@ import {
 import { isOnlineSecurityEnabled } from "../src/lib/auth/online-security-config";
 import { isSocialPublishingEnabled } from "../src/modules/social-publishing/domain/social-publishing-config";
 import {
+  findMissingOrInvalidLinkedInConfig,
+  isLinkedInProviderEnabled
+} from "../src/modules/social-publishing/domain/linkedin-provider-config";
+import {
   isKnownTelegramParseMode,
   isTelegramProviderEnabled,
   resolveTelegramBotTokenSecretReference
@@ -1205,6 +1209,48 @@ export function checkSocialPublishingProfileConfig(
 }
 
 /**
+ * LinkedIn organization-page provider adapter config (Issue #645, epic
+ * `social_publishing` #643-#647). `LINKEDIN_PROVIDER_ENABLED` left unset
+ * (or anything other than `"true"`) requires nothing else — same
+ * "unset/off requires nothing" shape as `checkGoogleOidcConfig`/
+ * `checkSsoConfig`. Independent of `SOCIAL_PUBLISHING_ENABLED`/
+ * `_PROFILE` (a deployment can run the outbox for other providers without
+ * ever enabling LinkedIn) — see `linkedin-provider-config.ts`'s header.
+ */
+export function checkLinkedInProviderConfig(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name =
+    "LinkedIn provider config (conditional on LINKEDIN_PROVIDER_ENABLED)";
+
+  if (!isLinkedInProviderEnabled(env)) {
+    return {
+      name,
+      status: "pass",
+      detail:
+        'LINKEDIN_PROVIDER_ENABLED is not "true" — LinkedIn provider config not required.'
+    };
+  }
+
+  const missing = findMissingOrInvalidLinkedInConfig(env);
+
+  if (missing.length > 0) {
+    return {
+      name,
+      status: "fail",
+      detail: `LINKEDIN_PROVIDER_ENABLED=true but config is incomplete/invalid: ${missing.join(", ")}.`
+    };
+  }
+
+  return {
+    name,
+    status: "pass",
+    detail:
+      "LINKEDIN_PROVIDER_ENABLED=true and all required LinkedIn config is present and valid."
+  };
+}
+
+/**
  * Telegram channel adapter config (Issue #646, epic `social_publishing`
  * #643-#647). No-op pass when `TELEGRAM_PROVIDER_ENABLED` is not `"true"` —
  * mirrors `checkSocialPublishingProfileConfig`'s shape, and is deliberately
@@ -1363,6 +1409,7 @@ export function runEnvValidation(
     checkNewsMediaR2PresignedTtlUpperBound(env),
     checkNewsMediaR2OrphanGraceLowerBound(env),
     checkSocialPublishingProfileConfig(env),
+    checkLinkedInProviderConfig(env),
     ...checkTelegramProviderConfig(env),
     checkBlogAutoInternalTagLinksConfig(env)
   ];

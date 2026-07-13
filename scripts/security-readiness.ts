@@ -58,6 +58,11 @@ import { evaluateNewsPortalFullOnlineR2Readiness } from "../src/modules/news-por
 import { isSocialPublishingEnabled } from "../src/modules/social-publishing/domain/social-publishing-config";
 import { isTelegramProviderEnabled } from "../src/modules/social-publishing/domain/telegram-config";
 import { getSocialProviderAdapter } from "../src/modules/social-publishing/infrastructure/social-provider-registry";
+import {
+  findMissingOrInvalidLinkedInConfig,
+  isLinkedInProviderEnabled
+} from "../src/modules/social-publishing/domain/linkedin-provider-config";
+import { registerLinkedInProviderAdapterIfEnabled } from "../src/modules/social-publishing/infrastructure/linkedin-provider-adapter";
 // Issue #646 — side-effect import registers the real Telegram adapter into
 // the registry `checkSocialPublishingProviderReadiness` (below) checks
 // against, for this process.
@@ -2202,6 +2207,52 @@ export async function checkSocialPublishingProviderReadiness(
 }
 
 /**
+ * LinkedIn organization-page adapter config completeness (Issue #645,
+ * `linkedin-provider-config.ts`'s `findMissingOrInvalidLinkedInConfig`).
+ * Static config check ONLY — no live LinkedIn call, matching every other
+ * provider readiness check in this file (`checkGoogleOidcReady`,
+ * `checkEmailProviderConfigReady`). Live token/role/scope verification is
+ * `verifyCredentials`'s job (an adapter-level, per-account check), not a
+ * deployment-wide readiness check's.
+ */
+export function checkLinkedInProviderReadiness(
+  env: NodeJS.ProcessEnv = process.env
+): SecurityCheckResult {
+  const name =
+    "LinkedIn provider configuration is complete when enabled (Issue #645)";
+  const severity: CheckSeverity = "critical";
+
+  if (!isLinkedInProviderEnabled(env)) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence:
+        'LINKEDIN_PROVIDER_ENABLED is not "true" — LinkedIn provider config not required.'
+    };
+  }
+
+  const missing = findMissingOrInvalidLinkedInConfig(env);
+
+  if (missing.length > 0) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `LINKEDIN_PROVIDER_ENABLED=true but config is incomplete/invalid: ${missing.join(", ")}.`
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "pass",
+    evidence:
+      "LINKEDIN_PROVIDER_ENABLED=true and all required LinkedIn config is present and valid."
+  };
+}
+
+/**
  * Telegram channel provider readiness (Issue #646). A no-op pass when
  * `TELEGRAM_PROVIDER_ENABLED` is not `"true"` (mirrors every other
  * conditional-feature readiness check in this file — and is intentionally
@@ -2386,6 +2437,7 @@ export async function runSecurityReadinessChecks(): Promise<
     checkNewsMediaR2PublicBaseUrlProductionSafe(),
     await checkNewsMediaR2NoStalePendingObjects(),
     await checkSocialPublishingProviderReadiness(),
+    checkLinkedInProviderReadiness(),
     await checkTelegramProviderReadiness(),
     await checkErrorsDontLeakStackTraces(),
     await checkSecurityHeadersPresent(),
@@ -2441,6 +2493,12 @@ function printReport(results: SecurityCheckResult[]): boolean {
 }
 
 async function main() {
+  // Composition-root registration (Issue #645) — must happen before
+  // `checkSocialPublishingProviderReadiness` runs, or a correctly-
+  // configured LinkedIn deployment would false-positive as
+  // "provider_not_registered".
+  registerLinkedInProviderAdapterIfEnabled();
+
   const results = await runSecurityReadinessChecks();
   const passed = printReport(results);
 

@@ -1492,6 +1492,80 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
   },
 
   // ---------------------------------------------------------------------
+  // Social publishing — LinkedIn organization-page adapter (Issue #645,
+  // epic `social_publishing` #643-#647). Independent of
+  // SOCIAL_PUBLISHING_ENABLED/_PROFILE above — a deployment can run the
+  // outbox without ever enabling LinkedIn specifically.
+  // ---------------------------------------------------------------------
+  {
+    name: "LINKEDIN_PROVIDER_ENABLED",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    default: "false",
+    description:
+      "Registers the LinkedIn organization-page provider adapter (Issue #645) into social-provider-registry.ts. No LinkedIn HTTP call happens when false.",
+    validatorGroup: "checkLinkedInProviderConfig"
+  },
+  {
+    name: "LINKEDIN_CLIENT_ID",
+    type: "string",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      "LinkedIn App client ID — required when LINKEDIN_PROVIDER_ENABLED=true. Describes the LinkedIn App an operator registers in LinkedIn's Developer portal; this app does not implement an interactive OAuth redirect flow itself (see linkedin-provider-config.ts).",
+    validatorGroup: "checkLinkedInProviderConfig"
+  },
+  {
+    name: "LINKEDIN_CLIENT_SECRET_REFERENCE",
+    type: "string",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      'A REFERENCE into external secret storage (e.g. "env:LINKEDIN_CLIENT_SECRET_ACTUAL"), never the raw client secret — rejected at readiness time if it looks like a raw secret/JWT (reuses social-account-validation.ts\'s looksLikeRawSecretToken). Required when LINKEDIN_PROVIDER_ENABLED=true.',
+    validatorGroup: "checkLinkedInProviderConfig"
+  },
+  {
+    name: "LINKEDIN_API_VERSION",
+    type: "string",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      'LinkedIn versioned-API release string ("YYYYMM", e.g. "202506"), sent as the LinkedIn-Version header on every request. Required when LINKEDIN_PROVIDER_ENABLED=true.',
+    validatorGroup: "checkLinkedInProviderConfig"
+  },
+  {
+    name: "LINKEDIN_OAUTH_REDIRECT_URI",
+    type: "string",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      "Redirect URI registered on the LinkedIn App — required for LinkedIn's own app-review/allow-list, even though this codebase does not implement the interactive authorize/callback flow itself. Required when LINKEDIN_PROVIDER_ENABLED=true.",
+    validatorGroup: "checkLinkedInProviderConfig"
+  },
+  {
+    name: "LINKEDIN_REQUIRED_SCOPES",
+    type: "csv",
+    required: "conditional",
+    ownerModule: "social-publishing",
+    sensitivity: "non-secret",
+    profiles: ONLINE_PROFILES,
+    description:
+      "Comma-separated OAuth scopes a connected account must hold (e.g. \"w_organization_social,r_organization_social,rw_organization_admin\") — checked by the adapter's verifyCredentials against each account's stored scopes. Required when LINKEDIN_PROVIDER_ENABLED=true.",
+    validatorGroup: "checkLinkedInProviderConfig"
+  },
+
+  // ---------------------------------------------------------------------
   // Social publishing — Telegram channel adapter (Issue #646)
   // ---------------------------------------------------------------------
   {
