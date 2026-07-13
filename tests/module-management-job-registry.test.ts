@@ -83,6 +83,7 @@ describe("fetchModuleJobs", () => {
       [
         "bun run blog:publish:scheduled",
         "bun run config:validate",
+        "bun run data-lifecycle:archive-purge",
         "bun run email:dispatch",
         "bun run email:provider:health",
         "bun run email:templates:seed-defaults",

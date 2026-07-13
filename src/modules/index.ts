@@ -1,5 +1,6 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
 import { blogContentModule } from "./blog-content/module";
+import { dataLifecycleModule } from "./data-lifecycle/module";
 import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
@@ -32,7 +33,13 @@ export const modules: ModuleDescriptor[] = [
   visitorAnalyticsModule,
   newsPortalModule,
   idnAdminRegionsModule,
-  socialPublishingModule
+  socialPublishingModule,
+  // Issue #745 (epic #738 platform-evolution Wave 1) — appended at the end
+  // (rather than reordered near its dependencies) so a sibling Wave-1 PR
+  // registering its own new module (e.g. domain_event_runtime, #742) can
+  // add its own entry here independently with a minimal, easily-resolved
+  // merge conflict (keep BOTH new entries, never pick one side).
+  dataLifecycleModule
 ];
 
 export function getModuleByKey(

@@ -716,14 +716,15 @@ daftar lengkap dan alasan tiap job dimiliki modul mana. Dua kategori:
 `email:dispatch` di atas (ganti nama command pada contoh crontab),
 idempoten/aman dijalankan berulang, no-op aman bila fiturnya nonaktif:
 
-| Command                 | Modul             | Jadwal disarankan                                        |
-| ----------------------- | ----------------- | -------------------------------------------------------- |
-| `sync:objects:dispatch` | sync_storage      | Setiap 1-2 menit                                         |
-| `logs:audit:purge`      | logging           | Harian                                                   |
-| `form-drafts:purge`     | form_drafts       | Harian                                                   |
-| `analytics:rollup`      | visitor_analytics | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai) |
-| `analytics:purge`       | visitor_analytics | Harian, setelah `analytics:rollup`                       |
-| `news-media:reconcile`  | news_portal       | Harian (Issue #690)                                      |
+| Command                        | Modul             | Jadwal disarankan                                                     |
+| ------------------------------ | ----------------- | --------------------------------------------------------------------- |
+| `sync:objects:dispatch`        | sync_storage      | Setiap 1-2 menit                                                      |
+| `logs:audit:purge`             | logging           | Harian                                                                |
+| `form-drafts:purge`            | form_drafts       | Harian                                                                |
+| `analytics:rollup`             | visitor_analytics | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai)              |
+| `analytics:purge`              | visitor_analytics | Harian, setelah `analytics:rollup`                                    |
+| `news-media:reconcile`         | news_portal       | Harian (Issue #690)                                                   |
+| `data-lifecycle:archive-purge` | data_lifecycle    | Harian (Issue #745, lihat §Data lifecycle archive/purge job di bawah) |
 
 Semua bersifat operasi database murni (kecuali `sync:objects:dispatch`
 yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`, dan
@@ -939,6 +940,36 @@ ke failure-injection terkontrol (disconnect PostgreSQL, pool saturation,
 worker interruption, partial provider outage) plus tier `--full` yang
 menjalankan `restore-drill.sh` — lihat
 [`resilience-dr-verification.md`](resilience-dr-verification.md).
+
+## Data lifecycle archive/purge job (Issue #745, epic #738)
+
+`bun run data-lifecycle:archive-purge` — dibangun di atas shared worker
+runner di atas (§Shared worker runner), archive/purge bounded untuk
+descriptor `"generic"` (satu di PR ini: `data_lifecycle.
+data_lifecycle_runs`, tabel riwayat eksekusi lifecycle modul ini
+sendiri) plus snapshot dry-run untuk descriptor `"delegated"` (audit/
+analytics/form-drafts — dibaca untuk visibilitas backlog, tidak pernah
+dimutasi; purge asli tetap lewat job masing-masing yang sudah ada di
+job registry di atas). Lihat
+[`data-lifecycle.md`](data-lifecycle.md) untuk panduan operasional
+lengkap (retensi per descriptor, legal hold, restore procedure arsip
+lokal, pemetaan kepatuhan).
+
+- **Env**: `DATA_LIFECYCLE_ARCHIVE_ROOT_PATH` (default
+  `./var/data-lifecycle-archive`) — root filesystem artefak arsip
+  lokal/offline (JSONL/CSV, checksum SHA-256). Bekerja penuh
+  offline/LAN, tidak ada dependency jaringan eksternal.
+- **Jadwal**: harian via cron/systemd timer, sama pola job lain di job
+  registry di atas.
+- **`awcms_mini_worker`**: grant eksplisit hanya pada empat tabel modul
+  ini sendiri (legal holds SELECT-only — worker membaca hold, tidak
+  pernah membuat/melepasnya; cursors/manifests/runs DML penuh) —
+  migration `056_awcms_mini_data_lifecycle_schema.sql`.
+- **Backup/arsip berbeda konsep**: archive manifest melengkapi, bukan
+  menggantikan, backup database rutin di §Backup lokal di atas — archive
+  adalah bukti retensi per-tabel yang bisa dipulihkan independen dari
+  restore database penuh; backup database tetap wajib jalan seperti
+  biasa terlepas dari descriptor mana yang mengadopsi archive.
 
 ## Metrics dan observabilitas operasional (Issue #698)
 

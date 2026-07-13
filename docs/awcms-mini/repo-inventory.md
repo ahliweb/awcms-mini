@@ -6,11 +6,12 @@
 
 ## Modules
 
-16 modules registered in `src/modules/index.ts` `listModules()`.
+17 modules registered in `src/modules/index.ts` `listModules()`.
 
 | Key                 | Version | Status         | Type     | Dependencies                                               |
 | ------------------- | ------- | -------------- | -------- | ---------------------------------------------------------- |
 | `blog_content`      | `0.9.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                          |
+| `data_lifecycle`    | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`               |
 | `email`             | `0.5.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`, `identity_access`      |
 | `form_drafts`       | `1.0.0` | `active`       | `-`      | `identity_access`                                          |
 | `identity_access`   | `1.0.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`                         |
@@ -29,7 +30,7 @@
 
 ## Migrations
 
-55 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `055_awcms_mini_social_publishing_verify_permission.sql`).
+57 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `057_awcms_mini_data_lifecycle_permissions.sql`).
 
 | #   | File                                                              |
 | --- | ----------------------------------------------------------------- |
@@ -88,10 +89,12 @@
 | 053 | `053_awcms_mini_social_publishing_schema.sql`                     |
 | 054 | `054_awcms_mini_idn_admin_regions_schema.sql`                     |
 | 055 | `055_awcms_mini_social_publishing_verify_permission.sql`          |
+| 056 | `056_awcms_mini_data_lifecycle_schema.sql`                        |
+| 057 | `057_awcms_mini_data_lifecycle_permissions.sql`                   |
 
 ## Tables & Row-Level Security
 
-86 tables created across all migrations; 76 carry a `tenant_id` column; 75 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
+90 tables created across all migrations; 80 carry a `tenant_id` column; 79 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
@@ -113,19 +116,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-250 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+256 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 78         |
+| `integration` | 81         |
 | `modules`     | 5          |
-| `unit`        | 112        |
+| `unit`        | 115        |
 
 ## Routes / Operations (summary)
 
-148 OpenAPI paths, 199 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+153 OpenAPI paths, 205 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

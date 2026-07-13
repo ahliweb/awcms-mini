@@ -1,0 +1,580 @@
+# Source fragment for the "Data Lifecycle" module/tag (Issue #745, epic #738
+# platform-evolution). Owns every path tagged "Data Lifecycle" and every
+# schema referenced ONLY by this tag's operations.
+#
+# NOT independently valid OpenAPI -- see openapi/README.md. Real archive/
+# purge execution (bun run data-lifecycle:archive-purge) is an internal
+# scheduled job, deliberately NOT exposed here as an HTTP path -- same
+# administrative-operation posture as logs:audit:purge/analytics:purge.
+paths:
+  /api/v1/data-lifecycle/registry:
+    get:
+      tags:
+        - Data Lifecycle
+      summary: List every registered high-volume table lifecycle descriptor
+      operationId: dataLifecycleRegistryList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Code-declared descriptor metadata only -- never row contents or a live count.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - descriptors
+                        properties:
+                          descriptors:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DataLifecycleDescriptor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-lifecycle/dry-run:
+    post:
+      tags:
+        - Data Lifecycle
+      summary: Compute an on-demand, read-only dry-run lifecycle plan for one descriptor
+      operationId: dataLifecycleDryRunCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - descriptorKey
+              additionalProperties: false
+              properties:
+                descriptorKey:
+                  type: string
+                  description: A key from GET /api/v1/data-lifecycle/registry.
+                retentionDaysOverride:
+                  type: integer
+                  description: Clamped to the descriptor's own [retentionMinDays, retentionMaxDays] bounds.
+      responses:
+        "200":
+          description: Deterministic, zero-mutation categorized counts. No Idempotency-Key required -- this endpoint never mutates anything and persists no run record.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - plan
+                        properties:
+                          plan:
+                            $ref: "#/components/schemas/DataLifecycleDryRunPlan"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-lifecycle/runs:
+    get:
+      tags:
+        - Data Lifecycle
+      summary: List lifecycle run history (dry-run/archive/purge outcomes)
+      operationId: dataLifecycleRunsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: descriptorKey
+          in: query
+          schema:
+            type: string
+        - name: runType
+          in: query
+          schema:
+            type: string
+            enum:
+              - dry_run
+              - archive
+              - purge
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Run history (limit 100, newest first) -- categorized aggregate counts only, never row contents or PII.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - runs
+                        properties:
+                          runs:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DataLifecycleRun"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-lifecycle/legal-holds:
+    get:
+      tags:
+        - Data Lifecycle
+      summary: List legal holds for the caller's tenant
+      operationId: dataLifecycleLegalHoldsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - active
+              - released
+        - name: descriptorKey
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Legal holds (limit 200, newest first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalHolds
+                        properties:
+                          legalHolds:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DataLifecycleLegalHold"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Data Lifecycle
+      summary: Create a legal hold (overrides ordinary retention/purge)
+      operationId: dataLifecycleLegalHoldsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DataLifecycleCreateLegalHoldRequest"
+      responses:
+        "200":
+          description: Legal hold created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalHold
+                        properties:
+                          legalHold:
+                            $ref: "#/components/schemas/DataLifecycleLegalHold"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-lifecycle/legal-holds/{id}/release:
+    post:
+      tags:
+        - Data Lifecycle
+      summary: Release (end) an active legal hold
+      operationId: dataLifecycleLegalHoldsRelease
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - releaseReason
+              additionalProperties: false
+              properties:
+                releaseReason:
+                  type: string
+                  minLength: 10
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Legal hold released.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalHold
+                        properties:
+                          legalHold:
+                            $ref: "#/components/schemas/DataLifecycleLegalHold"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Legal hold already released, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    DataLifecycleDescriptor:
+      type: object
+      description: Trusted code-declared metadata (never tenant/request-controlled) -- see src/modules/_shared/module-contract.ts's HighVolumeTableDescriptor.
+      required:
+        - key
+        - tableName
+        - ownerModuleKey
+        - scope
+        - cursorColumn
+        - retentionClass
+        - retentionMinDays
+        - retentionMaxDays
+        - defaultRetentionDays
+        - batchLimit
+        - executionMode
+      additionalProperties: true
+      properties:
+        key:
+          type: string
+        tableName:
+          type: string
+        ownerModuleKey:
+          type: string
+        scope:
+          type: string
+          enum:
+            - tenant
+            - global
+        cursorColumn:
+          type: string
+        retentionClass:
+          type: string
+        retentionMinDays:
+          type: integer
+        retentionMaxDays:
+          type: integer
+        defaultRetentionDays:
+          type: integer
+        batchLimit:
+          type: integer
+        executionMode:
+          type: string
+          enum:
+            - delegated
+            - generic
+    DataLifecycleDryRunPlan:
+      type: object
+      required:
+        - descriptorKey
+        - cutoffAt
+        - eligibleCount
+        - heldCount
+        - archivedCount
+        - purgeableCount
+        - blockedCount
+        - matchedHoldIds
+      additionalProperties: false
+      properties:
+        descriptorKey:
+          type: string
+        cutoffAt:
+          type: string
+          format: date-time
+        eligibleCount:
+          type: integer
+        heldCount:
+          type: integer
+        archivedCount:
+          type: integer
+        purgeableCount:
+          type: integer
+        blockedCount:
+          type: integer
+        matchedHoldIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    DataLifecycleRun:
+      type: object
+      required:
+        - id
+        - descriptorKey
+        - runType
+        - status
+        - eligibleCount
+        - heldCount
+        - archivedCount
+        - purgeableCount
+        - purgedCount
+        - blockedCount
+        - errorCount
+        - cutoffAt
+        - startedAt
+        - finishedAt
+        - triggeredBy
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        descriptorKey:
+          type: string
+        runType:
+          type: string
+          enum:
+            - dry_run
+            - archive
+            - purge
+        status:
+          type: string
+          enum:
+            - completed
+            - partial
+            - failed
+        eligibleCount:
+          type: integer
+        heldCount:
+          type: integer
+        archivedCount:
+          type: integer
+        purgeableCount:
+          type: integer
+        purgedCount:
+          type: integer
+        blockedCount:
+          type: integer
+        errorCount:
+          type: integer
+        cutoffAt:
+          type: string
+          format: date-time
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        triggeredBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    DataLifecycleLegalHold:
+      type: object
+      required:
+        - id
+        - tenantId
+        - descriptorKey
+        - scopeDescription
+        - reason
+        - authorityReference
+        - status
+        - startsAt
+        - endsAt
+        - requestedBy
+        - releasedBy
+        - releasedAt
+        - releaseReason
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        descriptorKey:
+          type: string
+          nullable: true
+          description: null means a tenant-wide hold applying to every registered descriptor.
+        scopeDescription:
+          type: string
+        reason:
+          type: string
+        authorityReference:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - released
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true
+        requestedBy:
+          type: string
+          format: uuid
+        releasedBy:
+          type: string
+          format: uuid
+          nullable: true
+        releasedAt:
+          type: string
+          format: date-time
+          nullable: true
+        releaseReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DataLifecycleCreateLegalHoldRequest:
+      type: object
+      required:
+        - scopeDescription
+        - reason
+        - authorityReference
+      additionalProperties: false
+      properties:
+        descriptorKey:
+          type: string
+          nullable: true
+          description: Omit or null for a tenant-wide hold.
+        scopeDescription:
+          type: string
+          maxLength: 2000
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 2000
+        authorityReference:
+          type: string
+          maxLength: 2000
+        endsAt:
+          type: string
+          format: date-time
+          nullable: true

@@ -948,6 +948,20 @@ sebagai node teks aman, mengikuti kebijakan keamanan `content-block-
 rendering.ts`'s whitelist renderer. Tag hanya dicocokkan bila milik tenant
 pemanggil (tenant-scoped, RLS) — tidak pernah lintas tenant.
 
+### Data lifecycle (Issue #745, epic #738 platform-evolution)
+
+Modul `data_lifecycle` (System Foundation) — registry tabel bervolume
+tinggi kontribusi-modul dan mesin lifecycle (retensi/partisi/arsip/legal
+hold/purge aman), lihat `docs/awcms-mini/data-lifecycle.md` untuk panduan
+operasional lengkap. Retention days/batch limit sudah dimiliki descriptor
+kode tiap tabel (atau, untuk adopter "delegated", env var retensi modul
+pemiliknya sendiri, mis. `AUDIT_LOG_RETENTION_DAYS`) — **satu-satunya**
+var baru issue ini adalah lokasi filesystem arsip lokal/offline.
+
+| Var                                | Wajib | Default                        | Sensitif | Fungsi                                                                                                                                                         |
+| ---------------------------------- | ----- | ------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATA_LIFECYCLE_ARCHIVE_ROOT_PATH` | –     | `./var/data-lifecycle-archive` | –        | Root filesystem tempat local/offline archive adapter menulis artefak JSONL/CSV (manifest+checksum bertengger di `awcms_mini_data_lifecycle_archive_manifests`) |
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |

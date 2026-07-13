@@ -1762,6 +1762,20 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     default: "true",
     description:
       "When true, text inside h1-h6 heading elements is never auto-linked (in addition to existing anchors, scripts, code/pre blocks, and figure captions, which are never linked regardless of this setting)."
+  },
+  // ---------------------------------------------------------------------
+  // Data lifecycle (Issue #745, epic #738 platform-evolution)
+  // ---------------------------------------------------------------------
+  {
+    name: "DATA_LIFECYCLE_ARCHIVE_ROOT_PATH",
+    type: "path",
+    required: "optional",
+    ownerModule: "data-lifecycle",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "./var/data-lifecycle-archive",
+    description:
+      "Filesystem root the local/offline archive adapter (src/modules/data-lifecycle/infrastructure/local-archive-adapter.ts) writes archive artifacts under, one subdirectory per (tenantId, ownerModuleKey, tableShortName). The only new env var this issue adds — retention days/batch limits are already owned by each HighVolumeTableDescriptor in code (or, for a delegated adopter, by that module's own existing retention env var), never re-declared here."
   }
 ];
 

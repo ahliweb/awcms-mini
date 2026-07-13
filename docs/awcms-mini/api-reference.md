@@ -5354,6 +5354,159 @@ Gated by `rules.read` — templates are configured alongside rules, no separate 
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
+## Data Lifecycle
+
+Module-contributed high-volume table registry and lifecycle engine (Issue #745, epic #738 platform-evolution) — read the code-declared descriptor registry, create/release legal holds (which override ordinary retention/purge and cannot be bypassed by tenant policy), trigger an on-demand read-only dry-run plan, and read run history. Real archive/purge execution is an internal scheduled job (`bun run data-lifecycle:archive-purge`), not exposed over HTTP — same administrative-operation posture as `bun run logs:audit:purge`.
+
+### `POST /api/v1/data-lifecycle/dry-run` — Compute an on-demand, read-only dry-run lifecycle plan for one descriptor
+
+- **operationId**: `dataLifecycleDryRunCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                      | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Deterministic, zero-mutation categorized counts. No Idempotency-Key required -- this endpoint never mutates anything and persists no run record. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-lifecycle/legal-holds` — List legal holds for the caller's tenant
+
+- **operationId**: `dataLifecycleLegalHoldsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                       | Description                                 |
+| ------------------ | ------ | -------- | -------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`active`, `released`) |                                             |
+| `descriptorKey`    | query  | no       | string                     |                                             |
+| `X-Correlation-ID` | header | no       | string                     | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                     | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal holds (limit 200, newest first).         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-lifecycle/legal-holds` — Create a legal hold (overrides ordinary retention/purge)
+
+- **operationId**: `dataLifecycleLegalHoldsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DataLifecycleCreateLegalHoldRequest`](#schema-datalifecyclecreatelegalholdrequest)
+
+**Responses**
+
+| Status | Description                                      | Schema                                                   |
+| ------ | ------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Legal hold created.                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-lifecycle/legal-holds/{id}/release` — Release (end) an active legal hold
+
+- **operationId**: `dataLifecycleLegalHoldsRelease`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                      | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal hold released.                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Legal hold already released, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-lifecycle/registry` — List every registered high-volume table lifecycle descriptor
+
+- **operationId**: `dataLifecycleRegistryList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                   | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Code-declared descriptor metadata only -- never row contents or a live count. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                           | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                    | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-lifecycle/runs` — List lifecycle run history (dry-run/archive/purge outcomes)
+
+- **operationId**: `dataLifecycleRunsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                | Description                                 |
+| ------------------ | ------ | -------- | ----------------------------------- | ------------------------------------------- |
+| `descriptorKey`    | query  | no       | string                              |                                             |
+| `runType`          | query  | no       | enum(`dry_run`, `archive`, `purge`) |                                             |
+| `X-Correlation-ID` | header | no       | string                              | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                              | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                            | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Run history (limit 100, newest first) -- categorized aggregate counts only, never row contents or PII. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                             | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
@@ -7140,6 +7293,28 @@ One content quality checklist rule's evaluation result (Issue
     }
   ],
   "generatedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: DataLifecycleCreateLegalHoldRequest
+
+| Field                | Type               | Required | Nullable | Description                          |
+| -------------------- | ------------------ | -------- | -------- | ------------------------------------ |
+| `descriptorKey`      | string             | no       | yes      | Omit or null for a tenant-wide hold. |
+| `scopeDescription`   | string             | yes      | no       |                                      |
+| `reason`             | string             | yes      | no       |                                      |
+| `authorityReference` | string             | yes      | no       |                                      |
+| `endsAt`             | string (date-time) | no       | yes      |                                      |
+
+**Example**
+
+```json
+{
+  "descriptorKey": "string",
+  "scopeDescription": "string",
+  "reason": "string",
+  "authorityReference": "string",
+  "endsAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
