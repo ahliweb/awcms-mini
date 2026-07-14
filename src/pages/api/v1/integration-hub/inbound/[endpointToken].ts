@@ -26,7 +26,7 @@ import {
  * Every failure path returns a generic, safe error — never distinguishes
  * "unknown token" from "known token, verification failed" via response
  * shape/timing beyond what the single `SECURITY DEFINER` lookup round
- * trip already bounds (see migration 066's own comment).
+ * trip already bounds (see migration 071's own comment).
  */
 export const POST: APIRoute = async ({ request, params }) => {
   const endpointToken = params.endpointToken;
