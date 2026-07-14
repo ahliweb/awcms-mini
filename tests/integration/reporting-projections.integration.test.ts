@@ -4,7 +4,7 @@
  * cursor_table correctness/resumability, IDEMPOTENT REBUILD under a
  * simulated crash-mid-rebuild, reconciliation drift detection, cross-
  * tenant RLS isolation, the real least-privilege `awcms_mini_worker`
- * connection (migration 066 grants), and the event-driven consumer
+ * connection (migration 069 grants), and the event-driven consumer
  * (including its mutual-exclusion-with-rebuild guard).
  *
  * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
@@ -715,7 +715,7 @@ suite("reporting-projections (Issue #753)", () => {
     });
   });
 
-  describe("least-privilege awcms_mini_worker role (migration 066 grants)", () => {
+  describe("least-privilege awcms_mini_worker role (migration 069 grants)", () => {
     test("runIncrementalUpdateForTenant succeeds over the real awcms_mini_worker connection, not just admin", async () => {
       const owner = await bootstrap();
       const adminSql = getAdminSql();

@@ -1,7 +1,7 @@
 /**
  * Materialized projection metric value store (Issue #753) —
  * `awcms_mini_reporting_projection_metrics`. Every value is a
- * non-negative counter (DB `CHECK` backstop, migration 066); a
+ * non-negative counter (DB `CHECK` backstop, migration 069); a
  * `"decrement"` rule is clamped at 0 in application code too (defense in
  * depth — a source-data bug should never surface as a negative count).
  */

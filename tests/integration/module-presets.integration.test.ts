@@ -150,12 +150,17 @@ suite("tenant module preset application service", () => {
     // comment), so it is a pure leaf here. idn_admin_regions (Issue #655)
     // depends on identity_access/logging/module_management, all of which
     // stay enabled, but nothing depends on idn_admin_regions itself —
-    // also a pure leaf. organization_structure (Issue #749) depends on
+    // also a pure leaf. organization_structure (Issue #749) and
+    // document_infrastructure (Issue #751) both depend on
     // tenant_admin/identity_access/domain_event_runtime, all of which stay
-    // enabled — nothing depends on organization_structure itself, also a
-    // pure leaf (depending on a module that stays enabled does not itself
-    // block a module's OWN disable; only being DEPENDED ON by something
-    // that stays enabled does).
+    // enabled — nothing depends on either of them, also pure leaves
+    // (depending on a module that stays enabled does not itself block a
+    // module's OWN disable; only being DEPENDED ON by something that
+    // stays enabled does). Unlike on `main` before Issue #753,
+    // domain_event_runtime itself is NOT a pure leaf here and does NOT
+    // disable — `reporting` (listed, stays enabled) now also depends on
+    // it (see the `sync_storage`/`domain_event_runtime`/`logging` skip
+    // block below), which transitively keeps `logging` enabled too.
     for (const key of [
       "workflow",
       "form_drafts",
@@ -164,7 +169,8 @@ suite("tenant module preset application service", () => {
       "idn_admin_regions",
       "social_publishing",
       "data_lifecycle",
-      "organization_structure"
+      "organization_structure",
+      "document_infrastructure"
     ]) {
       expect(changeByKey.get(key)?.outcome).toBe("applied");
       expect(changeByKey.get(key)?.action).toBe("disabled");
@@ -207,6 +213,7 @@ suite("tenant module preset application service", () => {
     expect(state.get("social_publishing")).toBe(false);
     expect(state.get("data_lifecycle")).toBe(false);
     expect(state.get("organization_structure")).toBe(false);
+    expect(state.get("document_infrastructure")).toBe(false);
 
     const auditRows = await fetchAuditActions(owner.tenantId);
     const disabledResourceIds = auditRows
@@ -222,7 +229,8 @@ suite("tenant module preset application service", () => {
         "idn_admin_regions",
         "social_publishing",
         "data_lifecycle",
-        "organization_structure"
+        "organization_structure",
+        "document_infrastructure"
       ].sort()
     );
     // No audit event for modules that were already in the target state.

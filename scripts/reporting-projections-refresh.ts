@@ -8,7 +8,7 @@
  * archive-purge.ts`: built on the shared worker runner (advisory lock,
  * timeout, SIGTERM/SIGINT-aware cancellation, JSON telemetry), pure
  * PostgreSQL operation, safe in offline/LAN deployments. Runs as
- * `awcms_mini_worker` (migration 066's own grants — see that file's
+ * `awcms_mini_worker` (migration 069's own grants — see that file's
  * header comment).
  */
 import { getWorkerDatabaseClient } from "../src/lib/database/client";

@@ -14,7 +14,7 @@
  *    together with the new run row AND the caller's own audit-log write and
  *    idempotency-record save, or (on any failure) NONE of it does and the
  *    OLD projection state (from before this rebuild was even requested) is
- *    untouched. Migration 066's partial unique index
+ *    untouched. Migration 069's partial unique index
  *    (`awcms_mini_reporting_rebuild_runs_running_unique`, `WHERE status =
  *    'running'`) additionally makes "two concurrent triggers both try to
  *    reset at once" impossible at the database level: `createRebuildRun`'s

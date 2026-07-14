@@ -3,7 +3,7 @@
  * (Issue #753). Same convention `data-lifecycle/domain/data-lifecycle-
  * permissions.ts` established: a typed constants object, reused verbatim
  * by `module.ts`'s `permissions` array, the permission-seed migration
- * (067), and every route handler's `authorizeInTransaction` guard —
+ * (070), and every route handler's `authorizeInTransaction` guard —
  * never re-typed as a string literal at more than one call site.
  *
  * Additive to the existing single `reporting.dashboard.read` permission

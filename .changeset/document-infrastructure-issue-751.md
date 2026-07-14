@@ -1,0 +1,19 @@
+---
+"awcms-mini": minor
+---
+
+Add `document_infrastructure`, a generic, tenant-scoped document metadata infrastructure module (Issue #751, epic `platform-evolution` #738 Wave 3, admission decision `docs/adr/0017-document-infrastructure-module-admission.md`).
+
+Base gets a new Official Optional Module for reusable document metadata — never a domain document schema — so derived applications stop rebuilding the same structural primitives (versioning, classification, evidence, numbering) for their own letters/invoices/purchase orders/journal batches/medical records/contracts.
+
+- A classification catalog, the document registry itself (owner module + document type + a primary generic resource reference), and IMMUTABLE append-only versions — `content_reference`/`content_reference_kind` point at an approved managed-object storage contract, never a binary blob column. `document-version-service.ts`'s `createDocumentVersion` is the sole writer of `awcms_mini_document_versions`; no `UPDATE`/`DELETE` statement against that table exists anywhere in the module.
+- Additional typed generic resource relations, written only through a new capability port (`document_resource_relations`, `application/document-resource-relation-port.ts`) — any other module imports and calls `linkDocumentToResource`/`unlinkDocumentFromResource`/`listRelationsForResource`/`listRelationsForDocument` directly (in-process, ADR-0011 pattern) to attach a document to one of its own resources, without this module ever reading/writing that module's tables.
+- Concurrency-safe numbering sequences: effective-dated (SCD Type 2 style) definitions where revising the format never resets or reuses the counter, and atomic reservation/commit/cancel via row-level `SELECT ... FOR UPDATE` on the sequence's current definition row — proven under real parallel load by a genuine concurrency integration test (20 simultaneous reservation requests, 20 distinct numbers, zero duplicates). `UNIQUE (tenant_id, sequence_id, reserved_number)` makes silent number reuse structurally impossible regardless of a reservation's final status.
+- A bounded, hand-written character-scanning format-template grammar (`{SEQ}`/`{SEQ:n}`, `{YYYY}`/`{YY}`/`{MM}`/`{DD}`) — never `eval`/dynamic regex/unbounded template execution.
+- An append-only evidence trail for numbering/version/document lifecycle events, complementing (not replacing) the general audit log.
+- Seven new tenant-scoped tables (`sql/066`), all `ENABLE`+`FORCE ROW LEVEL SECURITY` with tenant-first indexes and least-privilege `awcms_mini_worker` read-only grants; 27 new permissions (`sql/067`).
+- Four new `AccessAction`/`HIGH_RISK_ACTIONS` literals added additively to `identity-access/domain/access-control.ts`: `void`, `reclassify`, `reserve`, `commit` — the pre-existing shared `cancel` literal is deliberately left unclassified to avoid changing blast radius for other modules' `cancel` actions.
+- Idempotency-Key required on every mutation with real double-submit risk (document/version create, void/restore/reclassify, relation link/unlink, sequence define/revise/deactivate/restore, reservation reserve/commit/cancel) — audited via a fresh unit-test sweep of the module's entire mutation surface after a sibling PR in this epic needed a follow-up round for missing exactly this coverage.
+- Admin UI: `/admin/document-infrastructure/{classifications,documents,documents/{id},sequences}`.
+- Domain events (`document.created/voided/restored/reclassified`, `version.created`, `number.reserved/committed/canceled`) wired through `domain_event_runtime`.
+- OpenAPI (`openapi/modules/document-infrastructure.openapi.yaml`), AsyncAPI channels, i18n (en+id), unit + integration tests (including cross-tenant isolation and five neutral fixtures — correspondence evidence, contract attachment, invoice reference, approval evidence, asset-disposal evidence — demonstrating reuse without any domain-specific rule), and module README.

@@ -830,7 +830,7 @@ suite("domain-event-runtime (Issue #742)", () => {
       // the reporting event-activity projector (INSERT/UPDATE into
       // awcms_mini_reporting_projection_metrics, Issue #753) — must have
       // actually succeeded under the worker role's own grants (migration
-      // 066), not silently no-opped.
+      // 069), not silently no-opped.
       const auditRows = await withTenant(
         adminSql,
         owner.tenantId,

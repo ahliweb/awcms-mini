@@ -27,7 +27,7 @@ type RebuildRequestBody = { reason?: unknown };
 /**
  * `POST /api/v1/reports/projections/{key}/rebuild` (Issue #753) — trigger
  * a full rebuild, or return the already-`'running'` rebuild if one exists
- * (idempotent-by-design at the domain layer via migration 066's partial
+ * (idempotent-by-design at the domain layer via migration 069's partial
  * unique index — see `application/projection-rebuild.ts`'s header comment
  * — ADDITIONALLY guarded here by the ordinary `Idempotency-Key` HTTP
  * mutation contract every high-risk endpoint in this repo uses). High-risk

@@ -91,7 +91,7 @@ reference; summary:
 1. `triggerOrResumeRebuild` is the ONLY place cursors/metrics reset to
    zero — done in the CALLER's own transaction (the API route's), atomic
    with the new run row, audit log, and idempotency record. Migration
-   066's partial unique index (`... WHERE status = 'running'`) makes a
+   069's partial unique index (`... WHERE status = 'running'`) makes a
    concurrent double-reset impossible at the database level;
    `createRebuildRun` uses `INSERT ... ON CONFLICT DO NOTHING` (never a
    raw unique-violation exception) so a lost race doesn't poison the
@@ -197,7 +197,7 @@ mutation).
 
 Additive to the pre-existing `reporting.dashboard.read` (migration 010,
 unchanged): `reporting.projections.{read,rebuild,analyze}`,
-`reporting.exports.{read,configure,export}` (migration 067,
+`reporting.exports.{read,configure,export}` (migration 070,
 `domain/projection-permissions.ts`'s `REPORTING_PROJECTION_PERMISSIONS`
 single source of truth).
 

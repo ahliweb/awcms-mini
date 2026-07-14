@@ -1,6 +1,6 @@
 /**
  * Rebuild run execution/progress store (Issue #753) —
- * `awcms_mini_reporting_rebuild_runs`. Migration 066's partial unique
+ * `awcms_mini_reporting_rebuild_runs`. Migration 069's partial unique
  * index (`... WHERE status = 'running'`) is the actual correctness
  * guarantee (at most one running rebuild per (tenant, projection) at a
  * time, enforced by Postgres, not application discipline) — this file
@@ -91,7 +91,7 @@ export async function getRebuildRunById(
 /**
  * Creates a NEW rebuild run row with `status = 'running'` — `ON CONFLICT
  * (tenant_id, projection_key) WHERE status = 'running' DO NOTHING`
- * against migration 066's partial unique index, same idiom
+ * against migration 069's partial unique index, same idiom
  * `_shared/idempotency.ts`'s own `saveIdempotencyRecord` already
  * establishes for a "check-then-insert" race (an `ON CONFLICT DO NOTHING`
  * that inserts zero rows is a normal, successful statement — unlike a raw

@@ -14,7 +14,7 @@ exports with checksum/expiry/secure download, eleven new
 audited, `Idempotency-Key`-protected), two new scheduled jobs with
 least-privilege worker grants, and a new admin screen at
 `/admin/reporting/projections`. Seven new tenant-scoped RLS-protected
-tables (`sql/066`-`067`), fully additive to the five existing live
+tables (`sql/069`-`070`), fully additive to the five existing live
 `/api/v1/reports/*` views.
 
 Each `ProjectionDescriptor`'s own `requiredPermission` is now enforced
