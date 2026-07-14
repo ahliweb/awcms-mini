@@ -14,14 +14,7 @@
  * 100% CPU forever (confirmed project pitfall). Every rejection below is
  * asserted via manual try/catch instead.
  */
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test
-} from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   applyMigrations,
@@ -237,10 +230,6 @@ suite("reporting-projections (Issue #753)", () => {
   beforeEach(async () => {
     await resetDatabase();
     syntheticClockCursorMs = 0;
-  });
-
-  afterAll(async () => {
-    await getAdminSql().close({ timeout: 1 });
   });
 
   describe("cursor_table incremental engine — access_audit_summary", () => {

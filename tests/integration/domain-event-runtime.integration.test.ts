@@ -395,7 +395,7 @@ suite("domain-event-runtime (Issue #742)", () => {
   });
 
   describe("dispatch, idempotent consumer side effects, crash/restart recovery", () => {
-    test("dispatching delivers to both reference consumers exactly once (audit projection + activity rollup)", async () => {
+    test("dispatching delivers to all three registered consumers exactly once (audit projection + activity rollup + reporting event-activity projector, Issue #753)", async () => {
       const owner = await bootstrap();
       const sql = getAdminSql();
 
@@ -404,7 +404,10 @@ suite("domain-event-runtime (Issue #742)", () => {
       );
 
       const result = await dispatchDomainEventsForTenant(sql, owner.tenantId);
-      expect(result.delivered).toBe(2);
+      // Issue #753 registered a THIRD real consumer
+      // (`reporting.event_activity_projector`) against this same reference
+      // event — was 2 (audit projector + activity rollup) before that PR.
+      expect(result.delivered).toBe(3);
 
       const auditRows = await withTenant(
         sql,
@@ -421,6 +424,14 @@ suite("domain-event-runtime (Issue #742)", () => {
           tx`SELECT event_count FROM awcms_mini_domain_event_activity_daily WHERE tenant_id = ${owner.tenantId} AND event_type = ${SAMPLE_RECORDED_EVENT_TYPE}`
       )) as { event_count: number }[];
       expect(rollupRows[0]?.event_count).toBe(1);
+
+      const reportingMetricRows = (await withTenant(
+        sql,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT metric_value FROM awcms_mini_reporting_projection_metrics WHERE tenant_id = ${owner.tenantId} AND projection_key = 'reporting.event_activity_summary' AND metric_key = 'sample_recorded_count'`
+      )) as { metric_value: number }[];
+      expect(Number(reportingMetricRows[0]?.metric_value)).toBe(1);
     });
 
     test("redelivering an already-delivered row (simulated worker restart) does not duplicate the side effect", async () => {
@@ -432,7 +443,10 @@ suite("domain-event-runtime (Issue #742)", () => {
       );
 
       const first = await dispatchDomainEventsForTenant(sql, owner.tenantId);
-      expect(first.delivered).toBe(2);
+      // Issue #753 registered a THIRD real consumer
+      // (`reporting.event_activity_projector`) against this same reference
+      // event — was 2 (audit projector + activity rollup) before that PR.
+      expect(first.delivered).toBe(3);
 
       // Simulate a worker-restart redelivery: force the delivered rows back
       // to `pending` directly (bypassing the dispatcher's own state machine
@@ -446,7 +460,7 @@ suite("domain-event-runtime (Issue #742)", () => {
       `;
 
       const second = await dispatchDomainEventsForTenant(sql, owner.tenantId);
-      expect(second.delivered).toBe(2);
+      expect(second.delivered).toBe(3);
 
       const auditRows = await withTenant(
         sql,
@@ -465,6 +479,17 @@ suite("domain-event-runtime (Issue #742)", () => {
           tx`SELECT event_count FROM awcms_mini_domain_event_activity_daily WHERE tenant_id = ${owner.tenantId} AND event_type = ${SAMPLE_RECORDED_EVENT_TYPE}`
       )) as { event_count: number }[];
       expect(rollupRows[0]?.event_count).toBe(1);
+
+      const reportingMetricRows = (await withTenant(
+        sql,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT metric_value FROM awcms_mini_reporting_projection_metrics WHERE tenant_id = ${owner.tenantId} AND projection_key = 'reporting.event_activity_summary' AND metric_key = 'sample_recorded_count'`
+      )) as { metric_value: number }[];
+      // Same idempotency guarantee (applyConsumerEffectOnce) applies to the
+      // reporting projector too — still exactly 1, never double-incremented
+      // by the redelivery (Issue #753).
+      expect(Number(reportingMetricRows[0]?.metric_value)).toBe(1);
     });
 
     test("a handler that throws leaves the delivery pending (no stuck claimed state) and a later successful attempt applies the side effect exactly once", async () => {
@@ -764,7 +789,7 @@ suite("domain-event-runtime (Issue #742)", () => {
      * own pattern), exactly like `bun run domain-events:dispatch` does in
      * a hardened deployment with `WORKER_DATABASE_URL` set (doc 18).
      */
-    test("dispatchDomainEventsForTenant succeeds end-to-end (claim, deliver to both reference consumers, audit) over the real awcms_mini_worker connection, not just the admin connection", async () => {
+    test("dispatchDomainEventsForTenant succeeds end-to-end (claim, deliver to all three registered consumers, audit) over the real awcms_mini_worker connection, not just the admin connection", async () => {
       const owner = await bootstrap();
       const adminSql = getAdminSql();
       const workerSql = getWorkerTestSql();
@@ -780,7 +805,10 @@ suite("domain-event-runtime (Issue #742)", () => {
         owner.tenantId
       );
 
-      expect(result.delivered).toBe(2);
+      // Issue #753 registered a THIRD real consumer
+      // (`reporting.event_activity_projector`) against this same reference
+      // event — was 2 (audit projector + activity rollup) before that PR.
+      expect(result.delivered).toBe(3);
       expect(result.retried).toBe(0);
       expect(result.deadLettered).toBe(0);
 
@@ -796,11 +824,13 @@ suite("domain-event-runtime (Issue #742)", () => {
         )
       ).toBe(true);
 
-      // Both reference consumers' side effects — the audit projector
-      // (INSERT into awcms_mini_audit_events) and the activity rollup
-      // (INSERT/UPDATE into awcms_mini_domain_event_activity_daily) — must
-      // have actually succeeded under the worker role's own grants, not
-      // silently no-opped.
+      // All three registered consumers' side effects — the audit projector
+      // (INSERT into awcms_mini_audit_events), the activity rollup
+      // (INSERT/UPDATE into awcms_mini_domain_event_activity_daily), and
+      // the reporting event-activity projector (INSERT/UPDATE into
+      // awcms_mini_reporting_projection_metrics, Issue #753) — must have
+      // actually succeeded under the worker role's own grants (migration
+      // 066), not silently no-opped.
       const auditRows = await withTenant(
         adminSql,
         owner.tenantId,
@@ -816,6 +846,14 @@ suite("domain-event-runtime (Issue #742)", () => {
           tx`SELECT event_count FROM awcms_mini_domain_event_activity_daily WHERE tenant_id = ${owner.tenantId}`
       )) as { event_count: number }[];
       expect(rollupRows[0]?.event_count).toBe(1);
+
+      const reportingMetricRows = (await withTenant(
+        adminSql,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT metric_value FROM awcms_mini_reporting_projection_metrics WHERE tenant_id = ${owner.tenantId} AND projection_key = 'reporting.event_activity_summary' AND metric_key = 'sample_recorded_count'`
+      )) as { metric_value: number }[];
+      expect(Number(reportingMetricRows[0]?.metric_value)).toBe(1);
     });
 
     test("a dead-lettered delivery (worker role) records a redacted-safe error and an audit event, entirely over the worker connection", async () => {
