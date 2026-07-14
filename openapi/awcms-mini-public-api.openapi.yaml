@@ -20607,7 +20607,7 @@ components:
           nullable: true
         scopeType:
           type: string
-          description: Only "office" is resolvable against a real table today (identity-access's default hierarchy port adapter); any other value resolves to `SCOPE_UNRESOLVED` until a future organization module registers its own resolver.
+          description: '"office" always resolves via identity-access''s default hierarchy port adapter. "legal_entity"/"organization_unit" resolve against the real organization-structure tables when the organization_structure module is enabled for the tenant; otherwise (or for any other scope type) resolution falls back to `SCOPE_UNRESOLVED`. Ancestor/descendant scope relationships are not consulted by segregation-of-duties conflict matching, which compares scope identity only.'
         scopeId:
           type: string
           format: uuid
