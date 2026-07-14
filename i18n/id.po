@@ -3762,3 +3762,150 @@ msgstr "Kode yang disarankan"
 msgid "admin.organization_structure.unit_types.title"
 msgstr "Tipe Unit Organisasi"
 
+
+msgid "admin.layout.nav_reporting_projections"
+msgstr "Proyeksi Reporting"
+
+msgid "admin.reporting_projections.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat proyeksi reporting atau ekspor terjadwal."
+
+msgid "admin.reporting_projections.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.reporting_projections.cancel_rebuild_button"
+msgstr "Batalkan rebuild"
+
+msgid "admin.reporting_projections.col_actions"
+msgstr "Aksi"
+
+msgid "admin.reporting_projections.col_drill_down"
+msgstr "Sumber"
+
+msgid "admin.reporting_projections.col_expires_at"
+msgstr "Kedaluwarsa pada"
+
+msgid "admin.reporting_projections.col_format"
+msgstr "Format"
+
+msgid "admin.reporting_projections.col_freshness"
+msgstr "Kesegaran"
+
+msgid "admin.reporting_projections.col_interval"
+msgstr "Interval"
+
+msgid "admin.reporting_projections.col_key"
+msgstr "Kunci"
+
+msgid "admin.reporting_projections.col_last_success"
+msgstr "Sukses terakhir"
+
+msgid "admin.reporting_projections.col_metrics"
+msgstr "Metrik"
+
+msgid "admin.reporting_projections.col_row_count"
+msgstr "Baris"
+
+msgid "admin.reporting_projections.col_status"
+msgstr "Status"
+
+msgid "admin.reporting_projections.create_schedule_button"
+msgstr "Buat jadwal"
+
+msgid "admin.reporting_projections.create_schedule_heading"
+msgstr "Buat ekspor terjadwal"
+
+msgid "admin.reporting_projections.disable_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.reporting_projections.disable_reason_prompt"
+msgstr "Alasan menonaktifkan ekspor terjadwal ini:"
+
+msgid "admin.reporting_projections.download_link"
+msgstr "Unduh"
+
+msgid "admin.reporting_projections.export_button"
+msgstr "Ekspor sekarang"
+
+msgid "admin.reporting_projections.export_runs_empty"
+msgstr "Belum ada riwayat ekspor."
+
+msgid "admin.reporting_projections.export_runs_heading"
+msgstr "Riwayat ekspor"
+
+msgid "admin.reporting_projections.export_triggered"
+msgstr "Ekspor berhasil dibuat."
+
+msgid "admin.reporting_projections.field_interval_minutes"
+msgstr "Interval (menit)"
+
+msgid "admin.reporting_projections.freshness_current"
+msgstr "Terkini"
+
+msgid "admin.reporting_projections.freshness_delayed"
+msgstr "Tertunda"
+
+msgid "admin.reporting_projections.freshness_failed"
+msgstr "Gagal"
+
+msgid "admin.reporting_projections.freshness_rebuilding"
+msgstr "Sedang rebuild"
+
+msgid "admin.reporting_projections.freshness_stale"
+msgstr "Basi"
+
+msgid "admin.reporting_projections.page_description"
+msgstr "Proyeksi read-model kontribusi modul — pembaruan inkremental, status kesegaran, rebuild, rekonsiliasi, dan ekspor terjadwal."
+
+msgid "admin.reporting_projections.page_title"
+msgstr "Proyeksi Reporting"
+
+msgid "admin.reporting_projections.projections_empty"
+msgstr "Belum ada proyeksi terdaftar."
+
+msgid "admin.reporting_projections.projections_heading"
+msgstr "Proyeksi"
+
+msgid "admin.reporting_projections.rebuild_button"
+msgstr "Rebuild"
+
+msgid "admin.reporting_projections.rebuild_cancel_requested"
+msgstr "Pembatalan diminta."
+
+msgid "admin.reporting_projections.rebuild_reason_prompt"
+msgstr "Alasan rebuild ini:"
+
+msgid "admin.reporting_projections.rebuild_resumed"
+msgstr "Rebuild sudah berjalan — progres akan dilanjutkan."
+
+msgid "admin.reporting_projections.rebuild_triggered"
+msgstr "Rebuild dipicu."
+
+msgid "admin.reporting_projections.reconcile_button"
+msgstr "Rekonsiliasi"
+
+msgid "admin.reporting_projections.reconcile_complete"
+msgstr "Rekonsiliasi selesai — tidak ada ketidakcocokan."
+
+msgid "admin.reporting_projections.reconcile_mismatch"
+msgstr "Rekonsiliasi selesai — ditemukan ketidakcocokan."
+
+msgid "admin.reporting_projections.schedule_created"
+msgstr "Ekspor terjadwal dibuat."
+
+msgid "admin.reporting_projections.schedule_disabled"
+msgstr "Ekspor terjadwal dinonaktifkan."
+
+msgid "admin.reporting_projections.scheduled_exports_empty"
+msgstr "Belum ada ekspor terjadwal."
+
+msgid "admin.reporting_projections.scheduled_exports_heading"
+msgstr "Ekspor terjadwal"
+
+msgid "admin.reporting_projections.status_disabled"
+msgstr "Nonaktif"
+
+msgid "admin.reporting_projections.status_enabled"
+msgstr "Aktif"
+
+msgid "admin.reporting_projections.view_source_link"
+msgstr "Lihat sumber langsung"

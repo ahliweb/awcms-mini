@@ -1175,3 +1175,63 @@ default-deny, audit) yang sudah berlaku sama di sini.
 - **`"location"` tidak diekspos lewat `BusinessScopeHierarchyPort`** —
   keputusan desain (ADR-0016 §10), bukan gap: port ini tentang otorisasi
   scope bisnis, bukan lookup lokasi fisik.
+
+## Standar tambahan dipicu epic platform-evolution (Issue #753, epic #738 Wave 3)
+
+Perluasan modul `reporting` menambah **proyeksi read-model kontribusi-
+modul** (incremental cursor_table/domain_event, idempotent rebuild,
+freshness/staleness, rekonsiliasi sumber, ekspor terjadwal). Bagian ini
+merangkum model ancaman inti spesifik proyeksi — tidak mengulang kontrol
+generik (RLS, ABAC default-deny, audit, Idempotency-Key) yang sudah
+berlaku sama di sini.
+
+| Kategori risiko                                                                       | Mitigasi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Proyeksi basi memberi otorisasi basi (stale grant)**                                | Proyeksi adalah read model TURUNAN, bukan sumber kebenaran otorisasi (persyaratan keamanan eksplisit issue #753). Setiap endpoint `/api/v1/reports/projections*`/`/exports*` menjalankan `authorizeInTransaction` penuh saat request, terlepas dari seberapa basi datanya; `drillDownPath` mengarah ke endpoint live yang JUGA melakukan re-check ABAC independen, tidak pernah "trust" hasil proyeksi.                                                                                                                                                                                                                                       |
+| **Rebuild double-count lewat crash/retry/race**                                       | Migration 066's partial unique index `(tenant_id, projection_key) WHERE status='running'` menjamin di tingkat database paling banyak SATU rebuild berjalan; reset (cursor+metric ke nol) dan pembuatan run baru terjadi dalam SATU transaksi bersama caller (audit log + idempotency record API). `createRebuildRun` pakai `INSERT ... ON CONFLICT DO NOTHING` (bukan exception unique-violation) agar transaksi caller tidak "poisoned" saat kalah race. Diuji adversarial: bounded pass -> simulasi crash -> resume -> total akhir persis benar, tidak pernah dobel/kurang (`tests/integration/reporting-projections.integration.test.ts`). |
+| **Rebuild dan live update konkuren dobel-hitung baris yang sama**                     | Steady-state incremental worker (`cursor_table`) DAN event consumer (`domain_event`) sama-sama SKIP total (no-op, bukan error) untuk `(tenant, projection)` mana pun yang sedang punya rebuild `'running'` — rebuild me-re-derive TOTAL dari tabel sumber otoritatif, jadi baris apa pun yang ditulis selama jendela rebuild pasti sudah tercakup scan rebuild sendiri saat mencapainya.                                                                                                                                                                                                                                                      |
+| **Least-privilege `awcms_mini_worker` kurang grant (kelas bug berulang di epic ini)** | Migration 066 menambah grant EKSPLISIT persis pada tabel yang disentuh kedua job terjadwal, termasuk `SELECT` baru pada `awcms_mini_abac_decision_logs`/`awcms_mini_identities`/`awcms_mini_sync_nodes` yang SEBELUMNYA tidak ada di grant matrix worker sama sekali (celah nyata, bukan hipotetis — dikonfirmasi kosong di migration 045 sebelum PR ini). Dibuktikan lewat integration test `provisionWorkerRole()` yang menjalankan `runIncrementalUpdateForTenant`/dispatcher event lewat koneksi worker asli, bukan admin/superuser.                                                                                                      |
+| **Injeksi SQL lewat nama tabel/kolom dinamis pada cursor stream**                     | `tableName`/`tenantColumn`/`cursorColumn`/`matchColumn` HANYA berasal dari `ProjectionDescriptor` yang sudah divalidasi registry gate (kode, bukan request/user input) — `assertSafeIdentifier` allowlist regex di setiap titik pemakaian adalah defense-in-depth kedua, pola sama `data_lifecycle`'s `archive-purge-job.ts`. Setiap VALUE (termasuk `matchValue`) tetap bound parameter sungguhan, tidak pernah string-concatenated.                                                                                                                                                                                                         |
+| **CSV formula injection pada file export**                                            | `local-export-adapter.ts`'s `csvEscape` menetralkan prefix formula (`=`/`+`/`-`/`@`/tab/CR) dengan prefix kutip tunggal sebelum escaping kutip ganda RFC4180 — defense-in-depth meski `metricLabels`/`metricKey` sendiri kode-terdeklarasi, bukan input tenant.                                                                                                                                                                                                                                                                                                                                                                               |
+| **Kebocoran isi source table lewat drift ke tabel export**                            | Export hanya berisi RINGKASAN metrik proyeksi (satu baris per metric key + label + nilai) — tidak pernah row-level source data mentah; tidak ada mekanisme di modul ini yang menulis payload event/row transaksional ke artefak export.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Download export lintas-tenant atau setelah kedaluwarsa**                            | `GET /api/v1/reports/exports/runs/{id}/download` re-check ABAC + tenant scope (RLS) SETIAP request, dan menolak `410 Gone` bila `expires_at` sudah lewat — checksum SHA-256 direkam di manifest saat pembuatan untuk verifikasi integritas terpisah dari kontrol akses.                                                                                                                                                                                                                                                                                                                                                                       |
+
+### Batasan yang dicatat, bukan diabaikan (reporting projections)
+
+- **Hanya tiga descriptor terdaftar** di PR ini (dua wrap laporan
+  existing yang datanya append-only-safe, satu demonstrasi event-driven
+  baru) — representative, bukan exhaustive; laporan lain (sync-health,
+  email-health, sebagian module-usage) sengaja TIDAK dibungkus proyeksi
+  karena sumbernya bukan append-only (lihat `src/modules/reporting/
+README.md` §Projections untuk alasan lengkap per laporan).
+- **`scope: "global"` descriptor diterima registry tapi belum
+  dieksekusi end-to-end** — sama pola `data_lifecycle`; tidak ada
+  descriptor terdaftar hari ini yang mendeklarasikan `scope: "global"`.
+- **Cursor tie window** — sama limitasi 1ms terdokumentasi
+  `data_lifecycle` (lihat `projection-incremental-worker.ts`'s komentar
+  header), duplikasi kode helper yang sama, bukan cross-module import,
+  agar `reporting` tidak menambah `dependencies` baru untuk satu helper
+  kecil.
+- **Reconcile tidak punya tolerance window** — mismatch dilaporkan
+  eksak; sebuah proyeksi yang sekadar "delayed" (belum catch-up) secara
+  sah melaporkan mismatch sampai pass incremental berikutnya — ini
+  BENAR (reconciliation memang harus mendeteksi drift), bukan false
+  positive, tapi berarti caller harus membaca freshness status
+  berdampingan dengan hasil reconcile, bukan menggantikannya.
+- **Scheduled export config tanpa endpoint "enable" terpisah** — hanya
+  create + disable (soft-delete); mengaktifkan kembali berarti membuat
+  config baru. Cukup untuk scope minimal issue ini; toggle
+  enable/disable independen adalah follow-up yang masuk akal.
+- **Manual export trigger berjalan sinkron dalam request HTTP** — payload
+  export proyeksi ini kecil (ringkasan metrik, bukan row-level data)
+  sehingga latency dapat diterima; ini BUKAN pola yang cocok untuk
+  export data mentah bervolume besar (itu domain `data_exchange`, Issue
+  #752, yang eksplisit dirancang jobs asinkron/staged/resumable).
+- **Tidak ada integrasi pause/resume `domain_event_runtime` consumer
+  otomatis saat rebuild event-driven berjalan** — race sempit antara
+  rebuild yang sedang re-scan `awcms_mini_domain_events` dan live
+  delivery yang di-skip (bukan diproses ganda) sudah aman by construction
+  (lihat mitigasi baris "Rebuild dan live update konkuren" di atas),
+  tapi memanggil `domain_event_runtime`'s pause/resume API secara
+  eksplisit saat rebuild dimulai/selesai adalah penguatan lanjutan yang
+  masuk akal, bukan diperlukan untuk korektnes.

@@ -1,4 +1,6 @@
 import { recordAuditEvent } from "../../logging/application/audit-log";
+import { applyEventActivityProjectionIncrement } from "../../reporting/application/event-activity-projection";
+import { EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME } from "../../reporting/domain/projection-keys";
 import { applyConsumerEffectOnce } from "../application/consumer-effect";
 import type { DomainEventConsumerDefinition } from "../domain/consumer-types";
 import {
@@ -99,9 +101,51 @@ export const activityRollupProjectorConsumer: DomainEventConsumerDefinition = {
   }
 };
 
+/**
+ * REAL cross-module consumer (Issue #753, epic #738 platform-evolution
+ * Wave 3 — the first non-reference, genuinely-used consumer registered in
+ * this file): projects `sample.recorded` events into `reporting`'s own
+ * `awcms_mini_reporting_event_activity_summary` projection metric via
+ * `applyEventActivityProjectionIncrement`. This IS the one cross-module
+ * edge that wires `domain_event_runtime` -> `reporting/application` — safe
+ * against `tests/unit/module-boundary-cycles.test.ts` because
+ * `reporting`'s own `application`/`domain` files import nothing back from
+ * `domain_event_runtime` (its rebuild path reads
+ * `awcms_mini_domain_events` via a plain SQL table name, never a
+ * cross-module TypeScript import — see `reporting/application/
+ * projection-rebuild.ts`'s header comment), so no cycle exists.
+ *
+ * Idempotency: `applyConsumerEffectOnce` (this module's own, reused
+ * unchanged) guards against a redelivered event double-incrementing the
+ * counter — same mechanism the two reference consumers above already use.
+ * `reporting`'s own `applyEventActivityProjectionIncrement` ADDITIONALLY
+ * skips entirely while a rebuild owns this projection (mutual exclusion
+ * with `reporting/application/projection-rebuild.ts` — see that file's
+ * header comment §3 for why this is safe against double-counting).
+ */
+const EVENT_ACTIVITY_PROJECTOR_DESCRIPTION =
+  "reporting module consumer — projects a sample.recorded domain event into awcms_mini_reporting_projection_metrics' reporting.event_activity_summary/sample_recorded_count counter (Issue #753).";
+
+export const eventActivityProjectorConsumer: DomainEventConsumerDefinition = {
+  name: EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME,
+  description: EVENT_ACTIVITY_PROJECTOR_DESCRIPTION,
+  eventTypes: [SAMPLE_RECORDED_EVENT_TYPE],
+  eventVersions: [SAMPLE_RECORDED_EVENT_VERSION],
+  handler: async (tx, event, ctx) => {
+    await applyConsumerEffectOnce(
+      tx,
+      ctx.tenantId,
+      EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME,
+      event.id,
+      () => applyEventActivityProjectionIncrement(tx, ctx.tenantId)
+    );
+  }
+};
+
 const BASE_DOMAIN_EVENT_CONSUMERS: readonly DomainEventConsumerDefinition[] = [
   sampleAuditProjectorConsumer,
-  activityRollupProjectorConsumer
+  activityRollupProjectorConsumer,
+  eventActivityProjectorConsumer
 ];
 
 /**

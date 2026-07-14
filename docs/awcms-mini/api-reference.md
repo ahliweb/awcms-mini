@@ -7915,6 +7915,287 @@ High-risk mutation -- requires Idempotency-Key.
 | 409    | Organization unit is not currently deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                          | [`ApiError`](#standard-error-envelope)                   |
 
+## Reporting Projections
+
+Module-contributed read-model projection extension to Management Reporting (epic `platform-evolution` #738 Wave 3, Issue #753) — list registered projection descriptors with live snapshot/freshness status, trigger/resume/cancel an idempotent full rebuild, trigger an on-demand reconciliation against a source control total, and manage/trigger/download scheduled exports of a projection's current snapshot (manifest/checksum/expiry, secure tenant-scoped download). A projection is a DERIVED read model, never an authorization source of truth — every operation here independently re-checks RBAC/ABAC. Real incremental updates (`bun run reporting:projections:refresh`, `bun run reporting:exports:dispatch`) are internal scheduled jobs, not exposed over HTTP.
+
+### `GET /api/v1/reports/exports` — List scheduled export configs for the caller's tenant
+
+- **operationId**: `reportingScheduledExportsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `projectionKey`    | query  | no       | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Scheduled export configs (limit 200, newest first). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reports/exports` — Create a scheduled export config
+
+- **operationId**: `reportingScheduledExportCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Scheduled export config created.                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reports/exports/{id}/disable` — Disable (soft-delete) a scheduled export config
+
+- **operationId**: `reportingScheduledExportDisable`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                       | Schema                                                   |
+| ------ | ------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Scheduled export disabled.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                      | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.               | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.    | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Scheduled export not found (or already disabled). | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.  | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.        | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reports/exports/runs` — Export run history (manifest/checksum/expiry evidence)
+
+- **operationId**: `reportingExportRunsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `projectionKey`    | query  | no       | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Export runs (limit 100, newest first).         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reports/exports/runs/{id}/download` — Secure, tenant-scoped, checksum-verified download of a completed export artifact
+
+- **operationId**: `reportingExportRunDownload`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                             | Schema                                 |
+| ------ | ------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| 200    | File content (CSV or JSON), with an `X-Checksum-Sha256` header matching the recorded manifest checksum. | string                                 |
+| 400    | Validation or request error.                                                                            | [`ApiError`](#standard-error-envelope) |
+| 401    | Authentication required or expired.                                                                     | [`ApiError`](#standard-error-envelope) |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                          | [`ApiError`](#standard-error-envelope) |
+| 404    | Resource not found or hidden by soft-delete policy.                                                     | [`ApiError`](#standard-error-envelope) |
+| 410    | This export artifact has expired.                                                                       | [`ApiError`](#standard-error-envelope) |
+| 500    | Internal server error without stack trace.                                                              | [`ApiError`](#standard-error-envelope) |
+
+### `POST /api/v1/reports/exports/trigger` — Manually generate an export of a projection's current snapshot
+
+- **operationId**: `reportingExportTrigger`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                     | Schema                                                   |
+| ------ | --------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Export generated (or recorded as failed — see `export.status`). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                    | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                             | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                  | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.             | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.                | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                      | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reports/projections` — List every registered projection descriptor's live snapshot/freshness for the caller's tenant
+
+- **operationId**: `reportingProjectionsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                     | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Registered scope="tenant" projections with current metric values and computed freshness status. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                             | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                      | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reports/projections/{key}` — A single projection's snapshot/freshness plus recent reconciliation history
+
+- **operationId**: `reportingProjectionGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                               | Schema                                                   |
+| ------ | --------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Projection snapshot plus its last 50 reconciliation runs. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                              | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                       | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.            | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.       | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reports/projections/{key}/rebuild` — Trigger a full projection rebuild, or return the already-running one
+
+- **operationId**: `reportingProjectionRebuildCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Rebuild triggered (or resumed — see `resumed`).     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reports/projections/{key}/rebuild/cancel` — Request cooperative cancellation of the currently-running rebuild
+
+- **operationId**: `reportingProjectionRebuildCancel`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                           | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Cancellation requested — checked cooperatively between bounded passes, not immediate. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                        | [`ApiError`](#standard-error-envelope)                   |
+| 404    | No running rebuild for this projection.                                               | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.                                      | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                            | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reports/projections/{key}/reconcile` — On-demand reconciliation of a projection against a freshly computed source control total
+
+- **operationId**: `reportingProjectionReconcileCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                             | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Deterministic comparison snapshot. No Idempotency-Key required -- mutates no business state (only appends a reconciliation history row), safe to retry. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                            | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
