@@ -249,7 +249,7 @@ suite("organization_structure integration", () => {
     const deactivate = await invoke(deactivateLegalEntity, {
       method: "DELETE",
       path: `/api/v1/organization-structure/legal-entities/${legalEntityId}`,
-      headers: authHeaders(owner),
+      headers: authHeaders(owner, "legal-entity-deactivate-key"),
       params: { id: legalEntityId },
       body: { deleteReason: "Merged into another entity" }
     });
@@ -271,7 +271,7 @@ suite("organization_structure integration", () => {
     const restore = await invoke(restoreLegalEntity, {
       method: "POST",
       path: `/api/v1/organization-structure/legal-entities/${legalEntityId}/restore`,
-      headers: authHeaders(owner),
+      headers: authHeaders(owner, "legal-entity-restore-key"),
       params: { id: legalEntityId }
     });
     expect(restore.status).toBe(200);
@@ -371,7 +371,7 @@ suite("organization_structure integration", () => {
     const ended = await invoke(endLocationUnitRelationship, {
       method: "POST",
       path: `/api/v1/organization-structure/location-unit-relationships/${relationship.body.data.relationship.id}/end`,
-      headers: authHeaders(owner),
+      headers: authHeaders(owner, "location-unit-relationship-end-key"),
       params: { id: relationship.body.data.relationship.id }
     });
     expect(ended.status).toBe(200);
@@ -393,7 +393,7 @@ suite("organization_structure integration", () => {
     const endResult = await invoke(endAssignment, {
       method: "POST",
       path: `/api/v1/organization-structure/assignments/${assignment.body.data.assignment.id}/end`,
-      headers: authHeaders(owner),
+      headers: authHeaders(owner, "assignment-end-key"),
       params: { id: assignment.body.data.assignment.id },
       body: { endReason: "Role changed" }
     });
