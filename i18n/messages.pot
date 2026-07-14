@@ -5330,6 +5330,11 @@ msgid "error.turnstile_required"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:111
+msgid "error.unsupported_media_type"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
 #: src/lib/i18n/error-messages.ts:36
 msgid "error.validation_error"
 msgstr ""

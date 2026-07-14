@@ -44,15 +44,38 @@ export type ExportExecuteOutcome = {
   rowCount: number;
 };
 
-function neutralizeRowForExport(
+/**
+ * Reviewer finding on PR #782 (Low/hardening): a scalar-only check
+ * (`typeof value === "string"`) misses a nested array/object field —
+ * `serializeCsv`'s own call site below stringifies every non-string cell
+ * via plain `String(value)`, and `String(["=1+1"])` evaluates to the bare
+ * string `"=1+1"` (a single-element array's `toString()` just joins with
+ * no brackets/quotes), which DOES begin with a dangerous character even
+ * though the scalar-only check never inspected it. Fixed: compute the
+ * SAME string CSV serialization will actually emit (`String(value)`) and
+ * neutralize THAT — if it turns out dangerous, replace the value with the
+ * neutralized STRING form (loses array/object structure, but that is the
+ * safe direction); if safe, keep the original value untouched (preserves
+ * array/object fidelity for JSON export, the common case).
+ */
+export function neutralizeRowForExport(
   row: Record<string, unknown>
 ): Record<string, unknown> {
   const output: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {
-    output[key] =
-      typeof value === "string"
-        ? neutralizeFormulaInjectionValue(value).value
-        : value;
+    if (typeof value === "string") {
+      output[key] = neutralizeFormulaInjectionValue(value).value;
+      continue;
+    }
+
+    if (value === null || value === undefined || typeof value !== "object") {
+      output[key] = value;
+      continue;
+    }
+
+    const csvSerializedForm = String(value);
+    const neutralized = neutralizeFormulaInjectionValue(csvSerializedForm);
+    output[key] = neutralized.neutralized ? neutralized.value : value;
   }
   return output;
 }

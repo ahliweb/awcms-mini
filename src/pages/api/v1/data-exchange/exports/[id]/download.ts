@@ -8,10 +8,13 @@ import {
   resolveAuthInputs
 } from "../../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../../lib/auth/session-token";
+import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 import {
   getExportJobById,
   getExportJobFileContent
 } from "../../../../../../modules/data-exchange/application/export-job-directory";
+
+const MODULE_KEY = "data_exchange";
 
 /** Distinct, more sensitive permission from `exports.read` (Issue #752 security requirement — export FILE CONTENT is more sensitive than job status/manifest metadata). */
 const DOWNLOAD_GUARD = {
@@ -32,7 +35,7 @@ const CONTENT_TYPES: Record<"csv" | "json", string> = {
  * envelope) on success; error responses still use the standard `ApiError`
  * envelope.
  */
-export const GET: APIRoute = async ({ request, cookies, params }) => {
+export const GET: APIRoute = async ({ request, cookies, params, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
   if (!tenantId)
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
@@ -45,6 +48,7 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
+  const correlationId = locals.correlationId;
 
   return withTenant(sql, tenantId, async (tx) => {
     const auth = await authorizeInTransaction(
@@ -74,6 +78,26 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
         "Export job is completed but has no file content."
       );
     }
+
+    // Security-auditor finding on PR #782 (Medium): downloading the raw
+    // business-data artifact previously left no trail of WHO downloaded it
+    // — only that the export job completed. Audited here, distinct from
+    // `export-execute-job.ts`'s own "export completed" audit entry.
+    await recordAuditEvent(tx, {
+      tenantId,
+      actorTenantUserId: auth.context.tenantUserId,
+      moduleKey: MODULE_KEY,
+      action: "export",
+      resourceType: "export_job",
+      resourceId: job.id,
+      severity: "info",
+      message: `Export job "${job.exportKey}" file content downloaded.`,
+      attributes: {
+        rowCount: job.rowCount,
+        checksumSha256: job.checksumSha256
+      },
+      correlationId
+    });
 
     const extension = job.format;
     const safeFilename = `${job.exportKey.replace(/[^a-z0-9_.-]/gi, "_")}-${job.id}.${extension}`;

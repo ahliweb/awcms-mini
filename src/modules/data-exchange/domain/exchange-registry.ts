@@ -25,6 +25,10 @@ import type {
 
 const DESCRIPTOR_KEY_PATTERN = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 
+/** `requiredPermission` must be a well-formed `module_key.activity_code.action` permission key (`identity-access/domain/access-control.ts`'s own `permissionKey()` format) — security-auditor finding on PR #782: a malformed value would silently fail closed at runtime (`descriptor-authorization.ts`'s own defense), but catching the shape at registry-validation time (CI, `bun test`) is a much earlier, cheaper signal than a runtime 500 on a real request. */
+const PERMISSION_KEY_PATTERN =
+  /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
+
 /** Sane upper bound on `limits.maxFileBytes` — must never exceed the HTTP-layer hard ceiling (`src/lib/security/request-body-limit.ts`'s `BODY_SIZE_HARD_CEILING_BYTES`, 10 MiB) since intake always goes through that shared reader first; a descriptor claiming more would be silently truncated by the HTTP layer regardless. */
 export const MAX_EXCHANGE_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -149,6 +153,24 @@ function validateSingleDescriptor(
   ) {
     push(
       "sensitiveFields.rawValuePermission is required whenever sensitiveFields.fieldNames is non-empty."
+    );
+  }
+
+  if (
+    descriptor.requiredPermission &&
+    !PERMISSION_KEY_PATTERN.test(descriptor.requiredPermission)
+  ) {
+    push(
+      `requiredPermission must match "<module_key>.<activity_code>.<action>" (got ${JSON.stringify(descriptor.requiredPermission)}).`
+    );
+  }
+
+  if (
+    descriptor.sensitiveFields?.rawValuePermission &&
+    !PERMISSION_KEY_PATTERN.test(descriptor.sensitiveFields.rawValuePermission)
+  ) {
+    push(
+      `sensitiveFields.rawValuePermission must match "<module_key>.<activity_code>.<action>" (got ${JSON.stringify(descriptor.sensitiveFields.rawValuePermission)}).`
     );
   }
 

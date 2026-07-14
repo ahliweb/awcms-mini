@@ -17,7 +17,12 @@ import {
   findIdempotencyRecord,
   saveIdempotencyRecord
 } from "../../../../../../modules/_shared/idempotency";
-import { requestImportRetry } from "../../../../../../modules/data-exchange/application/import-batch-directory";
+import {
+  getImportBatchById,
+  requestImportRetry,
+  resolveImportDescriptor
+} from "../../../../../../modules/data-exchange/application/import-batch-directory";
+import { authorizeExchangeDescriptorPermission } from "../../../../../../modules/data-exchange/application/descriptor-authorization";
 
 const IDEMPOTENCY_SCOPE = "data_exchange_import_retry";
 
@@ -66,6 +71,16 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       RETRY_GUARD
     );
     if (!auth.allowed) return auth.denied;
+
+    const existingBatch = await getImportBatchById(tx, tenantId, batchId);
+    const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      existingBatch ? resolveImportDescriptor(existingBatch.importKey) : null
+    );
+    if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
 
     const existingIdempotency = await findIdempotencyRecord(
       tx,

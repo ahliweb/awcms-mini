@@ -23,8 +23,10 @@ import {
 } from "../../../../../modules/_shared/idempotency";
 import {
   listImportBatches,
+  resolveImportDescriptor,
   stageImportBatch
 } from "../../../../../modules/data-exchange/application/import-batch-directory";
+import { authorizeExchangeDescriptorPermission } from "../../../../../modules/data-exchange/application/descriptor-authorization";
 import type { ImportBatchStatus as _ImportBatchStatusAlias } from "../../../../../modules/data-exchange/domain/import-batch-state";
 
 const IDEMPOTENCY_SCOPE = "data_exchange_import_stage";
@@ -142,6 +144,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
   const rawContent = await file.text();
   const originalFilename = file instanceof File ? file.name : null;
+  const mediaType = file.type;
   const clientChecksumSha256 =
     typeof clientChecksum === "string" && /^[0-9a-f]{64}$/i.test(clientChecksum)
       ? clientChecksum.toLowerCase()
@@ -167,6 +170,15 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       CREATE_GUARD
     );
     if (!auth.allowed) return auth.denied;
+
+    const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      resolveImportDescriptor(importKey)
+    );
+    if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
 
     const existingIdempotency = await findIdempotencyRecord(
       tx,
@@ -194,6 +206,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       {
         importKey,
         format: format as "csv" | "json",
+        mediaType,
         originalFilename,
         rawContent,
         clientChecksumSha256
@@ -210,6 +223,13 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
           400,
           "VALIDATION_ERROR",
           `Format "${format}" is not supported for this importKey.`
+        );
+      }
+      if (result.reason === "unsupported_media_type") {
+        return fail(
+          415,
+          "UNSUPPORTED_MEDIA_TYPE",
+          `Content-Type "${mediaType}" is not an allowed media type for format "${format}".`
         );
       }
       if (result.reason === "empty_file") {

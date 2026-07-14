@@ -62,7 +62,11 @@ import { GET as downloadExportRoute } from "../../src/pages/api/v1/data-exchange
 import { GET as getReconciliation } from "../../src/pages/api/v1/data-exchange/reconciliation/[subjectType]/[subjectId]";
 
 import { hashPassword } from "../../src/lib/auth/password";
+import { hashSessionToken } from "../../src/lib/auth/session-token";
+import { getDatabaseClient } from "../../src/lib/database/client";
+import { withTenant } from "../../src/lib/database/tenant-context";
 import { runDataExchangeWorkerPassForTenant } from "../../src/modules/data-exchange/application/data-exchange-worker";
+import { authorizeExchangeDescriptorPermission } from "../../src/modules/data-exchange/application/descriptor-authorization";
 import { findReferenceItemByCode } from "../../src/modules/data-exchange/application/reference-items-directory";
 import { referenceItemsImportAdapter } from "../../src/modules/data-exchange/application/reference-items-exchange-adapter";
 import {
@@ -73,6 +77,7 @@ import type {
   DataExchangeAdapterPort,
   DataExchangeCommitOutcome
 } from "../../src/modules/_shared/ports/data-exchange-adapter-port";
+import type { ExchangeDescriptor } from "../../src/modules/_shared/module-contract";
 
 const OWNER_LOGIN = "owner@example.com";
 const OWNER_PASSWORD = "integration-test-data-exchange-owner-password";
@@ -227,6 +232,72 @@ async function bootstrapNoAccessUser(owner: Bootstrap): Promise<Bootstrap> {
     VALUES (${owner.tenantId}, 'no_access', 'No Access', false)
     RETURNING id
   `) as { id: string }[];
+
+  await admin`
+    INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id, assigned_by)
+    VALUES (${owner.tenantId}, ${tenantUserId}, ${roleRows[0]!.id}, ${owner.tenantUserId})
+  `;
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": owner.tenantId
+    },
+    body: { loginIdentifier, password: OWNER_PASSWORD },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return {
+    tenantId: owner.tenantId,
+    token: login.body.data.token,
+    tenantUserId
+  };
+}
+
+/** A tenant user granted ONLY the specific permissions listed in `grants` — for the `requiredPermission` enforcement test (security-auditor finding on PR #782): a subject that passes the generic `data_exchange.*` gate but lacks a descriptor-declared EXTRA permission. */
+async function bootstrapLimitedUser(
+  owner: Bootstrap,
+  grants: { moduleKey: string; activityCode: string; action: string }[]
+): Promise<Bootstrap> {
+  const admin = getAdminSql();
+  const loginIdentifier = `limited-${owner.tenantId}@example.com`;
+
+  const profileRows = (await admin`
+    INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+    VALUES (${owner.tenantId}, 'person', 'Limited')
+    RETURNING id
+  `) as { id: string }[];
+
+  const passwordHash = await hashPassword(OWNER_PASSWORD);
+  const identityRows = (await admin`
+    INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+    VALUES (${owner.tenantId}, ${profileRows[0]!.id}, ${loginIdentifier}, ${passwordHash})
+    RETURNING id
+  `) as { id: string }[];
+
+  const tenantUserRows = (await admin`
+    INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+    VALUES (${owner.tenantId}, ${identityRows[0]!.id})
+    RETURNING id
+  `) as { id: string }[];
+  const tenantUserId = tenantUserRows[0]!.id;
+
+  const roleRows = (await admin`
+    INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name, is_system)
+    VALUES (${owner.tenantId}, 'limited', 'Limited', false)
+    RETURNING id
+  `) as { id: string }[];
+
+  for (const grant of grants) {
+    await admin`
+      INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+      SELECT ${owner.tenantId}, ${roleRows[0]!.id}, id FROM awcms_mini_permissions
+      WHERE module_key = ${grant.moduleKey} AND activity_code = ${grant.activityCode} AND action = ${grant.action}
+    `;
+  }
 
   await admin`
     INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id, assigned_by)
@@ -1027,6 +1098,320 @@ suite("data_exchange integration", () => {
 
       expect(result.status).toBe(403);
       expect((result.body as any).error.code).toBe("ACCESS_DENIED");
+    });
+  });
+
+  describe("media-type verification (reviewer finding on PR #782)", () => {
+    test("a disallowed Content-Type is rejected with 415 before any parsing", async () => {
+      const owner = await bootstrap();
+      const formData = new FormData();
+      formData.set("importKey", REFERENCE_ITEMS_KEY);
+      formData.set("format", "csv");
+      // Bun's `Request`/`FormData` multipart round-trip derives `File.type`
+      // from the FILENAME EXTENSION, not from an explicit `type` option or
+      // even an explicit per-part `Content-Type` header (verified directly
+      // against this runtime) -- so the filename extension, not the `type`
+      // constructor option, is what actually reaches the route as
+      // `file.type` here. Using a `.png` filename is what genuinely
+      // exercises the disallowed-media-type path end-to-end.
+      formData.set(
+        "file",
+        new File(["code,label\na,A\n"], "malicious.png", {
+          type: "image/png"
+        })
+      );
+
+      const result = await invokeMultipart(stageImport, {
+        path: "/api/v1/data-exchange/imports",
+        headers: {
+          "x-awcms-mini-tenant-id": owner.tenantId,
+          authorization: `Bearer ${owner.token}`,
+          "idempotency-key": "media-type-key"
+        },
+        formData
+      });
+
+      expect(result.status).toBe(415);
+      expect((result.body as any).error.code).toBe("UNSUPPORTED_MEDIA_TYPE");
+    });
+
+    test("an allowed Content-Type (text/csv) is accepted", async () => {
+      const owner = await bootstrap();
+      const stage = await stageCsv(
+        owner,
+        "code,label\na,A\n",
+        "media-type-ok-key"
+      );
+      expect(stage.status).toBe(200);
+    });
+  });
+
+  describe("worker transaction-per-item isolation (reviewer finding on PR #782)", () => {
+    test("an exception in ONE batch's processing does not roll back an unrelated batch's already-committed work in the same pass", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      const throwingAdapter: DataExchangeAdapterPort = {
+        importKey: REFERENCE_ITEMS_KEY,
+        schemaVersion: "1.0",
+        async validateRow(tx, tenantId, row) {
+          if (row.code === "explode") {
+            throw new Error(
+              "simulated bug -- this must not roll back an unrelated batch's work"
+            );
+          }
+          return referenceItemsImportAdapter.validateRow(tx, tenantId, row);
+        },
+        commitRow: referenceItemsImportAdapter.commitRow
+      };
+      registerExchangeAdapterForTests({
+        registryKey: "reference_items",
+        importAdapter: throwingAdapter
+      });
+
+      // Batch A is staged FIRST (earlier created_at), so the worker
+      // processes it before batch B in the same pass (both queried
+      // `ORDER BY created_at ASC`).
+      const stageA = await stageCsv(
+        owner,
+        "code,label\nwidget-a,Widget A\n",
+        "isolation-a-key"
+      );
+      expect(stageA.status).toBe(200);
+      const batchAId = stageA.body.data.batch.id;
+
+      const stageB = await stageCsv(
+        owner,
+        "code,label\nexplode,Boom\n",
+        "isolation-b-key"
+      );
+      expect(stageB.status).toBe(200);
+      const batchBId = stageB.body.data.batch.id;
+
+      // The pass throws (batch B's validate pass propagates the simulated
+      // bug) -- caught manually (never `expect(...).rejects`, which can
+      // hang on a raw Bun.SQL-backed promise, project convention).
+      let caughtError: unknown = null;
+      try {
+        await runDataExchangeWorkerPassForTenant(sql, owner.tenantId);
+      } catch (error) {
+        caughtError = error;
+      }
+      expect(caughtError).toBeInstanceOf(Error);
+
+      const afterA = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchAId}`,
+          params: { id: batchAId },
+          headers: authHeaders(owner)
+        }
+      );
+      // Batch A's OWN transaction committed independently -- unaffected by
+      // batch B's later exception in the SAME pass (the fix under test).
+      expect(afterA.body.data.batch.status).toBe("previewed");
+
+      const afterB = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchBId}`,
+          params: { id: batchBId },
+          headers: authHeaders(owner)
+        }
+      );
+      // Batch B's OWN transaction rolled back in full (including its own
+      // staged -> validating status flip) -- never reached "previewed".
+      expect(afterB.body.data.batch.status).toBe("staged");
+
+      // A later pass (simulating the next scheduled tick), with the bug
+      // "fixed" (reset to the real adapter), lets batch B proceed normally
+      // -- proves the earlier failure did not corrupt/strand it either.
+      resetExchangeAdaptersForTests();
+      await drainWorker(sql, owner.tenantId);
+      const batchBRetried = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchBId}`,
+          params: { id: batchBId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(batchBRetried.body.data.batch.status).toBe("previewed");
+    });
+  });
+
+  describe("ExchangeDescriptor.requiredPermission enforcement (security-auditor finding on PR #782)", () => {
+    test("denies a subject who lacks the descriptor's requiredPermission, allows once granted", async () => {
+      const owner = await bootstrap();
+      const limited = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" }
+      ]);
+
+      const syntheticDescriptor: ExchangeDescriptor = {
+        key: "data_exchange.synthetic_test_descriptor",
+        ownerModuleKey: "data_exchange",
+        direction: "both",
+        formats: ["csv"],
+        schemaVersion: "1.0",
+        limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
+        adapterRegistryKey: "reference_items",
+        requiredPermission: "identity_access.user_management.read",
+        description:
+          "synthetic descriptor for requiredPermission enforcement test"
+      };
+
+      const appSql = getDatabaseClient();
+      const limitedTokenHash = hashSessionToken(limited.token);
+
+      const denyResult = await withTenant(appSql, owner.tenantId, (tx) =>
+        authorizeExchangeDescriptorPermission(
+          tx,
+          owner.tenantId,
+          limitedTokenHash,
+          new Date(),
+          syntheticDescriptor
+        )
+      );
+      expect(denyResult.allowed).toBe(false);
+      if (!denyResult.allowed) {
+        expect(denyResult.denied.status).toBe(403);
+      }
+
+      // Grant the descriptor's required permission and retry -- now allowed.
+      const admin = getAdminSql();
+      await admin`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        SELECT ${owner.tenantId}, r.id, p.id
+        FROM awcms_mini_roles r, awcms_mini_permissions p
+        WHERE r.tenant_id = ${owner.tenantId} AND r.role_code = 'limited'
+          AND p.module_key = 'identity_access' AND p.activity_code = 'user_management' AND p.action = 'read'
+      `;
+
+      const allowResult = await withTenant(appSql, owner.tenantId, (tx) =>
+        authorizeExchangeDescriptorPermission(
+          tx,
+          owner.tenantId,
+          limitedTokenHash,
+          new Date(),
+          syntheticDescriptor
+        )
+      );
+      expect(allowResult.allowed).toBe(true);
+    });
+
+    test("a descriptor with no requiredPermission is a no-op (always allowed)", async () => {
+      const owner = await bootstrap();
+      const noAccess = await bootstrapNoAccessUser(owner);
+      const appSql = getDatabaseClient();
+
+      const result = await withTenant(appSql, owner.tenantId, (tx) =>
+        authorizeExchangeDescriptorPermission(
+          tx,
+          owner.tenantId,
+          hashSessionToken(noAccess.token),
+          new Date(),
+          null
+        )
+      );
+      expect(result.allowed).toBe(true);
+    });
+
+    test("a malformed requiredPermission string fails CLOSED (500), never silently open", async () => {
+      const owner = await bootstrap();
+      const appSql = getDatabaseClient();
+
+      const result = await withTenant(appSql, owner.tenantId, (tx) =>
+        authorizeExchangeDescriptorPermission(
+          tx,
+          owner.tenantId,
+          hashSessionToken(owner.token),
+          new Date(),
+          {
+            key: "data_exchange.synthetic_test_descriptor",
+            ownerModuleKey: "data_exchange",
+            direction: "both",
+            formats: ["csv"],
+            schemaVersion: "1.0",
+            limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
+            adapterRegistryKey: "reference_items",
+            // Only two segments -- not a valid "module.activity.action" key.
+            requiredPermission: "not-a-valid-permission-key",
+            description:
+              "synthetic descriptor with a malformed requiredPermission"
+          }
+        )
+      );
+
+      // Even the FULLY-permissioned owner is denied -- a malformed
+      // descriptor-declared permission is never silently treated as "no
+      // extra requirement".
+      expect(result.allowed).toBe(false);
+      if (!result.allowed) {
+        expect(result.denied.status).toBe(500);
+      }
+    });
+  });
+
+  describe("export download audit trail (security-auditor finding on PR #782)", () => {
+    test("downloading export file content writes an audit event distinct from the completion event", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        await tx`
+          INSERT INTO awcms_mini_data_exchange_reference_items (tenant_id, code, label, value, status)
+          VALUES (${owner.tenantId}, 'widget-audit', 'Widget Audit', 1, 'active')
+        `;
+      });
+
+      const create = await invoke<{ data: { job: any } }>(createExportRoute, {
+        method: "POST",
+        path: "/api/v1/data-exchange/exports",
+        headers: authHeaders(owner, "audit-export-key"),
+        body: { exportKey: REFERENCE_ITEMS_KEY, format: "csv" }
+      });
+      const jobId = create.body.data.job.id;
+      await drainWorker(sql, owner.tenantId);
+
+      const download = await invokeRaw(downloadExportRoute, {
+        method: "GET",
+        path: `/api/v1/data-exchange/exports/${jobId}/download`,
+        params: { id: jobId },
+        headers: authHeaders(owner)
+      });
+      expect(download.status).toBe(200);
+
+      const admin = getAdminSql();
+      const auditRows = (await admin`
+        SELECT action, resource_type, resource_id, message
+        FROM awcms_mini_audit_events
+        WHERE tenant_id = ${owner.tenantId} AND resource_type = 'export_job'
+          AND resource_id = ${jobId} AND action = 'export'
+        ORDER BY created_at ASC
+      `) as {
+        action: string;
+        resource_type: string;
+        resource_id: string;
+        message: string;
+      }[];
+
+      // One entry from the worker's own "export completed" audit
+      // (export-execute-job.ts) and one from THIS download -- proving WHO
+      // downloaded the artifact is now traceable, not just that the job
+      // completed.
+      expect(auditRows.length).toBeGreaterThanOrEqual(2);
+      expect(auditRows.some((row) => row.message.includes("downloaded"))).toBe(
+        true
+      );
+      expect(auditRows.some((row) => row.message.includes("completed"))).toBe(
+        true
+      );
     });
   });
 });

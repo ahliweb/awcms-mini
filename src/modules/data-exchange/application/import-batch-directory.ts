@@ -22,6 +22,7 @@ import {
 import { listModules } from "../../index";
 import type { ExchangeDescriptor } from "../../_shared/module-contract";
 import { collectExchangeDescriptors } from "../domain/exchange-registry";
+import { isAllowedMediaType } from "../domain/media-type-allowlist";
 import { sanitizeDisplayFilename } from "../domain/safe-filename";
 import {
   isImportBatchCancellable,
@@ -142,6 +143,8 @@ export function resolveImportDescriptor(
 export type StageImportBatchInput = {
   importKey: string;
   format: "csv" | "json";
+  /** Client-declared `File.type`/Content-Type — checked against a per-format allow-list (Issue #752 acceptance criterion: media type is one of the enforced intake bounds). */
+  mediaType: string;
   originalFilename: string | null;
   rawContent: string;
   clientChecksumSha256: string | null;
@@ -151,6 +154,7 @@ export type StageImportBatchResult =
   | { ok: true; batch: ImportBatchRow }
   | { ok: false; reason: "unknown_import_key" }
   | { ok: false; reason: "unsupported_format" }
+  | { ok: false; reason: "unsupported_media_type" }
   | { ok: false; reason: "empty_file" }
   | { ok: false; reason: "file_too_large"; limitBytes: number }
   | { ok: false; reason: "checksum_mismatch" };
@@ -158,13 +162,13 @@ export type StageImportBatchResult =
 /**
  * Stages a new import batch. Performs NO parsing/validation of the file's
  * ROWS (that happens asynchronously, `import-parse-validate-job.ts`) —
- * this is intake only: descriptor resolution, format/size bound checks
- * (the byte-size cap here is a SECOND check on top of the HTTP layer's own
- * `readFormBody`/`readTextBody` cap, `src/lib/security/request-body-
- * limit.ts` — that cap is a fixed tier shared by every endpoint; this one
- * enforces the DESCRIPTOR's own, potentially smaller, declared
- * `limits.maxFileBytes`), server-side checksum computation, and safe
- * filename sanitization.
+ * this is intake only: descriptor resolution, format/media-type/size bound
+ * checks (the byte-size cap here is a SECOND check on top of the HTTP
+ * layer's own `readFormBody`/`readTextBody` cap, `src/lib/security/
+ * request-body-limit.ts` — that cap is a fixed tier shared by every
+ * endpoint; this one enforces the DESCRIPTOR's own, potentially smaller,
+ * declared `limits.maxFileBytes`), server-side checksum computation, and
+ * safe filename sanitization.
  */
 export async function stageImportBatch(
   tx: Bun.SQL,
@@ -180,6 +184,10 @@ export async function stageImportBatch(
 
   if (!descriptor.formats.includes(input.format)) {
     return { ok: false, reason: "unsupported_format" };
+  }
+
+  if (!isAllowedMediaType(input.format, input.mediaType)) {
+    return { ok: false, reason: "unsupported_media_type" };
   }
 
   if (input.rawContent.trim().length === 0) {

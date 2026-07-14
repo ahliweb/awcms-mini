@@ -104,7 +104,11 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   // status-transition guard and intake checksum verification).
   PAYLOAD_TOO_LARGE: "error.payload_too_large",
   INVALID_STATE: "error.invalid_state",
-  CHECKSUM_MISMATCH: "error.checksum_mismatch"
+  CHECKSUM_MISMATCH: "error.checksum_mismatch",
+  // Reviewer finding on PR #782 (High): media-type verification was
+  // documented as done but never implemented -- UNSUPPORTED_MEDIA_TYPE is
+  // its real error code, added alongside the fix.
+  UNSUPPORTED_MEDIA_TYPE: "error.unsupported_media_type"
 };
 
 /**

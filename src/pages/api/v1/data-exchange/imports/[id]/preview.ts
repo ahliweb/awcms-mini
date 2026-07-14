@@ -12,6 +12,7 @@ import {
   getImportBatchById,
   resolveImportDescriptor
 } from "../../../../../../modules/data-exchange/application/import-batch-directory";
+import { authorizeExchangeDescriptorPermission } from "../../../../../../modules/data-exchange/application/descriptor-authorization";
 import {
   countStagedRows,
   listStagedRows,
@@ -94,6 +95,16 @@ export const GET: APIRoute = async ({ request, cookies, params, url }) => {
     if (!batch) return fail(404, "NOT_FOUND", "Import batch not found.");
 
     const descriptor = resolveImportDescriptor(batch.importKey);
+
+    const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      descriptor
+    );
+    if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
+
     const sensitiveFieldNames = descriptor?.sensitiveFields?.fieldNames ?? [];
 
     let canSeeRawValues = sensitiveFieldNames.length === 0;

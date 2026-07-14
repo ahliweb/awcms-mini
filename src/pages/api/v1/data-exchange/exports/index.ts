@@ -23,8 +23,10 @@ import {
 } from "../../../../../modules/_shared/idempotency";
 import {
   createExportJob,
-  listExportJobs
+  listExportJobs,
+  resolveExportDescriptor
 } from "../../../../../modules/data-exchange/application/export-job-directory";
+import { authorizeExchangeDescriptorPermission } from "../../../../../modules/data-exchange/application/descriptor-authorization";
 import type { ExportJobStatus as _ExportJobStatusAlias } from "../../../../../modules/data-exchange/domain/export-job-state";
 
 const IDEMPOTENCY_SCOPE = "data_exchange_export_create";
@@ -147,6 +149,15 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       CREATE_GUARD
     );
     if (!auth.allowed) return auth.denied;
+
+    const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      resolveExportDescriptor(exportKey)
+    );
+    if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
 
     const existingIdempotency = await findIdempotencyRecord(
       tx,

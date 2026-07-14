@@ -126,6 +126,33 @@ describe("validateExchangeRegistry — synthetic invalid descriptors", () => {
     expect(result.valid).toBe(true);
   });
 
+  test("rejects a malformed requiredPermission (not module.activity.action shape)", () => {
+    const descriptor = baseDescriptor({
+      requiredPermission: "not-a-valid-key"
+    });
+    const result = validateExchangeRegistry([fakeModule(descriptor)]);
+    expect(result.valid).toBe(false);
+    expect(
+      result.issues.some((i) => i.message.includes("requiredPermission"))
+    ).toBe(true);
+  });
+
+  test("accepts a well-formed requiredPermission", () => {
+    const descriptor = baseDescriptor({
+      requiredPermission: "reference_data.items.write"
+    });
+    const result = validateExchangeRegistry([fakeModule(descriptor)]);
+    expect(result.valid).toBe(true);
+  });
+
+  test("rejects a malformed sensitiveFields.rawValuePermission shape", () => {
+    const descriptor = baseDescriptor({
+      sensitiveFields: { fieldNames: ["ssn"], rawValuePermission: "bad key" }
+    });
+    const result = validateExchangeRegistry([fakeModule(descriptor)]);
+    expect(result.valid).toBe(false);
+  });
+
   test("rejects a duplicate key across two modules", () => {
     const descriptorA = baseDescriptor({ ownerModuleKey: "module_a" });
     const descriptorB = baseDescriptor({ ownerModuleKey: "module_b" });

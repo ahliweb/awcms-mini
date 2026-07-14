@@ -4565,7 +4565,7 @@ paths:
       tags:
         - Data Exchange
       summary: Stage a new import batch
-      description: High-risk mutation -- requires Idempotency-Key. `multipart/form-data` body capped at 5 MiB before any parsing; performs NO row-level parsing (asynchronous, on the shared worker, `bun run data-exchange:worker`).
+      description: High-risk mutation -- requires Idempotency-Key. `multipart/form-data` body capped at 5 MiB before any parsing; performs NO row-level parsing (asynchronous, on the shared worker, `bun run data-exchange:worker`). Enforces checksum (server-computed SHA-256), media type (allow-list per format, 415 if not allowed), file size, and safe filename handling at intake.
       operationId: dataExchangeImportsCreate
       security:
         - bearerAuth: []
@@ -4634,6 +4634,12 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          description: The uploaded file's media type is not on the allow-list for the declared format.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/data-exchange/imports/{id}:

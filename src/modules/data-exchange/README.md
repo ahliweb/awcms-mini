@@ -56,23 +56,45 @@ neutralization at serialization) -> `completed` -> `GET /exports/{id}/download`.
   `=`/`+`/`-`/`@`/TAB/CR is neutralized (leading `'` prefix) BOTH at import
   intake (`domain/formula-injection-guard.ts`, before a row is ever
   persisted) AND at export serialization (defense in depth, independent of
-  import history). See that file's adversarial round-trip test.
+  import history) — including a nested array/object field, whose CSV
+  `String()` form (e.g. `String(["=1+1"])` === `"=1+1"`) is what is
+  actually checked, not just a scalar-only pass (`export-execute-job.ts`'s
+  `neutralizeRowForExport`). See that file's and the guard's own
+  adversarial round-trip tests.
 - **Unbounded parsing**: HTTP body capped (5 MiB, `readFormBody("large")`)
   BEFORE any parsing. CSV parsing (`domain/csv-codec.ts`) is a hand-written
   state machine that aborts MID-PARSE the instant `maxRowCount`/
   `maxFieldsPerRow` is exceeded. JSON parsing is bounded by the same
   byte cap before `JSON.parse`, then checked immediately after (see that
   file's own header for why JSON cannot abort mid-parse the way CSV does).
+- **Media-type verification**: the declared upload's `File.type` (as
+  Bun's `request.formData()` resolves it — verified directly to be
+  filename-extension-derived, not a literal per-part `Content-Type`
+  header pass-through, see `domain/media-type-allowlist.ts`'s own header)
+  is checked against a per-format allow-list at intake, `415` if not
+  allowed — a real, enforced bound, not just documented.
 - **Cross-tenant isolation**: every table (`import_batches`, `staged_rows`,
   `export_jobs`, `reconciliation_reports`, `reference_items`) has RLS
   predicate `tenant_id` only, `ENABLE`+`FORCE ROW LEVEL SECURITY`. The
   commit/export pipeline always runs inside `withTenant`, so an owning
   adapter only ever sees the tenant currently being processed.
-- **Async idempotent commit**: `runImportCommitPass` only ever selects
-  `commit_status = 'pending'` staged rows; a worker restart mid-commit
-  (`requestImportRetry`) can never re-apply an already-`'committed'` row.
-  The reference adapter's `commitRow` is ALSO idempotent per `naturalKey`
-  as defense-in-depth (re-checks current state before writing).
+- **Async idempotent commit, one transaction PER item**: `runImportCommitPass`
+  only ever selects `commit_status = 'pending'` staged rows; a worker
+  restart mid-commit (`requestImportRetry`) can never re-apply an
+  already-`'committed'` row. The reference adapter's `commitRow` is ALSO
+  idempotent per `naturalKey` as defense-in-depth. `data-exchange-worker.ts`
+  opens a SEPARATE `withTenant` transaction for every batch's validate
+  pass, every batch's commit pass, and every export job — an exception in
+  ONE never rolls back an unrelated item processed earlier in the same
+  pass (verified by an integration test that deliberately throws mid-pass).
+- **`ExchangeDescriptor.requiredPermission` enforcement**: every route that
+  resolves a descriptor (stage, preview, commit, retry, export-create)
+  checks `application/descriptor-authorization.ts`'s
+  `authorizeExchangeDescriptorPermission` — when a descriptor declares an
+  extra owning-module permission, the subject must hold it too, default-deny,
+  fail-closed on a malformed permission string. `reference_items` itself
+  does not set one today; the enforcement point is proven with a
+  synthetic descriptor in the integration suite.
 - **Idempotency-Key** required on every mutating endpoint: stage-upload,
   commit, cancel, retry, pause, resume (imports); create, cancel
   (exports).
@@ -80,7 +102,10 @@ neutralization at serialization) -> `completed` -> `GET /exports/{id}/download`.
   is a separate permission from `data_exchange.imports.read` — raw invalid
   row values are masked by default.
 - **Export downloads**: `data_exchange.export_downloads.read` is a
-  separate, more sensitive permission from `data_exchange.exports.read`.
+  separate, more sensitive permission from `data_exchange.exports.read`,
+  and every download writes its own `recordAuditEvent` entry (distinct
+  from the export job's own "completed" audit entry) — WHO downloaded the
+  raw artifact is traceable, not just that the job finished.
 
 ## Known limitation (v1 scope)
 
@@ -96,14 +121,14 @@ needs it.
 ## Files
 
 - `domain/` — pure logic: `formula-injection-guard.ts`, `csv-codec.ts`,
-  `json-codec.ts`, `safe-filename.ts`, `import-batch-state.ts`,
-  `export-job-state.ts`, `reconciliation.ts`, `exchange-registry.ts`,
-  `reference-item-validation.ts`.
+  `json-codec.ts`, `safe-filename.ts`, `media-type-allowlist.ts`,
+  `import-batch-state.ts`, `export-job-state.ts`, `reconciliation.ts`,
+  `exchange-registry.ts`, `reference-item-validation.ts`.
 - `application/` — `import-batch-directory.ts`, `import-parse-validate-job.ts`,
   `import-commit-job.ts`, `export-job-directory.ts`, `export-execute-job.ts`,
   `reconciliation-service.ts`, `staged-row-directory.ts`,
   `reference-items-directory.ts`, `reference-items-exchange-adapter.ts`,
-  `data-exchange-worker.ts`.
+  `descriptor-authorization.ts`, `data-exchange-worker.ts`.
 - `infrastructure/exchange-adapter-registry.ts` — static registry, same
   shape as `domain-event-runtime/infrastructure/consumer-registry.ts`.
 - `sql/066_awcms_mini_data_exchange_schema.sql`,

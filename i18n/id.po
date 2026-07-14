@@ -3764,6 +3764,9 @@ msgstr "Tipe Unit Organisasi"
 
 
 #. error (data_exchange additions, Issue #752)
+msgid "error.unsupported_media_type"
+msgstr "Tipe file yang diunggah tidak didukung untuk impor ini."
+
 msgid "error.payload_too_large"
 msgstr "File yang diunggah terlalu besar."
 

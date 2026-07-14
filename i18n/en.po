@@ -3765,6 +3765,9 @@ msgstr "Organization-Unit Types"
 
 
 #. error (data_exchange additions, Issue #752)
+msgid "error.unsupported_media_type"
+msgstr "The uploaded file's type is not supported for this import."
+
 msgid "error.payload_too_large"
 msgstr "The uploaded file is too large."
 

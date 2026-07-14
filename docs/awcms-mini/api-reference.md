@@ -8102,7 +8102,7 @@ Distinct, more sensitive permission from exports.read (data_exchange.export_down
 - **operationId**: `dataExchangeImportsCreate`
 - **Security**: bearerAuth + tenantHeader
 
-High-risk mutation -- requires Idempotency-Key. `multipart/form-data` body capped at 5 MiB before any parsing; performs NO row-level parsing (asynchronous, on the shared worker, `bun run data-exchange:worker`).
+High-risk mutation -- requires Idempotency-Key. `multipart/form-data` body capped at 5 MiB before any parsing; performs NO row-level parsing (asynchronous, on the shared worker, `bun run data-exchange:worker`). Enforces checksum (server-computed SHA-256), media type (allow-list per format, 415 if not allowed), file size, and safe filename handling at intake.
 
 **Parameters**
 
@@ -8125,6 +8125,7 @@ High-risk mutation -- requires Idempotency-Key. `multipart/form-data` body cappe
 | 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
 | 409    | Idempotency-Key reused with a different request, or checksum mismatch.                                                                                                                                           | [`ApiError`](#standard-error-envelope)                   |
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 415    | The uploaded file's media type is not on the allow-list for the declared format.                                                                                                                                 | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/data-exchange/imports/{id}` — Get an import batch by id
