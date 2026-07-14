@@ -3763,6 +3763,192 @@ msgstr "Suggested codes"
 msgid "admin.organization_structure.unit_types.title"
 msgstr "Organization-Unit Types"
 
+#. Issue #754 (integration_hub, epic platform-evolution Wave 3)
+msgid "admin.integration_hub.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.integration_hub.access_denied_body"
+msgstr "You do not have permission to view this page."
+
+msgid "admin.integration_hub.endpoints.title"
+msgstr "Inbound Webhook Endpoints"
+
+msgid "admin.integration_hub.endpoints.create_success"
+msgstr "Inbound webhook endpoint created."
+
+msgid "admin.integration_hub.endpoints.delete_success"
+msgstr "Inbound webhook endpoint deleted."
+
+msgid "admin.integration_hub.endpoints.pause_success"
+msgstr "Endpoint paused."
+
+msgid "admin.integration_hub.endpoints.resume_success"
+msgstr "Endpoint resumed."
+
+msgid "admin.integration_hub.endpoints.rotate_secret_button"
+msgstr "Rotate secret"
+
+msgid "admin.integration_hub.endpoints.rotate_secret_prompt"
+msgstr "New secret reference (env:VAR_NAME):"
+
+msgid "admin.integration_hub.endpoints.rotate_secret_success"
+msgstr "Endpoint secret rotated."
+
+msgid "admin.integration_hub.endpoints.delete_reason_prompt"
+msgstr "Reason for deleting this endpoint:"
+
+msgid "admin.integration_hub.endpoints.no_rows"
+msgstr "No inbound webhook endpoints yet."
+
+msgid "admin.integration_hub.endpoints.col_name"
+msgstr "Name"
+
+msgid "admin.integration_hub.endpoints.col_adapter"
+msgstr "Adapter"
+
+msgid "admin.integration_hub.endpoints.col_status"
+msgstr "Status"
+
+msgid "admin.integration_hub.endpoints.col_actions"
+msgstr "Actions"
+
+msgid "admin.integration_hub.endpoints.pause_button"
+msgstr "Pause"
+
+msgid "admin.integration_hub.endpoints.resume_button"
+msgstr "Resume"
+
+msgid "admin.integration_hub.endpoints.delete_button"
+msgstr "Delete"
+
+msgid "admin.integration_hub.endpoints.create_summary"
+msgstr "Register a new endpoint"
+
+msgid "admin.integration_hub.endpoints.field_display_name"
+msgstr "Display name"
+
+msgid "admin.integration_hub.endpoints.field_adapter_key"
+msgstr "Adapter"
+
+msgid "admin.integration_hub.endpoints.field_secret_reference"
+msgstr "Secret reference (env:VAR_NAME)"
+
+msgid "admin.integration_hub.endpoints.create_submit"
+msgstr "Create endpoint"
+
+msgid "admin.integration_hub.subscriptions.title"
+msgstr "Outbound Event Subscriptions"
+
+msgid "admin.integration_hub.subscriptions.create_success"
+msgstr "Outbound subscription created."
+
+msgid "admin.integration_hub.subscriptions.delete_success"
+msgstr "Outbound subscription deleted."
+
+msgid "admin.integration_hub.subscriptions.pause_success"
+msgstr "Subscription paused."
+
+msgid "admin.integration_hub.subscriptions.resume_success"
+msgstr "Subscription resumed."
+
+msgid "admin.integration_hub.subscriptions.delete_reason_prompt"
+msgstr "Reason for deleting this subscription:"
+
+msgid "admin.integration_hub.subscriptions.no_rows"
+msgstr "No outbound subscriptions yet."
+
+msgid "admin.integration_hub.subscriptions.col_event_type"
+msgstr "Event type"
+
+msgid "admin.integration_hub.subscriptions.col_target_url"
+msgstr "Target URL"
+
+msgid "admin.integration_hub.subscriptions.col_status"
+msgstr "Status"
+
+msgid "admin.integration_hub.subscriptions.col_actions"
+msgstr "Actions"
+
+msgid "admin.integration_hub.subscriptions.pause_button"
+msgstr "Pause"
+
+msgid "admin.integration_hub.subscriptions.resume_button"
+msgstr "Resume"
+
+msgid "admin.integration_hub.subscriptions.delete_button"
+msgstr "Delete"
+
+msgid "admin.integration_hub.subscriptions.create_summary"
+msgstr "Register a new subscription"
+
+msgid "admin.integration_hub.subscriptions.field_event_type"
+msgstr "Event type"
+
+msgid "admin.integration_hub.subscriptions.field_target_adapter_key"
+msgstr "Target adapter"
+
+msgid "admin.integration_hub.subscriptions.field_target_url"
+msgstr "Target URL"
+
+msgid "admin.integration_hub.subscriptions.create_submit"
+msgstr "Create subscription"
+
+msgid "admin.integration_hub.deliveries.title"
+msgstr "Integration Deliveries"
+
+msgid "admin.integration_hub.deliveries.replay_success"
+msgstr "Delivery replay queued."
+
+msgid "admin.integration_hub.deliveries.replay_reason_prompt"
+msgstr "Reason for replaying this delivery:"
+
+msgid "admin.integration_hub.deliveries.health_heading"
+msgstr "Adapter health"
+
+msgid "admin.integration_hub.deliveries.col_adapter"
+msgstr "Adapter"
+
+msgid "admin.integration_hub.deliveries.col_direction"
+msgstr "Direction"
+
+msgid "admin.integration_hub.deliveries.col_state"
+msgstr "State"
+
+msgid "admin.integration_hub.deliveries.inbound_heading"
+msgstr "Recent inbound deliveries"
+
+msgid "admin.integration_hub.deliveries.no_rows"
+msgstr "No deliveries yet."
+
+msgid "admin.integration_hub.deliveries.col_status"
+msgstr "Status"
+
+msgid "admin.integration_hub.deliveries.col_received_at"
+msgstr "Received at"
+
+msgid "admin.integration_hub.deliveries.outbound_heading"
+msgstr "Recent outbound deliveries"
+
+msgid "admin.integration_hub.deliveries.col_event_type"
+msgstr "Event type"
+
+msgid "admin.integration_hub.deliveries.col_attempts"
+msgstr "Attempts"
+
+msgid "admin.integration_hub.deliveries.col_actions"
+msgstr "Actions"
+
+msgid "admin.integration_hub.deliveries.replay_button"
+msgstr "Replay"
+
+msgid "admin.layout.nav_integration_hub_endpoints"
+msgstr "Webhook Endpoints"
+
+msgid "admin.layout.nav_integration_hub_subscriptions"
+msgstr "Event Subscriptions"
+
+msgid "admin.layout.nav_integration_hub_deliveries"
+msgstr "Deliveries"
 msgid "admin.layout.nav_reporting_projections"
 msgstr "Reporting Projections"
 

@@ -1,6 +1,6 @@
 /**
  * Fixture-only `PeriodLockPort` (`_shared/ports/period-lock-port.ts`)
- * reference adapter (Issue #755, ADR-0019). Purely in-memory — no
+ * reference adapter (Issue #755, ADR-0020). Purely in-memory — no
  * database, no network — a real ERP extension backs this with its own
  * fiscal-calendar table. Exists solely to prove the port's fail-closed
  * contract is actually implementable and exercisable by

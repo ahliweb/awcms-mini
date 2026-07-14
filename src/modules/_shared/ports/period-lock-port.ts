@@ -1,9 +1,9 @@
 /**
  * `PeriodLockPort` (Issue #755, epic #738 `platform-evolution` Wave 4,
- * ADR-0019 — ERP extension readiness contracts). A generic-accounting-period
+ * ADR-0020 — ERP extension readiness contracts). A generic-accounting-period
  * "may this business transaction be posted/reversed right now" query
  * capability that a future ERP extension (implemented OUTSIDE this base
- * repository, per ADR-0019) implements and a posting-capable caller (also
+ * repository, per ADR-0020) implements and a posting-capable caller (also
  * living in the ERP extension, never in Core/System) consults BEFORE
  * accepting a posting/reversal request.
  *
@@ -13,7 +13,7 @@
  * `legal-hold-guard-port.ts`/`party-directory-port.ts` already established,
  * except this port has no base implementation at all (not even a flat
  * default), because the very CONCEPT of an accounting period belongs
- * entirely to the ERP extension (ADR-0019 explicitly excludes chart of
+ * entirely to the ERP extension (ADR-0020 explicitly excludes chart of
  * accounts/journal/period tables from the base).
  *
  * **Fail-closed is mandatory** (Issue #755 security requirement: "Period

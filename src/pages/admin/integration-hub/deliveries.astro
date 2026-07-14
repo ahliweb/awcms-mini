@@ -1,0 +1,323 @@
+---
+/**
+ * Delivery/health observability admin screen (Issue #754, epic #738
+ * platform-evolution Wave 3). Read-mostly — the only mutation is
+ * replaying a `dead_letter` outbound delivery.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import {
+  listAdapterHealth,
+  listInboundDeliveries,
+  listOutboundDeliveries
+} from "../../../modules/integration-hub/application/delivery-directory";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/integration-hub/deliveries.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("integration_hub", "deliveries", "read")
+);
+const CAN_READ_HEALTH = context.permissions.has(
+  permissionKey("integration_hub", "health", "read")
+);
+const CAN_REPLAY = context.permissions.has(
+  permissionKey("integration_hub", "deliveries", "replay")
+);
+
+const clientStrings = {
+  replaySuccess: t("admin.integration_hub.deliveries.replay_success"),
+  replayReasonPrompt: t(
+    "admin.integration_hub.deliveries.replay_reason_prompt"
+  ),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let inboundDeliveries: Awaited<ReturnType<typeof listInboundDeliveries>> = [];
+let outboundDeliveries: Awaited<ReturnType<typeof listOutboundDeliveries>> = [];
+let health: Awaited<ReturnType<typeof listAdapterHealth>> = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      inboundDeliveries = await listInboundDeliveries(tx, context.tenantId, {
+        limit: 25
+      });
+      outboundDeliveries = await listOutboundDeliveries(tx, context.tenantId, {
+        limit: 25
+      });
+
+      if (CAN_READ_HEALTH) {
+        health = await listAdapterHealth(tx, context.tenantId);
+      }
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/integration-hub/deliveries.astro: failed to load deliveries",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.integration_hub.deliveries.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.integration_hub.access_denied_title")}
+        body={t("admin.integration_hub.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="config-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {CAN_READ_HEALTH && (
+          <section>
+            <h2>{t("admin.integration_hub.deliveries.health_heading")}</h2>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_adapter")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_direction")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_state")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {health.map((row) => (
+                  <tr>
+                    <td>{row.adapterKey}</td>
+                    <td>{row.direction}</td>
+                    <td>{row.state}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+
+        <section>
+          <h2>{t("admin.integration_hub.deliveries.inbound_heading")}</h2>
+          {inboundDeliveries.length === 0 ? (
+            <p class="empty-state">
+              {t("admin.integration_hub.deliveries.no_rows")}
+            </p>
+          ) : (
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_adapter")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_status")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_received_at")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {inboundDeliveries.map((delivery) => (
+                  <tr>
+                    <td>{delivery.adapterKey}</td>
+                    <td>{delivery.status}</td>
+                    <td>{delivery.receivedAt.toISOString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <section>
+          <h2>{t("admin.integration_hub.deliveries.outbound_heading")}</h2>
+          {outboundDeliveries.length === 0 ? (
+            <p class="empty-state">
+              {t("admin.integration_hub.deliveries.no_rows")}
+            </p>
+          ) : (
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_event_type")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_status")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_attempts")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.integration_hub.deliveries.col_actions")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {outboundDeliveries.map((delivery) => (
+                  <tr data-id={delivery.id}>
+                    <td>{delivery.eventType}</td>
+                    <td>{delivery.status}</td>
+                    <td>
+                      {delivery.attemptCount}/{delivery.maxAttempts}
+                    </td>
+                    <td>
+                      {CAN_REPLAY && delivery.status === "dead_letter" && (
+                        <button
+                          type="button"
+                          class="replay-button"
+                          data-id={delivery.id}
+                        >
+                          {t("admin.integration_hub.deliveries.replay_button")}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+  }
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-surface, #e6f4ea);
+    color: var(--color-success-strong, #1e7e34);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-surface, #fdecea);
+    color: var(--color-danger-strong);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .data-table th,
+  .data-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .replay-button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    background: var(--color-primary-strong);
+    border: none;
+    color: var(--color-primary-contrast);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    replaySuccess: string;
+    replayReasonPrompt: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const BASE_URL = "/api/v1/integration-hub/deliveries/outbound";
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".replay-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const reason = window.prompt(strings.replayReasonPrompt);
+        if (!reason) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+
+        try {
+          const result = await submitJson(
+            `${BASE_URL}/${button.dataset.id}/replay`,
+            "POST",
+            { reason },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+
+          if (result.ok) {
+            showBanner("action-banner", strings.replaySuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+</script>

@@ -1,7 +1,7 @@
 /**
  * Business transaction reference, lifecycle metadata, and accounting
  * posting request/result event-payload contracts (Issue #755, epic #738
- * `platform-evolution` Wave 4, ADR-0019 — ERP extension readiness
+ * `platform-evolution` Wave 4, ADR-0020 — ERP extension readiness
  * contracts). Pure DATA shapes — no behavior, no `Bun.SQL` parameter, same
  * "-contract.ts lives in `_shared/` root, not `_shared/ports/`" convention
  * `module-contract.ts`/`extension-manifest-contract.ts` already establish
@@ -20,7 +20,7 @@
  * structurally without the base depending on the extension's real event
  * type strings.
  *
- * **Binding invariants (ADR-0019, Issue #755 acceptance criteria) — every
+ * **Binding invariants (ADR-0020, Issue #755 acceptance criteria) — every
  * ERP extension implementing this contract MUST uphold these:**
  *
  * 1. **Posted transactions are immutable.** Once `status` reaches

@@ -1,11 +1,11 @@
 ---
 name: awcms-mini-erp-extension-readiness
-description: Konsumsi atau evolusikan kontrak kesiapan ekstensi ERP AWCMS-Mini (business transaction, posting request/result, period-lock, item/currency/UoM, inventory movement, reconciliation, reporting projection). Gunakan saat membangun ekstensi ERP di repository turunan yang perlu berinteraksi dengan tenant/party/scope/dokumen/event/reporting base, atau saat menambah/mengubah kontrak `_shared/business-transaction-contract.ts`/`_shared/erp-reference-data-contract.ts`/`_shared/ports/period-lock-port.ts` di base ini sendiri. Sesuai Issue #755, epic #738 platform-evolution Wave 4, ADR-0019, `docs/awcms-mini/erp-extension-contracts.md`.
+description: Konsumsi atau evolusikan kontrak kesiapan ekstensi ERP AWCMS-Mini (business transaction, posting request/result, period-lock, item/currency/UoM, inventory movement, reconciliation, reporting projection). Gunakan saat membangun ekstensi ERP di repository turunan yang perlu berinteraksi dengan tenant/party/scope/dokumen/event/reporting base, atau saat menambah/mengubah kontrak `_shared/business-transaction-contract.ts`/`_shared/erp-reference-data-contract.ts`/`_shared/ports/period-lock-port.ts` di base ini sendiri. Sesuai Issue #755, epic #738 platform-evolution Wave 4, ADR-0020, `docs/awcms-mini/erp-extension-contracts.md`.
 ---
 
 # AWCMS-Mini — Kesiapan Ekstensi ERP
 
-Sumber kebenaran: `docs/adr/0019-erp-extension-readiness-contracts.md`
+Sumber kebenaran: `docs/adr/0020-erp-extension-readiness-contracts.md`
 (keputusan arsitektural mengikat), `docs/awcms-mini/erp-extension-
 contracts.md` (referensi teknis sebelas keluarga kontrak — ownership/
 versi/failure-semantics/privasi/contoh per kontrak),
@@ -63,7 +63,7 @@ requested"`/`"...result_recorded"`) di atas `domain_event_runtime`
    `AccountingPostingRequestPayload`/`AccountingPostingResultPayload`.
    Base TIDAK PERNAH menginterpretasi `totalDebit`/`totalCredit`/
    `ledgerReference` — semuanya decimal-as-string/opaque.
-5. Tegakkan idempotency per `requestId` (invariant #4 ADR-0019) —
+5. Tegakkan idempotency per `requestId` (invariant #4 ADR-0020) —
    request yang sama dikirim ulang harus mengembalikan hasil yang
    identik, tidak pernah posting ganda. **Tidak cukup sendirian** —
    tegakkan JUGA uniqueness posted-state per `(tenantId, transactionType,
@@ -124,7 +124,7 @@ example-erp-extension/` untuk membuktikan kontrak baru bisa
 5. `bun run typecheck && bun test tests/unit/erp-extension-contracts.test.ts
 tests/unit/module-composition-fixture.test.ts` sebelum PR.
 6. Bila keputusannya mengikat lintas dokumen (arah dependensi baru,
-   invariant baru), update ADR-0019 — JANGAN hanya menambah kode tanpa
+   invariant baru), update ADR-0020 — JANGAN hanya menambah kode tanpa
    memperbarui keputusan arsitekturalnya (doc 21 §9 punya catatan
    eksplisit: kontrak murni tanpa modul baru tetap butuh ADR, bukan
    proposal template modul).
@@ -142,7 +142,7 @@ tests/unit/module-composition-fixture.test.ts` sebelum PR.
   scope keduanya eksplisit didokumentasikan sebagai "bukan batas
   identitas".
 - **Tidak ada hard-dependency ke `reference_data` (Issue #750)** — per
-  ADR-0019 §Status, `reference_data` masih OPEN dengan temuan Critical
+  ADR-0020 §Status, `reference_data` masih OPEN dengan temuan Critical
   belum diperbaiki saat kontrak ini ditulis; `ItemReference`/
   `CurrencyReference`/`UnitOfMeasureReference` sengaja independen dari
   sumber datanya. Jangan tambahkan import ke `reference_data` dari

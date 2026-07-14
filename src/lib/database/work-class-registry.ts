@@ -124,6 +124,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       "Read-only per-tenant metrics snapshot (organization-structure:metrics-snapshot, Issue #749), recommended every 15-60 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; it never mutates a row, purely samples gauges."
   },
+  "scripts/integration-hub-outbound-dispatch.ts": {
+    workClass: "background_sync",
+    rationale:
+      'Outbox dispatcher (integration-hub:outbound:dispatch, Issue #754), recommended every 1-2 minutes — same recurring dispatcher profile as email/object-sync/social-publish/domain-events dispatch; every withTenant call inside outbound-dispatch.ts already passes workClass: "background_sync" explicitly.'
+  },
   "scripts/data-exchange-worker.ts": {
     workClass: "background_sync",
     rationale:

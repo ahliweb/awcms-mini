@@ -1,7 +1,7 @@
 /**
  * Item/service, currency, unit-of-measure, inventory-movement, and
  * reconciliation reference contracts (Issue #755, epic #738
- * `platform-evolution` Wave 4, ADR-0019 — ERP extension readiness
+ * `platform-evolution` Wave 4, ADR-0020 — ERP extension readiness
  * contracts). Pure DATA shapes, zero imports from any module — same
  * "-contract.ts in `_shared/` root" convention `business-transaction-
  * contract.ts` documents in its own header.
@@ -13,7 +13,7 @@
  * module's effective-dated value sets/module-contributed catalogs. This
  * file deliberately does NOT import anything from `reference_data` (which
  * was still an open, unmerged PR with unresolved Critical findings at the
- * time this contract was written — see ADR-0019 §Status for the pinned
+ * time this contract was written — see ADR-0020 §Status for the pinned
  * caveat) — any code, current or future, that satisfies this shape is a
  * valid implementation, keeping this contract independently useful
  * whether or not a given deployment ever enables `reference_data`.
@@ -73,7 +73,7 @@ export type InventoryMovementDirection =
  * ledger owns. Quantity is a decimal-as-string (same "opaque control
  * total, base never sums it" convention `AccountingPostingRequestPayload.
  * totalDebit`/`totalCredit` already use) — this base repository has no
- * inventory valuation/costing concept (ADR-0019 explicit exclusion) and
+ * inventory valuation/costing concept (ADR-0020 explicit exclusion) and
  * never interprets this value beyond passing it through for reference/
  * reconciliation display.
  */

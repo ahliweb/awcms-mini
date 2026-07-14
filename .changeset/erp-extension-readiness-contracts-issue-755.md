@@ -3,7 +3,7 @@
 ---
 
 Define provider-neutral ERP extension readiness contracts (Issue #755,
-epic #738 `platform-evolution` Wave 4, ADR-0019) — AWCMS-Mini is a
+epic #738 `platform-evolution` Wave 4, ADR-0020) — AWCMS-Mini is a
 technical kernel, never a functional ERP; this issue documents and
 validates the contract package a future ERP extension (built in a
 SEPARATE repository) implements against, without adding any accounting,
@@ -39,7 +39,7 @@ direction proof that no base `src/modules/**` file imports the example
 extension) and extended `tests/unit/module-composition-fixture.test.ts`
 coverage for the third fixture module.
 
-New ADR (`docs/adr/0019-erp-extension-readiness-contracts.md`) and
+New ADR (`docs/adr/0020-erp-extension-readiness-contracts.md`) and
 reference doc (`docs/awcms-mini/erp-extension-contracts.md`, all eleven
 contract families with ownership/versioning/failure-semantics/privacy/
 examples), plus cross-references added to

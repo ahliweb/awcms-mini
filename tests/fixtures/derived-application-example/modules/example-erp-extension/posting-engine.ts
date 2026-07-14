@@ -1,11 +1,11 @@
 /**
- * Fixture-only reference posting engine (Issue #755, ADR-0019) — proves
+ * Fixture-only reference posting engine (Issue #755, ADR-0020) — proves
  * `_shared/business-transaction-contract.ts`'s
  * `AccountingPostingRequestPayload`/`AccountingPostingResultPayload`
  * invariants and `_shared/ports/period-lock-port.ts`'s fail-closed
  * contract are actually implementable and machine-verifiable, WITHOUT any
  * real accounting/ledger logic (no debit/credit balancing, no chart of
- * accounts — ADR-0019's explicit base exclusions apply here too; this is
+ * accounts — ADR-0020's explicit base exclusions apply here too; this is
  * illustration-only fixture code, not a template for a real posting
  * engine's business rules).
  *

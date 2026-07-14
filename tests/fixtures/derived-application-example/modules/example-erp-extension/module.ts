@@ -1,6 +1,6 @@
 /**
  * Minimal fixture module (Issue #755, epic #738 `platform-evolution` Wave
- * 4, ADR-0019) — a sample ERP extension proving ADR-0019's contracts are
+ * 4, ADR-0020) — a sample ERP extension proving ADR-0020's contracts are
  * actually consumable by composition, NOT part of the base registry (same
  * "never imported by `src/modules/index.ts`" rule every sibling fixture
  * module in this directory follows).
@@ -13,7 +13,7 @@
  * its ERP-specific tables in its own reserved migration range (`sql/
  * 901_example_erp_extension_schema.sql`, illustration only, see that
  * file's own header) — never in the base's `sql/` directory or module
- * registry, per ADR-0019's explicit exclusion of chart-of-accounts/
+ * registry, per ADR-0020's explicit exclusion of chart-of-accounts/
  * journal/inventory-valuation/sales/procurement/AR-AP/payroll/tax/asset/
  * manufacturing tables from this repository.
  *
@@ -35,7 +35,7 @@ export const exampleErpExtensionModule = defineModule({
   version: "0.1.0",
   status: "experimental",
   description:
-    "Minimal in-repo fixture derived-application module (Issue #755, ADR-0019) — illustrates a sample ERP extension consuming this repository's party/scope/period-lock/posting/reporting-projection contracts without adding any accounting/inventory/sales/procurement/payroll/tax domain table to the base. Never registered in the base repository.",
+    "Minimal in-repo fixture derived-application module (Issue #755, ADR-0020) — illustrates a sample ERP extension consuming this repository's party/scope/period-lock/posting/reporting-projection contracts without adding any accounting/inventory/sales/procurement/payroll/tax domain table to the base. Never registered in the base repository.",
   dependencies: ["tenant_admin", "identity_access"],
   type: "derived",
   capabilities: {

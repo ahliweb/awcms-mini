@@ -151,6 +151,18 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
+    // Confidentiality-tier clearance on the PARENT document (Issue #787
+    // fast-follow) — see `document-resource-relation-port.ts`'s
+    // `linkDocumentToResource` doc comment.
+    const access = {
+      canReadConfidential: auth.grantedPermissionKeys.has(
+        CONFIDENTIAL_READ_PERMISSION_KEY
+      ),
+      canReadRestricted: auth.grantedPermissionKeys.has(
+        RESTRICTED_READ_PERMISSION_KEY
+      )
+    };
+
     const existingIdempotency = await findIdempotencyRecord(
       tx,
       tenantId,
@@ -177,6 +189,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       auth.context.tenantUserId,
       documentId,
       input,
+      access,
       correlationId
     );
 

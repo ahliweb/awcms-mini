@@ -22,6 +22,10 @@ import {
   saveIdempotencyRecord
 } from "../../../../../../modules/_shared/idempotency";
 import { voidDocument } from "../../../../../../modules/document-infrastructure/application/document-directory";
+import {
+  CONFIDENTIAL_READ_PERMISSION_KEY,
+  RESTRICTED_READ_PERMISSION_KEY
+} from "../../../../../../modules/document-infrastructure/domain/document";
 
 const IDEMPOTENCY_SCOPE = "document_infrastructure_document_void";
 
@@ -75,6 +79,20 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
+    // Confidentiality-tier clearance (Issue #787 fast-follow to #751's
+    // security-review Critical finding) — a caller who holds only the
+    // base `documents.void` action permission must not be able to void a
+    // confidential/restricted document it lacks read clearance for. See
+    // `document-directory.ts`'s `voidDocument` doc comment.
+    const access = {
+      canReadConfidential: auth.grantedPermissionKeys.has(
+        CONFIDENTIAL_READ_PERMISSION_KEY
+      ),
+      canReadRestricted: auth.grantedPermissionKeys.has(
+        RESTRICTED_READ_PERMISSION_KEY
+      )
+    };
+
     const existingIdempotency = await findIdempotencyRecord(
       tx,
       tenantId,
@@ -101,6 +119,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       auth.context.tenantUserId,
       documentId,
       { voidReason },
+      access,
       correlationId
     );
 

@@ -85,6 +85,8 @@ tags:
     description: "Optional, tenant-scoped generic document METADATA infrastructure (epic `platform-evolution` #738 Wave 3, Issue #751, ADR-0017) — a classification catalog, the document registry itself (owner module + document type + a primary generic resource reference), IMMUTABLE append-only versions (content referenced through an approved managed-object storage contract, never a binary blob), additional typed generic resource relations (written only through the capability port), concurrency-safe effective-dated numbering sequence definitions (SCD Type 2 style — revising the format never resets or reuses the counter), atomic number reservations (reserve/commit/cancel, a reservation's number can never be silently reused), and an append-only evidence trail. Never a domain document schema — no letters/invoices/POs/journal batches/medical records/contracts here."
   - name: Data Exchange
     description: "Provider-neutral staged CSV/JSON import/export framework (epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0018) — module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner (`bun run data-exchange:worker`, never inline with an HTTP request), export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port (`DataExchangeAdapterPort`); this module never writes to another module's tables directly. Ships one self-contained reference fixture (`reference_items`) to prove the mechanism end-to-end."
+  - name: Integration Hub
+    description: "Generic, provider-neutral integration boundary (epic `platform-evolution` #738 Wave 3, Issue #754, ADR-0019) — signed inbound webhook endpoints (opaque server-generated tokens, per-endpoint HMAC secret with timing-safe verification and key rotation-with-overlap), database-uniqueness-enforced replay protection, normalization of verified inbound messages into this repo's own domain-event shape, outbound event subscriptions with a bounded declarative filter and SSRF-guarded delivery, and per-adapter health tracking. Provider-specific mapping/credentials always stay owned by the module that owns that capability — this hub ships exactly two self-contained fixture inbound signature schemes and one generic outbound HTTP adapter."
   - name: Reporting Projections
     description: "Module-contributed read-model projection extension to Management Reporting (epic `platform-evolution` #738 Wave 3, Issue #753) — list registered projection descriptors with live snapshot/freshness status, trigger/resume/cancel an idempotent full rebuild, trigger an on-demand reconciliation against a source control total, and manage/trigger/download scheduled exports of a projection's current snapshot (manifest/checksum/expiry, secure tenant-scoped download). A projection is a DERIVED read model, never an authorization source of truth — every operation here independently re-checks RBAC/ABAC. Real incremental updates (`bun run reporting:projections:refresh`, `bun run reporting:exports:dispatch`) are internal scheduled jobs, not exposed over HTTP."
 paths:
@@ -6133,7 +6135,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: Change a document's classification and/or confidentiality level
-      description: High-risk mutation -- requires Idempotency-Key.
+      description: High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's CURRENT confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureDocumentsReclassify
       security:
         - bearerAuth: []
@@ -6251,7 +6253,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: Link a document to a module-owned resource
-      description: High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -- callers pass an opaque ownerModuleKey/resourceType/resourceId they have already validated belongs to their own tenant-scoped data.
+      description: High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -- callers pass an opaque ownerModuleKey/resourceType/resourceId they have already validated belongs to their own tenant-scoped data. 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureRelationsLink
       security:
         - bearerAuth: []
@@ -6313,7 +6315,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: Unlink a document from a resource
-      description: High-risk mutation (revoke) -- requires Idempotency-Key.
+      description: High-risk mutation (revoke) -- requires Idempotency-Key. 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureRelationsUnlink
       security:
         - bearerAuth: []
@@ -6389,7 +6391,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: Restore a soft-deleted document, or un-void a voided document
-      description: High-risk mutation -- requires Idempotency-Key.
+      description: High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureDocumentsRestore
       security:
         - bearerAuth: []
@@ -6495,7 +6497,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: Create a new (append-only, immutable) document version
-      description: High-risk mutation -- requires Idempotency-Key (a retry must never create two versions).
+      description: High-risk mutation -- requires Idempotency-Key (a retry must never create two versions). 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureVersionsCreate
       security:
         - bearerAuth: []
@@ -6557,7 +6559,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: Void a document
-      description: Irreversible-by-default business-state transition, kept visible as evidence. High-risk mutation -- requires Idempotency-Key.
+      description: Irreversible-by-default business-state transition, kept visible as evidence. High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureDocumentsVoid
       security:
         - bearerAuth: []
@@ -6627,6 +6629,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: Read the document/numbering evidence trail
+      description: Evidence rows tied to a document (document.voided/restored/reclassified, version.created, number.committed) omit rows whose document's confidentiality_level is confidential/restricted if the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureEvidenceList
       security:
         - bearerAuth: []
@@ -6681,6 +6684,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: List number reservations
+      description: Reservations already committed to a document omit rows whose document's confidentiality_level is confidential/restricted if the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureReservationsList
       security:
         - bearerAuth: []
@@ -9576,6 +9580,1116 @@ paths:
           $ref: "#/components/responses/NotFound"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/adapters:
+    get:
+      tags:
+        - Integration Hub
+      summary: List the static, code-declared provider adapter registry
+      description: Metadata only (no schema field here can ever carry a credential/secret value).
+      operationId: integrationHubAdaptersList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Registered adapters.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - adapters
+                        properties:
+                          adapters:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/IntegrationAdapterItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/deliveries/inbound:
+    get:
+      tags:
+        - Integration Hub
+      summary: List recent inbound delivery metadata
+      description: Bounded list (max 200). Never the raw payload — only bounded metadata (hash, size, verification outcome).
+      operationId: integrationHubDeliveriesInboundList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: endpointId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Inbound deliveries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - deliveries
+                        properties:
+                          deliveries:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/IntegrationInboundDeliveryItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/deliveries/outbound:
+    get:
+      tags:
+        - Integration Hub
+      summary: List outbound deliveries
+      description: Bounded list (max 200). `status=dead_letter` is the DLQ inspection view.
+      operationId: integrationHubDeliveriesOutboundList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: subscriptionId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - sending
+              - delivered
+              - retry_wait
+              - dead_letter
+              - cancelled
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Outbound deliveries.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - deliveries
+                        properties:
+                          deliveries:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/IntegrationOutboundDeliveryItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/deliveries/outbound/{id}:
+    get:
+      tags:
+        - Integration Hub
+      summary: Get an outbound delivery, including attempt history
+      operationId: integrationHubDeliveriesOutboundGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Delivery and its attempts.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - delivery
+                          - attempts
+                        properties:
+                          delivery:
+                            $ref: "#/components/schemas/IntegrationOutboundDeliveryItem"
+                          attempts:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/IntegrationDeliveryAttemptItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/deliveries/outbound/{id}/replay:
+    post:
+      tags:
+        - Integration Hub
+      summary: Replay a dead-lettered outbound delivery
+      description: Permission-gated (`deliveries.replay`), reason-required, `Idempotency-Key` required, audited. Only valid from a `dead_letter` delivery. Creates a NEW delivery row referencing the original — never risks double-processing the same underlying source event.
+      operationId: integrationHubDeliveriesOutboundReplay
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "200":
+          description: Replay created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - newDeliveryId
+                        properties:
+                          newDeliveryId:
+                            type: string
+                            format: uuid
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, or delivery is not dead-lettered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/endpoints:
+    get:
+      tags:
+        - Integration Hub
+      summary: List inbound webhook endpoints
+      operationId: integrationHubEndpointsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Inbound webhook endpoints.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - endpoints
+                        properties:
+                          endpoints:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/IntegrationEndpointItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Integration Hub
+      summary: Register a new inbound webhook endpoint
+      description: Requires `Idempotency-Key`. `secretReference` is a pointer (`env:VAR_NAME`), never a raw secret value.
+      operationId: integrationHubEndpointsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - adapterKey
+                - displayName
+                - secretReference
+              properties:
+                adapterKey:
+                  type: string
+                displayName:
+                  type: string
+                description:
+                  type: string
+                secretReference:
+                  type: string
+                  description: 'An env: pointer, e.g. "env:MY_WEBHOOK_SECRET" — never a raw secret value.'
+                maxBodyBytes:
+                  type: integer
+                allowedContentTypes:
+                  type: array
+                  items:
+                    type: string
+                timestampToleranceSeconds:
+                  type: integer
+      responses:
+        "200":
+          description: Endpoint registered.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - endpoint
+                        properties:
+                          endpoint:
+                            $ref: "#/components/schemas/IntegrationEndpointItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/endpoints/{id}:
+    get:
+      tags:
+        - Integration Hub
+      summary: Get an inbound webhook endpoint by id
+      operationId: integrationHubEndpointsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Endpoint.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - endpoint
+                        properties:
+                          endpoint:
+                            $ref: "#/components/schemas/IntegrationEndpointItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Integration Hub
+      summary: Soft-delete an inbound webhook endpoint
+      description: Reason-required, audited. No `Idempotency-Key` required (naturally converges to 404 on a repeat call).
+      operationId: integrationHubEndpointsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "200":
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - deleted
+                        properties:
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/endpoints/{id}/pause:
+    post:
+      tags:
+        - Integration Hub
+      summary: Pause an inbound webhook endpoint
+      description: Naturally idempotent — no `Idempotency-Key` required. Audited.
+      operationId: integrationHubEndpointsPause
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Paused.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - endpoint
+                        properties:
+                          endpoint:
+                            $ref: "#/components/schemas/IntegrationEndpointItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/endpoints/{id}/resume:
+    post:
+      tags:
+        - Integration Hub
+      summary: Resume a paused inbound webhook endpoint
+      description: Naturally idempotent — no `Idempotency-Key` required. Audited.
+      operationId: integrationHubEndpointsResume
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Resumed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - endpoint
+                        properties:
+                          endpoint:
+                            $ref: "#/components/schemas/IntegrationEndpointItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/endpoints/{id}/rotate-secret:
+    post:
+      tags:
+        - Integration Hub
+      summary: Rotate an inbound webhook endpoint's signing secret
+      description: High-risk, `Idempotency-Key` required, audited. Supports key rotation with overlap — the previous secret keeps verifying until `overlapHours` elapses.
+      operationId: integrationHubEndpointsRotateSecret
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - newSecretReference
+              properties:
+                newSecretReference:
+                  type: string
+                overlapHours:
+                  type: integer
+                  minimum: 1
+                  maximum: 168
+      responses:
+        "200":
+          description: Secret rotated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - endpoint
+                        properties:
+                          endpoint:
+                            $ref: "#/components/schemas/IntegrationEndpointItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/health:
+    get:
+      tags:
+        - Integration Hub
+      summary: Get per-adapter health state
+      operationId: integrationHubHealthList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Adapter health rows.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - health
+                        properties:
+                          health:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/IntegrationAdapterHealthItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/inbound/{endpointToken}:
+    post:
+      tags:
+        - Integration Hub
+      summary: Receive a signed inbound webhook delivery
+      description: Public, provider-facing endpoint — NOT tenant/bearer-authenticated. Authenticated by the opaque `endpointToken` path segment plus the registered adapter's own signature scheme (request headers vary by adapter — see module README). Replay-protected by a database uniqueness constraint; a duplicate verified delivery returns `duplicate_ignored` without reprocessing.
+      operationId: integrationHubInboundReceive
+      security: []
+      parameters:
+        - name: endpointToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Provider-defined payload shape — opaque to this contract.
+      responses:
+        "200":
+          description: Accepted (new or duplicate-ignored) or safely rejected.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - status
+                        properties:
+                          status:
+                            type: string
+                            enum:
+                              - accepted
+                              - duplicate_ignored
+                          deliveryId:
+                            type: string
+                            format: uuid
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Signature verification failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Endpoint is not currently accepting traffic (paused/disabled, or tenant inactive).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          description: Request body exceeds this endpoint's configured maximum size.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "415":
+          description: Unsupported content type for this endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/subscriptions:
+    get:
+      tags:
+        - Integration Hub
+      summary: List outbound event subscriptions
+      operationId: integrationHubSubscriptionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Outbound subscriptions.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - subscriptions
+                        properties:
+                          subscriptions:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/IntegrationSubscriptionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Integration Hub
+      summary: Register a new outbound event subscription
+      description: Requires `Idempotency-Key`. `targetUrl` is SSRF-validated (private/link-local/metadata/reserved destinations rejected unless the deployment opts in via `INTEGRATION_HUB_ALLOW_PRIVATE_TARGETS`).
+      operationId: integrationHubSubscriptionsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - subscribedEventType
+                - targetAdapterKey
+                - targetUrl
+              properties:
+                subscribedEventType:
+                  type: string
+                targetAdapterKey:
+                  type: string
+                targetUrl:
+                  type: string
+                  format: uri
+                targetHeaders:
+                  type: object
+                  additionalProperties:
+                    type: string
+                secretReference:
+                  type: string
+                filter:
+                  type: object
+                  description: Bounded declarative equality-match filter (max 10 keys, max path depth 4) — dotted payload path -> scalar value.
+                  additionalProperties: true
+                maxAttempts:
+                  type: integer
+                timeoutMs:
+                  type: integer
+                description:
+                  type: string
+      responses:
+        "200":
+          description: Subscription created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - subscription
+                        properties:
+                          subscription:
+                            $ref: "#/components/schemas/IntegrationSubscriptionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/subscriptions/{id}:
+    get:
+      tags:
+        - Integration Hub
+      summary: Get an outbound event subscription by id
+      operationId: integrationHubSubscriptionsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Subscription.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - subscription
+                        properties:
+                          subscription:
+                            $ref: "#/components/schemas/IntegrationSubscriptionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Integration Hub
+      summary: Soft-delete an outbound event subscription
+      description: Reason-required, audited. No `Idempotency-Key` required.
+      operationId: integrationHubSubscriptionsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "200":
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - deleted
+                        properties:
+                          deleted:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/subscriptions/{id}/pause:
+    post:
+      tags:
+        - Integration Hub
+      summary: Pause an outbound event subscription
+      description: Naturally idempotent — no `Idempotency-Key` required. Audited.
+      operationId: integrationHubSubscriptionsPause
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Paused.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - subscription
+                        properties:
+                          subscription:
+                            $ref: "#/components/schemas/IntegrationSubscriptionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/integration-hub/subscriptions/{id}/resume:
+    post:
+      tags:
+        - Integration Hub
+      summary: Resume a paused outbound event subscription
+      description: Naturally idempotent — no `Idempotency-Key` required. Audited.
+      operationId: integrationHubSubscriptionsResume
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Resumed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - subscription
+                        properties:
+                          subscription:
+                            $ref: "#/components/schemas/IntegrationSubscriptionItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/logs/audit:
@@ -20607,7 +21721,7 @@ components:
           nullable: true
         scopeType:
           type: string
-          description: Only "office" is resolvable against a real table today (identity-access's default hierarchy port adapter); any other value resolves to `SCOPE_UNRESOLVED` until a future organization module registers its own resolver.
+          description: '"office" always resolves via identity-access''s default hierarchy port adapter. "legal_entity"/"organization_unit" resolve against the real organization-structure tables when the organization_structure module is enabled for the tenant; otherwise (or for any other scope type) resolution falls back to `SCOPE_UNRESOLVED`. Ancestor/descendant scope relationships are not consulted by segregation-of-duties conflict matching, which compares scope identity only.'
         scopeId:
           type: string
           format: uuid
@@ -23394,6 +24508,353 @@ components:
           type: string
           format: date-time
           nullable: true
+    IntegrationAdapterHealthItem:
+      type: object
+      required:
+        - adapterKey
+        - direction
+        - state
+        - consecutiveFailures
+        - consecutiveSuccesses
+        - lastCheckedAt
+      additionalProperties: false
+      properties:
+        adapterKey:
+          type: string
+        direction:
+          type: string
+          enum:
+            - inbound
+            - outbound
+        state:
+          type: string
+          enum:
+            - up
+            - degraded
+            - down
+        consecutiveFailures:
+          type: integer
+        consecutiveSuccesses:
+          type: integer
+        lastSuccessAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastFailureAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastCheckedAt:
+          type: string
+          format: date-time
+    IntegrationAdapterItem:
+      type: object
+      required:
+        - adapterKey
+        - displayName
+        - direction
+        - dataSensitivity
+        - defaultTimeoutMs
+        - retryClassification
+      additionalProperties: false
+      properties:
+        adapterKey:
+          type: string
+        displayName:
+          type: string
+        direction:
+          type: string
+          enum:
+            - inbound
+            - outbound
+            - both
+        dataSensitivity:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+        defaultTimeoutMs:
+          type: integer
+        retryClassification:
+          type: string
+          enum:
+            - retryable_network_provider
+            - manual_only
+    IntegrationDeliveryAttemptItem:
+      type: object
+      required:
+        - id
+        - deliveryId
+        - attemptNo
+        - outcome
+        - attemptedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        deliveryId:
+          type: string
+          format: uuid
+        attemptNo:
+          type: integer
+        outcome:
+          type: string
+          enum:
+            - success
+            - failure
+        httpStatus:
+          type: integer
+          nullable: true
+        responseSnippet:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        attemptedAt:
+          type: string
+          format: date-time
+    IntegrationEndpointItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - adapterKey
+        - endpointToken
+        - displayName
+        - secretReference
+        - hasSecretRotationInProgress
+        - status
+        - maxBodyBytes
+        - allowedContentTypes
+        - timestampToleranceSeconds
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        adapterKey:
+          type: string
+        endpointToken:
+          type: string
+          description: Opaque, server-generated identifier — the URL path segment a provider POSTs to. Not itself the security boundary.
+        displayName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        secretReference:
+          type: string
+          description: "An env: pointer, never the secret value itself."
+        hasSecretRotationInProgress:
+          type: boolean
+        secretRotatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        previousSecretExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum:
+            - active
+            - paused
+            - disabled
+        maxBodyBytes:
+          type: integer
+        allowedContentTypes:
+          type: array
+          items:
+            type: string
+        timestampToleranceSeconds:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    IntegrationInboundDeliveryItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - endpointId
+        - adapterKey
+        - signatureValid
+        - rawBodySize
+        - status
+        - receivedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        endpointId:
+          type: string
+          format: uuid
+        adapterKey:
+          type: string
+        providerDeliveryId:
+          type: string
+          nullable: true
+        signatureValid:
+          type: boolean
+        verificationFailureReason:
+          type: string
+          nullable: true
+        contentType:
+          type: string
+          nullable: true
+        rawBodySize:
+          type: integer
+        status:
+          type: string
+          enum:
+            - received
+            - normalized
+            - rejected
+            - processing_failed
+        normalizedEventId:
+          type: string
+          format: uuid
+          nullable: true
+        receivedAt:
+          type: string
+          format: date-time
+    IntegrationOutboundDeliveryItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - subscriptionId
+        - sourceEventId
+        - eventType
+        - status
+        - attemptCount
+        - maxAttempts
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        subscriptionId:
+          type: string
+          format: uuid
+        sourceEventId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - sending
+            - delivered
+            - retry_wait
+            - dead_letter
+            - cancelled
+        attemptCount:
+          type: integer
+        maxAttempts:
+          type: integer
+        nextAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
+        lastHttpStatus:
+          type: integer
+          nullable: true
+        replayOfDeliveryId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    IntegrationSubscriptionItem:
+      type: object
+      required:
+        - id
+        - tenantId
+        - subscribedEventType
+        - targetAdapterKey
+        - targetUrl
+        - targetHeaders
+        - hasOutboundSigningSecret
+        - filter
+        - status
+        - maxAttempts
+        - timeoutMs
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        subscribedEventType:
+          type: string
+        targetAdapterKey:
+          type: string
+        targetUrl:
+          type: string
+          format: uri
+        targetHeaders:
+          type: object
+          additionalProperties:
+            type: string
+        hasOutboundSigningSecret:
+          type: boolean
+        filter:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum:
+            - active
+            - paused
+            - disabled
+        maxAttempts:
+          type: integer
+        timeoutMs:
+          type: integer
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     InternalTagLinkingPreviewResult:
       type: object
       required:

@@ -12,6 +12,32 @@ export const identityAccessModule = defineModule({
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1"
   },
+  // Issue #786 (follow-up to #746/#749, epic #738 platform-evolution) —
+  // documents the REAL source-level relationship for
+  // `BusinessScopeHierarchyPort`: `organization_structure` is the module
+  // whose adapter (`organizationStructureHierarchyPortAdapter`) this
+  // module's own composition root (`src/pages/api/v1/identity/business-
+  // scope/assignments/index.ts`) now wires in for `legal_entity`/
+  // `organization_unit` scope types, falling back to this module's own
+  // flat `defaultBusinessScopeHierarchyPortAdapter` for every other scope
+  // type (or when `organization_structure` is disabled for the tenant).
+  // `optional: true` because `identity_access` (Core) must never hard-fail
+  // if `organization_structure` (Optional) is absent/disabled — same
+  // shape `blog_content` declares for its own optional `news_media`/
+  // `social_publishing` consumption. Deliberately NOT a `dependencies`
+  // entry (that would wrongly make Core's own enable/disable lifecycle
+  // depend on an Optional module, ADR-0013 §1) — see `_shared/ports/
+  // business-scope-hierarchy-port.ts` and both adapters' own headers for
+  // the full "why a port, not an import" rationale.
+  capabilities: {
+    consumes: [
+      {
+        capability: "organization_hierarchy_resolution",
+        providedBy: "organization_structure",
+        optional: true
+      }
+    ]
+  },
   // Issue #592 (epic: full-online auth hardening #587-#593) — admin UI for
   // the #591 tenant auth policy/SSO provider admin CRUD API. Gated on
   // `sso_policy.read` (migration 037): a caller who can read the policy but

@@ -18,6 +18,10 @@ import {
   saveIdempotencyRecord
 } from "../../../../../../modules/_shared/idempotency";
 import { restoreDocument } from "../../../../../../modules/document-infrastructure/application/document-directory";
+import {
+  CONFIDENTIAL_READ_PERMISSION_KEY,
+  RESTRICTED_READ_PERMISSION_KEY
+} from "../../../../../../modules/document-infrastructure/domain/document";
 
 const IDEMPOTENCY_SCOPE = "document_infrastructure_document_restore";
 
@@ -63,6 +67,17 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
+    // Confidentiality-tier clearance (Issue #787 fast-follow) — see
+    // `void.ts`'s identical comment.
+    const access = {
+      canReadConfidential: auth.grantedPermissionKeys.has(
+        CONFIDENTIAL_READ_PERMISSION_KEY
+      ),
+      canReadRestricted: auth.grantedPermissionKeys.has(
+        RESTRICTED_READ_PERMISSION_KEY
+      )
+    };
+
     const existingIdempotency = await findIdempotencyRecord(
       tx,
       tenantId,
@@ -88,6 +103,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       tenantId,
       auth.context.tenantUserId,
       documentId,
+      access,
       correlationId
     );
 

@@ -28,7 +28,7 @@ that shape:
   not just base-to-application), and consumes its
   `example_crm_directory` capability as a REQUIRED binding.
 - [`modules/example-erp-extension/module.ts`](modules/example-erp-extension/module.ts)
-  (Issue #755, epic #738 `platform-evolution` Wave 4, ADR-0019 — ERP
+  (Issue #755, epic #738 `platform-evolution` Wave 4, ADR-0020 — ERP
   extension readiness contracts) — a sample ERP extension consuming
   `profile_identity`'s `party_directory` and `organization_structure`'s
   `organization_hierarchy_resolution` capabilities (both `optional: true`,
@@ -49,7 +49,7 @@ transaction-contract.ts`'s posting request/result invariants and
   entirely inside the fixture's reserved migration range — the base
   repository contains no chart-of-accounts/journal/inventory-valuation/
   sales/procurement/AR-AP/payroll/tax/asset/manufacturing table, per
-  ADR-0019's explicit exclusions.
+  ADR-0020's explicit exclusions.
 - [`application-registry.ts`](application-registry.ts) — the
   `ApplicationModuleRegistry` combining all three modules plus a declared
   `migrationNamespace` (`900-999`, non-overlapping with the base's own

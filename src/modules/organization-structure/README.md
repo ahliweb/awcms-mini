@@ -65,12 +65,28 @@ the real effective-dated hierarchy as of "now". It does **not** supersede
 (`defaultBusinessScopeHierarchyPortAdapter`, which only handles
 `"office"`) — the two coexist. `identity_access` has **no** lifecycle or
 capability dependency on `organization_structure` in either direction
-(Core never depends on Optional, ADR-0013 §1); a **composition root**
-(the route handler or job script that needs scope resolution) decides at
-the call site which adapter to inject based on the `scopeType`(s) it
-expects to resolve — exactly the same question
-`business-scope-hierarchy-port-adapter.ts`'s own header documents for
-`"office"`.
+(Core never depends on Optional, ADR-0013 §1).
+
+**Wired end-to-end since Issue #786** (this module shipped the adapter in
+#749 but had zero production callers until this follow-up). The real
+composition root — `POST /api/v1/identity/business-scope/assignments`'s
+`buildHierarchyPort` (`src/pages/api/v1/identity/business-scope/
+assignments/index.ts`) — checks whether `organization_structure` is
+enabled for the calling tenant (`resolveModuleEnabled`) and, when it is,
+tries this module's real adapter FIRST for every scope, falling back to
+identity-access's flat `"office"` adapter when this one doesn't resolve
+the scope (any scope type it doesn't own, or ANY scope type at all when
+the tenant has this module disabled). No file inside `identity_access`'s
+own `application`/`domain` tree imports anything from
+`organization_structure` — the wiring lives entirely in the route file, a
+composition root outside every module's own `application`/`domain` tree,
+which is what keeps `tests/unit/module-boundary-cycles.test.ts` (Core/
+Optional import-cycle guard) passing. This module's own
+`capabilities: { provides: ["organization_hierarchy_resolution"] }`
+(`module.ts`) is matched by `identity_access/module.ts`'s
+`capabilities.consumes` entry (`optional: true`) for the module-
+composition validator (Issue #740) — a documentation/build-time-validation
+declaration, not the runtime wiring itself.
 
 `"location"` (physical location lookup) is deliberately **not** exposed
 through this port — the port is about business-scope authorization/

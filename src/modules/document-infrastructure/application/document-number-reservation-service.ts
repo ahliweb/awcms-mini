@@ -37,6 +37,10 @@ import {
   type ResetPolicy
 } from "../domain/document-number-sequence";
 import { renderNumberFormatTemplate } from "../domain/number-format-template";
+import {
+  readableConfidentialityLevels,
+  type ConfidentialityReadAccess
+} from "../domain/document";
 import type { DocumentValidationError } from "../domain/errors";
 import type { SequenceScope } from "./document-number-sequence-definition-service";
 
@@ -403,22 +407,42 @@ export type ListReservationsFilter = {
   status?: "reserved" | "committed" | "canceled";
 };
 
-/** Bounded list (`LIMIT 200`), newest first. */
+/**
+ * Bounded list (`LIMIT 200`), newest first.
+ *
+ * `access` is REQUIRED (Issue #787 fast-follow — same discipline
+ * `document-directory.ts`'s `listDocuments`/`fetchDocumentById` already
+ * enforce). A reservation only carries a `document_id` once
+ * `commitReservation` attaches it to a real document — from that point
+ * on it must not leak that document's existence to a caller who lacks
+ * confidentiality-tier clearance for it: filtered IN THE QUERY (a `LEFT
+ * JOIN` plus `confidentiality_level = ANY(...)`), never fetch-then-
+ * filter in application code. Reservations still `reserved`/`canceled`
+ * (never committed, `document_id IS NULL`) have no confidentiality
+ * dimension to apply and always pass through.
+ */
 export async function listReservations(
   tx: Bun.SQL,
   tenantId: string,
+  access: ConfidentialityReadAccess,
   filter: ListReservationsFilter = {}
 ): Promise<NumberReservationRow[]> {
+  const readableLevels = readableConfidentialityLevels(access);
+
   const rows = (await tx`
-    SELECT id, tenant_id, sequence_id, reserved_number, formatted_number,
-      period_key, status, document_id, reserved_by_tenant_user_id, reserved_at,
-      committed_at, committed_by_tenant_user_id, canceled_at,
-      canceled_by_tenant_user_id, cancel_reason, correlation_id
-    FROM awcms_mini_document_number_reservations
-    WHERE tenant_id = ${tenantId}
-      AND (${filter.sequenceId ?? null}::uuid IS NULL OR sequence_id = ${filter.sequenceId ?? null})
-      AND (${filter.status ?? null}::text IS NULL OR status = ${filter.status ?? null})
-    ORDER BY reserved_at DESC
+    SELECT r.id, r.tenant_id, r.sequence_id, r.reserved_number,
+      r.formatted_number, r.period_key, r.status, r.document_id,
+      r.reserved_by_tenant_user_id, r.reserved_at, r.committed_at,
+      r.committed_by_tenant_user_id, r.canceled_at,
+      r.canceled_by_tenant_user_id, r.cancel_reason, r.correlation_id
+    FROM awcms_mini_document_number_reservations r
+    LEFT JOIN awcms_mini_documents d
+      ON d.tenant_id = r.tenant_id AND d.id = r.document_id
+    WHERE r.tenant_id = ${tenantId}
+      AND (${filter.sequenceId ?? null}::uuid IS NULL OR r.sequence_id = ${filter.sequenceId ?? null})
+      AND (${filter.status ?? null}::text IS NULL OR r.status = ${filter.status ?? null})
+      AND (r.document_id IS NULL OR d.confidentiality_level = ANY(${tx.array(readableLevels, "text")}))
+    ORDER BY r.reserved_at DESC
     LIMIT 200
   `) as NumberReservationDbRow[];
 

@@ -1,6 +1,6 @@
 /**
  * ERP extension readiness contract tests (Issue #755, epic #738
- * `platform-evolution` Wave 4, ADR-0019). No database, no network —
+ * `platform-evolution` Wave 4, ADR-0020). No database, no network —
  * everything under test here is pure/in-memory: `_shared/ports/
  * period-lock-port.ts`'s fail-closed default, the fixture posting engine
  * (`tests/fixtures/derived-application-example/modules/

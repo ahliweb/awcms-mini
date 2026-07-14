@@ -65,13 +65,13 @@ Lima contoh berikut menunjukkan bagaimana base yang sama melayani domain yang sa
 
 Setiap aplikasi di atas **tetap** memakai identity/login, RBAC/ABAC, RLS, audit trail, i18n, dan admin shell base yang sama — modul domain di atas hanya menambah entitas + endpoint + layar yang spesifik pada domainnya, mengikuti 9 langkah di atas.
 
-## Ekstensi ERP (lapisan terpisah dari Derived Application biasa — Issue #755, ADR-0019)
+## Ekstensi ERP (lapisan terpisah dari Derived Application biasa — Issue #755, ADR-0020)
 
 Bila aplikasi turunan Anda adalah/menggunakan ERP (akuntansi, inventori,
 sales/purchase order, payroll, pajak) — bukan hanya "aplikasi domain
 biasa" seperti lima contoh di atas — baca dulu
 [`erp-extension-contracts.md`](erp-extension-contracts.md) dan
-`docs/adr/0019-erp-extension-readiness-contracts.md` sebelum menulis
+`docs/adr/0020-erp-extension-readiness-contracts.md` sebelum menulis
 kode apa pun. Base ini **tidak pernah** menyediakan chart of accounts/
 jurnal/ledger/valuasi inventori/AR-AP/payroll/pajak — base hanya
 menyediakan **kontrak netral** (referensi transaksi bisnis, envelope
@@ -131,7 +131,7 @@ index.ts` base, taksonomi kegagalan komposisi, dan konvensi namespace
   dan di mana `bun run extension:check` benar-benar memblokir CI/preflight
   (Issue #741).
 - [`erp-extension-contracts.md`](erp-extension-contracts.md) dan
-  [`docs/adr/0019-erp-extension-readiness-contracts.md`](../adr/0019-erp-extension-readiness-contracts.md)
+  [`docs/adr/0020-erp-extension-readiness-contracts.md`](../adr/0020-erp-extension-readiness-contracts.md)
   — kontrak business transaction/posting/period-lock/item/currency/UoM/
   inventory-movement/reconciliation/report-projection untuk ekstensi ERP
   (Issue #755).

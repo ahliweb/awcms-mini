@@ -490,9 +490,36 @@ Issue #749, `organization_structure`'s own adapter
 (`organization-structure/application/organization-structure-hierarchy-port-
 adapter.ts`) supersedes this one for `scopeType: "legal_entity"`/
 `"organization_unit"`, walking the real effective-dated hierarchy it owns.
-Neither adapter supersedes the other outright — the composition root
-(route handlers, the expiry job script) decides which adapter to inject
-based on which `scopeType`(s) it expects to resolve.
+Neither adapter supersedes the other outright.
+
+**Wired end-to-end since Issue #786** (a follow-up to #749's own
+"zero production callers" disclosure). The sole real composition root today,
+`POST /api/v1/identity/business-scope/assignments`'s `buildHierarchyPort`
+(`src/pages/api/v1/identity/business-scope/assignments/index.ts`), resolves
+`organization_structure`'s per-tenant enablement (`resolveModuleEnabled`,
+the same Issue #515 signal every guarded endpoint already enforces) and, when
+enabled, tries `organizationStructureHierarchyPortAdapter` FIRST — falling
+back to `defaultBusinessScopeHierarchyPortAdapter` when that adapter doesn't
+resolve the scope (every other scope type, or ANY scope type at all when
+`organization_structure` is disabled for that tenant). This wiring lives in
+the route file, never inside `identity_access`'s own `application`/`domain`
+tree — importing `organization_structure` there would be a real Core-
+depends-on-Optional violation (ADR-0013 §1) that
+`tests/unit/module-boundary-cycles.test.ts` structurally forbids. The
+capability relationship is also declared in `module.ts`'s
+`capabilities.consumes` (`organization_hierarchy_resolution`,
+`providedBy: "organization_structure"`, `optional: true`) for the
+module-composition validator (Issue #740), the same shape `blog_content`
+already declares for its own optional `news_media`/`social_publishing`
+consumption — this is a documentation/build-time-validation entry, not the
+runtime wiring itself. **Scope note**: this wiring makes scope EXISTENCE/
+VALIDITY resolution real for `legal_entity`/`organization_unit` — it does
+NOT make SoD conflict MATCHING (`domain/sod-conflict-evaluation.ts`)
+hierarchy-aware; `detectSoDConflicts`'s `"same_scope_only"` rule still
+compares `(scopeType, scopeId)` by exact equality, never consulting
+`ancestorScopes`/`descendantScopes` — a true hierarchy-aware conflict check
+(e.g. "held at a parent org unit conflicts with a child") remains a
+distinct, not-yet-built feature.
 
 ### ABAC extension (`domain/access-control.ts`)
 

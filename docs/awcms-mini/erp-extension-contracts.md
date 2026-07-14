@@ -1,7 +1,7 @@
 # Kontrak Kesiapan Ekstensi ERP
 
 Issue #755, epic #738 (`platform-evolution`), Wave 4 — issue TERAKHIR
-epic ini. `docs/adr/0019-erp-extension-readiness-contracts.md` adalah
+epic ini. `docs/adr/0020-erp-extension-readiness-contracts.md` adalah
 keputusan arsitektural yang mengikat; dokumen ini adalah referensi
 teknis lengkap untuk setiap kontrak yang keputusan itu definisikan —
 ownership, versioning, failure semantics, klasifikasi privasi, dan
@@ -62,7 +62,7 @@ lain yang bukan port/module-contract.
 ke kontrak #3.
 **Klasifikasi privasi:** tidak ada PII langsung; `externalTransactionId`
 opaque bagi base.
-**Invariant mengikat:** lihat ADR-0019 §4 (posted immutable, koreksi via
+**Invariant mengikat:** lihat ADR-0020 §4 (posted immutable, koreksi via
 reversal, dst.) — SEMUA nomor invariant di situ berlaku untuk kontrak
 ini.
 
@@ -152,7 +152,7 @@ consumer-registry.ts` versi fork-nya), TIDAK di base.
   `requestId`), #4 (idempotent per `requestId`), #5 (`"accepted"` BUKAN
   bukti posting berhasil), dan #7 (`reversalOfExternalTransactionId`
   me-resolve `externalTransactionId` — BUKAN PERNAH `requestId` — ter-scope
-  tenant/legal-entity request reversal) di ADR-0019 §4.
+  tenant/legal-entity request reversal) di ADR-0020 §4.
   **Klasifikasi privasi:** `totalDebit`/`totalCredit`/`ledgerReference`
   adalah data finansial sensitif tenant — payload event WAJIB lulus
   `domain_event_runtime`'s `validateDomainEventPayload` (menolak nilai
@@ -198,7 +198,7 @@ tetap wajib diperiksa terpisah oleh setiap endpoint/job ekstensi ERP.
 (`UnitOfMeasureReference`, §8).
 **Sumber data yang sah:** tabel katalog milik ekstensi Anda sendiri,
 ATAU (opsional, begitu Issue #750 `reference_data` benar-benar merge
-dan stabil — lihat ADR-0019 §Status untuk peringatan pin saat ini)
+dan stabil — lihat ADR-0020 §Status untuk peringatan pin saat ini)
 `reference_data`'s effective-dated value sets. Kontrak ini TIDAK
 mengasumsikan salah satu — keduanya valid selama bentuknya sesuai.
 **Failure semantics:** tidak ada — tipe data pasif.
@@ -218,7 +218,7 @@ PII.
 ## 9. Inventory movement reference
 
 **Pemilik:** ekstensi ERP (base tidak punya konsep valuasi/costing
-inventori — ADR-0019 eksklusi eksplisit). **Bentuk:**
+inventori — ADR-0020 eksklusi eksplisit). **Bentuk:**
 `InventoryMovementReference` — `tenantId`, `movementId` (opaque),
 `direction` (`receipt`/`issue`/`transfer`/`adjustment`), `item`
 (`ItemReference`), `quantity` (decimal-as-string, opaque),
@@ -273,7 +273,7 @@ costing inventori; sales order, purchase order, AR/AP, kas/bank,
 alokasi pembayaran; fixed asset, depresiasi, payroll, perhitungan/
 pelaporan pajak; manufacturing, project costing, budget control,
 konsolidasi; klaim apa pun bahwa AWCMS-Mini sendiri adalah ERP yang
-lengkap atau patuh regulasi. Lihat ADR-0019 §Konteks untuk daftar
+lengkap atau patuh regulasi. Lihat ADR-0020 §Konteks untuk daftar
 lengkap dan alasannya.
 
 ## Pemetaan kepatuhan (praktik, bukan klaim sertifikasi)
@@ -317,5 +317,5 @@ menemukan revisi pertama fixture mengindeks target reversal lewat
 `requestId` (ruang ID yang salah — lihat `business-transaction-
 contract.ts`'s invariant #7) dan tidak memverifikasi ulang tenant/
 legal-entity transaksi asli yang ter-resolve — keduanya diperbaiki
-sebelum PR ini merge; lihat ADR-0019 §5 untuk detail lengkap. Jangan
+sebelum PR ini merge; lihat ADR-0020 §5 untuk detail lengkap. Jangan
 mengutip fixture ini sebagai "terbukti aman" tanpa membaca catatan itu.

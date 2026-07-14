@@ -282,8 +282,9 @@ remediasi R3 di bawah.
 | `organization_structure`  | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `integration_hub`         | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
 
-Total: 3 Core + 9 System + 6 Official Optional Module = 18 dari 21 modul
+Total: 3 Core + 10 System + 6 Official Optional Module = 19 dari 21 modul
 terdaftar diklasifikasikan di tabel ini, cocok dengan `src/modules/
 index.ts`. `organization_structure` (Issue #749, epic #738
 `platform-evolution` Wave 2) ditambahkan lewat admission decision
@@ -306,10 +307,18 @@ mesin generik staged import/export CSV/JSON (staging, validasi, preview/
 diff, commit asinkron idempoten, export manifest/checksum, rekonsiliasi)
 dikonsumsi modul pemilik lewat capability port (`DataExchangeAdapterPort`)
 dan deskriptor statis (`ModuleDescriptor.dataExchange`); modul ini tidak
-pernah menulis langsung ke tabel modul lain. Tidak ada modul kategori
-Derived Application atau External Integration top-level di registry ini
-hari ini (sesuai definisi §2 — integration hidup sebagai sub-komponen,
-lihat kolom "provider eksternal" di bawah).
+pernah menulis langsung ke tabel modul lain. `integration_hub` (Issue #754,
+epic #738 `platform-evolution` Wave 3) ditambahkan lewat admission decision
+`docs/adr/0019-integration-hub-module-admission.md` — signed inbound
+webhook, normalisasi event lewat `domain_event_runtime`, langganan event
+outbound, replay protection, dan kesehatan adapter; hub ini hanya memiliki
+status pengiriman envelope (ADR-0013 §6), tidak pernah data bisnis final,
+dan tidak pernah memanggil API provider bisnis spesifik secara langsung
+(mekanisme generik saja — provider-specific adapter tetap dimiliki modul
+bisnis pemiliknya). Tidak ada modul kategori Derived Application atau
+External Integration top-level di registry ini hari ini (sesuai definisi
+§2 — integration hidup sebagai sub-komponen, lihat kolom "provider
+eksternal" di bawah).
 
 **Satu modul terdaftar, `idn_admin_regions`, sengaja tidak dimasukkan ke tabel di
 atas.** Descriptor-nya (`src/modules/idn-admin-regions/module.ts`) men-set
@@ -415,7 +424,7 @@ penuh.
 
 **Kontrak murni (tanpa modul baru) tetap butuh ADR, bukan proposal
 template.** Bukan setiap keputusan arsitektural mengikat berupa modul
-baru — Issue #755 (`docs/adr/0019-erp-extension-readiness-contracts.md`,
+baru — Issue #755 (`docs/adr/0020-erp-extension-readiness-contracts.md`,
 epic #738 Wave 4) mendefinisikan sebelas keluarga kontrak kesiapan
 ekstensi ERP (tipe TypeScript `_shared/*`, satu capability port baru)
 TANPA mendaftarkan modul baru apa pun di `src/modules/index.ts` — proposal
@@ -448,7 +457,7 @@ registry.ts`, `composeModuleRegistry()`), taksonomi kegagalan komposisi,
   follow-up).
 - `docs/adr/0011-capability-ports-for-cross-module-collaboration.md` —
   dasar `capabilities.consumes[].optional` di §5.
-- `docs/adr/0019-erp-extension-readiness-contracts.md`,
+- `docs/adr/0020-erp-extension-readiness-contracts.md`,
   `docs/awcms-mini/erp-extension-contracts.md` — kontrak kesiapan
   ekstensi ERP tanpa modul baru (§9 di atas), Issue #755, epic #738 Wave 4.
 - `docs/awcms-mini/derived-application-guide.md`,

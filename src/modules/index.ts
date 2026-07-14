@@ -10,6 +10,7 @@ import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
 import { idnAdminRegionsModule } from "./idn-admin-regions/module";
+import { integrationHubModule } from "./integration-hub/module";
 import { loggingModule } from "./logging/module";
 import { moduleManagementModule } from "./module-management/module";
 import { newsPortalModule } from "./news-portal/module";
@@ -57,18 +58,15 @@ const baseModules: ModuleDescriptor[] = [
   // extended existing modules) — appended at the end, same convention as
   // the Wave-1 entries immediately above.
   organizationStructureModule,
-  // Issue #751 (epic #738 platform-evolution Wave 3, ADR-0017) — brand new
-  // top-level module, appended at the end. Several other Wave-3 issues
-  // register their OWN new module entries in parallel here — on merge
-  // conflict, keep BOTH sides' new entries, never pick one (established
-  // recipe, see #745/#742's own comment above).
+  // Issue #751 (epic #738 platform-evolution Wave 3, ADR-0017), Issue #752
+  // (Wave 3, ADR-0018), and Issue #754 (Wave 3, ADR-0019) — all brand new
+  // top-level modules, appended at the end. Several Wave-3 issues register
+  // their OWN new module entries in parallel here — on merge conflict, keep
+  // BOTH sides' new entries, never pick one (established recipe, see
+  // #745/#742's own comment above).
   documentInfrastructureModule,
-  // Issue #752 (epic #738 platform-evolution Wave 3, ADR-0018) — brand new
-  // top-level module, appended at the end, same convention as the Wave-1/
-  // Wave-2 entries immediately above (minimal, easily-resolved merge
-  // conflict against parallel Wave-3 siblings registering their own new
-  // module).
-  dataExchangeModule
+  dataExchangeModule,
+  integrationHubModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */
