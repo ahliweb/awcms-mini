@@ -20,10 +20,11 @@
 import type { ApplicationModuleRegistry } from "../../../src/modules/_shared/module-contract";
 import { exampleCrmModule } from "./modules/example-crm/module";
 import { exampleLoyaltyModule } from "./modules/example-loyalty/module";
+import { exampleErpExtensionModule } from "./modules/example-erp-extension/module";
 
 export const exampleApplicationModuleRegistry: ApplicationModuleRegistry = {
   id: "derived-application-example-fixture",
-  modules: [exampleCrmModule, exampleLoyaltyModule],
+  modules: [exampleCrmModule, exampleLoyaltyModule, exampleErpExtensionModule],
   migrationNamespace: {
     label: "derived-application-example fixture",
     rangeStart: 900,

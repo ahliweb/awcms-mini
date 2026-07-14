@@ -49,7 +49,8 @@ describe("derived-application-example fixture composes with the base registry (I
       const keys = result.registry.map((m) => m.key);
       expect(keys).toContain("example_crm");
       expect(keys).toContain("example_loyalty");
-      expect(keys.length).toBe(listBaseModules().length + 2);
+      expect(keys).toContain("example_erp_extension");
+      expect(keys.length).toBe(listBaseModules().length + 3);
     }
   });
 
@@ -82,6 +83,7 @@ describe("derived-application-example fixture composes with the base registry (I
     const keys = listModules().map((m) => m.key);
     expect(keys).not.toContain("example_crm");
     expect(keys).not.toContain("example_loyalty");
+    expect(keys).not.toContain("example_erp_extension");
     expect(listModules()).toEqual(listBaseModules());
   });
 
@@ -95,7 +97,7 @@ describe("derived-application-example fixture composes with the base registry (I
     expect(inventory.applicationRegistryId).toBe(
       exampleApplicationModuleRegistry.id
     );
-    expect(inventory.applicationModuleCount).toBe(2);
+    expect(inventory.applicationModuleCount).toBe(3);
 
     const crm = inventory.modules.find((m) => m.key === "example_crm");
     expect(crm).toBeDefined();
@@ -115,6 +117,24 @@ describe("derived-application-example fixture composes with the base registry (I
       }
     ]);
 
+    const erpExtension = inventory.modules.find(
+      (m) => m.key === "example_erp_extension"
+    );
+    expect(erpExtension?.source).toBe("application");
+    expect(erpExtension?.capabilitiesConsumed).toEqual([
+      {
+        capability: "party_directory",
+        providedBy: "profile_identity",
+        optional: true
+      },
+      {
+        capability: "organization_hierarchy_resolution",
+        providedBy: "organization_structure",
+        optional: true
+      }
+    ]);
+    expect(erpExtension?.permissionCount).toBe(1);
+
     expect(inventory.migrationNamespaces).toContainEqual({
       ...exampleApplicationModuleRegistry.migrationNamespace!,
       source: "application"
@@ -125,6 +145,7 @@ describe("derived-application-example fixture composes with the base registry (I
     const markdown = await buildRepoInventoryMarkdown();
     expect(markdown).not.toContain("example_crm");
     expect(markdown).not.toContain("example_loyalty");
+    expect(markdown).not.toContain("example_erp_extension");
   });
 
   test("repository inventory generation (composed-fixture mode) succeeds and includes the fixture's contributed modules, without touching the committed doc", async () => {
@@ -141,6 +162,7 @@ describe("derived-application-example fixture composes with the base registry (I
     );
     expect(markdown).toContain("`example_crm`");
     expect(markdown).toContain("`example_loyalty`");
+    expect(markdown).toContain("`example_erp_extension`");
     // Every base module key is still present too — composed-fixture mode
     // is additive, never a replacement of the base inventory.
     for (const module of listBaseModules()) {
@@ -165,6 +187,9 @@ describe("derived-application-example fixture composes with the base registry (I
     expect(plan.entries.every((e) => e.action === "create")).toBe(true);
     expect(plan.entries.map((e) => e.moduleKey)).toContain("example_crm");
     expect(plan.entries.map((e) => e.moduleKey)).toContain("example_loyalty");
+    expect(plan.entries.map((e) => e.moduleKey)).toContain(
+      "example_erp_extension"
+    );
     expect(plan.orphanedModuleKeys).toEqual([]);
   });
 });
