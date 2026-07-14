@@ -5,6 +5,7 @@ import { redactSecretsInText } from "../../_shared/redaction";
 import { computeHmacSha256Hex } from "../domain/signature-primitives";
 import {
   isBlockedIpAddress,
+  unwrapIpv6Literal,
   validateOutboundUrlShape
 } from "../domain/ssrf-guard";
 
@@ -59,8 +60,11 @@ export async function validateOutboundDestination(
     return { ok: true };
   }
 
-  if (isIP(shapeResult.hostname) !== 0) {
-    // Already validated as a safe IP literal by validateOutboundUrlShape.
+  if (isIP(unwrapIpv6Literal(shapeResult.hostname)) !== 0) {
+    // Already validated as a safe IP literal by validateOutboundUrlShape
+    // (bracket-stripped the same way here — see ssrf-guard.ts's
+    // unwrapIpv6Literal header comment for why this is required for any
+    // IPv6 literal target, not just an IPv4 one).
     return { ok: true };
   }
 

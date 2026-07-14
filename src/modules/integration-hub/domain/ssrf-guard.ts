@@ -106,10 +106,33 @@ function isPrivateOrReservedIPv6(address: string): boolean {
     return true; // loopback / unspecified
   }
 
-  // IPv4-mapped (::ffff:a.b.c.d) — validate the embedded IPv4 address.
-  const mappedMatch = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mappedMatch) {
-    return isPrivateOrReservedIPv4(mappedMatch[1]!);
+  // IPv4-mapped, dotted-decimal form (::ffff:a.b.c.d) — validate the
+  // embedded IPv4 address.
+  const dottedMappedMatch = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (dottedMappedMatch) {
+    return isPrivateOrReservedIPv4(dottedMappedMatch[1]!);
+  }
+
+  // IPv4-mapped, hex-group form (::ffff:xxxx:yyyy) — the WHATWG URL
+  // parser normalizes an IPv4-mapped literal typed as
+  // `[::ffff:169.254.169.254]` into this hex-group shape, NEVER the
+  // dotted-decimal form above, so `new URL(...).hostname` for this class
+  // of target never matches `dottedMappedMatch` — a second real gap the
+  // security-auditor's own reproduction (`[::ffff:169.254.169.254]`)
+  // caught (PR #784). Each hex group is 16 bits = 2 IPv4 octets.
+  const hexMappedMatch = normalized.match(
+    /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/
+  );
+  if (hexMappedMatch) {
+    const high = Number.parseInt(hexMappedMatch[1]!, 16);
+    const low = Number.parseInt(hexMappedMatch[2]!, 16);
+    const octets = [
+      (high >>> 8) & 0xff,
+      high & 0xff,
+      (low >>> 8) & 0xff,
+      low & 0xff
+    ];
+    return isPrivateOrReservedIPv4(octets.join("."));
   }
 
   return (
@@ -123,15 +146,43 @@ function isPrivateOrReservedIPv6(address: string): boolean {
   );
 }
 
+/**
+ * `URL.hostname` (and any `Location` redirect target re-parsed the same
+ * way) returns an IPv6 literal WITH its surrounding brackets — e.g.
+ * `new URL("http://[::1]/").hostname === "[::1]"`. `node:net`'s `isIP()`
+ * returns `0` (not recognized) for a bracketed string, so every call site
+ * that gates on `isIP(hostname)` before running the private/loopback/
+ * link-local/ULA/mapped-IPv4 classification below MUST strip the
+ * brackets first, or that classification logic is unreachable dead code
+ * for every IPv6 literal target (security-auditor Critical finding on PR
+ * #784 — confirmed empirically: `http://[fc00::1234]:9999/` was accepted
+ * at write time despite `fc00::/7` being explicitly blocked below).
+ * Applied inside `isBlockedIpAddress` itself (not just at the two call
+ * sites) so this is a single point of truth — any future caller is safe
+ * by construction, not by remembering to unwrap first.
+ */
+export function unwrapIpv6Literal(hostname: string): string {
+  if (
+    hostname.length > 2 &&
+    hostname.startsWith("[") &&
+    hostname.endsWith("]")
+  ) {
+    return hostname.slice(1, -1);
+  }
+
+  return hostname;
+}
+
 export function isBlockedIpAddress(address: string): boolean {
-  const version = isIP(address);
+  const unwrapped = unwrapIpv6Literal(address);
+  const version = isIP(unwrapped);
 
   if (version === 4) {
-    return isPrivateOrReservedIPv4(address);
+    return isPrivateOrReservedIPv4(unwrapped);
   }
 
   if (version === 6) {
-    return isPrivateOrReservedIPv6(address);
+    return isPrivateOrReservedIPv6(unwrapped);
   }
 
   return true; // Not a valid IP literal at all — caller should treat as invalid, fail closed.
@@ -167,7 +218,7 @@ export function validateOutboundUrlShape(
     return { ok: false, reason: "metadata_or_local_hostname" };
   }
 
-  const ipVersion = isIP(hostname);
+  const ipVersion = isIP(unwrapIpv6Literal(hostname));
 
   if (ipVersion !== 0 && isBlockedIpAddress(hostname)) {
     return { ok: false, reason: "private_or_reserved_address" };

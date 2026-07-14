@@ -19,7 +19,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   deliverOutboundWebhook,
-  followBoundedRedirects
+  followBoundedRedirects,
+  validateOutboundDestination
 } from "../../src/modules/integration-hub/infrastructure/outbound-http-client";
 
 const servers: ReturnType<typeof Bun.serve>[] = [];
@@ -39,6 +40,36 @@ function startServer(
 }
 
 const BASE_INIT = { method: "POST", headers: {}, body: "{}" };
+
+describe("validateOutboundDestination — bracketed IPv6 literals (security-auditor Critical finding, PR #784)", () => {
+  // `URL.hostname` returns an IPv6 literal WITH its brackets — the
+  // dispatch-time check previously "failed closed" only by accident
+  // (dns.lookup() throwing ENOTFOUND on the bracketed string), never by
+  // its own SSRF classification actually running. These prove the REAL
+  // classification now rejects each case directly (no fetch/DNS ever
+  // reached), through the exact async function the outbound dispatch job
+  // calls.
+  test.each([
+    "http://[::1]/",
+    "http://[fc00::1234]:9999/internal",
+    "http://[fe80::1]/",
+    "http://[::ffff:169.254.169.254]/"
+  ])("rejects %s", async (url) => {
+    const result = await validateOutboundDestination(url, false);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("private_or_reserved_address");
+    }
+  });
+
+  test("allowPrivateTargets=true bypasses the bracketed-IPv6 check too (explicit trusted-deployment opt-in)", async () => {
+    const result = await validateOutboundDestination(
+      "http://[fc00::1234]/",
+      true
+    );
+    expect(result.ok).toBe(true);
+  });
+});
 
 describe("followBoundedRedirects — redirect Location is SSRF-validated (reviewer High finding, PR #784)", () => {
   test("baseline: no redirect, response returned as-is", async () => {

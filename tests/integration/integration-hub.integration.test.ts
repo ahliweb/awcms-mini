@@ -969,5 +969,104 @@ suite("integration_hub (Issue #754)", () => {
       expect(body.email).toBe("[REDACTED]");
       expect(body.phone).toBe("[REDACTED]");
     });
+
+    // Security-auditor Medium finding (PR #784): `raw_body_snippet` only
+    // ever got secret-PATTERN redaction, never the PII-key-based masking
+    // `normalizedBody` gets above — a PII-key-named field (nik/npwp/phone/
+    // email) was stored in plaintext in `awcms_mini_integration_inbound_
+    // deliveries.raw_body_snippet`. Fixed by not persisting the raw
+    // snippet at all once the normalized body already IS the real,
+    // key-redacted artifact for this delivery (a JSON object payload).
+    test("raw_body_snippet is NOT persisted for a JSON-object payload (the redacted normalized body already covers troubleshooting)", async () => {
+      const owner = await bootstrap();
+      await provisionAppRole();
+
+      const secret = "webhook-secret-value";
+      const endpoint = await createFixtureEndpoint(owner, secret);
+
+      const payload = {
+        orderId: "order-456",
+        nik: "3271011234567890",
+        npwp: "12.345.678.9-012.000"
+      };
+      const rawBody = JSON.stringify(payload);
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = fixtureSignatureTestHelpers.signHmacSha256(
+        secret,
+        timestamp,
+        rawBody
+      );
+
+      const result = await invoke(inboundReceive, {
+        method: "POST",
+        path: `/api/v1/integration-hub/inbound/${endpoint.endpointToken}`,
+        headers: {
+          "content-type": "application/json",
+          "x-integration-signature": signature,
+          "x-integration-timestamp": timestamp
+        },
+        body: payload,
+        params: { endpointToken: endpoint.endpointToken }
+      });
+      expect(result.status).toBe(200);
+
+      const admin = getAdminSql();
+      const deliveryRows = (await withTenant(
+        admin,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT raw_body_snippet FROM awcms_mini_integration_inbound_deliveries WHERE tenant_id = ${owner.tenantId}`
+      )) as { raw_body_snippet: string | null }[];
+
+      expect(deliveryRows.length).toBe(1);
+      expect(deliveryRows[0]!.raw_body_snippet).toBeNull();
+    });
+
+    // Regression guard for the OTHER branch of the same fix: when the
+    // payload is NOT a JSON object (here, a top-level JSON array — never
+    // redacted by `redactNormalizedBodyPii`, same restriction
+    // `redactSensitiveAttributes` itself has), the raw snippet remains the
+    // only troubleshooting artifact this delivery has, so it must still
+    // be persisted (secret-pattern-redacted, as before this fix).
+    test("raw_body_snippet IS still persisted (secret-pattern-redacted) for a non-object JSON payload", async () => {
+      const owner = await bootstrap();
+      await provisionAppRole();
+
+      const secret = "webhook-secret-value";
+      const endpoint = await createFixtureEndpoint(owner, secret);
+
+      const payload = [{ orderId: "order-789" }];
+      const rawBody = JSON.stringify(payload);
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = fixtureSignatureTestHelpers.signHmacSha256(
+        secret,
+        timestamp,
+        rawBody
+      );
+
+      const result = await invoke(inboundReceive, {
+        method: "POST",
+        path: `/api/v1/integration-hub/inbound/${endpoint.endpointToken}`,
+        headers: {
+          "content-type": "application/json",
+          "x-integration-signature": signature,
+          "x-integration-timestamp": timestamp
+        },
+        body: payload,
+        params: { endpointToken: endpoint.endpointToken }
+      });
+      expect(result.status).toBe(200);
+
+      const admin = getAdminSql();
+      const deliveryRows = (await withTenant(
+        admin,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT raw_body_snippet FROM awcms_mini_integration_inbound_deliveries WHERE tenant_id = ${owner.tenantId}`
+      )) as { raw_body_snippet: string | null }[];
+
+      expect(deliveryRows.length).toBe(1);
+      expect(deliveryRows[0]!.raw_body_snippet).toBe(rawBody);
+    });
   });
 });

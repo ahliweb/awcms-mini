@@ -164,27 +164,47 @@ function redactNormalizedBodyPii(body: unknown): unknown {
   return body;
 }
 
+type NormalizedBodyResult = {
+  body: unknown;
+  truncated: boolean;
+  /**
+   * `true` only when `rawBody` was valid JSON whose top-level value is a
+   * genuine object — the one case `redactNormalizedBodyPii` actually runs
+   * `redactSensitiveAttributes` against it (it deliberately passes an
+   * array/primitive/null top-level value through un-redacted, same
+   * restriction `redactSensitiveAttributes` itself has). Callers use this
+   * to decide whether `raw_body_snippet` is safe to persist at all — see
+   * that field's own doc comment below.
+   */
+  isRedactedObject: boolean;
+};
+
 function buildNormalizedBody(
   rawBody: string,
   contentType: string | null
-): { body: unknown; truncated: boolean } {
+): NormalizedBodyResult {
   const base = (contentType ?? "").split(";")[0]!.trim().toLowerCase();
 
   if (base !== "application/json") {
-    return { body: null, truncated: false };
+    return { body: null, truncated: false, isRedactedObject: false };
   }
 
   if (rawBody.length > MAX_NORMALIZED_BODY_BYTES) {
-    return { body: null, truncated: true };
+    return { body: null, truncated: true, isRedactedObject: false };
   }
 
   try {
+    const parsed: unknown = JSON.parse(rawBody);
+    const isObject =
+      parsed !== null && typeof parsed === "object" && !Array.isArray(parsed);
+
     return {
-      body: redactNormalizedBodyPii(JSON.parse(rawBody)),
-      truncated: false
+      body: redactNormalizedBodyPii(parsed),
+      truncated: false,
+      isRedactedObject: isObject
     };
   } catch {
-    return { body: null, truncated: false };
+    return { body: null, truncated: false, isRedactedObject: false };
   }
 }
 
@@ -319,13 +339,35 @@ export async function processInboundWebhook(
     );
   }
 
-  const { body: normalizedBody, truncated } = buildNormalizedBody(
-    rawBody,
-    contentType
-  );
-  const snippet = redactSecretsInText(
-    rawBody.slice(0, RAW_BODY_SNIPPET_MAX_LENGTH)
-  );
+  const {
+    body: normalizedBody,
+    truncated,
+    isRedactedObject
+  } = buildNormalizedBody(rawBody, contentType);
+  /**
+   * Security-auditor finding (PR #784, Medium): `raw_body_snippet` (up to
+   * `RAW_BODY_SNIPPET_MAX_LENGTH` chars of the RAW provider payload) only
+   * ever got secret-PATTERN redaction (`redactSecretsInText`), never the
+   * PII-KEY-based masking `normalizedBody` above gets via
+   * `redactNormalizedBodyPii` — a payload containing e.g. `"nik":"3271..."`
+   * or a bare email/phone was stored in plaintext at rest. Rather than
+   * re-implementing a second, text-pattern-based PII-key scanner (a
+   * fragile duplicate of `redactSensitiveAttributes`'s own key-based
+   * logic — same "don't fork a second incomplete sanitizer" lesson this
+   * codebase has already learned the hard way for markdown-escaping),
+   * `raw_body_snippet` is simply NOT persisted at all when
+   * `normalizedBody` above already IS the real, key-redacted
+   * troubleshooting artifact for this delivery (`isRedactedObject`) — the
+   * raw snippet added no information the normalized body doesn't already
+   * cover, minus the PII-at-rest exposure. Only kept (still
+   * secret-pattern-redacted, as before) for the cases `normalizedBody` is
+   * `null`/unstructured (non-JSON content type, oversized, parse failure,
+   * or a top-level JSON array/primitive) — there, it remains the ONLY
+   * troubleshooting artifact this delivery has.
+   */
+  const snippet = isRedactedObject
+    ? null
+    : redactSecretsInText(rawBody.slice(0, RAW_BODY_SNIPPET_MAX_LENGTH));
 
   const inserted = (await tx`
     INSERT INTO awcms_mini_integration_inbound_deliveries
