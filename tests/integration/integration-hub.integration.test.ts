@@ -36,6 +36,7 @@ import {
   GET as listEndpoints,
   POST as createEndpointRoute
 } from "../../src/pages/api/v1/integration-hub/endpoints/index";
+import { POST as rotateSecretRoute } from "../../src/pages/api/v1/integration-hub/endpoints/[id]/rotate-secret";
 import {
   GET as listSubscriptions,
   POST as createSubscriptionRoute
@@ -710,6 +711,263 @@ suite("integration_hub (Issue #754)", () => {
       } finally {
         fakeServer.stop(true);
       }
+    });
+  });
+
+  describe("secret reference naming restriction (security-auditor Medium finding, PR #784)", () => {
+    test("ADVERSARIAL: endpoint create is rejected when secretReference points at an unrelated env var", async () => {
+      const owner = await bootstrap();
+
+      const result = await invoke(createEndpointRoute, {
+        method: "POST",
+        path: "/api/v1/integration-hub/endpoints",
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": crypto.randomUUID()
+        },
+        body: {
+          adapterKey: "fixture_hmac_sha256",
+          displayName: "Test endpoint",
+          // Not prefixed INTEGRATION_HUB_ — a confused-deputy attempt to
+          // reference an unrelated process-wide secret.
+          secretReference: "env:DATABASE_URL"
+        }
+      });
+
+      expect(result.status).toBe(400);
+    });
+
+    test("endpoint create succeeds with a properly-prefixed secretReference", async () => {
+      const owner = await bootstrap();
+
+      const result = await invoke<{ data: { endpoint: { id: string } } }>(
+        createEndpointRoute,
+        {
+          method: "POST",
+          path: "/api/v1/integration-hub/endpoints",
+          headers: {
+            ...authHeaders(owner),
+            "idempotency-key": crypto.randomUUID()
+          },
+          body: {
+            adapterKey: "fixture_hmac_sha256",
+            displayName: "Test endpoint",
+            secretReference: "env:INTEGRATION_HUB_SOME_SECRET"
+          }
+        }
+      );
+
+      expect(result.status).toBe(200);
+    });
+
+    test("ADVERSARIAL: rotate-secret is rejected when the new reference points at an unrelated env var", async () => {
+      const owner = await bootstrap();
+      await provisionAppRole();
+      const endpoint = await createFixtureEndpoint(
+        owner,
+        "webhook-secret-value"
+      );
+
+      const result = await invoke(rotateSecretRoute, {
+        method: "POST",
+        path: `/api/v1/integration-hub/endpoints/${endpoint.id}/rotate-secret`,
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": crypto.randomUUID()
+        },
+        params: { id: endpoint.id },
+        body: { newSecretReference: "env:MAILKETING_API_KEY" }
+      });
+
+      expect(result.status).toBe(400);
+    });
+
+    test("ADVERSARIAL: subscription create is rejected when secretReference points at an unrelated env var", async () => {
+      const owner = await bootstrap();
+
+      const result = await invoke(createSubscriptionRoute, {
+        method: "POST",
+        path: "/api/v1/integration-hub/subscriptions",
+        headers: {
+          ...authHeaders(owner),
+          "idempotency-key": crypto.randomUUID()
+        },
+        body: {
+          subscribedEventType:
+            "awcms-mini.integration-hub.inbound-message.normalized",
+          targetAdapterKey: "generic_http_webhook",
+          targetUrl: "https://example.com/webhook",
+          secretReference: "env:DATABASE_URL"
+        }
+      });
+
+      expect(result.status).toBe(400);
+    });
+  });
+
+  describe("stale 'sending' lease reclaim (reviewer Medium finding, PR #784)", () => {
+    test("a delivery stranded in 'sending' after its lease expired (simulated worker crash) is reclaimed and delivered on the next dispatch pass", async () => {
+      const owner = await bootstrap();
+      await provisionAppRole();
+      await provisionWorkerRole();
+
+      const secret = "webhook-secret-value";
+      const endpoint = await createFixtureEndpoint(owner, secret);
+      process.env.INTEGRATION_HUB_ALLOW_PRIVATE_TARGETS = "true";
+
+      let receivedCount = 0;
+      const fakeServer = Bun.serve({
+        port: 0,
+        fetch: async () => {
+          receivedCount += 1;
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+      });
+
+      try {
+        const subscriptionResult = await invoke<{
+          data: { subscription: { id: string } };
+        }>(createSubscriptionRoute, {
+          method: "POST",
+          path: "/api/v1/integration-hub/subscriptions",
+          headers: {
+            ...authHeaders(owner),
+            "idempotency-key": crypto.randomUUID()
+          },
+          body: {
+            subscribedEventType:
+              "awcms-mini.integration-hub.inbound-message.normalized",
+            targetAdapterKey: "generic_http_webhook",
+            targetUrl: `http://127.0.0.1:${fakeServer.port}/webhook`
+          }
+        });
+        expect(subscriptionResult.status).toBe(200);
+
+        const payload = { hello: "world" };
+        const rawBody = JSON.stringify(payload);
+        const timestamp = String(Math.floor(Date.now() / 1000));
+        const signature = fixtureSignatureTestHelpers.signHmacSha256(
+          secret,
+          timestamp,
+          rawBody
+        );
+
+        const inboundResult = await invoke(inboundReceive, {
+          method: "POST",
+          path: `/api/v1/integration-hub/inbound/${endpoint.endpointToken}`,
+          headers: {
+            "content-type": "application/json",
+            "x-integration-signature": signature,
+            "x-integration-timestamp": timestamp
+          },
+          body: payload,
+          params: { endpointToken: endpoint.endpointToken }
+        });
+        expect(inboundResult.status).toBe(200);
+
+        const workerSql = getWorkerTestSql();
+        const admin = getAdminSql();
+
+        await dispatchDomainEventsForTenant(workerSql, owner.tenantId);
+
+        // Simulate a worker that claimed the delivery (flipped it to
+        // 'sending') and then crashed mid-fetch(), BEFORE the fix's
+        // reclaim clause existed the row would sit in 'sending' forever
+        // (next_attempt_at reused as the lease expiry, already elapsed).
+        const staleLeaseExpiry = new Date(Date.now() - 60_000);
+        await withTenant(
+          admin,
+          owner.tenantId,
+          (tx) =>
+            tx`
+            UPDATE awcms_mini_integration_outbound_deliveries
+            SET status = 'sending', next_attempt_at = ${staleLeaseExpiry}
+            WHERE tenant_id = ${owner.tenantId}
+          `
+        );
+
+        const strandedRows = await withTenant(
+          admin,
+          owner.tenantId,
+          (tx) =>
+            tx`SELECT status FROM awcms_mini_integration_outbound_deliveries WHERE tenant_id = ${owner.tenantId}`
+        );
+        expect((strandedRows as { status: string }[])[0]!.status).toBe(
+          "sending"
+        );
+
+        const dispatchResult = await dispatchOutboundQueue(
+          workerSql,
+          owner.tenantId,
+          { env: process.env }
+        );
+
+        expect(dispatchResult.claimed).toBe(1);
+        expect(dispatchResult.delivered).toBe(1);
+        expect(receivedCount).toBe(1);
+
+        const finalRows = await withTenant(
+          admin,
+          owner.tenantId,
+          (tx) =>
+            tx`SELECT status FROM awcms_mini_integration_outbound_deliveries WHERE tenant_id = ${owner.tenantId}`
+        );
+        expect((finalRows as { status: string }[])[0]!.status).toBe(
+          "delivered"
+        );
+      } finally {
+        fakeServer.stop(true);
+      }
+    });
+  });
+
+  describe("inbound payload PII redaction (security-auditor Low finding, PR #784)", () => {
+    test("a PII-key-named field in the provider payload is redacted before being persisted into the domain event", async () => {
+      const owner = await bootstrap();
+      await provisionAppRole();
+
+      const secret = "webhook-secret-value";
+      const endpoint = await createFixtureEndpoint(owner, secret);
+
+      const payload = {
+        orderId: "order-123",
+        email: "customer@example.com",
+        phone: "+6281234567890"
+      };
+      const rawBody = JSON.stringify(payload);
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = fixtureSignatureTestHelpers.signHmacSha256(
+        secret,
+        timestamp,
+        rawBody
+      );
+
+      const result = await invoke(inboundReceive, {
+        method: "POST",
+        path: `/api/v1/integration-hub/inbound/${endpoint.endpointToken}`,
+        headers: {
+          "content-type": "application/json",
+          "x-integration-signature": signature,
+          "x-integration-timestamp": timestamp
+        },
+        body: payload,
+        params: { endpointToken: endpoint.endpointToken }
+      });
+      expect(result.status).toBe(200);
+
+      const admin = getAdminSql();
+      const eventRows = (await withTenant(
+        admin,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT payload FROM awcms_mini_domain_events WHERE tenant_id = ${owner.tenantId} AND event_type = 'awcms-mini.integration-hub.inbound-message.normalized'`
+      )) as { payload: { body: Record<string, unknown> } }[];
+
+      expect(eventRows.length).toBe(1);
+      const body = eventRows[0]!.payload.body as Record<string, unknown>;
+      expect(body.orderId).toBe("order-123");
+      expect(body.email).toBe("[REDACTED]");
+      expect(body.phone).toBe("[REDACTED]");
     });
   });
 });

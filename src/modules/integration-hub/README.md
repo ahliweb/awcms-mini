@@ -114,23 +114,61 @@ endpoint_id, replay_key)` on `awcms_mini_integration_inbound_deliveries`
 - **SSRF protection**: `domain/ssrf-guard.ts` blocks private/link-local/
   metadata/reserved literal IPs and known metadata hostnames at
   subscription write time; `infrastructure/outbound-http-client.ts`
-  re-validates AND checks every DNS-resolved address at dispatch time.
-  Deployment-wide opt-out for LAN-first deployments:
+  re-validates AND checks every DNS-resolved address at dispatch time —
+  and, critically, `fetch()` is called with `redirect: "manual"` and
+  EVERY redirect `Location` header is re-validated through the SAME check
+  before being followed (bounded to `MAX_REDIRECT_HOPS`, currently 2;
+  exceeding it is a hard, non-retryable failure). A prior version relied
+  on `fetch()`'s default redirect-follow behavior and only ever validated
+  the ORIGINAL `target_url` — a subscription target could 302/303/307 to
+  `169.254.169.254` (cloud IMDS) or any private IP and the worker would
+  follow it unconditionally, a 100%-reliable bypass with no timing race
+  required (reviewer finding, PR #784, fixed before merge). The response
+  body read is also now byte-capped
+  (`MAX_RESPONSE_BODY_READ_BYTES`, 8 KiB) and included inside the SAME
+  timeout window as the fetch itself (a prior version only bounded the
+  initial `fetch()` call, not the subsequent body read). Deployment-wide
+  opt-out for LAN-first deployments:
   `INTEGRATION_HUB_ALLOW_PRIVATE_TARGETS=true` (doc 18). **Documented
   residual limitation**: this does not pin the resolved IP for the actual
-  `fetch()` call, so a DNS-rebinding TOCTOU race is not fully closed — see
-  `ssrf-guard.ts`'s own header comment.
+  `fetch()` call, so a DNS-rebinding TOCTOU race (the destination's DNS
+  record changing between validation and the actual connection) is not
+  fully closed — see `ssrf-guard.ts`'s own header comment. This is a
+  narrower, timing-dependent gap, distinct from (and no longer conflated
+  with) the redirect bypass above, which is now fully closed.
+- **Secret reference naming is restricted at write time**: `domain/
+secret-reference-validation.ts` requires every `secretReference`
+  (endpoint create/rotate-secret, subscription create) to point at an env
+  var whose name starts with `INTEGRATION_HUB_` — closes a confused-deputy
+  equality-oracle gap (security-auditor finding, PR #784) where an
+  unrestricted `env:<ANY_VAR_NAME>` reference let a tenant holding only an
+  ordinary `endpoints.create`/`.configure`/`subscriptions.create`
+  permission reference an UNRELATED process-wide secret and use repeated
+  signed-webhook attempts (200 vs 401) as a boolean equality oracle
+  against it.
 - **Data minimization**: `raw_body_snippet` (bounded to 2000 chars,
   secret-pattern-redacted) is only ever populated for a signature-VALID
   delivery; a rejected/invalid attempt stores only a hash + size.
   `integration_hub.inbound_deliveries` is registered with `data_lifecycle`
   (Issue #745) as a `"generic"` descriptor, default 90-day retention.
+  The normalized JSON body persisted into the domain event (and relayed
+  to subscribers) also gets PII-key redaction
+  (`_shared/redaction.ts`'s `redactSensitiveAttributes` — nik/npwp/phone/
+  whatsapp/email-named fields) in addition to the raw snippet's
+  secret-pattern redaction (security-auditor Low finding, PR #784).
 - **Never logs/persists a raw secret value** — `secret_reference` fields
   are pointers (`env:VAR_NAME`) only; the resolved value is used in-memory
   for exactly one HMAC computation and never returned/logged.
 - **Tenant isolation**: every table `ENABLE`+`FORCE ROW LEVEL SECURITY`,
   `tenant_id = current_setting('app.current_tenant_id')::uuid`, plus
   explicit `tenant_id` filters in every query (defense in depth).
+- **Stale `sending` leases are reclaimed**: `application/outbound-
+dispatch.ts`'s claim query also reclaims a delivery stuck in `sending`
+  whose 2-minute lease already expired (`OR (status = 'sending' AND
+next_attempt_at <= now)`), mirroring `sync-storage/application/
+object-dispatch.ts`'s own reclaim clause — a worker crash/kill mid-
+  `fetch()` no longer strands a delivery forever (reviewer finding, PR
+  #784, fixed before merge).
 
 ## Tables (migration `066_awcms_mini_integration_hub_schema.sql`)
 
@@ -179,7 +217,8 @@ FROM <tableName>` per descriptor with no cross-descriptor FK-aware
   ordering, so registering both without first adding delete ordering or
   `ON DELETE` semantics risks a real foreign-key-violation purge failure.
   Follow-up issue.
-- **SSRF DNS-rebinding TOCTOU gap**: see Security notes above.
+- **SSRF DNS-rebinding TOCTOU gap** (narrower than the now-fixed redirect
+  bypass): see Security notes above.
 - **No adapter-specific circuit breaker persistence across restarts**: the
   in-memory `getProviderCircuitBreaker` instance (fail-fast gate) resets
   on worker restart; `awcms_mini_integration_adapter_health` (the

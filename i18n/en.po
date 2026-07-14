@@ -3786,6 +3786,15 @@ msgstr "Endpoint paused."
 msgid "admin.integration_hub.endpoints.resume_success"
 msgstr "Endpoint resumed."
 
+msgid "admin.integration_hub.endpoints.rotate_secret_button"
+msgstr "Rotate secret"
+
+msgid "admin.integration_hub.endpoints.rotate_secret_prompt"
+msgstr "New secret reference (env:VAR_NAME):"
+
+msgid "admin.integration_hub.endpoints.rotate_secret_success"
+msgstr "Endpoint secret rotated."
+
 msgid "admin.integration_hub.endpoints.delete_reason_prompt"
 msgstr "Reason for deleting this endpoint:"
 

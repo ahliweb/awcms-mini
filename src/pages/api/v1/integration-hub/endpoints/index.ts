@@ -21,6 +21,7 @@ import { readJsonBody } from "../../../../../lib/security/request-body-limit";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import {
   createIntegrationEndpoint,
+  InvalidSecretReferenceError,
   listIntegrationEndpoints,
   UnknownInboundAdapterError
 } from "../../../../../modules/integration-hub/application/endpoint-directory";
@@ -189,7 +190,10 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         actorTenantUserId: auth.context.tenantUserId
       });
     } catch (error) {
-      if (error instanceof UnknownInboundAdapterError) {
+      if (
+        error instanceof UnknownInboundAdapterError ||
+        error instanceof InvalidSecretReferenceError
+      ) {
         return fail(400, "VALIDATION_ERROR", error.message);
       }
 

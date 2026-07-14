@@ -22,6 +22,7 @@ import { recordAuditEvent } from "../../../../../modules/logging/application/aud
 import {
   createIntegrationSubscription,
   InvalidOutboundTargetError,
+  InvalidSecretReferenceError,
   InvalidSubscriptionFilterError,
   listIntegrationSubscriptions,
   UnknownOutboundAdapterError,
@@ -187,7 +188,8 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         error instanceof UnknownOutboundAdapterError ||
         error instanceof UnregisteredSubscribableEventTypeError ||
         error instanceof InvalidOutboundTargetError ||
-        error instanceof InvalidSubscriptionFilterError
+        error instanceof InvalidSubscriptionFilterError ||
+        error instanceof InvalidSecretReferenceError
       ) {
         return fail(400, "VALIDATION_ERROR", error.message);
       }

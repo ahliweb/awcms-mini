@@ -2256,79 +2256,91 @@ msgstr ""
 msgid "admin.integration_hub.deliveries.title"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:127
+#: src/pages/admin/integration-hub/endpoints.astro:134
 msgid "admin.integration_hub.endpoints.col_actions"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:121
+#: src/pages/admin/integration-hub/endpoints.astro:128
 msgid "admin.integration_hub.endpoints.col_adapter"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:118
+#: src/pages/admin/integration-hub/endpoints.astro:125
 msgid "admin.integration_hub.endpoints.col_name"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:124
+#: src/pages/admin/integration-hub/endpoints.astro:131
 msgid "admin.integration_hub.endpoints.col_status"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:208
+#: src/pages/admin/integration-hub/endpoints.astro:226
 msgid "admin.integration_hub.endpoints.create_submit"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:47
+#: src/pages/admin/integration-hub/endpoints.astro:50
 msgid "admin.integration_hub.endpoints.create_success"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:175
+#: src/pages/admin/integration-hub/endpoints.astro:193
 msgid "admin.integration_hub.endpoints.create_summary"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:162
+#: src/pages/admin/integration-hub/endpoints.astro:180
 msgid "admin.integration_hub.endpoints.delete_button"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:51
+#: src/pages/admin/integration-hub/endpoints.astro:57
 msgid "admin.integration_hub.endpoints.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:48
+#: src/pages/admin/integration-hub/endpoints.astro:51
 msgid "admin.integration_hub.endpoints.delete_success"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:188
+#: src/pages/admin/integration-hub/endpoints.astro:206
 msgid "admin.integration_hub.endpoints.field_adapter_key"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:179
+#: src/pages/admin/integration-hub/endpoints.astro:197
 msgid "admin.integration_hub.endpoints.field_display_name"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:198
+#: src/pages/admin/integration-hub/endpoints.astro:216
 msgid "admin.integration_hub.endpoints.field_secret_reference"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:111
+#: src/pages/admin/integration-hub/endpoints.astro:118
 msgid "admin.integration_hub.endpoints.no_rows"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:144
+#: src/pages/admin/integration-hub/endpoints.astro:151
 msgid "admin.integration_hub.endpoints.pause_button"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:49
+#: src/pages/admin/integration-hub/endpoints.astro:52
 msgid "admin.integration_hub.endpoints.pause_success"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:153
+#: src/pages/admin/integration-hub/endpoints.astro:160
 msgid "admin.integration_hub.endpoints.resume_button"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:50
+#: src/pages/admin/integration-hub/endpoints.astro:53
 msgid "admin.integration_hub.endpoints.resume_success"
 msgstr ""
 
-#: src/pages/admin/integration-hub/endpoints.astro:78
+#: src/pages/admin/integration-hub/endpoints.astro:169
+msgid "admin.integration_hub.endpoints.rotate_secret_button"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:58
+msgid "admin.integration_hub.endpoints.rotate_secret_prompt"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:54
+msgid "admin.integration_hub.endpoints.rotate_secret_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:85
 msgid "admin.integration_hub.endpoints.title"
 msgstr ""
 

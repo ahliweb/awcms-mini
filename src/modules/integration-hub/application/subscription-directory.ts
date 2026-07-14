@@ -6,6 +6,9 @@ import {
 } from "../domain/subscription-filter";
 import { isPrivateTargetsAllowed } from "../domain/integration-hub-config";
 import { isRegisteredDomainEventType } from "../../domain-event-runtime/domain/event-type-registry";
+import { assertValidSecretReferenceNaming } from "../domain/secret-reference-validation";
+
+export { InvalidSecretReferenceError } from "../domain/secret-reference-validation";
 
 /**
  * Outbound event subscription CRUD (Issue #754). `target_url` is
@@ -160,6 +163,10 @@ export async function createIntegrationSubscription(
 
   if (!urlCheck.ok) {
     throw new InvalidOutboundTargetError(urlCheck.reason);
+  }
+
+  if (input.secretReference) {
+    assertValidSecretReferenceNaming(input.secretReference);
   }
 
   const rows = (await tx`

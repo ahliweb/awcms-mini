@@ -42,13 +42,20 @@ const CAN_MANAGE =
   context.permissions.has(
     permissionKey("integration_hub", "endpoints", "disable")
   );
+const CAN_CONFIGURE = context.permissions.has(
+  permissionKey("integration_hub", "endpoints", "configure")
+);
 
 const clientStrings = {
   createSuccess: t("admin.integration_hub.endpoints.create_success"),
   deleteSuccess: t("admin.integration_hub.endpoints.delete_success"),
   pauseSuccess: t("admin.integration_hub.endpoints.pause_success"),
   resumeSuccess: t("admin.integration_hub.endpoints.resume_success"),
+  rotateSecretSuccess: t(
+    "admin.integration_hub.endpoints.rotate_secret_success"
+  ),
   deleteReasonPrompt: t("admin.integration_hub.endpoints.delete_reason_prompt"),
+  rotateSecretPrompt: t("admin.integration_hub.endpoints.rotate_secret_prompt"),
   networkError: t("common.network_error"),
   pleaseWait: t("common.please_wait"),
   errorMessages: buildClientErrorMessages(t)
@@ -153,6 +160,17 @@ const inboundAdapters = listInboundIntegrationAdapters();
                         {t("admin.integration_hub.endpoints.resume_button")}
                       </button>
                     )}
+                    {CAN_CONFIGURE && (
+                      <button
+                        type="button"
+                        class="rotate-secret-button"
+                        data-id={endpoint.id}
+                      >
+                        {t(
+                          "admin.integration_hub.endpoints.rotate_secret_button"
+                        )}
+                      </button>
+                    )}
                     {CAN_DELETE && (
                       <button
                         type="button"
@@ -245,6 +263,7 @@ const inboundAdapters = listInboundIntegrationAdapters();
   }
   .pause-button,
   .resume-button,
+  .rotate-secret-button,
   .delete-button {
     min-height: 44px;
     padding: var(--sp-1) var(--sp-2);
@@ -258,7 +277,8 @@ const inboundAdapters = listInboundIntegrationAdapters();
     border: 1px solid var(--color-danger-strong);
     color: var(--color-danger-strong);
   }
-  .resume-button {
+  .resume-button,
+  .rotate-secret-button {
     background: var(--color-primary-strong);
     border: none;
     color: var(--color-primary-contrast);
@@ -326,7 +346,9 @@ const inboundAdapters = listInboundIntegrationAdapters();
     deleteSuccess: string;
     pauseSuccess: string;
     resumeSuccess: string;
+    rotateSecretSuccess: string;
     deleteReasonPrompt: string;
+    rotateSecretPrompt: string;
     networkError: string;
     pleaseWait: string;
     errorMessages?: Record<string, string>;
@@ -439,6 +461,36 @@ const inboundAdapters = listInboundIntegrationAdapters();
 
           if (result.ok) {
             showBanner("action-banner", strings.deleteSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".rotate-secret-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const newSecretReference = window.prompt(strings.rotateSecretPrompt);
+        if (!newSecretReference) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+
+        try {
+          const result = await submitJson(
+            `${BASE_URL}/${button.dataset.id}/rotate-secret`,
+            "POST",
+            { newSecretReference },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+
+          if (result.ok) {
+            showBanner("action-banner", strings.rotateSecretSuccess, "success");
             reloadAfterDelay();
           } else {
             showBanner("action-banner", result.message, "error");

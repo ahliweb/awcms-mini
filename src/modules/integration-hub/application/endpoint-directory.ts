@@ -1,5 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { listInboundIntegrationAdapters } from "../infrastructure/adapter-registry";
+import { assertValidSecretReferenceNaming } from "../domain/secret-reference-validation";
+
+export { InvalidSecretReferenceError } from "../domain/secret-reference-validation";
 
 /**
  * Inbound webhook endpoint CRUD (Issue #754). `endpoint_token` is an
@@ -121,6 +124,7 @@ export async function createIntegrationEndpoint(
   input: CreateEndpointInput
 ): Promise<IntegrationEndpointDto> {
   assertKnownInboundAdapter(input.adapterKey);
+  assertValidSecretReferenceNaming(input.secretReference);
 
   const rows = (await tx`
     INSERT INTO awcms_mini_integration_endpoints
@@ -174,6 +178,8 @@ export async function rotateIntegrationEndpointSecret(
   actorTenantUserId: string | null,
   overlapHours: number = DEFAULT_KEY_ROTATION_OVERLAP_HOURS
 ): Promise<IntegrationEndpointDto | null> {
+  assertValidSecretReferenceNaming(newSecretReference);
+
   const currentRows = (await tx`
     SELECT * FROM awcms_mini_integration_endpoints
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NULL

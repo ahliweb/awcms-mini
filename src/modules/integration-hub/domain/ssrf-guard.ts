@@ -18,6 +18,14 @@ import { isIP } from "node:net";
  * operator opts in per-deployment via `INTEGRATION_HUB_ALLOW_PRIVATE_
  * TARGETS=true` (doc 18), never per-request/tenant-controlled.
  *
+ * An HTTP redirect `Location` header is validated through this exact same
+ * function too — see `infrastructure/outbound-http-client.ts`'s
+ * `followBoundedRedirects`, which calls `validateOutboundDestination`
+ * (which itself calls `validateOutboundUrlShape` below) on every hop
+ * before following it. This file has no redirect-awareness of its own;
+ * the HTTP client layer is what guarantees every URL ever actually
+ * connected to — original or redirected — passes through here first.
+ *
  * Known limitation (documented, not silently claimed as solved): this
  * validates the URL's literal host/IP shape and (via
  * `infrastructure/outbound-http-client.ts`) the DNS-resolved address at

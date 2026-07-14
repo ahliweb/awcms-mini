@@ -3785,6 +3785,15 @@ msgstr "Endpoint dijeda."
 msgid "admin.integration_hub.endpoints.resume_success"
 msgstr "Endpoint dilanjutkan."
 
+msgid "admin.integration_hub.endpoints.rotate_secret_button"
+msgstr "Rotasi secret"
+
+msgid "admin.integration_hub.endpoints.rotate_secret_prompt"
+msgstr "Referensi secret baru (env:VAR_NAME):"
+
+msgid "admin.integration_hub.endpoints.rotate_secret_success"
+msgstr "Secret endpoint berhasil dirotasi."
+
 msgid "admin.integration_hub.endpoints.delete_reason_prompt"
 msgstr "Alasan menghapus endpoint ini:"
 

@@ -15,7 +15,10 @@ import {
   resolvePreviousSecretIfInOverlap,
   resolveSecretReference
 } from "./secret-resolver";
-import { redactSecretsInText } from "../../_shared/redaction";
+import {
+  redactSecretsInText,
+  redactSensitiveAttributes
+} from "../../_shared/redaction";
 import {
   applyHealthFailure,
   applyHealthSuccess
@@ -134,6 +137,33 @@ async function upsertAdapterHealth(
   `;
 }
 
+/**
+ * Security-auditor finding (PR #784, Low, AGENTS.md rule #9): the parsed
+ * body only ever got secret-PATTERN redaction (`redactSecretsInText`, on
+ * the raw text snippet) before this fix — a PII-KEY-named field
+ * (nik/npwp/phone/whatsapp/email, `_shared/redaction.ts`'s
+ * `REDACTION_KEYS`) inside a provider's JSON payload flowed through
+ * unmasked into the persisted domain event AND the outbound relay to
+ * subscribers. Applying `redactSensitiveAttributes` here is a deliberate
+ * trade-off, not a blanket policy change: a legitimate integration that
+ * genuinely needs a PII-key-named field forwarded verbatim (e.g. an order
+ * webhook's customer phone number) will now see `"[REDACTED]"` instead —
+ * accepted because AGENTS.md rule #9 ("data sensitif wajib dimask")
+ * applies with no generic-relay carve-out; a future real adapter needing
+ * raw PII passthrough is a deliberate, reviewed exception to request
+ * (e.g. a narrower per-adapter allowlist), not a silent default. Only
+ * applied to a genuine object (JSON.parse can also yield an array/
+ * primitive/null at the top level, which `redactSensitiveAttributes`
+ * does not accept).
+ */
+function redactNormalizedBodyPii(body: unknown): unknown {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    return redactSensitiveAttributes(body as Record<string, unknown>);
+  }
+
+  return body;
+}
+
 function buildNormalizedBody(
   rawBody: string,
   contentType: string | null
@@ -149,7 +179,10 @@ function buildNormalizedBody(
   }
 
   try {
-    return { body: JSON.parse(rawBody), truncated: false };
+    return {
+      body: redactNormalizedBodyPii(JSON.parse(rawBody)),
+      truncated: false
+    };
   } catch {
     return { body: null, truncated: false };
   }

@@ -21,6 +21,7 @@ import { readJsonBody } from "../../../../../../lib/security/request-body-limit"
 import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 import {
   DEFAULT_KEY_ROTATION_OVERLAP_HOURS,
+  InvalidSecretReferenceError,
   rotateIntegrationEndpointSecret
 } from "../../../../../../modules/integration-hub/application/endpoint-directory";
 
@@ -123,14 +124,24 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       });
     }
 
-    const endpoint = await rotateIntegrationEndpointSecret(
-      tx,
-      tenantId,
-      id,
-      newSecretReference,
-      auth.context.tenantUserId,
-      overlapHours
-    );
+    let endpoint;
+
+    try {
+      endpoint = await rotateIntegrationEndpointSecret(
+        tx,
+        tenantId,
+        id,
+        newSecretReference,
+        auth.context.tenantUserId,
+        overlapHours
+      );
+    } catch (error) {
+      if (error instanceof InvalidSecretReferenceError) {
+        return fail(400, "VALIDATION_ERROR", error.message);
+      }
+
+      throw error;
+    }
 
     if (!endpoint)
       return fail(404, "RESOURCE_NOT_FOUND", "Inbound endpoint not found.");

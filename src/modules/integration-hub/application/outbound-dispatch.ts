@@ -5,7 +5,15 @@
  *
  * 1. CLAIM — one short transaction flips eligible `pending`/`retry_wait`
  *    rows to a transient `sending` status (`FOR UPDATE SKIP LOCKED`),
- *    reusing `next_attempt_at` as the claim lease expiry.
+ *    reusing `next_attempt_at` as the claim lease expiry. The claim WHERE
+ *    clause ALSO reclaims a `sending` row whose lease already expired
+ *    (`OR (status = 'sending' AND next_attempt_at <= now)`) — mirrors
+ *    `sync-storage/application/object-dispatch.ts`'s own reclaim clause
+ *    (reviewer finding on PR #784: without this, a worker crash/kill mid-
+ *    `fetch()` strands a delivery in `sending` forever — never retried,
+ *    never dead-lettered, and `replayOutboundDelivery` explicitly refuses
+ *    a non-`dead_letter` row — contradicting the "safe after worker
+ *    restart" acceptance criterion).
  * 2. SEND — for each claimed row, resolves the subscription's
  *    `target_url`/`target_headers`/`secret_reference`, builds the
  *    outbound payload from the source domain event, and calls
@@ -97,8 +105,11 @@ async function claimEligibleDeliveries(
         WHERE id IN (
           SELECT id FROM awcms_mini_integration_outbound_deliveries
           WHERE tenant_id = ${tenantId}
-            AND status IN ('pending', 'retry_wait')
-            AND (next_attempt_at IS NULL OR next_attempt_at <= ${now})
+            AND (
+              (status IN ('pending', 'retry_wait')
+                AND (next_attempt_at IS NULL OR next_attempt_at <= ${now}))
+              OR (status = 'sending' AND next_attempt_at <= ${now})
+            )
           ORDER BY created_at
           LIMIT ${limit}
           FOR UPDATE SKIP LOCKED
