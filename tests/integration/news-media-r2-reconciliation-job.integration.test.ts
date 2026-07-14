@@ -495,7 +495,7 @@ suite("news media R2 lifecycle cleanup & reconciliation (Issue #690)", () => {
   });
 
   test("stale orphaned: a status='orphaned' row past its grace period gets its R2 object deleted and the row soft-deleted", async () => {
-    const { server, has } = startFakeR2Server();
+    const { server, has, put } = startFakeR2Server();
     const appSql = getTestSql();
     const workerSql = getWorkerTestSql();
     const r2Client = buildClient(server.port);
@@ -506,6 +506,7 @@ suite("news media R2 lifecycle cleanup & reconciliation (Issue #690)", () => {
           mimeType: "image/jpeg"
         })
       );
+      put(created.objectKey);
       await withTenant(appSql, TENANT_A, (tx) =>
         markNewsMediaObjectOrphaned(tx, TENANT_A, created.id)
       );
@@ -521,6 +522,9 @@ suite("news media R2 lifecycle cleanup & reconciliation (Issue #690)", () => {
 
       expect(result.staleOrphaned.total).toBe(1);
       expect(result.staleOrphaned.deleted).toBe(1);
+      // The whole point of this test: the R2 object itself must actually be
+      // gone, not just the DB row's bookkeeping counters.
+      expect(has(created.objectKey)).toBe(false);
 
       const softDeleted = await withTenant(appSql, TENANT_A, (tx) =>
         fetchNewsMediaObjectById(tx, TENANT_A, created.id, {

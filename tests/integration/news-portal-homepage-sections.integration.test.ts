@@ -9,14 +9,7 @@
  *
  * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
  */
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test
-} from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   applyMigrations,
@@ -419,6 +412,23 @@ suite("news_portal homepage sections (Issue #637)", () => {
       }
     });
     expect(rejected.status).toBe(422);
+  });
+
+  test("category_grid accepts a categorySlug that exists for this tenant", async () => {
+    const owner = await bootstrap();
+    const category = await createCategoryTerm(owner, "front-page-category");
+
+    const response = await invoke(createSection, {
+      method: "POST",
+      path: "/api/v1/news-portal/homepage-sections",
+      headers: authHeaders(owner),
+      body: {
+        sectionKey: "front-page-categories-ok",
+        sectionType: "category_grid",
+        config: { categorySlugs: [category.slug] }
+      }
+    });
+    expect(response.status).toBe(200);
   });
 
   test("category_grid rejects a categorySlug that does not exist for this tenant", async () => {

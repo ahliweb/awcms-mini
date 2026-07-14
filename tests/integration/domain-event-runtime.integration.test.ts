@@ -15,7 +15,6 @@
  * asserted via manual try/catch instead.
  */
 import {
-  afterAll,
   afterEach,
   beforeAll,
   beforeEach,

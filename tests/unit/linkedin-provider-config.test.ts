@@ -51,6 +51,20 @@ describe("isValidLinkedInApiVersion (Issue #645)", () => {
   });
 });
 
+describe("resolveLinkedInApiVersion (Issue #645)", () => {
+  test("trims the configured value", () => {
+    expect(
+      resolveLinkedInApiVersion({
+        LINKEDIN_API_VERSION: " 202506 "
+      } as NodeJS.ProcessEnv)
+    ).toBe("202506");
+  });
+
+  test('empty string when unset (never "undefined")', () => {
+    expect(resolveLinkedInApiVersion({} as NodeJS.ProcessEnv)).toBe("");
+  });
+});
+
 describe("resolveLinkedInRequiredScopes (Issue #645)", () => {
   test("parses a comma-separated list, trims, drops empties", () => {
     expect(

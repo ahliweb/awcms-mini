@@ -14,14 +14,7 @@
  *
  * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
  */
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test
-} from "bun:test";
+import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   applyMigrations,

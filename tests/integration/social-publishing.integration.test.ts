@@ -30,14 +30,10 @@ import {
 } from "./harness";
 
 import { getDatabaseClient } from "../../src/lib/database/client";
-import { withTenant } from "../../src/lib/database/tenant-context";
 
 import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize";
 import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
-import {
-  GET as listPosts,
-  POST as createPost
-} from "../../src/pages/api/v1/blog/posts/index";
+import { POST as createPost } from "../../src/pages/api/v1/blog/posts/index";
 import { POST as publishPost } from "../../src/pages/api/v1/blog/posts/[id]/publish";
 
 import {
@@ -862,6 +858,57 @@ suite("social_publishing outbox foundation (Issue #643)", () => {
     expect(rule.status).toBe(200);
     expect(rule.body.data.requiresApproval).toBe(true);
     expect(rule.body.data.isEnabled).toBe(true);
+  });
+
+  test("rule list only returns this tenant's own rules (RLS)", async () => {
+    const owner = await bootstrap();
+    const account = await invoke<{ data: { id: string } }>(connectAccount, {
+      method: "POST",
+      path: "/api/v1/social-publishing/accounts",
+      headers: { ...authHeaders(owner), "idempotency-key": "connect-r-list-1" },
+      body: CONNECT_BODY
+    });
+    await invoke(createRule, {
+      method: "POST",
+      path: "/api/v1/social-publishing/rules",
+      headers: authHeaders(owner),
+      body: {
+        socialAccountId: account.body.data.id,
+        triggerEvent: "post_published"
+      }
+    });
+
+    const otherTenant =
+      await seedSecondTenantWithSocialPublishingAccess("rule-list-b");
+    const otherAccount = await invoke<{ data: { id: string } }>(
+      connectAccount,
+      {
+        method: "POST",
+        path: "/api/v1/social-publishing/accounts",
+        headers: {
+          ...authHeaders(otherTenant),
+          "idempotency-key": "connect-r-list-2"
+        },
+        body: CONNECT_BODY
+      }
+    );
+    await invoke(createRule, {
+      method: "POST",
+      path: "/api/v1/social-publishing/rules",
+      headers: authHeaders(otherTenant),
+      body: {
+        socialAccountId: otherAccount.body.data.id,
+        triggerEvent: "post_published"
+      }
+    });
+
+    const list = await invoke<{ data: { rules: unknown[] } }>(listRules, {
+      method: "GET",
+      path: "/api/v1/social-publishing/rules",
+      headers: authHeaders(owner)
+    });
+    expect(list.status).toBe(200);
+    expect(list.body.data.rules.length).toBe(1);
   });
 
   // -------------------------------------------------------------------
