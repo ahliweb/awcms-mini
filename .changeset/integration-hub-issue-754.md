@@ -2,9 +2,9 @@
 "awcms-mini": minor
 ---
 
-Add `integration_hub`, a generic provider-neutral integration boundary — signed inbound webhooks, replay protection, normalized events, outbound event subscriptions, and adapter health (Issue #754, epic `platform-evolution` #738 Wave 3, ADR-0017).
+Add `integration_hub`, a generic provider-neutral integration boundary — signed inbound webhooks, replay protection, normalized events, outbound event subscriptions, and adapter health (Issue #754, epic `platform-evolution` #738 Wave 3, ADR-0018).
 
-- New System module `integration_hub`, admitted via `docs/adr/0017-integration-hub-module-admission.md` (depends on `domain_event_runtime` #742 and integrates with `data_lifecycle` #745, both merged). Six tenant-scoped tables (migration `066`/`067`, RLS `ENABLE`+`FORCE`).
+- New System module `integration_hub`, admitted via `docs/adr/0018-integration-hub-module-admission.md` (depends on `domain_event_runtime` #742 and integrates with `data_lifecycle` #745, both merged). Six tenant-scoped tables (migration `069`/`070`, RLS `ENABLE`+`FORCE`).
 - **Signed inbound webhooks**: `POST /api/v1/integration-hub/inbound/{endpointToken}` — a public, non-tenant-authenticated endpoint (opaque server-generated `endpointToken` + per-endpoint HMAC secret, resolved via a narrow `SECURITY DEFINER` bootstrap lookup, `awcms_mini_resolve_integration_endpoint_lookup`, before any tenant context exists). Timing-safe signature verification (`node:crypto`'s `timingSafeEqual`), two self-contained fixture signature schemes (`fixture_hmac_sha256`, `fixture_shared_secret_nonce`), key rotation with an overlap window, and content-type/body-size gates.
 - **Replay protection is a real database uniqueness constraint** (`UNIQUE (tenant_id, endpoint_id, replay_key)` on `awcms_mini_integration_inbound_deliveries`), not only an in-process check — a duplicate verified delivery is idempotently ignored, never re-normalized.
 - **Normalization**: a verified inbound delivery is translated into this repo's own domain-event shape (`awcms-mini.integration-hub.inbound-message.normalized`) via `domain_event_runtime`'s `appendDomainEvent`, inside the same transaction as the delivery row.

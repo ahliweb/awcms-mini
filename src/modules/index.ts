@@ -3,6 +3,7 @@ import { applicationModuleRegistry } from "./application-registry";
 import { mergeModuleRegistries } from "./module-management/domain/module-composition";
 import { blogContentModule } from "./blog-content/module";
 import { dataLifecycleModule } from "./data-lifecycle/module";
+import { documentInfrastructureModule } from "./document-infrastructure/module";
 import { domainEventRuntimeModule } from "./domain-event-runtime/module";
 import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
@@ -56,11 +57,13 @@ const baseModules: ModuleDescriptor[] = [
   // extended existing modules) — appended at the end, same convention as
   // the Wave-1 entries immediately above.
   organizationStructureModule,
-  // Issue #754 (epic #738 platform-evolution Wave 3, ADR-0017) — brand new
-  // top-level module, appended at the end (same convention as every prior
-  // Wave entry above — multiple parallel Wave-3 PRs may each append their
-  // own new module independently with a minimal, easily-resolved merge
-  // conflict).
+  // Issue #751 (epic #738 platform-evolution Wave 3, ADR-0017) and Issue
+  // #754 (epic #738 platform-evolution Wave 3, ADR-0018) — both brand new
+  // top-level modules, appended at the end. Several Wave-3 issues register
+  // their OWN new module entries in parallel here — on merge conflict, keep
+  // BOTH sides' new entries, never pick one (established recipe, see
+  // #745/#742's own comment above).
+  documentInfrastructureModule,
   integrationHubModule
 ];
 

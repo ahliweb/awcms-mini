@@ -644,7 +644,142 @@ hierarchy max depth, expiring-soon assignments) — TIDAK ada grant
 INSERT/UPDATE/DELETE untuk worker role (semua mutasi terjadi di jalur
 request `awcms_mini_app`).
 
-### Integration Hub (Issue #754, epic `platform-evolution` #738 Wave 3, ADR-0017, `sql/066`–`067`)
+### Document Infrastructure (Issue #751, epic `platform-evolution` #738 Wave 3, ADR-0017, `sql/066`–`068`)
+
+Modul Official Optional Module baru `document_infrastructure` —
+infrastruktur metadata dokumen generik: klasifikasi, registry dokumen,
+versi immutable, relasi resource generik, numbering sequence
+concurrency-safe, dan evidence append-only. Modul ini TIDAK PERNAH
+mengimplementasikan skema dokumen domain (surat/invoice/PO/journal
+batch/rekam medis/kontrak) — itu tetap dimiliki modul domain masing-
+masing. Lihat `src/modules/document-infrastructure/README.md` untuk
+rasional desain lengkap. Tujuh tabel, semua tenant-scoped
+`ENABLE`+`FORCE ROW LEVEL SECURITY`, `tenant_id`-first pada setiap
+composite index:
+
+- **`awcms_mini_document_classifications`** — katalog klasifikasi
+  (`code` snake_case unik per tenant, `confidentiality_level`
+  `public`/`internal`/`confidential`/`restricted`, `retention_reference`
+  teks bebas dipetakan manual ke kebijakan `data_lifecycle` — BUKAN
+  FK/capability call di PR ini, ADR-0017 §4).
+- **`awcms_mini_documents`** — registry dokumen: `owner_module_key`/
+  `document_type` (string OPAQUE — modul ini tidak pernah membaca tabel
+  modul lain), klasifikasi opsional, `status`
+  (`active`/`superseded`/`archived`/`void`), `confidentiality_level`
+  (didenormalisasi dari klasifikasi saat create, bisa berbeda kemudian
+  lewat `reclassify`), dan referensi resource generik PRIMER
+  (`resource_type`+`resource_id`, string opaque). `current_version_number`
+  adalah cache denormalisasi yang HANYA diperbarui oleh
+  `application/document-version-service.ts`. `status='void'` (business-
+  state, tetap terlihat sebagai evidence) SENGAJA terpisah dari
+  soft-delete (`deleted_at`, record salah-buat) — dua konsep berbeda,
+  bukan switch yang sama.
+- **`awcms_mini_document_versions`** — **IMMUTABLE, APPEND-ONLY** (TIDAK
+  ADA kolom `updated_at`/`deleted_at`, dan TIDAK ADA statement
+  `UPDATE`/`DELETE` terhadap tabel ini di seluruh modul — lihat header
+  `application/document-version-service.ts`). `content_reference`/
+  `content_reference_kind` menunjuk ke kontrak managed-object storage
+  yang sudah disetujui (mis. `sync_storage`'s object queue key, atau
+  URL/system reference eksternal) — TIDAK PERNAH kolom blob biner.
+  `checksum_sha256` divalidasi format 64-hex-lowercase via CHECK. Koreksi
+  = versi baru dengan `previous_version_id` menunjuk mundur, tidak pernah
+  in-place edit.
+- **`awcms_mini_document_resource_relations`** — relasi typed TAMBAHAN
+  dokumen->resource, di luar referensi primer di atas. Ditulis HANYA
+  lewat capability port (`application/document-resource-relation-port.ts`)
+  — tidak ada modul lain yang pernah `INSERT` langsung ke tabel ini
+  (ADR-0013 §6). Partial unique index mencegah duplikat relasi aktif.
+- **`awcms_mini_document_number_sequences`** — definisi sequence
+  penomoran, efektif-tanggal bergaya SCD Type 2 (pola sama
+  `awcms_mini_organization_unit_hierarchies`) — merevisi format
+  (`application/document-number-sequence-definition-service.ts`'s
+  `reviseSequenceDefinition`) TIDAK PERNAH mereset/menggunakan-ulang
+  counter (`current_value`/`current_period_key` dibawa maju ke baris
+  baru). Partial unique index `(tenant_id, scope_type,
+coalesce(scope_id,''), sequence_key) WHERE effective_to IS NULL`
+  menjamin maksimal SATU definisi terbuka per scope+key di level
+  database.
+- **`awcms_mini_document_number_reservations`** — satu baris per nomor
+  yang PERNAH dialokasikan (reserved -> committed ATAU canceled).
+  `UNIQUE (tenant_id, sequence_id, reserved_number)` menjamin "tidak
+  pernah reuse nomor" secara STRUKTURAL (bukan hanya janji aplikasi) —
+  berlaku terlepas dari status akhir reservasi. Alokasi ATOMIK lewat
+  `SELECT ... FOR UPDATE` pada baris definisi sequence yang sedang
+  terbuka (`application/document-number-reservation-service.ts`'s
+  `reserveNumber`) — dibuktikan lewat test konkurensi nyata
+  (`tests/integration/document-infrastructure.integration.test.ts`,
+  20 request paralel, 20 nomor unik).
+- **`awcms_mini_document_evidence`** — jejak evidence APPEND-ONLY (tidak
+  ada UPDATE/DELETE) untuk event numbering/versi/lifecycle dokumen
+  (`number_reserved`/`number_committed`/`number_canceled`/
+  `version_created`/`document_voided`/`document_restored`/
+  `document_reclassified`/`sequence_defined`/`sequence_revised`/
+  `sequence_deactivated`/`sequence_restored`).
+
+Format nomor (`format_template`, mis. `INV/{YYYY}/{SEQ:6}`) divalidasi
+lewat grammar token TERBATAS (`domain/number-format-template.ts`) —
+parser scan karakter tunggal manual, BUKAN `eval`/regex bebas/dynamic
+code (issue #751 security requirement). Token yang didukung:
+`{SEQ}`/`{SEQ:n}` (n=1-12), `{YYYY}`, `{YY}`, `{MM}`, `{DD}`.
+
+**Penegakan confidentiality-tier saat membaca** (security-review
+Critical finding, PR #780 — `confidentiality_level` semula tersimpan
+tapi tidak pernah dikonsultasikan untuk keputusan akses). Dua permission
+tambahan, ADDITIF terhadap `documents.read` dasar (bukan hierarki — satu
+tidak menyiratkan yang lain), pola sama `visitor_analytics.raw_detail.read`
+(`sql/038`): `documents_confidential.read` dan `documents_restricted.read`
+(`068_awcms_mini_document_infrastructure_confidentiality_permissions.sql`).
+`domain/document.ts`'s `isConfidentialityLevelReadable`/
+`readableConfidentialityLevels` (murni, tidak resolve permission sendiri)
+
+- `application/document-directory.ts`'s `listDocuments`/
+  `fetchDocumentById`/`listDocumentsByPrimaryResource` (parameter `access`
+  WAJIB, bukan opsional — dipaksa compile-time) adalah titik penegakan
+  nyata: `listDocuments` memfilter di level SQL (`confidentiality_level =
+ANY(...)`, baris `confidential`/`restricted` tanpa clearance tidak
+  pernah keluar dari PostgreSQL), `fetchDocumentById` mengembalikan `null`
+  (identik "tidak ditemukan", tidak pernah mengonfirmasi keberadaan
+  dokumen ke caller tanpa clearance) untuk dokumen yang levelnya di luar
+  clearance caller. Route `GET .../documents`, `GET .../documents/{id}`,
+  `GET .../documents/{id}/versions`, dan `GET .../documents/{id}/relations`
+  semua menerapkan ini (dua route terakhir memverifikasi parent document
+  readable dulu sebelum mengembalikan sub-resource-nya). **Batasan
+  tercatat**: endpoint mutasi (void/restore/reclassify/versions.create/
+  relations.assign/revoke) dan `GET .../evidence`/`GET .../reservations`
+  BELUM menerapkan gating tingkat-confidentiality yang sama — permission
+  action-spesifik (mis. `documents.void`) tetap jadi satu-satunya gate
+  untuk mutasi, sengaja dipisah dari dimensi "siapa boleh membaca level
+  apa" (lihat ADR-0017 §7 untuk rasional lengkap).
+
+Permission seed: 29 permission (`067_awcms_mini_document_infrastructure_
+permissions.sql` + `068_awcms_mini_document_infrastructure_confidentiality_
+permissions.sql`) — `classifications.{read,create,update,delete,restore}`,
+`documents.{read,create,update,delete,restore,void,reclassify}`,
+`documents_confidential.read`, `documents_restricted.read`,
+`versions.{read,create}`, `relations.{read,assign,revoke}`,
+`sequences.{read,create,update,delete,restore}`,
+`reservations.{read,reserve,commit,cancel}`, `evidence.read`. Empat
+action baru ditambahkan additive ke `AccessAction`/`HIGH_RISK_ACTIONS`
+(`identity-access/domain/access-control.ts`): `void`, `reclassify`,
+`reserve`, `commit` — `cancel` (reservasi) reuse literal yang sudah ada
+TANPA ditambahkan ke `HIGH_RISK_ACTIONS` (menghindari mengubah blast
+radius `cancel` di modul lain); endpoint cancel reservasi tetap
+mewajibkan `Idempotency-Key` di level route secara independen.
+
+Capability port: modul ini MENYEDIAKAN `document_resource_relations`
+(`application/document-resource-relation-port.ts`'s
+`linkDocumentToResource`/`unlinkDocumentFromResource`/
+`listRelationsForResource`/`listRelationsForDocument`) — modul lain
+meng-IMPOR dan MEMANGGIL fungsi ini langsung (in-process, pola ADR-0011
+sama dengan `blog_content`↔`news_portal`). Tidak ada `capabilities.consumes`
+di modul ini (ADR-0017 §4/§10 — sengaja tidak ada hard dependency ke
+`data_lifecycle`/`workflow_approval`/`sync_storage` di PR ini).
+
+`awcms_mini_worker` diberi `SELECT` saja pada ketujuh tabel — tidak ada
+scheduled job yang memutasi data di modul ini (semua mutasi terjadi di
+jalur request `awcms_mini_app`).
+
+### Integration Hub (Issue #754, epic `platform-evolution` #738 Wave 3, ADR-0018, `sql/069`–`070`)
 
 Modul System baru `integration_hub` — batas integrasi generik
 provider-netral: endpoint webhook inbound bertanda tangan (HMAC
@@ -690,7 +825,7 @@ delivery_id IS NULL` mencegah duplikasi fan-out (sama pola
   per (tenant, adapter, direction).
 
 Permission seed: 15 permission
-(`067_awcms_mini_integration_hub_permissions.sql`) —
+(`070_awcms_mini_integration_hub_permissions.sql`) —
 `endpoints.{read,create,delete,configure,enable,disable}`,
 `subscriptions.{read,create,delete,enable,disable}`,
 `deliveries.{read,replay}`, `health.read`, `adapters.read`.

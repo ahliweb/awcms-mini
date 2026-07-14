@@ -3763,7 +3763,6 @@ msgstr "Suggested codes"
 msgid "admin.organization_structure.unit_types.title"
 msgstr "Organization-Unit Types"
 
-
 #. Issue #754 (integration_hub, epic platform-evolution Wave 3)
 msgid "admin.integration_hub.access_denied_title"
 msgstr "Access denied"
@@ -3950,3 +3949,363 @@ msgstr "Event Subscriptions"
 
 msgid "admin.layout.nav_integration_hub_deliveries"
 msgstr "Deliveries"
+
+msgid "admin.document_infrastructure.access_denied_body"
+msgstr "You do not have permission to view this document-infrastructure screen."
+
+msgid "admin.document_infrastructure.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.document_infrastructure.classifications.col_actions"
+msgstr "Actions"
+
+msgid "admin.document_infrastructure.classifications.col_code"
+msgstr "Code"
+
+msgid "admin.document_infrastructure.classifications.col_confidentiality"
+msgstr "Confidentiality"
+
+msgid "admin.document_infrastructure.classifications.col_name"
+msgstr "Name"
+
+msgid "admin.document_infrastructure.classifications.col_status"
+msgstr "Status"
+
+msgid "admin.document_infrastructure.classifications.create_submit"
+msgstr "Create classification"
+
+msgid "admin.document_infrastructure.classifications.create_success"
+msgstr "Classification created."
+
+msgid "admin.document_infrastructure.classifications.create_summary"
+msgstr "Create a new classification"
+
+msgid "admin.document_infrastructure.classifications.deactivate_button"
+msgstr "Deactivate"
+
+msgid "admin.document_infrastructure.classifications.deactivate_reason_prompt"
+msgstr "Reason for deactivating this classification:"
+
+msgid "admin.document_infrastructure.classifications.deactivate_success"
+msgstr "Classification deactivated."
+
+msgid "admin.document_infrastructure.classifications.field_code"
+msgstr "Code"
+
+msgid "admin.document_infrastructure.classifications.field_confidentiality"
+msgstr "Confidentiality level"
+
+msgid "admin.document_infrastructure.classifications.field_name"
+msgstr "Name"
+
+msgid "admin.document_infrastructure.classifications.field_retention_reference"
+msgstr "Retention reference"
+
+msgid "admin.document_infrastructure.classifications.no_rows"
+msgstr "No classifications yet."
+
+msgid "admin.document_infrastructure.classifications.restore_button"
+msgstr "Restore"
+
+msgid "admin.document_infrastructure.classifications.restore_success"
+msgstr "Classification restored."
+
+msgid "admin.document_infrastructure.classifications.title"
+msgstr "Document Classifications"
+
+msgid "admin.document_infrastructure.document_detail.col_actions"
+msgstr "Actions"
+
+msgid "admin.document_infrastructure.document_detail.col_checksum"
+msgstr "Checksum"
+
+msgid "admin.document_infrastructure.document_detail.col_created_at"
+msgstr "Created at"
+
+msgid "admin.document_infrastructure.document_detail.col_evidence_type"
+msgstr "Evidence type"
+
+msgid "admin.document_infrastructure.document_detail.col_media_type"
+msgstr "Media type"
+
+msgid "admin.document_infrastructure.document_detail.col_owner_module"
+msgstr "Owner module"
+
+msgid "admin.document_infrastructure.document_detail.col_relation_type"
+msgstr "Relation type"
+
+msgid "admin.document_infrastructure.document_detail.col_resource"
+msgstr "Resource"
+
+msgid "admin.document_infrastructure.document_detail.confidentiality_label"
+msgstr "Confidentiality"
+
+msgid "admin.document_infrastructure.document_detail.evidence_heading"
+msgstr "Evidence & history"
+
+msgid "admin.document_infrastructure.document_detail.evidence_no_rows"
+msgstr "No evidence recorded yet."
+
+msgid "admin.document_infrastructure.document_detail.field_checksum"
+msgstr "SHA-256 checksum"
+
+msgid "admin.document_infrastructure.document_detail.field_classification"
+msgstr "Classification"
+
+msgid "admin.document_infrastructure.document_detail.field_confidentiality"
+msgstr "Confidentiality level"
+
+msgid "admin.document_infrastructure.document_detail.field_content_reference"
+msgstr "Content reference"
+
+msgid "admin.document_infrastructure.document_detail.field_content_reference_kind"
+msgstr "Content reference kind"
+
+msgid "admin.document_infrastructure.document_detail.field_media_type"
+msgstr "Media type"
+
+msgid "admin.document_infrastructure.document_detail.field_owner_module"
+msgstr "Owner module key"
+
+msgid "admin.document_infrastructure.document_detail.field_relation_type"
+msgstr "Relation type"
+
+msgid "admin.document_infrastructure.document_detail.field_resource_id"
+msgstr "Resource id"
+
+msgid "admin.document_infrastructure.document_detail.field_resource_type"
+msgstr "Resource type"
+
+msgid "admin.document_infrastructure.document_detail.field_size_bytes"
+msgstr "Size (bytes)"
+
+msgid "admin.document_infrastructure.document_detail.link_submit"
+msgstr "Link resource"
+
+msgid "admin.document_infrastructure.document_detail.link_success"
+msgstr "Document linked to resource."
+
+msgid "admin.document_infrastructure.document_detail.link_summary"
+msgstr "Link a resource"
+
+msgid "admin.document_infrastructure.document_detail.reclassify_reason_prompt"
+msgstr "Reason for reclassifying this document:"
+
+msgid "admin.document_infrastructure.document_detail.reclassify_submit"
+msgstr "Reclassify"
+
+msgid "admin.document_infrastructure.document_detail.reclassify_success"
+msgstr "Document reclassified."
+
+msgid "admin.document_infrastructure.document_detail.reclassify_summary"
+msgstr "Reclassify this document"
+
+msgid "admin.document_infrastructure.document_detail.relations_heading"
+msgstr "Resource relations"
+
+msgid "admin.document_infrastructure.document_detail.relations_no_rows"
+msgstr "No linked resources yet."
+
+msgid "admin.document_infrastructure.document_detail.status_label"
+msgstr "Status"
+
+msgid "admin.document_infrastructure.document_detail.title"
+msgstr "Document Detail"
+
+msgid "admin.document_infrastructure.document_detail.unlink_button"
+msgstr "Unlink"
+
+msgid "admin.document_infrastructure.document_detail.unlink_reason_prompt"
+msgstr "Reason for unlinking this resource:"
+
+msgid "admin.document_infrastructure.document_detail.unlink_success"
+msgstr "Resource unlinked."
+
+msgid "admin.document_infrastructure.document_detail.version_create_submit"
+msgstr "Add version"
+
+msgid "admin.document_infrastructure.document_detail.version_create_success"
+msgstr "Version created."
+
+msgid "admin.document_infrastructure.document_detail.version_create_summary"
+msgstr "Add a new version"
+
+msgid "admin.document_infrastructure.document_detail.versions_heading"
+msgstr "Versions"
+
+msgid "admin.document_infrastructure.document_detail.versions_no_rows"
+msgstr "No versions yet."
+
+msgid "admin.document_infrastructure.documents.col_actions"
+msgstr "Actions"
+
+msgid "admin.document_infrastructure.documents.col_owner_module"
+msgstr "Owner module"
+
+msgid "admin.document_infrastructure.documents.col_status"
+msgstr "Status"
+
+msgid "admin.document_infrastructure.documents.col_title"
+msgstr "Title"
+
+msgid "admin.document_infrastructure.documents.col_version"
+msgstr "Version"
+
+msgid "admin.document_infrastructure.documents.create_submit"
+msgstr "Create document"
+
+msgid "admin.document_infrastructure.documents.create_success"
+msgstr "Document created."
+
+msgid "admin.document_infrastructure.documents.create_summary"
+msgstr "Create a new document"
+
+msgid "admin.document_infrastructure.documents.field_classification"
+msgstr "Classification"
+
+msgid "admin.document_infrastructure.documents.field_classification_none"
+msgstr "(none)"
+
+msgid "admin.document_infrastructure.documents.field_confidentiality"
+msgstr "Confidentiality level"
+
+msgid "admin.document_infrastructure.documents.field_document_type"
+msgstr "Document type"
+
+msgid "admin.document_infrastructure.documents.field_owner_module"
+msgstr "Owner module key"
+
+msgid "admin.document_infrastructure.documents.field_resource_id"
+msgstr "Resource id"
+
+msgid "admin.document_infrastructure.documents.field_resource_type"
+msgstr "Resource type"
+
+msgid "admin.document_infrastructure.documents.field_summary"
+msgstr "Summary"
+
+msgid "admin.document_infrastructure.documents.field_title"
+msgstr "Title"
+
+msgid "admin.document_infrastructure.documents.no_rows"
+msgstr "No documents yet."
+
+msgid "admin.document_infrastructure.documents.restore_button"
+msgstr "Restore"
+
+msgid "admin.document_infrastructure.documents.restore_success"
+msgstr "Document restored."
+
+msgid "admin.document_infrastructure.documents.title"
+msgstr "Documents"
+
+msgid "admin.document_infrastructure.documents.void_button"
+msgstr "Void"
+
+msgid "admin.document_infrastructure.documents.void_reason_prompt"
+msgstr "Reason for voiding this document:"
+
+msgid "admin.document_infrastructure.documents.void_success"
+msgstr "Document voided."
+
+msgid "admin.document_infrastructure.sequences.cancel_button"
+msgstr "Cancel"
+
+msgid "admin.document_infrastructure.sequences.cancel_reason_prompt"
+msgstr "Reason for canceling this reservation:"
+
+msgid "admin.document_infrastructure.sequences.cancel_success"
+msgstr "Reservation canceled."
+
+msgid "admin.document_infrastructure.sequences.commit_button"
+msgstr "Commit to document"
+
+msgid "admin.document_infrastructure.sequences.commit_document_id_prompt"
+msgstr "Document id to commit this number to:"
+
+msgid "admin.document_infrastructure.sequences.commit_success"
+msgstr "Number committed to document."
+
+msgid "admin.document_infrastructure.sequences.col_actions"
+msgstr "Actions"
+
+msgid "admin.document_infrastructure.sequences.col_current_value"
+msgstr "Current value"
+
+msgid "admin.document_infrastructure.sequences.col_format"
+msgstr "Format template"
+
+msgid "admin.document_infrastructure.sequences.col_formatted_number"
+msgstr "Number"
+
+msgid "admin.document_infrastructure.sequences.col_key"
+msgstr "Sequence key"
+
+msgid "admin.document_infrastructure.sequences.col_reservation_status"
+msgstr "Status"
+
+msgid "admin.document_infrastructure.sequences.col_scope"
+msgstr "Scope"
+
+msgid "admin.document_infrastructure.sequences.create_submit"
+msgstr "Define sequence"
+
+msgid "admin.document_infrastructure.sequences.create_summary"
+msgstr "Define a new sequence"
+
+msgid "admin.document_infrastructure.sequences.deactivate_button"
+msgstr "Deactivate"
+
+msgid "admin.document_infrastructure.sequences.deactivate_reason_prompt"
+msgstr "Reason for deactivating this sequence:"
+
+msgid "admin.document_infrastructure.sequences.deactivate_success"
+msgstr "Sequence deactivated."
+
+msgid "admin.document_infrastructure.sequences.define_success"
+msgstr "Sequence defined."
+
+msgid "admin.document_infrastructure.sequences.definitions_heading"
+msgstr "Sequence definitions"
+
+msgid "admin.document_infrastructure.sequences.field_format_template"
+msgstr "Format template"
+
+msgid "admin.document_infrastructure.sequences.field_reset_policy"
+msgstr "Reset policy"
+
+msgid "admin.document_infrastructure.sequences.field_scope_id"
+msgstr "Scope id (optional)"
+
+msgid "admin.document_infrastructure.sequences.field_scope_type"
+msgstr "Scope type"
+
+msgid "admin.document_infrastructure.sequences.field_sequence_key"
+msgstr "Sequence key"
+
+msgid "admin.document_infrastructure.sequences.no_rows"
+msgstr "No sequences defined yet."
+
+msgid "admin.document_infrastructure.sequences.reservations_heading"
+msgstr "Recent reservations"
+
+msgid "admin.document_infrastructure.sequences.reservations_no_rows"
+msgstr "No reservations yet."
+
+msgid "admin.document_infrastructure.sequences.reserve_button"
+msgstr "Reserve number"
+
+msgid "admin.document_infrastructure.sequences.reserve_success"
+msgstr "Number reserved."
+
+msgid "admin.document_infrastructure.sequences.title"
+msgstr "Number Sequences"
+
+msgid "admin.layout.nav_document_infrastructure_classifications"
+msgstr "Document Classifications"
+
+msgid "admin.layout.nav_document_infrastructure_documents"
+msgstr "Documents"
+
+msgid "admin.layout.nav_document_infrastructure_sequences"
+msgstr "Number Sequences"

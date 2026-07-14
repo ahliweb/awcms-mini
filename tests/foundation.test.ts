@@ -60,8 +60,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, and integration_hub are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #754", () => {
-    expect(listModules()).toHaveLength(20);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, and integration_hub are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #751, #754", () => {
+    expect(listModules()).toHaveLength(21);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -165,6 +165,12 @@ describe("module registry", () => {
     });
     expect(getModuleByKey("organization_structure")).toMatchObject({
       key: "organization_structure",
+      status: "active",
+      type: "domain",
+      dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"]
+    });
+    expect(getModuleByKey("document_infrastructure")).toMatchObject({
+      key: "document_infrastructure",
       status: "active",
       type: "domain",
       dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"]
@@ -554,8 +560,11 @@ describe("database migration runner helpers", () => {
       "063_awcms_mini_organization_structure_schema.sql",
       "064_awcms_mini_organization_structure_permissions.sql",
       "065_awcms_mini_organization_structure_assignment_unique_index.sql",
-      "066_awcms_mini_integration_hub_schema.sql",
-      "067_awcms_mini_integration_hub_permissions.sql"
+      "066_awcms_mini_document_infrastructure_schema.sql",
+      "067_awcms_mini_document_infrastructure_permissions.sql",
+      "068_awcms_mini_document_infrastructure_confidentiality_permissions.sql",
+      "069_awcms_mini_integration_hub_schema.sql",
+      "070_awcms_mini_integration_hub_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

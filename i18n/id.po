@@ -3762,7 +3762,6 @@ msgstr "Kode yang disarankan"
 msgid "admin.organization_structure.unit_types.title"
 msgstr "Tipe Unit Organisasi"
 
-
 #. Issue #754 (integration_hub, epic platform-evolution Wave 3)
 msgid "admin.integration_hub.access_denied_title"
 msgstr "Akses ditolak"
@@ -3949,3 +3948,363 @@ msgstr "Langganan Event"
 
 msgid "admin.layout.nav_integration_hub_deliveries"
 msgstr "Pengiriman"
+
+msgid "admin.document_infrastructure.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat layar infrastruktur dokumen ini."
+
+msgid "admin.document_infrastructure.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.document_infrastructure.classifications.col_actions"
+msgstr "Aksi"
+
+msgid "admin.document_infrastructure.classifications.col_code"
+msgstr "Kode"
+
+msgid "admin.document_infrastructure.classifications.col_confidentiality"
+msgstr "Kerahasiaan"
+
+msgid "admin.document_infrastructure.classifications.col_name"
+msgstr "Nama"
+
+msgid "admin.document_infrastructure.classifications.col_status"
+msgstr "Status"
+
+msgid "admin.document_infrastructure.classifications.create_submit"
+msgstr "Buat klasifikasi"
+
+msgid "admin.document_infrastructure.classifications.create_success"
+msgstr "Klasifikasi berhasil dibuat."
+
+msgid "admin.document_infrastructure.classifications.create_summary"
+msgstr "Buat klasifikasi baru"
+
+msgid "admin.document_infrastructure.classifications.deactivate_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.document_infrastructure.classifications.deactivate_reason_prompt"
+msgstr "Alasan menonaktifkan klasifikasi ini:"
+
+msgid "admin.document_infrastructure.classifications.deactivate_success"
+msgstr "Klasifikasi berhasil dinonaktifkan."
+
+msgid "admin.document_infrastructure.classifications.field_code"
+msgstr "Kode"
+
+msgid "admin.document_infrastructure.classifications.field_confidentiality"
+msgstr "Tingkat kerahasiaan"
+
+msgid "admin.document_infrastructure.classifications.field_name"
+msgstr "Nama"
+
+msgid "admin.document_infrastructure.classifications.field_retention_reference"
+msgstr "Referensi retensi"
+
+msgid "admin.document_infrastructure.classifications.no_rows"
+msgstr "Belum ada klasifikasi."
+
+msgid "admin.document_infrastructure.classifications.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.document_infrastructure.classifications.restore_success"
+msgstr "Klasifikasi berhasil dipulihkan."
+
+msgid "admin.document_infrastructure.classifications.title"
+msgstr "Klasifikasi Dokumen"
+
+msgid "admin.document_infrastructure.document_detail.col_actions"
+msgstr "Aksi"
+
+msgid "admin.document_infrastructure.document_detail.col_checksum"
+msgstr "Checksum"
+
+msgid "admin.document_infrastructure.document_detail.col_created_at"
+msgstr "Dibuat pada"
+
+msgid "admin.document_infrastructure.document_detail.col_evidence_type"
+msgstr "Jenis evidence"
+
+msgid "admin.document_infrastructure.document_detail.col_media_type"
+msgstr "Jenis media"
+
+msgid "admin.document_infrastructure.document_detail.col_owner_module"
+msgstr "Modul pemilik"
+
+msgid "admin.document_infrastructure.document_detail.col_relation_type"
+msgstr "Jenis relasi"
+
+msgid "admin.document_infrastructure.document_detail.col_resource"
+msgstr "Sumber daya"
+
+msgid "admin.document_infrastructure.document_detail.confidentiality_label"
+msgstr "Kerahasiaan"
+
+msgid "admin.document_infrastructure.document_detail.evidence_heading"
+msgstr "Evidence & riwayat"
+
+msgid "admin.document_infrastructure.document_detail.evidence_no_rows"
+msgstr "Belum ada evidence tercatat."
+
+msgid "admin.document_infrastructure.document_detail.field_checksum"
+msgstr "Checksum SHA-256"
+
+msgid "admin.document_infrastructure.document_detail.field_classification"
+msgstr "Klasifikasi"
+
+msgid "admin.document_infrastructure.document_detail.field_confidentiality"
+msgstr "Tingkat kerahasiaan"
+
+msgid "admin.document_infrastructure.document_detail.field_content_reference"
+msgstr "Referensi konten"
+
+msgid "admin.document_infrastructure.document_detail.field_content_reference_kind"
+msgstr "Jenis referensi konten"
+
+msgid "admin.document_infrastructure.document_detail.field_media_type"
+msgstr "Jenis media"
+
+msgid "admin.document_infrastructure.document_detail.field_owner_module"
+msgstr "Kunci modul pemilik"
+
+msgid "admin.document_infrastructure.document_detail.field_relation_type"
+msgstr "Jenis relasi"
+
+msgid "admin.document_infrastructure.document_detail.field_resource_id"
+msgstr "ID sumber daya"
+
+msgid "admin.document_infrastructure.document_detail.field_resource_type"
+msgstr "Jenis sumber daya"
+
+msgid "admin.document_infrastructure.document_detail.field_size_bytes"
+msgstr "Ukuran (byte)"
+
+msgid "admin.document_infrastructure.document_detail.link_submit"
+msgstr "Tautkan sumber daya"
+
+msgid "admin.document_infrastructure.document_detail.link_success"
+msgstr "Dokumen berhasil ditautkan ke sumber daya."
+
+msgid "admin.document_infrastructure.document_detail.link_summary"
+msgstr "Tautkan sumber daya"
+
+msgid "admin.document_infrastructure.document_detail.reclassify_reason_prompt"
+msgstr "Alasan mengklasifikasi ulang dokumen ini:"
+
+msgid "admin.document_infrastructure.document_detail.reclassify_submit"
+msgstr "Klasifikasi ulang"
+
+msgid "admin.document_infrastructure.document_detail.reclassify_success"
+msgstr "Dokumen berhasil diklasifikasi ulang."
+
+msgid "admin.document_infrastructure.document_detail.reclassify_summary"
+msgstr "Klasifikasi ulang dokumen ini"
+
+msgid "admin.document_infrastructure.document_detail.relations_heading"
+msgstr "Relasi sumber daya"
+
+msgid "admin.document_infrastructure.document_detail.relations_no_rows"
+msgstr "Belum ada sumber daya yang ditautkan."
+
+msgid "admin.document_infrastructure.document_detail.status_label"
+msgstr "Status"
+
+msgid "admin.document_infrastructure.document_detail.title"
+msgstr "Detail Dokumen"
+
+msgid "admin.document_infrastructure.document_detail.unlink_button"
+msgstr "Lepas tautan"
+
+msgid "admin.document_infrastructure.document_detail.unlink_reason_prompt"
+msgstr "Alasan melepas tautan sumber daya ini:"
+
+msgid "admin.document_infrastructure.document_detail.unlink_success"
+msgstr "Tautan sumber daya berhasil dilepas."
+
+msgid "admin.document_infrastructure.document_detail.version_create_submit"
+msgstr "Tambah versi"
+
+msgid "admin.document_infrastructure.document_detail.version_create_success"
+msgstr "Versi berhasil dibuat."
+
+msgid "admin.document_infrastructure.document_detail.version_create_summary"
+msgstr "Tambah versi baru"
+
+msgid "admin.document_infrastructure.document_detail.versions_heading"
+msgstr "Versi"
+
+msgid "admin.document_infrastructure.document_detail.versions_no_rows"
+msgstr "Belum ada versi."
+
+msgid "admin.document_infrastructure.documents.col_actions"
+msgstr "Aksi"
+
+msgid "admin.document_infrastructure.documents.col_owner_module"
+msgstr "Modul pemilik"
+
+msgid "admin.document_infrastructure.documents.col_status"
+msgstr "Status"
+
+msgid "admin.document_infrastructure.documents.col_title"
+msgstr "Judul"
+
+msgid "admin.document_infrastructure.documents.col_version"
+msgstr "Versi"
+
+msgid "admin.document_infrastructure.documents.create_submit"
+msgstr "Buat dokumen"
+
+msgid "admin.document_infrastructure.documents.create_success"
+msgstr "Dokumen berhasil dibuat."
+
+msgid "admin.document_infrastructure.documents.create_summary"
+msgstr "Buat dokumen baru"
+
+msgid "admin.document_infrastructure.documents.field_classification"
+msgstr "Klasifikasi"
+
+msgid "admin.document_infrastructure.documents.field_classification_none"
+msgstr "(tidak ada)"
+
+msgid "admin.document_infrastructure.documents.field_confidentiality"
+msgstr "Tingkat kerahasiaan"
+
+msgid "admin.document_infrastructure.documents.field_document_type"
+msgstr "Jenis dokumen"
+
+msgid "admin.document_infrastructure.documents.field_owner_module"
+msgstr "Kunci modul pemilik"
+
+msgid "admin.document_infrastructure.documents.field_resource_id"
+msgstr "ID sumber daya"
+
+msgid "admin.document_infrastructure.documents.field_resource_type"
+msgstr "Jenis sumber daya"
+
+msgid "admin.document_infrastructure.documents.field_summary"
+msgstr "Ringkasan"
+
+msgid "admin.document_infrastructure.documents.field_title"
+msgstr "Judul"
+
+msgid "admin.document_infrastructure.documents.no_rows"
+msgstr "Belum ada dokumen."
+
+msgid "admin.document_infrastructure.documents.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.document_infrastructure.documents.restore_success"
+msgstr "Dokumen berhasil dipulihkan."
+
+msgid "admin.document_infrastructure.documents.title"
+msgstr "Dokumen"
+
+msgid "admin.document_infrastructure.documents.void_button"
+msgstr "Batalkan"
+
+msgid "admin.document_infrastructure.documents.void_reason_prompt"
+msgstr "Alasan membatalkan dokumen ini:"
+
+msgid "admin.document_infrastructure.documents.void_success"
+msgstr "Dokumen berhasil dibatalkan."
+
+msgid "admin.document_infrastructure.sequences.cancel_button"
+msgstr "Batalkan"
+
+msgid "admin.document_infrastructure.sequences.cancel_reason_prompt"
+msgstr "Alasan membatalkan reservasi ini:"
+
+msgid "admin.document_infrastructure.sequences.cancel_success"
+msgstr "Reservasi berhasil dibatalkan."
+
+msgid "admin.document_infrastructure.sequences.commit_button"
+msgstr "Commit ke dokumen"
+
+msgid "admin.document_infrastructure.sequences.commit_document_id_prompt"
+msgstr "ID dokumen untuk commit nomor ini:"
+
+msgid "admin.document_infrastructure.sequences.commit_success"
+msgstr "Nomor berhasil di-commit ke dokumen."
+
+msgid "admin.document_infrastructure.sequences.col_actions"
+msgstr "Aksi"
+
+msgid "admin.document_infrastructure.sequences.col_current_value"
+msgstr "Nilai saat ini"
+
+msgid "admin.document_infrastructure.sequences.col_format"
+msgstr "Templat format"
+
+msgid "admin.document_infrastructure.sequences.col_formatted_number"
+msgstr "Nomor"
+
+msgid "admin.document_infrastructure.sequences.col_key"
+msgstr "Kunci sequence"
+
+msgid "admin.document_infrastructure.sequences.col_reservation_status"
+msgstr "Status"
+
+msgid "admin.document_infrastructure.sequences.col_scope"
+msgstr "Lingkup"
+
+msgid "admin.document_infrastructure.sequences.create_submit"
+msgstr "Definisikan sequence"
+
+msgid "admin.document_infrastructure.sequences.create_summary"
+msgstr "Definisikan sequence baru"
+
+msgid "admin.document_infrastructure.sequences.deactivate_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.document_infrastructure.sequences.deactivate_reason_prompt"
+msgstr "Alasan menonaktifkan sequence ini:"
+
+msgid "admin.document_infrastructure.sequences.deactivate_success"
+msgstr "Sequence berhasil dinonaktifkan."
+
+msgid "admin.document_infrastructure.sequences.define_success"
+msgstr "Sequence berhasil didefinisikan."
+
+msgid "admin.document_infrastructure.sequences.definitions_heading"
+msgstr "Definisi sequence"
+
+msgid "admin.document_infrastructure.sequences.field_format_template"
+msgstr "Templat format"
+
+msgid "admin.document_infrastructure.sequences.field_reset_policy"
+msgstr "Kebijakan reset"
+
+msgid "admin.document_infrastructure.sequences.field_scope_id"
+msgstr "ID lingkup (opsional)"
+
+msgid "admin.document_infrastructure.sequences.field_scope_type"
+msgstr "Jenis lingkup"
+
+msgid "admin.document_infrastructure.sequences.field_sequence_key"
+msgstr "Kunci sequence"
+
+msgid "admin.document_infrastructure.sequences.no_rows"
+msgstr "Belum ada sequence yang didefinisikan."
+
+msgid "admin.document_infrastructure.sequences.reservations_heading"
+msgstr "Reservasi terbaru"
+
+msgid "admin.document_infrastructure.sequences.reservations_no_rows"
+msgstr "Belum ada reservasi."
+
+msgid "admin.document_infrastructure.sequences.reserve_button"
+msgstr "Reservasi nomor"
+
+msgid "admin.document_infrastructure.sequences.reserve_success"
+msgstr "Nomor berhasil direservasi."
+
+msgid "admin.document_infrastructure.sequences.title"
+msgstr "Sequence Nomor"
+
+msgid "admin.layout.nav_document_infrastructure_classifications"
+msgstr "Klasifikasi Dokumen"
+
+msgid "admin.layout.nav_document_infrastructure_documents"
+msgstr "Dokumen"
+
+msgid "admin.layout.nav_document_infrastructure_sequences"
+msgstr "Sequence Nomor"

@@ -56,7 +56,7 @@ export type IntegrationEndpointLookupRow = {
  * The bootstrap lookup — runs BEFORE any tenant context exists (a webhook
  * receiver has no prior JWT/session to derive a tenant from). Calls the
  * `SECURITY DEFINER` function `awcms_mini_resolve_integration_endpoint_
- * lookup` (migration 066), which returns a narrow, non-secret projection
+ * lookup` (migration 069), which returns a narrow, non-secret projection
  * (never `raw_body_snippet`/any other table) in exactly one round trip
  * regardless of outcome — same "avoid a timing side-channel between
  * unknown token and known-but-inactive" pattern `resolvePublicTenantByHost`
