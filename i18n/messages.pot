@@ -2932,7 +2932,7 @@ msgid "admin.layout.nav_blog"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/identity-access/module.ts:34
+#: src/modules/identity-access/module.ts:60
 msgid "admin.layout.nav_business_scope"
 msgstr ""
 
@@ -3021,7 +3021,7 @@ msgid "admin.layout.nav_reporting_projections"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/identity-access/module.ts:26
+#: src/modules/identity-access/module.ts:52
 msgid "admin.layout.nav_security"
 msgstr ""
 

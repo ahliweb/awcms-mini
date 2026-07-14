@@ -1029,13 +1029,28 @@ default-deny, audit) yang sudah berlaku sama di sini.
 
 - **`defaultBusinessScopeHierarchyPortAdapter` tetap FLAT untuk
   `scopeType: "office"`** — modul `organization_structure` (Issue #749,
-  ADR-0016) kini menyediakan resolusi hierarki NYATA untuk
+  ADR-0016) menyediakan resolusi hierarki NYATA untuk
   `scopeType: "legal_entity"`/`"organization_unit"` lewat adapternya
   sendiri (`organizationStructureHierarchyPortAdapter`), tapi
   `identity_access` tidak secara otomatis memakainya untuk `"office"` —
-  kedua adapter hidup berdampingan, composition root memilih per
-  `scopeType` mana yang di-inject (lihat detail lengkap di bagian
-  organization_structure di bawah).
+  kedua adapter hidup berdampingan (lihat detail lengkap di bagian
+  organization_structure di bawah). **Diperbaiki di Issue #786**: sebelumnya
+  (#749) adapter nyata ini punya nol pemanggil produksi — satu-satunya
+  consumer nyata (`POST /api/v1/identity/business-scope/assignments`)
+  hardcode adapter flat `"office"` saja, membuat resolusi
+  `legal_entity`/`organization_unit` SELALU `resolved: false` walau
+  barisnya benar-benar ada. Composition root sekarang mengecek status
+  enable per-tenant modul `organization_structure`
+  (`resolveModuleEnabled`) dan mencoba adapter nyata itu LEBIH DULU saat
+  aktif, jatuh ke adapter flat hanya bila adapter nyata tidak resolve
+  (scope type lain, atau modul nonaktif untuk tenant itu) — diverifikasi
+  end-to-end lewat `tests/integration/business-scope-organization-
+structure-wiring.integration.test.ts` (bukan hanya unit test adapter
+  itu sendiri). Catatan jujur: pencocokan konflik SoD (`same_scope_only`)
+  tetap berbasis kesetaraan `(scopeType, scopeId)` persis — belum
+  mengonsultasikan `ancestorScopes`/`descendantScopes`; hierarki
+  ancestor/descendant nyata yang di-hitung adapter belum dipakai fitur SoD
+  apa pun hari ini.
 - **Tiga rule fixture SoD** (bukan katalog domain lengkap) — dua dimiliki
   `identity_access` sendiri (maker/checker atas mekanisme exception itu
   sendiri, dan atas assignment create/revoke pada scope yang sama), satu
