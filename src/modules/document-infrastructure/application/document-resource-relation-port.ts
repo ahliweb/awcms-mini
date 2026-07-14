@@ -23,6 +23,10 @@ import {
   validateLinkDocumentToResourceInput,
   type LinkDocumentToResourceInput
 } from "../domain/document-resource-relation";
+import {
+  isConfidentialityLevelReadable,
+  type ConfidentialityReadAccess
+} from "../domain/document";
 import type { DocumentValidationError } from "../domain/errors";
 
 const MODULE_KEY = "document_infrastructure";
@@ -80,6 +84,14 @@ export type LinkDocumentToResourceResult =
  * Links `documentId` to a resource owned by the CALLING module. Called
  * either directly by an API route in THIS module, or in-process by
  * another module's own application code (the capability port).
+ *
+ * `access` is REQUIRED (Issue #787 fast-follow) — a caller holding only
+ * the base `relations.assign` action permission (or another module
+ * calling this capability port in-process on behalf of its own caller)
+ * must not be able to link a resource to a `confidential`/`restricted`
+ * document it lacks read clearance for. Returns `document_not_found`
+ * (identical to genuinely-not-found), same anti-enumeration reasoning
+ * the read paths use.
  */
 export async function linkDocumentToResource(
   tx: Bun.SQL,
@@ -87,6 +99,7 @@ export async function linkDocumentToResource(
   actorTenantUserId: string | null,
   documentId: string,
   input: LinkDocumentToResourceInput,
+  access: ConfidentialityReadAccess,
   correlationId?: string
 ): Promise<LinkDocumentToResourceResult> {
   const errors = validateLinkDocumentToResourceInput(input);
@@ -95,10 +108,14 @@ export async function linkDocumentToResource(
   }
 
   const documentRows = (await tx`
-    SELECT id FROM awcms_mini_documents
+    SELECT id, confidentiality_level FROM awcms_mini_documents
     WHERE tenant_id = ${tenantId} AND id = ${documentId} AND deleted_at IS NULL
-  `) as { id: string }[];
-  if (!documentRows[0]) {
+  `) as { id: string; confidentiality_level: string }[];
+  const document = documentRows[0];
+  if (!document) {
+    return { ok: false, reason: "document_not_found" };
+  }
+  if (!isConfidentialityLevelReadable(document.confidentiality_level, access)) {
     return { ok: false, reason: "document_not_found" };
   }
 
@@ -152,12 +169,23 @@ export type UnlinkDocumentFromResourceResult =
   | { ok: false; reason: "validation"; errors: DocumentValidationError[] }
   | { ok: false; reason: "not_found" };
 
+/**
+ * `access` is REQUIRED (Issue #787 fast-follow) — a caller holding only
+ * the base `relations.revoke` action permission must not be able to
+ * unlink a relation belonging to a `confidential`/`restricted` document
+ * it lacks read clearance for (the route only ever receives a bare
+ * `relationId`, so the parent document's confidentiality is resolved
+ * HERE via a join, before any mutation). Returns `not_found` (identical
+ * to genuinely-not-found), same anti-enumeration reasoning the read
+ * paths use.
+ */
 export async function unlinkDocumentFromResource(
   tx: Bun.SQL,
   tenantId: string,
   actorTenantUserId: string | null,
   relationId: string,
   reason: string,
+  access: ConfidentialityReadAccess,
   correlationId?: string
 ): Promise<UnlinkDocumentFromResourceResult> {
   if (!reason || reason.trim().length === 0) {
@@ -166,6 +194,21 @@ export async function unlinkDocumentFromResource(
       reason: "validation",
       errors: [{ field: "reason", message: "reason is required." }]
     };
+  }
+
+  const parentRows = (await tx`
+    SELECT d.confidentiality_level
+    FROM awcms_mini_document_resource_relations r
+    JOIN awcms_mini_documents d
+      ON d.tenant_id = r.tenant_id AND d.id = r.document_id
+    WHERE r.tenant_id = ${tenantId} AND r.id = ${relationId} AND r.deleted_at IS NULL
+  `) as { confidentiality_level: string }[];
+  const parent = parentRows[0];
+  if (!parent) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (!isConfidentialityLevelReadable(parent.confidentiality_level, access)) {
+    return { ok: false, reason: "not_found" };
   }
 
   const rows = (await tx`

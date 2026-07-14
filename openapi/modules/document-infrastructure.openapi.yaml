@@ -567,7 +567,7 @@ paths:
     post:
       tags: [Document Infrastructure]
       summary: Restore a soft-deleted document, or un-void a voided document
-      description: High-risk mutation -- requires Idempotency-Key.
+      description: High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #787 fast-follow to #751's security-review Critical finding).
       operationId: documentInfrastructureDocumentsRestore
       security:
         - bearerAuth: []
@@ -618,7 +618,7 @@ paths:
     post:
       tags: [Document Infrastructure]
       summary: Void a document
-      description: Irreversible-by-default business-state transition, kept visible as evidence. High-risk mutation -- requires Idempotency-Key.
+      description: Irreversible-by-default business-state transition, kept visible as evidence. High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #787 fast-follow to #751's security-review Critical finding).
       operationId: documentInfrastructureDocumentsVoid
       security:
         - bearerAuth: []
@@ -679,7 +679,7 @@ paths:
     post:
       tags: [Document Infrastructure]
       summary: Change a document's classification and/or confidentiality level
-      description: High-risk mutation -- requires Idempotency-Key.
+      description: High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's CURRENT confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #787 fast-follow to #751's security-review Critical finding) -- checked before the reclassify is applied, so only a caller who could already read the current level may change it.
       operationId: documentInfrastructureDocumentsReclassify
       security:
         - bearerAuth: []
@@ -787,7 +787,7 @@ paths:
     post:
       tags: [Document Infrastructure]
       summary: Create a new (append-only, immutable) document version
-      description: High-risk mutation -- requires Idempotency-Key (a retry must never create two versions).
+      description: High-risk mutation -- requires Idempotency-Key (a retry must never create two versions). 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #787 fast-follow to #751's security-review Critical finding).
       operationId: documentInfrastructureVersionsCreate
       security:
         - bearerAuth: []
@@ -889,7 +889,7 @@ paths:
     post:
       tags: [Document Infrastructure]
       summary: Link a document to a module-owned resource
-      description: High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -- callers pass an opaque ownerModuleKey/resourceType/resourceId they have already validated belongs to their own tenant-scoped data.
+      description: High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -- callers pass an opaque ownerModuleKey/resourceType/resourceId they have already validated belongs to their own tenant-scoped data. 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #787 fast-follow to #751's security-review Critical finding).
       operationId: documentInfrastructureRelationsLink
       security:
         - bearerAuth: []
@@ -946,7 +946,7 @@ paths:
     delete:
       tags: [Document Infrastructure]
       summary: Unlink a document from a resource
-      description: High-risk mutation (revoke) -- requires Idempotency-Key.
+      description: High-risk mutation (revoke) -- requires Idempotency-Key. 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #787 fast-follow to #751's security-review Critical finding) -- resolved via the relation's own document_id since only relationId reaches this route.
       operationId: documentInfrastructureRelationsUnlink
       security:
         - bearerAuth: []
@@ -1310,6 +1310,7 @@ paths:
     get:
       tags: [Document Infrastructure]
       summary: List number reservations
+      description: Reservations already committed to a document omit rows whose document's confidentiality_level is confidential/restricted if the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #787 fast-follow to #751's security-review Critical finding); reservations not yet committed to any document always pass through (no confidentiality dimension applies).
       operationId: documentInfrastructureReservationsList
       security:
         - bearerAuth: []
@@ -1544,6 +1545,7 @@ paths:
     get:
       tags: [Document Infrastructure]
       summary: Read the document/numbering evidence trail
+      description: Evidence rows tied to a document (document.voided/restored/reclassified, version.created, number.committed) omit rows whose document's confidentiality_level is confidential/restricted if the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #787 fast-follow to #751's security-review Critical finding); evidence with no document link (sequence-only evidence, a reservation not yet committed) always passes through (no confidentiality dimension applies).
       operationId: documentInfrastructureEvidenceList
       security:
         - bearerAuth: []

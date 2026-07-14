@@ -52,6 +52,19 @@ const CAN_CANCEL_RESERVATION = context.permissions.has(
 const CAN_COMMIT_RESERVATION = context.permissions.has(
   permissionKey("document_infrastructure", "reservations", "commit")
 );
+// Confidentiality-tier clearance (Issue #787 fast-follow to #751's
+// security-review Critical finding) — reservations already committed to
+// a confidential/restricted document must not leak that document's
+// existence to a caller who lacks read clearance for it. See
+// `documents/[id].astro`'s identical DOCUMENT_ACCESS comment.
+const RESERVATION_ACCESS = {
+  canReadConfidential: context.permissions.has(
+    permissionKey("document_infrastructure", "documents_confidential", "read")
+  ),
+  canReadRestricted: context.permissions.has(
+    permissionKey("document_infrastructure", "documents_restricted", "read")
+  )
+};
 
 const clientStrings = {
   defineSuccess: t("admin.document_infrastructure.sequences.define_success"),
@@ -83,7 +96,12 @@ if (CAN_READ) {
   try {
     await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
       sequences = await listCurrentSequences(tx, context.tenantId);
-      reservations = await listReservations(tx, context.tenantId, {});
+      reservations = await listReservations(
+        tx,
+        context.tenantId,
+        RESERVATION_ACCESS,
+        {}
+      );
     });
   } catch (error) {
     logAdminPageError(
