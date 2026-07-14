@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 22,
+  "baseModuleCount": 23,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 22,
+  "totalModuleCount": 23,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -304,6 +304,27 @@
       "capabilitiesConsumed": [],
       "permissionCount": 28,
       "navigationCount": 2,
+      "jobCount": 0,
+      "hasHealthCheck": false,
+      "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "reference_data",
+      "name": "Reference Data",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "domain",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime"
+      ],
+      "capabilitiesProvided": ["reference_data_resolution"],
+      "capabilitiesConsumed": [],
+      "permissionCount": 19,
+      "navigationCount": 3,
       "jobCount": 0,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,

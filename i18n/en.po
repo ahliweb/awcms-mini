@@ -3472,6 +3472,15 @@ msgstr "Organization Units"
 msgid "admin.layout.nav_organization_structure_unit_types"
 msgstr "Unit Types"
 
+msgid "admin.layout.nav_reference_data_value_sets"
+msgstr "Reference Value Sets"
+
+msgid "admin.layout.nav_reference_data_codes"
+msgstr "Reference Codes"
+
+msgid "admin.layout.nav_reference_data_tenant_codes"
+msgstr "Reference Overrides"
+
 msgid "admin.organization_structure.access_denied_body"
 msgstr "You do not have permission to view this organization-structure screen."
 
@@ -3949,6 +3958,228 @@ msgstr "Event Subscriptions"
 
 msgid "admin.layout.nav_integration_hub_deliveries"
 msgstr "Deliveries"
+msgid "admin.reference_data.access_denied_body"
+msgstr "You do not have permission to view this reference-data screen."
+
+msgid "admin.reference_data.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.reference_data.value_sets.title"
+msgstr "Reference Value Sets"
+
+msgid "admin.reference_data.value_sets.col_key"
+msgstr "Key"
+
+msgid "admin.reference_data.value_sets.col_name"
+msgstr "Name"
+
+msgid "admin.reference_data.value_sets.col_scope"
+msgstr "Scope"
+
+msgid "admin.reference_data.value_sets.col_status"
+msgstr "Status"
+
+msgid "admin.reference_data.value_sets.col_actions"
+msgstr "Actions"
+
+msgid "admin.reference_data.value_sets.no_rows"
+msgstr "No reference value sets yet."
+
+msgid "admin.reference_data.value_sets.create_summary"
+msgstr "Create a new value set"
+
+msgid "admin.reference_data.value_sets.field_key"
+msgstr "Key"
+
+msgid "admin.reference_data.value_sets.field_name"
+msgstr "Name"
+
+msgid "admin.reference_data.value_sets.field_description"
+msgstr "Description"
+
+msgid "admin.reference_data.value_sets.field_override_policy"
+msgstr "Tenant override policy"
+
+msgid "admin.reference_data.value_sets.create_submit"
+msgstr "Create"
+
+msgid "admin.reference_data.value_sets.create_success"
+msgstr "Reference value set created."
+
+msgid "admin.reference_data.value_sets.deprecate_button"
+msgstr "Deprecate"
+
+msgid "admin.reference_data.value_sets.deprecate_reason_prompt"
+msgstr "Enter a reason for deprecating this value set:"
+
+msgid "admin.reference_data.value_sets.deprecate_success"
+msgstr "Reference value set deprecated."
+
+msgid "admin.reference_data.value_sets.restore_button"
+msgstr "Restore"
+
+msgid "admin.reference_data.value_sets.restore_success"
+msgstr "Reference value set restored."
+
+msgid "admin.reference_data.codes.title"
+msgstr "Reference Codes"
+
+msgid "admin.reference_data.codes.select_value_set_label"
+msgstr "Value set"
+
+msgid "admin.reference_data.codes.no_rows"
+msgstr "No codes yet for this value set."
+
+msgid "admin.reference_data.codes.col_code"
+msgstr "Code"
+
+msgid "admin.reference_data.codes.col_label"
+msgstr "Label"
+
+msgid "admin.reference_data.codes.col_provenance"
+msgstr "Provenance"
+
+msgid "admin.reference_data.codes.col_status"
+msgstr "Status"
+
+msgid "admin.reference_data.codes.col_actions"
+msgstr "Actions"
+
+msgid "admin.reference_data.codes.create_summary"
+msgstr "Add a code manually"
+
+msgid "admin.reference_data.codes.field_code"
+msgstr "Code"
+
+msgid "admin.reference_data.codes.field_label_en"
+msgstr "Label (English)"
+
+msgid "admin.reference_data.codes.field_label_id"
+msgstr "Label (Indonesian)"
+
+msgid "admin.reference_data.codes.create_submit"
+msgstr "Create"
+
+msgid "admin.reference_data.codes.create_success"
+msgstr "Reference code created."
+
+msgid "admin.reference_data.codes.deprecate_button"
+msgstr "Deprecate"
+
+msgid "admin.reference_data.codes.deprecate_reason_prompt"
+msgstr "Enter a reason for deprecating this code:"
+
+msgid "admin.reference_data.codes.deprecate_success"
+msgstr "Reference code deprecated."
+
+msgid "admin.reference_data.codes.restore_button"
+msgstr "Restore"
+
+msgid "admin.reference_data.codes.restore_success"
+msgstr "Reference code restored."
+
+msgid "admin.reference_data.codes.import_section_title"
+msgstr "Validated import"
+
+msgid "admin.reference_data.codes.import_payload_label"
+msgstr "Codes (JSON array)"
+
+msgid "admin.reference_data.codes.import_dry_run_submit"
+msgstr "Preview import (dry-run)"
+
+msgid "admin.reference_data.codes.import_dry_run_success"
+msgstr "Dry-run diff computed. Review it below before committing."
+
+msgid "admin.reference_data.codes.import_commit_submit"
+msgstr "Commit import"
+
+msgid "admin.reference_data.codes.import_commit_success"
+msgstr "Import committed."
+
+msgid "admin.reference_data.codes.import_rollback_button"
+msgstr "Roll back"
+
+msgid "admin.reference_data.codes.import_rollback_success"
+msgstr "Import rolled back."
+
+msgid "admin.reference_data.codes.import_invalid_json"
+msgstr "The codes field must be valid JSON."
+
+msgid "admin.reference_data.codes.import_history_title"
+msgstr "Import history"
+
+msgid "admin.reference_data.codes.import_col_status"
+msgstr "Status"
+
+msgid "admin.reference_data.codes.import_col_created"
+msgstr "Created"
+
+msgid "admin.reference_data.codes.import_col_actions"
+msgstr "Actions"
+
+msgid "admin.reference_data.tenant_codes.title"
+msgstr "Reference Code Overrides"
+
+msgid "admin.reference_data.tenant_codes.select_value_set_label"
+msgstr "Value set"
+
+msgid "admin.reference_data.tenant_codes.no_rows"
+msgstr "No tenant overrides or extensions yet for this value set."
+
+msgid "admin.reference_data.tenant_codes.col_code"
+msgstr "Code"
+
+msgid "admin.reference_data.tenant_codes.col_kind"
+msgstr "Kind"
+
+msgid "admin.reference_data.tenant_codes.col_label"
+msgstr "Label"
+
+msgid "admin.reference_data.tenant_codes.col_status"
+msgstr "Status"
+
+msgid "admin.reference_data.tenant_codes.col_actions"
+msgstr "Actions"
+
+msgid "admin.reference_data.tenant_codes.create_summary"
+msgstr "Create a tenant override or extension"
+
+msgid "admin.reference_data.tenant_codes.field_base_code"
+msgstr "Base code id (leave blank for a new tenant-defined code)"
+
+msgid "admin.reference_data.tenant_codes.field_base_code_placeholder"
+msgstr "Optional -- leave blank to create an extension"
+
+msgid "admin.reference_data.tenant_codes.field_code"
+msgstr "Code"
+
+msgid "admin.reference_data.tenant_codes.field_label_en"
+msgstr "Label (English)"
+
+msgid "admin.reference_data.tenant_codes.field_label_id"
+msgstr "Label (Indonesian)"
+
+msgid "admin.reference_data.tenant_codes.create_submit"
+msgstr "Create"
+
+msgid "admin.reference_data.tenant_codes.create_success"
+msgstr "Tenant reference code created."
+
+msgid "admin.reference_data.tenant_codes.deprecate_button"
+msgstr "Deprecate"
+
+msgid "admin.reference_data.tenant_codes.deprecate_reason_prompt"
+msgstr "Enter a reason for deprecating this tenant code:"
+
+msgid "admin.reference_data.tenant_codes.deprecate_success"
+msgstr "Tenant reference code deprecated."
+
+msgid "admin.reference_data.tenant_codes.restore_button"
+msgstr "Restore"
+
+msgid "admin.reference_data.tenant_codes.restore_success"
+msgstr "Tenant reference code restored."
+
 msgid "admin.layout.nav_reporting_projections"
 msgstr "Reporting Projections"
 

@@ -644,6 +644,85 @@ hierarchy max depth, expiring-soon assignments) — TIDAK ada grant
 INSERT/UPDATE/DELETE untuk worker role (semua mutasi terjadi di jalur
 request `awcms_mini_app`).
 
+### Reference Data (Issue #750, epic `platform-evolution` #738 Wave 3, ADR-0021, `sql/075`–`076`)
+
+Modul Official Optional Module baru `reference_data` — value set/code
+efektif-tanggal, terlokalisasi, dengan provenance, deprecation/
+supersession, precedence baseline-global vs tenant-override yang
+deterministik, import tervalidasi, dan module-contributed catalogs. Lihat
+`src/modules/reference-data/README.md` untuk rasional desain lengkap.
+Enam tabel — **EMPAT GLOBAL** (TIDAK ada `tenant_id`, TIDAK ada RLS,
+reviewed-exempt sama seperti `awcms_mini_permissions`/`awcms_mini_modules`/
+`awcms_mini_idn_admin_regions` di atas, terdaftar di `RLS_FREE_TABLES` DAN
+`ALLOWED_GLOBAL_TABLE_GRANTS` `scripts/security-readiness.ts`) dan **DUA
+TENANT-SCOPED** (`ENABLE`+`FORCE ROW LEVEL SECURITY`, predicate selalu dan
+hanya `tenant_id`):
+
+- **`awcms_mini_reference_value_sets`** (GLOBAL) — katalog bernama stabil
+  (mis. `"currency"`). `scope` (`module_contributed`/`platform_curated`),
+  `override_policy` (`none`/`tenant_extend`/`tenant_override`/
+  `tenant_extend_and_override`) mengatur apa yang boleh dilakukan tenant
+  di dua tabel tenant-scoped di bawah — dibaca server-side, TIDAK PERNAH
+  dipercaya dari request input.
+- **`awcms_mini_reference_imports`** (GLOBAL) — satu baris per batch
+  dry-run/commit import baseline codes suatu value set. `payload`/
+  `checksum` adalah konten dry-run tervalidasi persis; commit
+  re-validasi checksum DAN re-jalankan validasi penuh DI DALAM transaksi
+  yang sama dengan penulisan.
+- **`awcms_mini_reference_codes`** (GLOBAL) — satu baris per code dalam
+  value set (mis. `"IDR"` dalam `"currency"`). TIDAK PERNAH hard-delete
+  setelah direferensikan tenant override/extension — deprecate/supersede
+  saja (issue #750: "kode yang sudah direferensikan data bisnis tidak
+  pernah dihapus diam-diam atau diubah maknanya di tempat"). Unique
+  constraint `(value_set_id, code)` TIDAK partial (berlaku SELAMANYA,
+  bukan hanya baris aktif) — string code yang sudah deprecated tidak
+  pernah dipakai ulang untuk makna berbeda.
+- **`awcms_mini_reference_code_translations`** (GLOBAL) — label/deskripsi
+  terlokalisasi per code per locale (pola "tabel translasi terpisah" doc
+  ini di bawah).
+- **`awcms_mini_reference_tenant_codes`** (TENANT-SCOPED) — override
+  tenant (`base_code_id` terisi, merestate atribut code baseline untuk
+  tenant ini saja) ATAU extension (`base_code_id` NULL, code baru murni
+  milik tenant). TIDAK PERNAH menulis ke tabel baseline global di atas —
+  precedence resolusi (baseline vs override) adalah operasi BACA murni
+  yang menggabungkan hasil dua query terpisah (`domain/resolution.ts`),
+  bukan JOIN lintas-isolasi.
+- **`awcms_mini_reference_tenant_code_translations`** (TENANT-SCOPED) —
+  label/deskripsi terlokalisasi per tenant code per locale.
+
+Permission seed: 19 permission (`076_awcms_mini_reference_data_
+permissions.sql`) — `value_sets.{read,create,update,delete,restore}`,
+`codes.{read,create,update,delete,restore}`,
+`imports.{read,create,commit,rollback}` (`commit`/`rollback` adalah dua
+nilai `AccessAction` BARU, additive-only, keduanya `HIGH_RISK_ACTIONS`),
+`tenant_codes.{read,create,update,delete,restore}`. SELURUH mutasi modul
+ini (bukan subset) wajib `Idempotency-Key` + audit — keputusan blanket
+setelah epic ini menemukan celah dari cakupan parsial di PR sebelumnya.
+
+Capability port: `_shared/ports/reference-data-port.ts`
+(`ReferenceDataPort`) — resolusi code/snapshot tunggal untuk satu tenant,
+menggabungkan baseline+override. Diimplementasikan
+`application/reference-data-port-adapter.ts`; belum ada modul lain di
+repo ini yang mengonsumsinya (extension seam).
+
+Mekanisme kontribusi modul: `ModuleDescriptor.referenceData.
+contributesValueSets` (field opsional additive baru di
+`_shared/module-contract.ts`) — modul lain mendeklarasikan value
+set/code miliknya sendiri secara statis; `domain/contribution-
+registry.ts` (`bun run reference-data:contributions:check`) memvalidasi,
+`application/contribution-sync.ts` (`bun run reference-data:
+contributions:sync`, dipanggil eksplisit, TIDAK PERNAH otomatis dari
+modul lain) menyinkronkannya. Modul ini men-dogfood mekanismenya sendiri
+lewat tiga contoh netral non-otoritatif (`currency`/`unit_of_measure`/
+`fiscal_calendar`, `application/seed-contributions.ts`).
+`idn_admin_regions` TIDAK digabung/diduplikasi ke modul ini (ADR-0021
+§4) — tetap modul-owned, boleh (opsional, di issue masa depan) mendaftar
+lewat mekanisme kontribusi yang sama tanpa migrasi data wajib.
+
+`awcms_mini_worker` TIDAK diberi akses apa pun ke keenam tabel ini (tidak
+ada job/proses latar belakang yang menyentuhnya — seluruh mutasi lewat
+jalur request `awcms_mini_app`, permission-gated).
+
 ### Document Infrastructure (Issue #751, epic `platform-evolution` #738 Wave 3, ADR-0017, `sql/066`–`068`)
 
 Modul Official Optional Module baru `document_infrastructure` —

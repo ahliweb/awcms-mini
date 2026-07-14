@@ -102,6 +102,38 @@ export const ORGANIZATION_STRUCTURE_ASSIGNMENT_ENDED_EVENT_TYPE =
   "awcms-mini.organization-structure.assignment.ended";
 
 /**
+ * `reference_data`'s REAL producer registration (Issue #750, epic #738
+ * platform-evolution Wave 3, ADR-0018) — `application/value-set-
+ * directory.ts`, `code-directory.ts`, `tenant-code-directory.ts`, and
+ * `import-service.ts` all call `appendDomainEvent` with these inside the
+ * SAME transaction as the state change they describe. No "restored"
+ * event for value set/code/tenant code — same precedent
+ * `organization_structure`'s `legal_entity` events already set (restore
+ * is audited but not published as a domain event).
+ */
+export const REFERENCE_DATA_EVENT_VERSION = "1.0";
+export const REFERENCE_DATA_VALUE_SET_CREATED_EVENT_TYPE =
+  "awcms-mini.reference-data.value-set.created";
+export const REFERENCE_DATA_VALUE_SET_UPDATED_EVENT_TYPE =
+  "awcms-mini.reference-data.value-set.updated";
+export const REFERENCE_DATA_VALUE_SET_DEPRECATED_EVENT_TYPE =
+  "awcms-mini.reference-data.value-set.deprecated";
+export const REFERENCE_DATA_CODE_CREATED_EVENT_TYPE =
+  "awcms-mini.reference-data.code.created";
+export const REFERENCE_DATA_CODE_UPDATED_EVENT_TYPE =
+  "awcms-mini.reference-data.code.updated";
+export const REFERENCE_DATA_CODE_DEPRECATED_EVENT_TYPE =
+  "awcms-mini.reference-data.code.deprecated";
+export const REFERENCE_DATA_IMPORT_COMMITTED_EVENT_TYPE =
+  "awcms-mini.reference-data.import.committed";
+export const REFERENCE_DATA_IMPORT_ROLLED_BACK_EVENT_TYPE =
+  "awcms-mini.reference-data.import.rolled-back";
+export const REFERENCE_DATA_TENANT_CODE_CREATED_EVENT_TYPE =
+  "awcms-mini.reference-data.tenant-code.created";
+export const REFERENCE_DATA_TENANT_CODE_DEPRECATED_EVENT_TYPE =
+  "awcms-mini.reference-data.tenant-code.deprecated";
+
+/**
  * `document_infrastructure`'s FIRST real producer registration (Issue
  * #751, epic `platform-evolution` #738, Wave 3). `application/document-
  * directory.ts`, `document-version-service.ts`, and `document-number-
@@ -283,6 +315,63 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventType: ORGANIZATION_STRUCTURE_ASSIGNMENT_ENDED_EVENT_TYPE,
       eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
       description: "An organization-unit assignment was ended (Issue #749)."
+    },
+    {
+      eventType: REFERENCE_DATA_VALUE_SET_CREATED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description: "A reference value set was created (Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_VALUE_SET_UPDATED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description: "A reference value set's metadata was updated (Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_VALUE_SET_DEPRECATED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description:
+        "A reference value set was deprecated (soft-deleted, Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_CODE_CREATED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description:
+        "A reference code was created within a value set (Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_CODE_UPDATED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description:
+        "A reference code's mutable attributes were updated (Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_CODE_DEPRECATED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description: "A reference code was deprecated (soft-deleted, Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_IMPORT_COMMITTED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description:
+        "A validated reference-data import batch was committed to the global baseline (Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_IMPORT_ROLLED_BACK_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description:
+        "A committed reference-data import batch was rolled back (Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_TENANT_CODE_CREATED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description:
+        "A tenant reference code override or extension was created (Issue #750)."
+    },
+    {
+      eventType: REFERENCE_DATA_TENANT_CODE_DEPRECATED_EVENT_TYPE,
+      eventVersion: REFERENCE_DATA_EVENT_VERSION,
+      description:
+        "A tenant reference code override or extension was deprecated (Issue #750)."
     },
     {
       eventType: DOCUMENT_INFRASTRUCTURE_DOCUMENT_CREATED_EVENT_TYPE,

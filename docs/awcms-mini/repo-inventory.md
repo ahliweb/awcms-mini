@@ -6,7 +6,7 @@
 
 ## Modules
 
-22 modules registered in `src/modules/index.ts` `listModules()`.
+23 modules registered in `src/modules/index.ts` `listModules()`.
 
 | Key                       | Version | Status         | Type     | Dependencies                                                                       |
 | ------------------------- | ------- | -------------- | -------- | ---------------------------------------------------------------------------------- |
@@ -25,6 +25,7 @@
 | `news_portal`             | `0.4.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                                  |
 | `organization_structure`  | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`                          |
 | `profile_identity`        | `1.1.0` | `active`       | `-`      | `tenant_admin`                                                                     |
+| `reference_data`          | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`                          |
 | `reporting`               | `1.2.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email`, `domain_event_runtime` |
 | `social_publishing`       | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                                  |
 | `sync_storage`            | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                                     |
@@ -35,7 +36,7 @@
 
 ## Migrations
 
-74 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `074_awcms_mini_integration_hub_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
+76 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `076_awcms_mini_reference_data_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -113,44 +114,50 @@
 | 072 | `072_awcms_mini_data_exchange_permissions.sql`                           |
 | 073 | `073_awcms_mini_integration_hub_schema.sql`                              |
 | 074 | `074_awcms_mini_integration_hub_permissions.sql`                         |
+| 075 | `075_awcms_mini_reference_data_schema.sql`                               |
+| 076 | `076_awcms_mini_reference_data_permissions.sql`                          |
 
 ## Tables & Row-Level Security
 
-138 tables created across all migrations; 128 carry a `tenant_id` column; 127 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
+144 tables created across all migrations; 130 carry a `tenant_id` column; 129 have an `ENABLE ROW LEVEL SECURITY` statement; 15 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
 **Reviewed RLS-exempt allow-list** (see also doc 16 §Registry global, RLS-free):
 
-| Table                             | Reason                                                                                                                                                                                        |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `awcms_mini_schema_migrations`    | Migration ledger — infra bookkeeping, not tenant data.                                                                                                                                        |
-| `awcms_mini_tenants`              | The tenant registry itself — root table other tables' tenant_id references; endpoints scope with an explicit WHERE id = <tenantId> instead (doc note: CHANGELOG 0.23.5 §Settings management). |
-| `awcms_mini_setup_state`          | Singleton (id boolean PRIMARY KEY) setup-wizard state — one row for the whole deployment, not per-tenant data, despite an optional tenant_id FK kept for provenance.                          |
-| `awcms_mini_permissions`          | Permission catalog — global, RLS-free (doc 16 §Registry global, RLS-free).                                                                                                                    |
-| `awcms_mini_modules`              | Module registry — global catalog synced from listModules(), same for every tenant (doc 16 §Registry global, RLS-free).                                                                        |
-| `awcms_mini_module_dependencies`  | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
-| `awcms_mini_module_navigation`    | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
-| `awcms_mini_module_jobs`          | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
-| `awcms_mini_module_health_checks` | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
-| `awcms_mini_idn_region_datasets`  | Indonesia administrative region dataset metadata (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657). |
-| `awcms_mini_idn_admin_regions`    | Indonesia administrative region records (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657).          |
+| Table                                    | Reason                                                                                                                                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `awcms_mini_schema_migrations`           | Migration ledger — infra bookkeeping, not tenant data.                                                                                                                                        |
+| `awcms_mini_tenants`                     | The tenant registry itself — root table other tables' tenant_id references; endpoints scope with an explicit WHERE id = <tenantId> instead (doc note: CHANGELOG 0.23.5 §Settings management). |
+| `awcms_mini_setup_state`                 | Singleton (id boolean PRIMARY KEY) setup-wizard state — one row for the whole deployment, not per-tenant data, despite an optional tenant_id FK kept for provenance.                          |
+| `awcms_mini_permissions`                 | Permission catalog — global, RLS-free (doc 16 §Registry global, RLS-free).                                                                                                                    |
+| `awcms_mini_modules`                     | Module registry — global catalog synced from listModules(), same for every tenant (doc 16 §Registry global, RLS-free).                                                                        |
+| `awcms_mini_module_dependencies`         | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
+| `awcms_mini_module_navigation`           | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
+| `awcms_mini_module_jobs`                 | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
+| `awcms_mini_module_health_checks`        | Module registry — global catalog (doc 16 §Registry global, RLS-free).                                                                                                                         |
+| `awcms_mini_idn_region_datasets`         | Indonesia administrative region dataset metadata (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657). |
+| `awcms_mini_idn_admin_regions`           | Indonesia administrative region records (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657).          |
+| `awcms_mini_reference_value_sets`        | Reference value-set catalog — global baseline, identical for every tenant by design (doc 04 §Reference Data, Issue #750, ADR-0021 §8).                                                        |
+| `awcms_mini_reference_codes`             | Reference code baseline within a value set — global, identical for every tenant (doc 04 §Reference Data, Issue #750, ADR-0021 §8).                                                            |
+| `awcms_mini_reference_code_translations` | Localized labels for global baseline reference codes (doc 04 §Reference Data, Issue #750, ADR-0021 §8).                                                                                       |
+| `awcms_mini_reference_imports`           | Reference data import batch history for the global baseline (doc 04 §Reference Data, Issue #750, ADR-0021 §8).                                                                                |
 
 ## Tests
 
-322 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+327 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 95         |
+| `integration` | 96         |
 | `modules`     | 5          |
-| `unit`        | 167        |
+| `unit`        | 171        |
 
 ## Routes / Operations (summary)
 
-276 OpenAPI paths, 373 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+289 OpenAPI paths, 396 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

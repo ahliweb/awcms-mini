@@ -3267,6 +3267,21 @@ msgid "admin.layout.nav_profile_identity_parties"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/reference-data/module.ts:39
+msgid "admin.layout.nav_reference_data_codes"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/reference-data/module.ts:45
+msgid "admin.layout.nav_reference_data_tenant_codes"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/reference-data/module.ts:33
+msgid "admin.layout.nav_reference_data_value_sets"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/reporting/module.ts:65
 msgid "admin.layout.nav_reporting_projections"
 msgstr ""
@@ -4496,6 +4511,302 @@ msgstr ""
 
 #: src/pages/admin/profile-identity/index.astro:76
 msgid "admin.profile_identity.parties.title"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:120
+msgid "admin.reference_data.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:119
+msgid "admin.reference_data.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:188
+msgid "admin.reference_data.codes.col_actions"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:176
+msgid "admin.reference_data.codes.col_code"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:179
+msgid "admin.reference_data.codes.col_label"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:182
+msgid "admin.reference_data.codes.col_provenance"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:185
+msgid "admin.reference_data.codes.col_status"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:254
+msgid "admin.reference_data.codes.create_submit"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:62
+msgid "admin.reference_data.codes.create_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:233
+msgid "admin.reference_data.codes.create_summary"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:211
+msgid "admin.reference_data.codes.deprecate_button"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:65
+msgid "admin.reference_data.codes.deprecate_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:63
+msgid "admin.reference_data.codes.deprecate_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:237
+msgid "admin.reference_data.codes.field_code"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:241
+msgid "admin.reference_data.codes.field_label_en"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:250
+msgid "admin.reference_data.codes.field_label_id"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:305
+msgid "admin.reference_data.codes.import_col_actions"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:302
+msgid "admin.reference_data.codes.import_col_created"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:299
+msgid "admin.reference_data.codes.import_col_status"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:285
+msgid "admin.reference_data.codes.import_commit_submit"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:69
+msgid "admin.reference_data.codes.import_commit_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:278
+msgid "admin.reference_data.codes.import_dry_run_submit"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:68
+msgid "admin.reference_data.codes.import_dry_run_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:293
+msgid "admin.reference_data.codes.import_history_title"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:73
+msgid "admin.reference_data.codes.import_invalid_json"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:267
+msgid "admin.reference_data.codes.import_payload_label"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:322
+msgid "admin.reference_data.codes.import_rollback_button"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:70
+msgid "admin.reference_data.codes.import_rollback_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:263
+msgid "admin.reference_data.codes.import_section_title"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:169
+msgid "admin.reference_data.codes.no_rows"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:220
+msgid "admin.reference_data.codes.restore_button"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:64
+msgid "admin.reference_data.codes.restore_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:150
+msgid "admin.reference_data.codes.select_value_set_label"
+msgstr ""
+
+#: src/pages/admin/reference-data/codes.astro:114
+msgid "admin.reference_data.codes.title"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:166
+msgid "admin.reference_data.tenant_codes.col_actions"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:154
+msgid "admin.reference_data.tenant_codes.col_code"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:157
+msgid "admin.reference_data.tenant_codes.col_kind"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:160
+msgid "admin.reference_data.tenant_codes.col_label"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:163
+msgid "admin.reference_data.tenant_codes.col_status"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:244
+msgid "admin.reference_data.tenant_codes.create_submit"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:49
+msgid "admin.reference_data.tenant_codes.create_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:213
+msgid "admin.reference_data.tenant_codes.create_summary"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:187
+msgid "admin.reference_data.tenant_codes.deprecate_button"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:52
+msgid "admin.reference_data.tenant_codes.deprecate_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:50
+msgid "admin.reference_data.tenant_codes.deprecate_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:217
+msgid "admin.reference_data.tenant_codes.field_base_code"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:221
+msgid "admin.reference_data.tenant_codes.field_base_code_placeholder"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:227
+msgid "admin.reference_data.tenant_codes.field_code"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:231
+msgid "admin.reference_data.tenant_codes.field_label_en"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:240
+msgid "admin.reference_data.tenant_codes.field_label_id"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:147
+msgid "admin.reference_data.tenant_codes.no_rows"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:198
+msgid "admin.reference_data.tenant_codes.restore_button"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:51
+msgid "admin.reference_data.tenant_codes.restore_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:128
+msgid "admin.reference_data.tenant_codes.select_value_set_label"
+msgstr ""
+
+#: src/pages/admin/reference-data/tenant-codes.astro:92
+msgid "admin.reference_data.tenant_codes.title"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:125
+msgid "admin.reference_data.value_sets.col_actions"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:113
+msgid "admin.reference_data.value_sets.col_key"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:116
+msgid "admin.reference_data.value_sets.col_name"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:119
+msgid "admin.reference_data.value_sets.col_scope"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:122
+msgid "admin.reference_data.value_sets.col_status"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:204
+msgid "admin.reference_data.value_sets.create_submit"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:43
+msgid "admin.reference_data.value_sets.create_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:171
+msgid "admin.reference_data.value_sets.create_summary"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:149
+msgid "admin.reference_data.value_sets.deprecate_button"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:46
+msgid "admin.reference_data.value_sets.deprecate_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:44
+msgid "admin.reference_data.value_sets.deprecate_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:189
+msgid "admin.reference_data.value_sets.field_description"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:175
+msgid "admin.reference_data.value_sets.field_key"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:185
+msgid "admin.reference_data.value_sets.field_name"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:193
+msgid "admin.reference_data.value_sets.field_override_policy"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:106
+msgid "admin.reference_data.value_sets.no_rows"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:158
+msgid "admin.reference_data.value_sets.restore_button"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:45
+msgid "admin.reference_data.value_sets.restore_success"
+msgstr ""
+
+#: src/pages/admin/reference-data/value-sets.astro:73
+msgid "admin.reference_data.value_sets.title"
 msgstr ""
 
 #: src/pages/admin/reporting/projections.astro:144

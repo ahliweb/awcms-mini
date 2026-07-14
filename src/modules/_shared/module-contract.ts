@@ -311,6 +311,8 @@ export type ModuleDescriptor = {
   sodRules?: SoDRuleDescriptor[];
   /** Staged import/export exchange descriptors this module owns (Issue #752) — see `ExchangeDescriptor`'s own doc comment below. */
   dataExchange?: ExchangeDescriptor[];
+  /** Reference-data value sets/codes this module contributes (Issue #750) — see `ReferenceDataModuleContract`'s own doc comment below. */
+  referenceData?: ReferenceDataModuleContract;
   /** Read-model projection descriptors this module owns (Issue #753) — see `ProjectionDescriptor`'s own doc comment below (declared after this type since it's mutually referenced only by name, TypeScript type declarations are not order-sensitive). */
   reportingProjections?: ProjectionDescriptor[];
 };
@@ -426,6 +428,74 @@ export type ExchangeDescriptor = {
   requiredPermission?: string;
   sensitiveFields?: ExchangeSensitiveFieldPolicy;
   description: string;
+};
+
+/**
+ * One localized label/description for a `ReferenceCodeContribution` (Issue
+ * #750, epic #738 platform-evolution Wave 3, ADR-0021). At least an `"en"`
+ * entry is required — same "default en, min en+id" catalog convention
+ * every UI string in this repo already follows (skill
+ * `awcms-mini-i18n`), applied here to CONTENT rather than UI chrome.
+ */
+export type ReferenceCodeLabelContribution = {
+  locale: string;
+  label: string;
+  description?: string;
+};
+
+/**
+ * One code within a `ReferenceValueSetContribution` a module declares
+ * statically in its own `module.ts` (Issue #750). Pure, trusted,
+ * code-only data — same rule as every descriptor type in this file: never
+ * tenant/request-controlled, never a secret/executable expression.
+ * Aggregated + validated by `reference_data/domain/contribution-
+ * registry.ts` and written to `awcms_mini_reference_codes` (`provenance:
+ * "module"`, `managed_by_descriptor: true`) ONLY by `reference_data`'s own
+ * `application/contribution-sync.ts` — the declaring module never writes
+ * to that table itself (ADR-0013 §6 no-shared-table-write).
+ */
+export type ReferenceCodeContribution = {
+  code: string;
+  labels: ReferenceCodeLabelContribution[];
+  sortOrder?: number;
+  metadata?: Record<string, unknown>;
+};
+
+/**
+ * One value set a module contributes statically (Issue #750). `key` must
+ * be globally unique across every module's contributions (validated by
+ * `contribution-registry.ts`, which also rejects a `key` colliding with an
+ * existing `platform_curated` value set created via the API). The
+ * declaring module IS the `owner_module` — never trusted from anywhere
+ * else, always derived from the descriptor's own `key` at sync time.
+ */
+export type ReferenceValueSetContribution = {
+  key: string;
+  name: string;
+  description: string;
+  overridePolicy:
+    "none" | "tenant_extend" | "tenant_override" | "tenant_extend_and_override";
+  codes: ReferenceCodeContribution[];
+};
+
+/**
+ * A module's declared reference-data contribution (Issue #750, epic #738
+ * platform-evolution Wave 3, ADR-0021 §5) — the mechanism "module-
+ * contributed catalogs compose without direct source import or direct
+ * table writes" (issue #750 acceptance criterion) actually is: a module
+ * declares its OWN value sets/codes as plain data here, and
+ * `reference_data`'s own `application/contribution-sync.ts` (invoked
+ * explicitly via `bun run reference-data:contributions:sync`, never
+ * automatically from another module's code) reads `listModules()` and
+ * upserts them into ITS OWN tables — the declaring module never imports
+ * `reference_data`'s tables or application code, and `reference_data`
+ * never imports the declaring module's code, only its own descriptor's
+ * plain data (same "module declares its own descriptor, a central
+ * aggregator reads `listModules()`" shape `dataLifecycle`/`sodRules`
+ * above already use).
+ */
+export type ReferenceDataModuleContract = {
+  contributesValueSets: ReferenceValueSetContribution[];
 };
 
 /**

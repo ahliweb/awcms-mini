@@ -60,6 +60,10 @@ flowchart LR
 | `data_exchange`                 | `exports`                     | read, create, cancel (Issue #752)                                                              |
 | `data_exchange`                 | `export_downloads`            | read (Issue #752)                                                                              |
 | `data_exchange`                 | `reconciliation`              | read (Issue #752)                                                                              |
+| `reference_data`                | `value_sets`                  | read, create, update, delete, restore (Issue #750)                                             |
+| `reference_data`                | `codes`                       | read, create, update, delete, restore (Issue #750)                                             |
+| `reference_data`                | `imports`                     | read, create, commit, rollback (Issue #750)                                                    |
+| `reference_data`                | `tenant_codes`                | read, create, update, delete, restore (Issue #750)                                             |
 | `profile_identity`              | `profile_management`          | read, create, update, delete, restore                                                          |
 | `profile_identity`              | `profile_merge`               | read, approve                                                                                  |
 | `catalog_inventory`             | `product_management`          | read, create, update, delete, restore                                                          |

@@ -766,6 +766,99 @@ channels:
       An organization-unit assignment was ended (Issue #749). Producer:
       `organization-structure/application/organization-unit-assignment-
       service.ts`'s `endOrganizationUnitAssignment`.
+  awcms-mini.reference-data.value-set.created:
+    address: awcms-mini.reference-data.value-set.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reference value set was created (Issue #750, epic
+      `platform-evolution` #738 Wave 3). Producer: `reference-data/
+      application/value-set-directory.ts`'s `createReferenceValueSet`.
+  awcms-mini.reference-data.value-set.updated:
+    address: awcms-mini.reference-data.value-set.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reference value set's metadata was updated (Issue #750). Producer:
+      `reference-data/application/value-set-directory.ts`'s
+      `updateReferenceValueSet`.
+  awcms-mini.reference-data.value-set.deprecated:
+    address: awcms-mini.reference-data.value-set.deprecated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reference value set was deprecated (soft-deleted, Issue #750).
+      Producer: `reference-data/application/value-set-directory.ts`'s
+      `deprecateReferenceValueSet`.
+  awcms-mini.reference-data.code.created:
+    address: awcms-mini.reference-data.code.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reference code was created within a value set (Issue #750).
+      Producer: `reference-data/application/code-directory.ts`'s
+      `createReferenceCode`.
+  awcms-mini.reference-data.code.updated:
+    address: awcms-mini.reference-data.code.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reference code's mutable attributes were updated (Issue #750).
+      Producer: `reference-data/application/code-directory.ts`'s
+      `updateReferenceCode`.
+  awcms-mini.reference-data.code.deprecated:
+    address: awcms-mini.reference-data.code.deprecated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reference code was deprecated (soft-deleted, Issue #750). Producer:
+      `reference-data/application/code-directory.ts`'s
+      `deprecateReferenceCode`.
+  awcms-mini.reference-data.import.committed:
+    address: awcms-mini.reference-data.import.committed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A validated reference-data import batch was committed to the global
+      baseline (Issue #750) — commit re-validates checksum + destructive-
+      replace protection inside the same transaction as the write.
+      Producer: `reference-data/application/import-service.ts`'s
+      `commitReferenceImport`.
+  awcms-mini.reference-data.import.rolled-back:
+    address: awcms-mini.reference-data.import.rolled-back
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A committed reference-data import batch was rolled back (Issue
+      #750). Producer: `reference-data/application/import-service.ts`'s
+      `rollbackReferenceImport`.
+  awcms-mini.reference-data.tenant-code.created:
+    address: awcms-mini.reference-data.tenant-code.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A tenant reference code override or extension was created (Issue
+      #750) — writes ONLY to the tenant-scoped table, never the global
+      baseline. Producer: `reference-data/application/tenant-code-
+      directory.ts`'s `createTenantReferenceCode`.
+  awcms-mini.reference-data.tenant-code.deprecated:
+    address: awcms-mini.reference-data.tenant-code.deprecated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A tenant reference code override or extension was deprecated (Issue
+      #750). Producer: `reference-data/application/tenant-code-
+      directory.ts`'s `deprecateTenantReferenceCode`.
   awcms-mini.document-infrastructure.document.created:
     address: awcms-mini.document-infrastructure.document.created
     messages:
@@ -1353,6 +1446,66 @@ operations:
       $ref: "#/channels/awcms-mini.organization-structure.assignment.ended"
     messages:
       - $ref: "#/channels/awcms-mini.organization-structure.assignment.ended/messages/DomainEvent"
+  publishReferenceDataValueSetCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.value-set.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.value-set.created/messages/DomainEvent"
+  publishReferenceDataValueSetUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.value-set.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.value-set.updated/messages/DomainEvent"
+  publishReferenceDataValueSetDeprecated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.value-set.deprecated"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.value-set.deprecated/messages/DomainEvent"
+  publishReferenceDataCodeCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.code.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.code.created/messages/DomainEvent"
+  publishReferenceDataCodeUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.code.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.code.updated/messages/DomainEvent"
+  publishReferenceDataCodeDeprecated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.code.deprecated"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.code.deprecated/messages/DomainEvent"
+  publishReferenceDataImportCommitted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.import.committed"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.import.committed/messages/DomainEvent"
+  publishReferenceDataImportRolledBack:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.import.rolled-back"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.import.rolled-back/messages/DomainEvent"
+  publishReferenceDataTenantCodeCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.tenant-code.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.tenant-code.created/messages/DomainEvent"
+  publishReferenceDataTenantCodeDeprecated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.reference-data.tenant-code.deprecated"
+    messages:
+      - $ref: "#/channels/awcms-mini.reference-data.tenant-code.deprecated/messages/DomainEvent"
   publishDocumentInfrastructureDocumentCreated:
     action: send
     channel:
