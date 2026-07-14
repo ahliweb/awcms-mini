@@ -7917,7 +7917,7 @@ High-risk mutation -- requires Idempotency-Key.
 
 ## Reference Data
 
-Optional, provider-neutral reference-data foundation (epic `platform-evolution` #738 Wave 3, Issue #750, ADR-0018) — effective-dated, localized value sets and codes with provenance/deprecation/supersession, a validated import pipeline (non-mutating dry-run, commit re-validated inside the same transaction, destructive replacement of a code already referenced by tenant data is always rejected), and a tenant-scoped override/extension layer that never mutates the global baseline. Value sets/codes/imports are GLOBAL (reviewed RLS-exempt, identical for every tenant); tenant overrides/extensions are RLS FORCE, predicate always and only `tenant_id`.
+Optional, provider-neutral reference-data foundation (epic `platform-evolution` #738 Wave 3, Issue #750, ADR-0021) — effective-dated, localized value sets and codes with provenance/deprecation/supersession, a validated import pipeline (non-mutating dry-run, commit re-validated inside the same transaction, destructive replacement of a code already referenced by tenant data is always rejected), and a tenant-scoped override/extension layer that never mutates the global baseline. Value sets/codes/imports are GLOBAL (reviewed RLS-exempt, identical for every tenant); tenant overrides/extensions are RLS FORCE, predicate always and only `tenant_id`.
 
 ### `GET /api/v1/reference-data/tenant-codes` — List the caller's tenant reference code overrides/extensions, raw or resolved
 

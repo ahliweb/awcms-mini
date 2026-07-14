@@ -1,5 +1,5 @@
 # Source fragment for the "Reference Data" module/tag (Issue #750,
-# epic #738 platform-evolution Wave 3, ADR-0018). Owns every path tagged
+# epic #738 platform-evolution Wave 3, ADR-0021). Owns every path tagged
 # "Reference Data" and every schema referenced only by this tag's
 # operations.
 #
@@ -1365,7 +1365,7 @@ components:
           nullable: true
     ReferenceValueSet:
       type: object
-      description: A reference value set (Issue #750, epic `platform-evolution` #738 Wave 3, ADR-0018) -- GLOBAL, identical for every tenant.
+      description: A reference value set (Issue #750, epic `platform-evolution` #738 Wave 3, ADR-0021) -- GLOBAL, identical for every tenant.
       additionalProperties: false
       required:
         - id
