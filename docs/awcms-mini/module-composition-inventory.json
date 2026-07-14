@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 19,
+  "baseModuleCount": 20,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 19,
+  "totalModuleCount": 20,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -55,6 +55,27 @@
       "permissionCount": 6,
       "navigationCount": 0,
       "jobCount": 1,
+      "hasHealthCheck": false,
+      "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "document_infrastructure",
+      "name": "Document Infrastructure",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "domain",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime"
+      ],
+      "capabilitiesProvided": ["document_resource_relations"],
+      "capabilitiesConsumed": [],
+      "permissionCount": 27,
+      "navigationCount": 3,
+      "jobCount": 0,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,
       "deploymentProfiles": null

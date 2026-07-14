@@ -2088,6 +2088,462 @@ msgstr ""
 msgid "admin.dashboard.total_decision_log_label"
 msgstr ""
 
+#: src/pages/admin/document-infrastructure/classifications.astro:82
+msgid "admin.document_infrastructure.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:81
+msgid "admin.document_infrastructure.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:130
+msgid "admin.document_infrastructure.classifications.col_actions"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:116
+msgid "admin.document_infrastructure.classifications.col_code"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:122
+msgid "admin.document_infrastructure.classifications.col_confidentiality"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:119
+msgid "admin.document_infrastructure.classifications.col_name"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:127
+msgid "admin.document_infrastructure.classifications.col_status"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:211
+msgid "admin.document_infrastructure.classifications.create_submit"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:42
+msgid "admin.document_infrastructure.classifications.create_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:174
+msgid "admin.document_infrastructure.classifications.create_summary"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:148
+msgid "admin.document_infrastructure.classifications.deactivate_button"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:47
+msgid "admin.document_infrastructure.classifications.deactivate_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:43
+msgid "admin.document_infrastructure.classifications.deactivate_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:178
+msgid "admin.document_infrastructure.classifications.field_code"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:192
+msgid "admin.document_infrastructure.classifications.field_confidentiality"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:188
+msgid "admin.document_infrastructure.classifications.field_name"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:205
+msgid "admin.document_infrastructure.classifications.field_retention_reference"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:109
+msgid "admin.document_infrastructure.classifications.no_rows"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:159
+msgid "admin.document_infrastructure.classifications.restore_button"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:46
+msgid "admin.document_infrastructure.classifications.restore_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/classifications.astro:76
+msgid "admin.document_infrastructure.classifications.title"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:260
+msgid "admin.document_infrastructure.document_detail.col_actions"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:186
+msgid "admin.document_infrastructure.document_detail.col_checksum"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:341
+msgid "admin.document_infrastructure.document_detail.col_created_at"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:338
+msgid "admin.document_infrastructure.document_detail.col_evidence_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:183
+msgid "admin.document_infrastructure.document_detail.col_media_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:251
+msgid "admin.document_infrastructure.document_detail.col_owner_module"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:257
+msgid "admin.document_infrastructure.document_detail.col_relation_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:254
+msgid "admin.document_infrastructure.document_detail.col_resource"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:134
+msgid "admin.document_infrastructure.document_detail.confidentiality_label"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:328
+msgid "admin.document_infrastructure.document_detail.evidence_heading"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:331
+msgid "admin.document_infrastructure.document_detail.evidence_no_rows"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:229
+msgid "admin.document_infrastructure.document_detail.field_checksum"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:144
+msgid "admin.document_infrastructure.document_detail.field_classification"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:155
+msgid "admin.document_infrastructure.document_detail.field_confidentiality"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:209
+msgid "admin.document_infrastructure.document_detail.field_content_reference"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:213
+msgid "admin.document_infrastructure.document_detail.field_content_reference_kind"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:221
+msgid "admin.document_infrastructure.document_detail.field_media_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:292
+msgid "admin.document_infrastructure.document_detail.field_owner_module"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:310
+msgid "admin.document_infrastructure.document_detail.field_relation_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:306
+msgid "admin.document_infrastructure.document_detail.field_resource_id"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:302
+msgid "admin.document_infrastructure.document_detail.field_resource_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:225
+msgid "admin.document_infrastructure.document_detail.field_size_bytes"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:320
+msgid "admin.document_infrastructure.document_detail.link_submit"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:54
+msgid "admin.document_infrastructure.document_detail.link_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:288
+msgid "admin.document_infrastructure.document_detail.link_summary"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:59
+msgid "admin.document_infrastructure.document_detail.reclassify_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:164
+msgid "admin.document_infrastructure.document_detail.reclassify_submit"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:50
+msgid "admin.document_infrastructure.document_detail.reclassify_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:140
+msgid "admin.document_infrastructure.document_detail.reclassify_summary"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:241
+msgid "admin.document_infrastructure.document_detail.relations_heading"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:244
+msgid "admin.document_infrastructure.document_detail.relations_no_rows"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:132
+msgid "admin.document_infrastructure.document_detail.status_label"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:98
+msgid "admin.document_infrastructure.document_detail.title"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:275
+msgid "admin.document_infrastructure.document_detail.unlink_button"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:56
+msgid "admin.document_infrastructure.document_detail.unlink_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:55
+msgid "admin.document_infrastructure.document_detail.unlink_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:233
+msgid "admin.document_infrastructure.document_detail.version_create_submit"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:51
+msgid "admin.document_infrastructure.document_detail.version_create_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:205
+msgid "admin.document_infrastructure.document_detail.version_create_summary"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:172
+msgid "admin.document_infrastructure.document_detail.versions_heading"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:175
+msgid "admin.document_infrastructure.document_detail.versions_no_rows"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:128
+msgid "admin.document_infrastructure.documents.col_actions"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:119
+msgid "admin.document_infrastructure.documents.col_owner_module"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:122
+msgid "admin.document_infrastructure.documents.col_status"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:116
+msgid "admin.document_infrastructure.documents.col_title"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:125
+msgid "admin.document_infrastructure.documents.col_version"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:226
+msgid "admin.document_infrastructure.documents.create_submit"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:44
+msgid "admin.document_infrastructure.documents.create_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:164
+msgid "admin.document_infrastructure.documents.create_summary"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:196
+msgid "admin.document_infrastructure.documents.field_classification"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents/[id].astro:147
+msgid "admin.document_infrastructure.documents.field_classification_none"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:207
+msgid "admin.document_infrastructure.documents.field_confidentiality"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:178
+msgid "admin.document_infrastructure.documents.field_document_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:168
+msgid "admin.document_infrastructure.documents.field_owner_module"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:222
+msgid "admin.document_infrastructure.documents.field_resource_id"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:218
+msgid "admin.document_infrastructure.documents.field_resource_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:192
+msgid "admin.document_infrastructure.documents.field_summary"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:188
+msgid "admin.document_infrastructure.documents.field_title"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:109
+msgid "admin.document_infrastructure.documents.no_rows"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:151
+msgid "admin.document_infrastructure.documents.restore_button"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:46
+msgid "admin.document_infrastructure.documents.restore_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:76
+msgid "admin.document_infrastructure.documents.title"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:146
+msgid "admin.document_infrastructure.documents.void_button"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:47
+msgid "admin.document_infrastructure.documents.void_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/documents.astro:45
+msgid "admin.document_infrastructure.documents.void_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:267
+msgid "admin.document_infrastructure.sequences.cancel_button"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:58
+msgid "admin.document_infrastructure.sequences.cancel_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:57
+msgid "admin.document_infrastructure.sequences.cancel_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:139
+msgid "admin.document_infrastructure.sequences.col_actions"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:136
+msgid "admin.document_infrastructure.sequences.col_current_value"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:133
+msgid "admin.document_infrastructure.sequences.col_format"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:245
+msgid "admin.document_infrastructure.sequences.col_formatted_number"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:130
+msgid "admin.document_infrastructure.sequences.col_key"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:248
+msgid "admin.document_infrastructure.sequences.col_reservation_status"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:127
+msgid "admin.document_infrastructure.sequences.col_scope"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:227
+msgid "admin.document_infrastructure.sequences.create_submit"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:178
+msgid "admin.document_infrastructure.sequences.create_summary"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:160
+msgid "admin.document_infrastructure.sequences.deactivate_button"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:53
+msgid "admin.document_infrastructure.sequences.deactivate_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:52
+msgid "admin.document_infrastructure.sequences.deactivate_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:51
+msgid "admin.document_infrastructure.sequences.define_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:117
+msgid "admin.document_infrastructure.sequences.definitions_heading"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:208
+msgid "admin.document_infrastructure.sequences.field_format_template"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:218
+msgid "admin.document_infrastructure.sequences.field_reset_policy"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:193
+msgid "admin.document_infrastructure.sequences.field_scope_id"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:182
+msgid "admin.document_infrastructure.sequences.field_scope_type"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:197
+msgid "admin.document_infrastructure.sequences.field_sequence_key"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:120
+msgid "admin.document_infrastructure.sequences.no_rows"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:235
+msgid "admin.document_infrastructure.sequences.reservations_heading"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:238
+msgid "admin.document_infrastructure.sequences.reservations_no_rows"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:165
+msgid "admin.document_infrastructure.sequences.reserve_button"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:56
+msgid "admin.document_infrastructure.sequences.reserve_success"
+msgstr ""
+
+#: src/pages/admin/document-infrastructure/sequences.astro:85
+msgid "admin.document_infrastructure.sequences.title"
+msgstr ""
+
 #: src/pages/admin/examples/wizard.astro:82
 msgid "admin.examples.wizard.draft_resumed_notice"
 msgstr ""
@@ -2220,6 +2676,21 @@ msgstr ""
 
 #: src/layouts/AdminLayout.astro:263
 msgid "admin.layout.nav_dashboard"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/document-infrastructure/module.ts:40
+msgid "admin.layout.nav_document_infrastructure_classifications"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/document-infrastructure/module.ts:34
+msgid "admin.layout.nav_document_infrastructure_documents"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/document-infrastructure/module.ts:46
+msgid "admin.layout.nav_document_infrastructure_sequences"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)

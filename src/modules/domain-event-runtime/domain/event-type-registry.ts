@@ -101,6 +101,31 @@ export const ORGANIZATION_STRUCTURE_ASSIGNMENT_CREATED_EVENT_TYPE =
 export const ORGANIZATION_STRUCTURE_ASSIGNMENT_ENDED_EVENT_TYPE =
   "awcms-mini.organization-structure.assignment.ended";
 
+/**
+ * `document_infrastructure`'s FIRST real producer registration (Issue
+ * #751, epic `platform-evolution` #738, Wave 3). `application/document-
+ * directory.ts`, `document-version-service.ts`, and `document-number-
+ * reservation-service.ts` call `appendDomainEvent` with these inside the
+ * SAME transaction as the state change they describe.
+ */
+export const DOCUMENT_INFRASTRUCTURE_EVENT_VERSION = "1.0";
+export const DOCUMENT_INFRASTRUCTURE_DOCUMENT_CREATED_EVENT_TYPE =
+  "awcms-mini.document-infrastructure.document.created";
+export const DOCUMENT_INFRASTRUCTURE_DOCUMENT_VOIDED_EVENT_TYPE =
+  "awcms-mini.document-infrastructure.document.voided";
+export const DOCUMENT_INFRASTRUCTURE_DOCUMENT_RESTORED_EVENT_TYPE =
+  "awcms-mini.document-infrastructure.document.restored";
+export const DOCUMENT_INFRASTRUCTURE_DOCUMENT_RECLASSIFIED_EVENT_TYPE =
+  "awcms-mini.document-infrastructure.document.reclassified";
+export const DOCUMENT_INFRASTRUCTURE_VERSION_CREATED_EVENT_TYPE =
+  "awcms-mini.document-infrastructure.version.created";
+export const DOCUMENT_INFRASTRUCTURE_NUMBER_RESERVED_EVENT_TYPE =
+  "awcms-mini.document-infrastructure.number.reserved";
+export const DOCUMENT_INFRASTRUCTURE_NUMBER_COMMITTED_EVENT_TYPE =
+  "awcms-mini.document-infrastructure.number.committed";
+export const DOCUMENT_INFRASTRUCTURE_NUMBER_CANCELED_EVENT_TYPE =
+  "awcms-mini.document-infrastructure.number.canceled";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -215,6 +240,53 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventType: ORGANIZATION_STRUCTURE_ASSIGNMENT_ENDED_EVENT_TYPE,
       eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
       description: "An organization-unit assignment was ended (Issue #749)."
+    },
+    {
+      eventType: DOCUMENT_INFRASTRUCTURE_DOCUMENT_CREATED_EVENT_TYPE,
+      eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
+      description: "A document registry entry was created (Issue #751)."
+    },
+    {
+      eventType: DOCUMENT_INFRASTRUCTURE_DOCUMENT_VOIDED_EVENT_TYPE,
+      eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
+      description:
+        "A document was voided (irreversible-by-default business-state transition, kept visible as evidence, Issue #751)."
+    },
+    {
+      eventType: DOCUMENT_INFRASTRUCTURE_DOCUMENT_RESTORED_EVENT_TYPE,
+      eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
+      description:
+        "A soft-deleted document was restored, or a voided document was un-voided (Issue #751)."
+    },
+    {
+      eventType: DOCUMENT_INFRASTRUCTURE_DOCUMENT_RECLASSIFIED_EVENT_TYPE,
+      eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
+      description:
+        "A document's classification and/or confidentiality level was changed (Issue #751)."
+    },
+    {
+      eventType: DOCUMENT_INFRASTRUCTURE_VERSION_CREATED_EVENT_TYPE,
+      eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
+      description:
+        "A new immutable, append-only document version was created (Issue #751)."
+    },
+    {
+      eventType: DOCUMENT_INFRASTRUCTURE_NUMBER_RESERVED_EVENT_TYPE,
+      eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
+      description:
+        "A document number was atomically reserved from a numbering sequence (Issue #751)."
+    },
+    {
+      eventType: DOCUMENT_INFRASTRUCTURE_NUMBER_COMMITTED_EVENT_TYPE,
+      eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
+      description:
+        "A reserved document number was committed to a document (Issue #751)."
+    },
+    {
+      eventType: DOCUMENT_INFRASTRUCTURE_NUMBER_CANCELED_EVENT_TYPE,
+      eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
+      description:
+        "A reserved document number was canceled without being committed — the number is never reused (gap evidence, Issue #751)."
     }
   ];
 

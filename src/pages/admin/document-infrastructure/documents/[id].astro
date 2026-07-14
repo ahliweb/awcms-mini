@@ -1,0 +1,741 @@
+---
+/**
+ * Document detail admin screen (Issue #751, epic #738 platform-evolution
+ * Wave 3) — versions (append-only, add new), relations (generic
+ * resource links, add/remove), reclassify, and the evidence/history
+ * trail for one document.
+ */
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../../lib/database/client";
+import { withTenant } from "../../../../lib/database/tenant-context";
+import { permissionKey } from "../../../../modules/identity-access/domain/access-control";
+import { fetchDocumentById } from "../../../../modules/document-infrastructure/application/document-directory";
+import { listDocumentVersions } from "../../../../modules/document-infrastructure/application/document-version-service";
+import { listRelationsForDocument } from "../../../../modules/document-infrastructure/application/document-resource-relation-port";
+import { listDocumentEvidence } from "../../../../modules/document-infrastructure/application/document-evidence-directory";
+import { listClassifications } from "../../../../modules/document-infrastructure/application/document-classification-directory";
+import { createTranslator } from "../../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/document-infrastructure/documents/[id].astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const documentId = Astro.params.id;
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("document_infrastructure", "documents", "read")
+);
+const CAN_RECLASSIFY = context.permissions.has(
+  permissionKey("document_infrastructure", "documents", "reclassify")
+);
+const CAN_CREATE_VERSION = context.permissions.has(
+  permissionKey("document_infrastructure", "versions", "create")
+);
+const CAN_LINK = context.permissions.has(
+  permissionKey("document_infrastructure", "relations", "assign")
+);
+const CAN_UNLINK = context.permissions.has(
+  permissionKey("document_infrastructure", "relations", "revoke")
+);
+
+const clientStrings = {
+  reclassifySuccess: t(
+    "admin.document_infrastructure.document_detail.reclassify_success"
+  ),
+  versionCreateSuccess: t(
+    "admin.document_infrastructure.document_detail.version_create_success"
+  ),
+  linkSuccess: t("admin.document_infrastructure.document_detail.link_success"),
+  unlinkSuccess: t(
+    "admin.document_infrastructure.document_detail.unlink_success"
+  ),
+  unlinkReasonPrompt: t(
+    "admin.document_infrastructure.document_detail.unlink_reason_prompt"
+  ),
+  reclassifyReasonPrompt: t(
+    "admin.document_infrastructure.document_detail.reclassify_reason_prompt"
+  ),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let document: Awaited<ReturnType<typeof fetchDocumentById>> = null;
+let versions: Awaited<ReturnType<typeof listDocumentVersions>> = [];
+let relations: Awaited<ReturnType<typeof listRelationsForDocument>> = [];
+let evidence: Awaited<ReturnType<typeof listDocumentEvidence>> = [];
+let classifications: Awaited<ReturnType<typeof listClassifications>> = [];
+let loadError = false;
+
+if (CAN_READ && documentId) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      document = await fetchDocumentById(tx, context.tenantId, documentId);
+      if (document) {
+        versions = await listDocumentVersions(tx, context.tenantId, documentId);
+        relations = await listRelationsForDocument(
+          tx,
+          context.tenantId,
+          documentId
+        );
+        evidence = await listDocumentEvidence(tx, context.tenantId, {
+          documentId
+        });
+        classifications = await listClassifications(tx, context.tenantId, {
+          status: "active"
+        });
+      }
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/document-infrastructure/documents/[id].astro: failed to load document",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.document_infrastructure.document_detail.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.document_infrastructure.access_denied_title")}
+        body={t("admin.document_infrastructure.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && (loadError || !document) && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && document && (
+      <div class="detail-manager" data-document-id={document.id}>
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <section>
+          <h2>{document.title}</h2>
+          <p>
+            {t("admin.document_infrastructure.document_detail.status_label")}:{" "}
+            {document.status}
+            {" — "}
+            {t(
+              "admin.document_infrastructure.document_detail.confidentiality_label"
+            )}
+            : {document.confidentialityLevel}
+          </p>
+
+          {CAN_RECLASSIFY && (
+            <details>
+              <summary>
+                {t(
+                  "admin.document_infrastructure.document_detail.reclassify_summary"
+                )}
+              </summary>
+              <form id="reclassify-form" class="inline-form">
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_classification"
+                  )}
+                  <select name="classificationId">
+                    <option value="">
+                      {t(
+                        "admin.document_infrastructure.documents.field_classification_none"
+                      )}
+                    </option>
+                    {classifications.map((classification) => (
+                      <option value={classification.id}>
+                        {classification.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_confidentiality"
+                  )}
+                  <select name="confidentialityLevel" required>
+                    <option value="public">public</option>
+                    <option value="internal">internal</option>
+                    <option value="confidential">confidential</option>
+                    <option value="restricted">restricted</option>
+                  </select>
+                </label>
+                <button type="submit">
+                  {t(
+                    "admin.document_infrastructure.document_detail.reclassify_submit"
+                  )}
+                </button>
+              </form>
+            </details>
+          )}
+        </section>
+
+        <section>
+          <h3>
+            {t(
+              "admin.document_infrastructure.document_detail.versions_heading"
+            )}
+          </h3>
+          {versions.length === 0 ? (
+            <p class="empty-state">
+              {t(
+                "admin.document_infrastructure.document_detail.versions_no_rows"
+              )}
+            </p>
+          ) : (
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">#</th>
+                  <th scope="col">
+                    {t(
+                      "admin.document_infrastructure.document_detail.col_media_type"
+                    )}
+                  </th>
+                  <th scope="col">
+                    {t(
+                      "admin.document_infrastructure.document_detail.col_checksum"
+                    )}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {versions.map((version) => (
+                  <tr>
+                    <td>{version.versionNumber}</td>
+                    <td>{version.mediaType}</td>
+                    <td>{version.checksumSha256}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {CAN_CREATE_VERSION && (
+            <details>
+              <summary>
+                {t(
+                  "admin.document_infrastructure.document_detail.version_create_summary"
+                )}
+              </summary>
+              <form id="version-form" class="inline-form">
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_content_reference"
+                  )}
+                  <input
+                    type="text"
+                    name="contentReference"
+                    required
+                    maxlength="1000"
+                  />
+                </label>
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_content_reference_kind"
+                  )}
+                  <select name="contentReferenceKind" required>
+                    <option value="object_storage_reference">
+                      object_storage_reference
+                    </option>
+                    <option value="external_url">external_url</option>
+                    <option value="external_system_reference">
+                      external_system_reference
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_media_type"
+                  )}
+                  <input
+                    type="text"
+                    name="mediaType"
+                    required
+                    maxlength="200"
+                    placeholder="application/pdf"
+                  />
+                </label>
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_size_bytes"
+                  )}
+                  <input type="number" name="sizeBytes" required min="0" />
+                </label>
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_checksum"
+                  )}
+                  <input
+                    type="text"
+                    name="checksumSha256"
+                    required
+                    pattern="^[0-9a-f]{64}$"
+                    maxlength="64"
+                  />
+                </label>
+                <button type="submit">
+                  {t(
+                    "admin.document_infrastructure.document_detail.version_create_submit"
+                  )}
+                </button>
+              </form>
+            </details>
+          )}
+        </section>
+
+        <section>
+          <h3>
+            {t(
+              "admin.document_infrastructure.document_detail.relations_heading"
+            )}
+          </h3>
+          {relations.length === 0 ? (
+            <p class="empty-state">
+              {t(
+                "admin.document_infrastructure.document_detail.relations_no_rows"
+              )}
+            </p>
+          ) : (
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    {t(
+                      "admin.document_infrastructure.document_detail.col_owner_module"
+                    )}
+                  </th>
+                  <th scope="col">
+                    {t(
+                      "admin.document_infrastructure.document_detail.col_resource"
+                    )}
+                  </th>
+                  <th scope="col">
+                    {t(
+                      "admin.document_infrastructure.document_detail.col_relation_type"
+                    )}
+                  </th>
+                  <th scope="col">
+                    {t(
+                      "admin.document_infrastructure.document_detail.col_actions"
+                    )}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {relations.map((relation) => (
+                  <tr data-id={relation.id}>
+                    <td>{relation.ownerModuleKey}</td>
+                    <td>
+                      {relation.resourceType}:{relation.resourceId}
+                    </td>
+                    <td>{relation.relationType}</td>
+                    <td>
+                      {CAN_UNLINK && (
+                        <button
+                          type="button"
+                          class="unlink-button"
+                          data-id={relation.id}
+                        >
+                          {t(
+                            "admin.document_infrastructure.document_detail.unlink_button"
+                          )}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {CAN_LINK && (
+            <details>
+              <summary>
+                {t(
+                  "admin.document_infrastructure.document_detail.link_summary"
+                )}
+              </summary>
+              <form id="link-form" class="inline-form">
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_owner_module"
+                  )}
+                  <input
+                    type="text"
+                    name="ownerModuleKey"
+                    required
+                    pattern="^[a-z][a-z0-9_]*$"
+                    maxlength="64"
+                  />
+                </label>
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_resource_type"
+                  )}
+                  <input
+                    type="text"
+                    name="resourceType"
+                    required
+                    maxlength="120"
+                  />
+                </label>
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_resource_id"
+                  )}
+                  <input
+                    type="text"
+                    name="resourceId"
+                    required
+                    maxlength="200"
+                  />
+                </label>
+                <label>
+                  {t(
+                    "admin.document_infrastructure.document_detail.field_relation_type"
+                  )}
+                  <select name="relationType" required>
+                    <option value="related_to">related_to</option>
+                    <option value="evidence_for">evidence_for</option>
+                    <option value="attachment_of">attachment_of</option>
+                    <option value="reference_of">reference_of</option>
+                    <option value="supersedes">supersedes</option>
+                  </select>
+                </label>
+                <button type="submit">
+                  {t(
+                    "admin.document_infrastructure.document_detail.link_submit"
+                  )}
+                </button>
+              </form>
+            </details>
+          )}
+        </section>
+
+        <section>
+          <h3>
+            {t(
+              "admin.document_infrastructure.document_detail.evidence_heading"
+            )}
+          </h3>
+          {evidence.length === 0 ? (
+            <p class="empty-state">
+              {t(
+                "admin.document_infrastructure.document_detail.evidence_no_rows"
+              )}
+            </p>
+          ) : (
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    {t(
+                      "admin.document_infrastructure.document_detail.col_evidence_type"
+                    )}
+                  </th>
+                  <th scope="col">
+                    {t(
+                      "admin.document_infrastructure.document_detail.col_created_at"
+                    )}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {evidence.map((entry) => (
+                  <tr>
+                    <td>{entry.evidenceType}</td>
+                    <td>{entry.createdAt.toISOString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .detail-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+  }
+
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-surface, #e6f4ea);
+    color: var(--color-success-strong, #1e7e34);
+  }
+
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-surface, #fdecea);
+    color: var(--color-danger-strong);
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .data-table th,
+  .data-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .unlink-button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger-strong);
+    color: var(--color-danger-strong);
+    cursor: pointer;
+  }
+
+  .inline-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 480px;
+    margin-top: var(--sp-2);
+  }
+
+  .inline-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+
+  .inline-form input,
+  .inline-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .inline-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    reclassifySuccess: string;
+    versionCreateSuccess: string;
+    linkSuccess: string;
+    unlinkSuccess: string;
+    unlinkReasonPrompt: string;
+    reclassifyReasonPrompt: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const container = document.querySelector<HTMLElement>(".detail-manager");
+  const documentId = container?.dataset.documentId ?? "";
+  const DOCUMENT_URL = `/api/v1/document-infrastructure/documents/${documentId}`;
+
+  document
+    .getElementById("reclassify-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const reason = window.prompt(strings.reclassifyReasonPrompt);
+      if (!reason) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const formData = new FormData(form);
+        const result = await submitJson(
+          `${DOCUMENT_URL}/reclassify`,
+          "POST",
+          {
+            classificationId: formData.get("classificationId") || null,
+            confidentialityLevel: formData.get("confidentialityLevel"),
+            reason
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+
+        if (result.ok) {
+          showBanner("action-banner", strings.reclassifySuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .getElementById("version-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const formData = new FormData(form);
+        const result = await submitJson(
+          `${DOCUMENT_URL}/versions`,
+          "POST",
+          {
+            contentReference: formData.get("contentReference"),
+            contentReferenceKind: formData.get("contentReferenceKind"),
+            mediaType: formData.get("mediaType"),
+            sizeBytes: Number(formData.get("sizeBytes")),
+            checksumSha256: formData.get("checksumSha256"),
+            source: "upload"
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+
+        if (result.ok) {
+          showBanner("action-banner", strings.versionCreateSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .getElementById("link-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const formData = new FormData(form);
+        const result = await submitJson(
+          `${DOCUMENT_URL}/relations`,
+          "POST",
+          {
+            ownerModuleKey: formData.get("ownerModuleKey"),
+            resourceType: formData.get("resourceType"),
+            resourceId: formData.get("resourceId"),
+            relationType: formData.get("relationType")
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+
+        if (result.ok) {
+          showBanner("action-banner", strings.linkSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".unlink-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const reason = window.prompt(strings.unlinkReasonPrompt);
+        if (!reason) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+
+        try {
+          const result = await submitJson(
+            `${DOCUMENT_URL}/relations/${button.dataset.id}`,
+            "DELETE",
+            { reason },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+
+          if (result.ok) {
+            showBanner("action-banner", strings.unlinkSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+</script>
