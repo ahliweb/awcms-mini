@@ -422,6 +422,21 @@ terpisah bila keputusannya mengikat lintas dokumen (GOVERNANCE.md §Perubahan
 standar). Proposal template adalah **triase awal** sebelum menulis ADR
 penuh.
 
+**Kontrak murni (tanpa modul baru) tetap butuh ADR, bukan proposal
+template.** Bukan setiap keputusan arsitektural mengikat berupa modul
+baru — Issue #755 (`docs/adr/0020-erp-extension-readiness-contracts.md`,
+epic #738 Wave 4) mendefinisikan sebelas keluarga kontrak kesiapan
+ekstensi ERP (tipe TypeScript `_shared/*`, satu capability port baru)
+TANPA mendaftarkan modul baru apa pun di `src/modules/index.ts` — proposal
+template §9 di atas tidak berlaku (tidak ada modul untuk dinilai lewat
+pohon keputusan §3), tapi keputusan arah kepemilikan/dependensinya
+(base mendefinisikan kontrak, ekstensi ERP mengimplementasikan, Core/
+System tidak pernah bergantung pada implementasi ERP) tetap mengikat
+lintas dokumen sehingga tetap ditulis sebagai ADR penuh, bukan
+didokumentasikan hanya di README modul (karena memang tidak ada modul).
+Pola ini berlaku untuk kontrak/kebijakan LAIN yang murni struktural di
+masa depan juga (bukan preseden khusus ERP).
+
 ## 10. Referensi
 
 - `docs/adr/0013-extension-layers-and-boundary-model.md` — lapisan ekstensi
@@ -442,6 +457,9 @@ registry.ts`, `composeModuleRegistry()`), taksonomi kegagalan komposisi,
   follow-up).
 - `docs/adr/0011-capability-ports-for-cross-module-collaboration.md` —
   dasar `capabilities.consumes[].optional` di §5.
+- `docs/adr/0020-erp-extension-readiness-contracts.md`,
+  `docs/awcms-mini/erp-extension-contracts.md` — kontrak kesiapan
+  ekstensi ERP tanpa modul baru (§9 di atas), Issue #755, epic #738 Wave 4.
 - `docs/awcms-mini/derived-application-guide.md`,
   `docs/awcms-mini/derived-app-pilot-plan.md` — kategori Derived
   Application (§2, §4.4).

@@ -27,8 +27,31 @@ that shape:
   depends on `example_crm` (an application-to-application lifecycle edge,
   not just base-to-application), and consumes its
   `example_crm_directory` capability as a REQUIRED binding.
+- [`modules/example-erp-extension/module.ts`](modules/example-erp-extension/module.ts)
+  (Issue #755, epic #738 `platform-evolution` Wave 4, ADR-0020 — ERP
+  extension readiness contracts) — a sample ERP extension consuming
+  `profile_identity`'s `party_directory` and `organization_structure`'s
+  `organization_hierarchy_resolution` capabilities (both `optional: true`,
+  never a hard lifecycle dependency), and contributing a `reporting`
+  projection (Issue #753) driven entirely by its own posting-result domain
+  event. Its sibling
+  [`posting-engine.ts`](modules/example-erp-extension/posting-engine.ts)
+  and
+  [`period-lock-adapter.ts`](modules/example-erp-extension/period-lock-adapter.ts)
+  are a pure, in-memory reference implementation of `_shared/business-
+transaction-contract.ts`'s posting request/result invariants and
+  `_shared/ports/period-lock-port.ts`'s fail-closed contract — idempotent
+  posting, fail-closed period lock, cross-tenant/legal-entity mismatch
+  rejection, and reversal-as-a-new-transaction — exercised by
+  [`tests/unit/erp-extension-contracts.test.ts`](../../unit/erp-extension-contracts.test.ts).
+  Owns its own illustration-only table
+  ([`sql/901_example_erp_extension_schema.sql`](sql/901_example_erp_extension_schema.sql))
+  entirely inside the fixture's reserved migration range — the base
+  repository contains no chart-of-accounts/journal/inventory-valuation/
+  sales/procurement/AR-AP/payroll/tax/asset/manufacturing table, per
+  ADR-0020's explicit exclusions.
 - [`application-registry.ts`](application-registry.ts) — the
-  `ApplicationModuleRegistry` combining both modules plus a declared
+  `ApplicationModuleRegistry` combining all three modules plus a declared
   `migrationNamespace` (`900-999`, non-overlapping with the base's own
   reserved `1-899`).
 - [`extension.manifest.json`](extension.manifest.json) +
