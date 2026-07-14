@@ -1,4 +1,4 @@
-# ADR-0019 — Kontrak kesiapan ekstensi ERP (business transaction, posting, period-lock, item, report-projection)
+# ADR-0020 — Kontrak kesiapan ekstensi ERP (business transaction, posting, period-lock, item, report-projection)
 
 - **Status:** Accepted
 - **Tanggal:** 2026-07-15
