@@ -147,8 +147,12 @@ consumer-registry.ts` versi fork-nya), TIDAK di base.
 - Result: `requestId` (WAJIB sama dengan request), `transaction`,
   `status` (`accepted`/`posted`/`rejected`/`reversed`), `postedAt?`,
   `rejectionReason?`, `ledgerReference?` (opaque).
-  **Failure semantics:** lihat invariant #3/#4 ADR-0019 — idempotent per
-  `requestId`; `"accepted"` BUKAN bukti posting berhasil.
+  **Failure semantics:** lihat invariant #3 (uniqueness posted-state per
+  `(tenantId, transactionType, externalTransactionId)`, independen
+  `requestId`), #4 (idempotent per `requestId`), #5 (`"accepted"` BUKAN
+  bukti posting berhasil), dan #7 (`reversalOfExternalTransactionId`
+  me-resolve `externalTransactionId` — BUKAN PERNAH `requestId` — ter-scope
+  tenant/legal-entity request reversal) di ADR-0019 §4.
   **Klasifikasi privasi:** `totalDebit`/`totalCredit`/`ledgerReference`
   adalah data finansial sensitif tenant — payload event WAJIB lulus
   `domain_event_runtime`'s `validateDomainEventPayload` (menolak nilai
@@ -156,9 +160,13 @@ consumer-registry.ts` versi fork-nya), TIDAK di base.
   dipublikasikan, sama seperti event modul manapun.
   **Contoh:** lihat `tests/fixtures/derived-application-example/modules/
 example-erp-extension/posting-engine.ts` untuk implementasi referensi
-  lengkap (idempotent, fail-closed period lock, reversal-sebagai-
-  transaksi-baru), diverifikasi
-  `tests/unit/erp-extension-contracts.test.ts`.
+  lengkap (idempotent per `requestId`, penolakan duplikat per identitas
+  bisnis, fail-closed period lock, resolusi target reversal ter-scope
+  tenant/legal-entity, reversal-sebagai-transaksi-baru), diverifikasi
+  `tests/unit/erp-extension-contracts.test.ts` — termasuk dua test
+  adversarial khusus sisi target reversal (reversal tenant lain tidak
+  bisa me-resolve transaksi tenant yang benar; reversal tenant yang sama
+  dengan legal-entity scope berbeda tetap ditolak).
 
 ## 6. Period-lock query/check
 
@@ -287,13 +295,27 @@ diulang di sini.
 ## Fixture referensi & test
 
 `tests/fixtures/derived-application-example/modules/
-example-erp-extension/` — module descriptor + mesin posting in-memory
+example-erp-extension/` — module descriptor + mesin posting in-memory +
+adapter period-lock fixture, TIDAK PERNAH dikomposisi ke registry base
+nyata (`src/modules/index.ts` tidak berubah). Diverifikasi
+`tests/unit/erp-extension-contracts.test.ts` (idempotency per
+`requestId`, penolakan duplikat-posting per identitas bisnis
+`(tenantId, transactionType, externalTransactionId)` bahkan dengan
+`requestId` baru, fail-closed period lock, penolakan cross-tenant/
+legal-entity-mismatch pada request forward, DUA test adversarial khusus
+sisi target reversal — reversal ter-autentikasi sebagai tenant lain
+tidak bisa me-resolve transaksi tenant yang benar meski tahu persis
+`externalTransactionId`-nya, dan reversal tenant yang sama dengan
+legal-entity scope berbeda tetap ditolak — reversal-sebagai-transaksi-
+baru, kontribusi reporting projection) dan
+`tests/unit/module-composition-fixture.test.ts` (komposisi DAG/
+capability/migration-namespace). Lihat kedua file test itu untuk contoh
+pemakaian nyata setiap kontrak di atas.
 
-- adapter period-lock fixture, TIDAK PERNAH dikomposisi ke registry
-  base nyata (`src/modules/index.ts` tidak berubah). Diverifikasi
-  `tests/unit/erp-extension-contracts.test.ts` (idempotency, fail-closed
-  period lock, penolakan cross-tenant/legal-entity-mismatch, reversal-
-  sebagai-transaksi-baru, kontribusi reporting projection) dan
-  `tests/unit/module-composition-fixture.test.ts` (komposisi DAG/
-  capability/migration-namespace). Lihat kedua file test itu untuk
-  contoh pemakaian nyata setiap kontrak di atas.
+**Catatan revisi:** sebuah review keamanan independen pada PR ini
+menemukan revisi pertama fixture mengindeks target reversal lewat
+`requestId` (ruang ID yang salah — lihat `business-transaction-
+contract.ts`'s invariant #7) dan tidak memverifikasi ulang tenant/
+legal-entity transaksi asli yang ter-resolve — keduanya diperbaiki
+sebelum PR ini merge; lihat ADR-0019 §5 untuk detail lengkap. Jangan
+mengutip fixture ini sebagai "terbukti aman" tanpa membaca catatan itu.

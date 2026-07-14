@@ -55,3 +55,17 @@ Explicitly pinned caveat: Issue #750 (`reference_data`) was still open
 with unresolved Critical findings at the time this issue shipped — the
 item/currency/unit-of-measure contracts here deliberately avoid a hard
 dependency on that module's internal schema.
+
+Two invariants added/hardened after an independent security-auditor pass
+on this PR: (3) posted-state uniqueness keyed by `(tenantId,
+transactionType, externalTransactionId)`, independent of `requestId` —
+the original fixture only deduplicated by `requestId`, letting a new
+`requestId` for the same business transaction double-post (Medium); and
+(7) reversal-target resolution scoped to the authenticated tenant/legal
+entity, in the documented `externalTransactionId` ID space — the
+original fixture indexed reversal targets by `requestId` (the wrong ID
+space) with no tenant/legal-entity re-verification at all, letting an
+attacker who observed/guessed another tenant's identifiers reference
+their posted transaction (High). Both are fixed in
+`posting-engine.ts`/`business-transaction-contract.ts` and proven by two
+new adversarial tests in `tests/unit/erp-extension-contracts.test.ts`.

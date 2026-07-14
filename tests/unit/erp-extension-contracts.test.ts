@@ -16,7 +16,14 @@
  *   and demonstrates reversal/compensation rather than mutation of posted
  *   state" — the posting-engine tests below.
  * - "Period-lock and cross-tenant/legal-entity mismatch negative tests
- *   fail safely" — the posting-engine tests below.
+ *   fail safely" — the posting-engine tests below, including two
+ *   dedicated adversarial tests for the REVERSAL-target side specifically
+ *   (a different tenant/legal-entity resolving the SAME
+ *   `externalTransactionId`) and one for business-identity-keyed
+ *   duplicate-post rejection — fixed after a security-auditor pass on
+ *   this PR found the original fixture's reversal lookup used the wrong
+ *   ID space (`requestId` instead of `externalTransactionId`) and had no
+ *   tenant/legal-entity re-verification at all.
  * - "contributes a reporting projection through #753" — the
  *   `validateProjectionRegistry` test below.
  */
@@ -212,6 +219,9 @@ describe("FixturePostingEngine (Issue #755 — machine-verifiable posting invari
       async () => true
     );
 
+    // The original's externalTransactionId is "inv-1" (baseRequest's
+    // default) — a reversal references THAT, never the original's
+    // requestId (invariant 7, business-transaction-contract.ts).
     const original = baseRequest({ requestId: "req-original" });
     const originalResult = await engine.submitPostingRequest(
       FAKE_TX,
@@ -222,7 +232,16 @@ describe("FixturePostingEngine (Issue #755 — machine-verifiable posting invari
 
     const reversal = baseRequest({
       requestId: "req-reversal",
-      reversalOfExternalTransactionId: "req-original"
+      transaction: {
+        tenantId: TENANT_A,
+        legalEntityScope: null,
+        transactionType: "example_erp.sales.invoice",
+        // The reversal is its OWN distinct business transaction — never
+        // reuses the original's externalTransactionId.
+        externalTransactionId: "inv-1-reversal",
+        status: "submitted"
+      },
+      reversalOfExternalTransactionId: "inv-1"
     });
     const reversalResult = await engine.submitPostingRequest(
       FAKE_TX,
@@ -255,6 +274,156 @@ describe("FixturePostingEngine (Issue #755 — machine-verifiable posting invari
 
     expect(result.status).toBe("rejected");
     expect(result.rejectionReason).toMatch(/reversal target/);
+  });
+
+  test("SECURITY (High, Issue #755 security-auditor finding): a reversal cannot resolve another tenant's posted transaction, even when the attacker knows its exact externalTransactionId", async () => {
+    const engine = new FixturePostingEngine(
+      createFixturePeriodLockAdapter(new Set()),
+      async () => true
+    );
+
+    // TENANT_A posts "inv-1" for real.
+    const original = baseRequest({
+      requestId: "req-tenant-a-original",
+      transaction: {
+        tenantId: TENANT_A,
+        legalEntityScope: null,
+        transactionType: "example_erp.sales.invoice",
+        externalTransactionId: "inv-1",
+        status: "submitted"
+      }
+    });
+    const originalResult = await engine.submitPostingRequest(
+      FAKE_TX,
+      TENANT_A,
+      original
+    );
+    expect(originalResult.status).toBe("posted");
+
+    // TENANT_B (a DIFFERENT, legitimately authenticated tenant) attempts a
+    // reversal that references the SAME externalTransactionId ("inv-1")
+    // and the SAME transactionType — this must be rejected, never resolve
+    // TENANT_A's transaction, even though the attacker guessed/observed
+    // the exact externalTransactionId.
+    const crossTenantReversal = baseRequest({
+      requestId: "req-tenant-b-reversal-attempt",
+      transaction: {
+        tenantId: TENANT_B,
+        legalEntityScope: null,
+        transactionType: "example_erp.sales.invoice",
+        externalTransactionId: "inv-1-reversal",
+        status: "submitted"
+      },
+      reversalOfExternalTransactionId: "inv-1"
+    });
+    const result = await engine.submitPostingRequest(
+      FAKE_TX,
+      TENANT_B,
+      crossTenantReversal
+    );
+
+    expect(result.status).toBe("rejected");
+    expect(result.rejectionReason).toMatch(/reversal target/);
+    // TENANT_A's original posting is completely unaffected.
+    expect(engine.getStoredResult("req-tenant-a-original")?.status).toBe(
+      "posted"
+    );
+  });
+
+  test("SECURITY (High, Issue #755 security-auditor finding): a reversal targeting the SAME tenant but a mismatched legal-entity scope is rejected", async () => {
+    const engine = new FixturePostingEngine(
+      createFixturePeriodLockAdapter(new Set()),
+      async () => true // resolver always reports the scope resolves — the mismatch below is ORIGINAL-vs-REVERSAL, not an unresolved scope
+    );
+
+    const original = baseRequest({
+      requestId: "req-scoped-original",
+      transaction: {
+        tenantId: TENANT_A,
+        legalEntityScope: { scopeType: "legal_entity", scopeId: "le-1" },
+        transactionType: "example_erp.sales.invoice",
+        externalTransactionId: "inv-scoped",
+        status: "submitted"
+      }
+    });
+    const originalResult = await engine.submitPostingRequest(
+      FAKE_TX,
+      TENANT_A,
+      original
+    );
+    expect(originalResult.status).toBe("posted");
+
+    const reversal = baseRequest({
+      requestId: "req-scoped-reversal-wrong-scope",
+      transaction: {
+        tenantId: TENANT_A,
+        // A DIFFERENT legal entity than the original posted under.
+        legalEntityScope: { scopeType: "legal_entity", scopeId: "le-2" },
+        transactionType: "example_erp.sales.invoice",
+        externalTransactionId: "inv-scoped-reversal",
+        status: "submitted"
+      },
+      reversalOfExternalTransactionId: "inv-scoped"
+    });
+    const result = await engine.submitPostingRequest(
+      FAKE_TX,
+      TENANT_A,
+      reversal
+    );
+
+    expect(result.status).toBe("rejected");
+    expect(result.rejectionReason).toMatch(
+      /reversal target legal-entity scope mismatch/
+    );
+  });
+
+  test("SECURITY (Medium, Issue #755 security-auditor finding): a second forward post of the SAME (tenantId, transactionType, externalTransactionId) under a NEW requestId is rejected as a duplicate, not accepted as an independent posting", async () => {
+    const engine = new FixturePostingEngine(
+      createFixturePeriodLockAdapter(new Set()),
+      async () => true
+    );
+
+    const firstPost = baseRequest({
+      requestId: "req-dup-1",
+      transaction: {
+        tenantId: TENANT_A,
+        legalEntityScope: null,
+        transactionType: "example_erp.sales.invoice",
+        externalTransactionId: "inv-dup",
+        status: "submitted"
+      }
+    });
+    const firstResult = await engine.submitPostingRequest(
+      FAKE_TX,
+      TENANT_A,
+      firstPost
+    );
+    expect(firstResult.status).toBe("posted");
+
+    // Same business transaction (tenantId + transactionType +
+    // externalTransactionId), but a BRAND NEW requestId — requestId-only
+    // idempotency would let this through as an independent posting;
+    // business-identity uniqueness must reject it instead.
+    const secondPost = baseRequest({
+      requestId: "req-dup-2",
+      transaction: {
+        tenantId: TENANT_A,
+        legalEntityScope: null,
+        transactionType: "example_erp.sales.invoice",
+        externalTransactionId: "inv-dup",
+        status: "submitted"
+      }
+    });
+    const secondResult = await engine.submitPostingRequest(
+      FAKE_TX,
+      TENANT_A,
+      secondPost
+    );
+
+    expect(secondResult.status).toBe("rejected");
+    expect(secondResult.rejectionReason).toMatch(/duplicate posting/);
+    // The original posting (under its own requestId) is unaffected.
+    expect(engine.getStoredResult("req-dup-1")?.status).toBe("posted");
   });
 });
 

@@ -30,23 +30,47 @@
  *    a posted transaction means posting a NEW transaction referencing the
  *    original via `reversalOfExternalTransactionId` — the original's own
  *    record and result are never overwritten or deleted.
- * 3. **Posting is idempotent and externally correlated.** The SAME
+ * 3. **Posted-state uniqueness is keyed by business identity, not by
+ *    `requestId`.** A compliant implementation MUST enforce uniqueness of
+ *    `"posted"`/`"reversed"` state per `(tenantId, transactionType,
+ *    externalTransactionId)`, independent of `requestId` — invariant 4's
+ *    `requestId`-based idempotency alone is NOT sufficient: a caller
+ *    minting a brand-new `requestId` for the SAME real-world business
+ *    transaction (accidentally or adversarially) must still be rejected
+ *    as a duplicate post, never accepted as an independent second
+ *    posted entry. This is what makes invariants 1/2 actually hold in
+ *    practice — an implementation that only deduplicates by `requestId`
+ *    can be tricked into double-posting the same business object simply
+ *    by varying the retry identifier (Issue #755 security-auditor
+ *    finding, Medium).
+ * 4. **Posting is idempotent and externally correlated.** The SAME
  *    `requestId` submitted more than once (worker retry, at-least-once
  *    redelivery) MUST produce the SAME result, never a duplicate posting
  *    — mirrors this repo's own `saveIdempotencyRecord` (`_shared/
  *    idempotency.ts`) discipline, applied here to accounting posting
- *    rather than an HTTP mutation.
- * 4. **Request acceptance is not equivalent to successful posting.** An
+ *    rather than an HTTP mutation. Complements, but never replaces,
+ *    invariant 3's business-identity uniqueness.
+ * 5. **Request acceptance is not equivalent to successful posting.** An
  *    `AccountingPostingResultPayload` with `status: "accepted"` only means
  *    the request was durably queued/validated — a caller MUST NOT treat
  *    acceptance as proof the transaction posted; only `status: "posted"`
  *    (or `"reversed"`) means the posting actually completed.
- * 5. **Source modules do not write ERP tables directly.** A base/System/
+ * 6. **Source modules do not write ERP tables directly.** A base/System/
  *    Optional-Business-Foundation module never inserts into an ERP
  *    extension's own ledger/journal/transaction tables — only the
  *    extension's own code does, reached exclusively through this event
  *    contract (or the extension's own API), never a shared-table write
  *    (ADR-0013 §6).
+ * 7. **Reversal-target resolution is tenant/legal-entity-scoped, in the
+ *    documented ID space.** `reversalOfExternalTransactionId` resolves an
+ *    ORIGINAL transaction by its own `externalTransactionId` (never a
+ *    `requestId` — a distinct ID space, see `AccountingPostingRequestPayload.
+ *    requestId`'s own doc comment), scoped to the reversal request's
+ *    AUTHENTICATED tenant. A resolved original whose `tenantId`/
+ *    `legalEntityScope` do not match the reversal request's own MUST be
+ *    rejected — a reversal can never "find" and reference a different
+ *    tenant's (or a different legal entity's) posted transaction (Issue
+ *    #755 security-auditor finding, High).
  */
 
 import type { BusinessScopeReference } from "./ports/business-scope-hierarchy-port";
@@ -55,7 +79,7 @@ import type { BusinessScopeReference } from "./ports/business-scope-hierarchy-po
  * `"draft"` — not yet submitted for posting (extension-internal only,
  * never crosses the posting-request contract). `"submitted"` — a posting
  * request was accepted for processing but not yet posted (Issue #755
- * invariant 4 — "accepted" in `AccountingPostingResultPayload` maps here).
+ * invariant 5 — "accepted" in `AccountingPostingResultPayload` maps here).
  * `"posted"` — successfully posted, now immutable. `"reversed"` — a
  * reversal transaction was posted against this one (the ORIGINAL keeps
  * its own `"posted"` status forever; only the reversal's own reference
@@ -106,9 +130,12 @@ export type BusinessTransactionReference = {
  * A posting request payload — the ERP extension's own event type (e.g.
  * `"example_erp.posting.requested"`) carries one of these as its
  * `domain_event_runtime` envelope `payload`. `requestId` is the
- * idempotency key (invariant 3 above) — MUST be unique per distinct
+ * idempotency key (invariant 4 above) — MUST be unique per distinct
  * posting attempt-intent, and MUST be resubmitted UNCHANGED on any retry
- * of the exact same intent.
+ * of the exact same intent. `requestId` is NEVER the ID space
+ * `reversalOfExternalTransactionId` below resolves against (invariant 7)
+ * — that field always references an `externalTransactionId`, a distinct
+ * identifier space entirely.
  */
 export type AccountingPostingRequestPayload = {
   requestId: string;
@@ -120,12 +147,12 @@ export type AccountingPostingRequestPayload = {
   totalDebit: string;
   totalCredit: string;
   requestedAt: string;
-  /** Present only for a reversal/compensation request (invariant 2) — the ORIGINAL transaction's `externalTransactionId` this request reverses. */
+  /** Present only for a reversal/compensation request (invariant 2) — the ORIGINAL transaction's `externalTransactionId` (NEVER a `requestId` — invariant 7) this request reverses, resolved within the SAME tenant as this request's own `transaction.tenantId`. */
   reversalOfExternalTransactionId?: string;
 };
 
 /**
- * `"accepted"` — durably queued/validated, NOT yet posted (invariant 4).
+ * `"accepted"` — durably queued/validated, NOT yet posted (invariant 5).
  * `"posted"` — posting completed, transaction is now immutable.
  * `"rejected"` — validation/period-lock/authorization failed; never
  * posted. `"reversed"` — this result is for a reversal request that

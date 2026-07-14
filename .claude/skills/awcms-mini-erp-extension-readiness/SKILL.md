@@ -63,13 +63,28 @@ requested"`/`"...result_recorded"`) di atas `domain_event_runtime`
    `AccountingPostingRequestPayload`/`AccountingPostingResultPayload`.
    Base TIDAK PERNAH menginterpretasi `totalDebit`/`totalCredit`/
    `ledgerReference` — semuanya decimal-as-string/opaque.
-5. Tegakkan idempotency per `requestId` (invariant #3 ADR-0019) —
+5. Tegakkan idempotency per `requestId` (invariant #4 ADR-0019) —
    request yang sama dikirim ulang harus mengembalikan hasil yang
-   identik, tidak pernah posting ganda.
+   identik, tidak pernah posting ganda. **Tidak cukup sendirian** —
+   tegakkan JUGA uniqueness posted-state per `(tenantId, transactionType,
+externalTransactionId)` (invariant #3), independen `requestId`:
+   sebuah `requestId` BARU untuk transaksi bisnis yang SAMA tetap harus
+   ditolak sebagai duplikat, bukan diterima sebagai posting kedua yang
+   independen (temuan security-auditor Medium pada PR #789 — fixture
+   awal hanya deduplikasi per `requestId`).
 6. Tegakkan reversal-sebagai-transaksi-baru (invariant #2) — JANGAN
    PERNAH mengubah/menimpa baris transaksi yang sudah `"posted"`; sebuah
-   koreksi selalu request baru dengan
-   `reversalOfExternalTransactionId`.
+   koreksi selalu request baru dengan `reversalOfExternalTransactionId`
+   yang mereferensikan `externalTransactionId` transaksi asli — BUKAN
+   PERNAH `requestId` (ruang ID yang berbeda). Resolusi target reversal
+   WAJIB ter-scope tenant/legal-entity TERAUTENTIKASI request reversal
+   (invariant #7) — verifikasi ulang `tenantId`/`legalEntityScope`
+   transaksi asli yang ter-resolve secara eksplisit, jangan hanya
+   mengandalkan struktur key index (temuan security-auditor High pada PR
+   #789 — fixture awal mengindeks lewat `requestId`, ruang ID yang
+   salah, dan tidak memverifikasi ulang tenant/legal-entity sama sekali
+   — lihat `posting-engine.ts`'s implementasi yang sudah diperbaiki untuk
+   pola yang benar).
 7. Jika Anda ingin kontribusi `reporting` projection (Issue #753):
    descriptor Anda WAJIB menegakkan `requiredPermission`-nya sendiri di
    endpoint pembacaan Anda — jangan hanya mendeklarasikan field ini
