@@ -137,9 +137,11 @@ variables or a secret manager.
   a deliberately conservative set of patterns — JWT (three base64url
   segments), a PEM private key block, an AWS access key id, a raw
   `Bearer `/`Basic ` header value, a connection string with an embedded
-  `user:pass@` — chosen so ordinary labels/URLs/flags are never
-  false-flagged. The rejection message names only the offending key
-  _path_, never the value itself.
+  `user:pass@`, and (since Issue #785) common vendor secret-key formats —
+  GitHub PAT/fine-grained PAT, OpenAI key, Slack bot/user token and
+  incoming-webhook URL, Stripe secret key, Google API key — chosen so
+  ordinary labels/URLs/flags are never false-flagged. The rejection
+  message names only the offending key _path_, never the value itself.
 - **Audit carries safe diff metadata only** — `diffModuleSettings` reports
   which top-level keys were added/changed/removed, never the values, so
   the audit trail is useful without needing its own redaction pass to stay

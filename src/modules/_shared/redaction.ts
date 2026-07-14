@@ -103,6 +103,43 @@ export function redactSensitiveAttributes(
   return redactRecord(input);
 }
 
+/**
+ * Sibling to `redactSensitiveAttributes` that also accepts a top-level JSON
+ * *array* (Issue #785 — a batch-webhook provider body, e.g.
+ * `integration_hub`'s normalized event payload/`raw_body_snippet`, is often
+ * an array of records rather than a single object; `redactSensitiveAttributes`
+ * above only ever recurses into a top-level *object*, so an array passed to
+ * it directly would need the caller to map over it manually, and a caller
+ * that forgot to would silently persist/log every element completely
+ * unredacted).
+ *
+ * Deliberately a NEW, additive export rather than a change to
+ * `redactSensitiveAttributes`'s own signature — every existing call site
+ * (`logging/application/audit-log.ts`, `lib/logging/logger.ts`,
+ * `domain-event-runtime/domain/payload-redaction.ts`) is typed to only ever
+ * pass a plain object (or `undefined`), so widening that function's
+ * parameter type could subtly change its inferred return type at each call
+ * site (e.g. `logger.ts`'s `...redactedContext` object-spread) for zero
+ * benefit to any of them. Reuses the same internal `redactValue` the object
+ * path already calls per-property, so array/object/primitive/`null` all
+ * behave identically to how `redactRecord` already treats a nested value at
+ * any depth — only the TOP-LEVEL type accepted is wider here.
+ *
+ * `null` is returned unchanged (never coerced to `undefined` or `{}`) and
+ * any primitive is returned as-is (nothing to recurse into) — both already
+ * fall out of `redactValue`'s existing `Array.isArray` / `typeof === "object"`
+ * checks with no special-casing needed here.
+ */
+export function redactSensitiveJsonValue(
+  input: Record<string, unknown> | unknown[] | null | undefined
+): Record<string, unknown> | unknown[] | null | undefined {
+  if (input === undefined || input === null) {
+    return input;
+  }
+
+  return redactValue(input) as Record<string, unknown> | unknown[];
+}
+
 function collectKeysDeep(value: unknown, keys: Set<string>): void {
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -173,8 +210,66 @@ const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
   // greedy `+` backtracking to the LAST `@` in the run (not the first) is
   // what correctly separates "password" from "host" when both `:` and `@`
   // appear inside the password itself.
-  /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@/\s]+:[^/\s]+@/
+  /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@/\s]+:[^/\s]+@/,
+  // --- Issue #785 (surfaced independently by both #750's and #754's
+  // security review during epic #738 Wave 3): common vendor secret-key
+  // formats, each anchored to the WHOLE value like the patterns above (this
+  // function checks one already-isolated string value, not free text — see
+  // `TEXT_SECRET_PATTERNS` below for the unanchored, embedded-in-prose
+  // equivalents of the same shapes).
+  //
+  // GitHub personal access token — fixed-length real format (`ghp_` + 36
+  // base62 chars).
+  /^ghp_[A-Za-z0-9]{36}$/,
+  // GitHub fine-grained personal access token — real tokens run much
+  // longer than this floor, but the format has no official fixed length,
+  // so `{22,}` only guards against a short non-secret string that merely
+  // happens to start with the literal prefix.
+  /^github_pat_[A-Za-z0-9_]{22,}$/,
+  // OpenAI key — new project-scoped keys (`sk-proj-...`) run to 100+
+  // characters and include `-`/`_`; classic keys (`sk-...`) are ~48
+  // alphanumeric characters with no separators. Both require a `{20,}`
+  // floor after the prefix specifically so a short, innocuous `sk-`-
+  // prefixed label/code (e.g. a locale tag or SKU-style identifier) is
+  // never flagged — only the vendor's own minimum real key length is.
+  /^sk-proj-[A-Za-z0-9_-]{20,}$/,
+  /^sk-[A-Za-z0-9]{20,}$/,
+  // Slack bot/user OAuth tokens — real tokens are 3 hyphen-separated
+  // segments (workspace id, bot/installation id, secret); `{10,}` after
+  // the prefix is a floor, not the exact real length.
+  /^xox[bp]-[A-Za-z0-9-]{10,}$/,
+  // Stripe secret keys (live and test mode) — real keys run ~24+
+  // alphanumeric characters after the prefix.
+  /^sk_(live|test)_[A-Za-z0-9]{10,}$/,
+  // Google API key — fixed-length real format (`AIzaSy` + 33 chars from
+  // `[A-Za-z0-9_-]`).
+  /^AIzaSy[A-Za-z0-9_-]{33}$/,
+  // Slack incoming-webhook URL — unanchored (unlike every pattern above)
+  // because the value may legitimately carry a scheme prefix
+  // (`https://`) or trailing query text; the three-segment
+  // `/services/<T>/<B>/<secret>` path is what's actually diagnostic, not
+  // the exact surrounding string.
+  /hooks\.slack\.com\/services\/[A-Za-z0-9]+\/[A-Za-z0-9]+\/[A-Za-z0-9]+/
 ];
+
+// Issue #785 — a generic high-entropy-string backstop (flag any long
+// random-looking blob regardless of vendor prefix) was deliberately NOT
+// added to the list above after evaluating it against this codebase's own
+// realistic non-secret data: `profile_identity`/every other tenant-scoped
+// table's UUID primary/foreign keys, `sync_storage`'s content hashes,
+// idempotency keys, and correlation ids are ALL long, high-entropy-looking
+// strings that are legitimately stored and returned every day. Unlike
+// `social-publishing/domain/social-account-validation.ts`'s own
+// `looksLikeRawSecretToken` (which applies a *whole-field* entropy check
+// only to a field whose entire declared purpose is to hold a secret
+// reference), `findSecretShapedValues`/`SECRET_VALUE_PATTERNS` here scan
+// arbitrary metadata/settings values across every module — a blanket
+// entropy heuristic at this generic layer would flag routine,
+// already-legitimate identifiers constantly. Sticking to explicit
+// vendor-prefix patterns keeps the false-positive rate near zero, at the
+// accepted cost of missing any secret shape not on this list (documented
+// residual, same caveat as the rest of this heuristic — see the file-level
+// doc comment and this function's own doc comment below).
 
 function isSecretShapedValue(value: unknown): boolean {
   return (
@@ -285,6 +380,47 @@ const TEXT_SECRET_PATTERNS: ReadonlyArray<{
   {
     pattern: /AKIA[0-9A-Z]{16}/g,
     replacement: "[REDACTED_AWS_KEY]"
+  },
+  // --- Issue #785: free-text equivalents of the vendor-prefix shapes added
+  // to `SECRET_VALUE_PATTERNS` above — same formats, unanchored so they
+  // match when embedded anywhere in prose (an error message, a stack
+  // trace) rather than being the entire string.
+  {
+    pattern: /ghp_[A-Za-z0-9]{36}/g,
+    replacement: "[REDACTED_GITHUB_TOKEN]"
+  },
+  {
+    pattern: /github_pat_[A-Za-z0-9_]{22,}/g,
+    replacement: "[REDACTED_GITHUB_TOKEN]"
+  },
+  {
+    // Project-scoped key checked first — see the matching comment on
+    // `SECRET_VALUE_PATTERNS` for why the classic `sk-...` pattern's
+    // alphanumeric-only class can never match a `sk-proj-...` value on its
+    // own (the literal `-` after `proj` breaks that run), so ordering here
+    // is for readability, not correctness.
+    pattern: /sk-proj-[A-Za-z0-9_-]{20,}/g,
+    replacement: "[REDACTED_OPENAI_KEY]"
+  },
+  {
+    pattern: /sk-[A-Za-z0-9]{20,}/g,
+    replacement: "[REDACTED_OPENAI_KEY]"
+  },
+  {
+    pattern: /xox[bp]-[A-Za-z0-9-]{10,}/g,
+    replacement: "[REDACTED_SLACK_TOKEN]"
+  },
+  {
+    pattern: /sk_(live|test)_[A-Za-z0-9]{10,}/g,
+    replacement: "[REDACTED_STRIPE_KEY]"
+  },
+  {
+    pattern: /AIzaSy[A-Za-z0-9_-]{33}/g,
+    replacement: "[REDACTED_GOOGLE_API_KEY]"
+  },
+  {
+    pattern: /https?:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/]+/g,
+    replacement: "[REDACTED_SLACK_WEBHOOK]"
   },
   {
     // Password character class deliberately excludes only `/` and

@@ -294,7 +294,15 @@ kasus admin (sengaja atau tidak) menempelkan credential nyata ke field
 yang namanya tidak mencurigakan (mis. `publicLabel`) — `_shared/redaction.ts`'s
 `findSecretShapedValues` melengkapi dengan heuristik bentuk-value
 (JWT, blok PEM private key, AWS access key id, header `Bearer`/`Basic`
-mentah, connection string ber-`user:pass@`), sengaja konservatif supaya
+mentah, connection string ber-`user:pass@`, dan sejak Issue #785 juga
+format vendor umum: GitHub PAT `ghp_...`/`github_pat_...`, OpenAI
+`sk-proj-...`/`sk-...`, Slack bot/user token `xoxb-...`/`xoxp-...` dan
+incoming-webhook `hooks.slack.com/services/...`, Stripe secret key
+`sk_live_...`/`sk_test_...`, Google API key `AIzaSy...`), sengaja
+konservatif — TANPA heuristik entropy generik (dievaluasi lalu sengaja
+tidak dipakai karena UUID/content-hash/idempotency-key yang sah di
+codebase ini akan false-positive terus-menerus, lihat komentar di
+`_shared/redaction.ts`) — supaya
 label/URL/flag biasa tidak pernah salah tertolak, dan menolak
 (`400 SETTINGS_SECRET_SHAPED_VALUE_REJECTED`) tanpa pernah menyertakan
 value itu sendiri di pesan error (hanya path key). Audit trail (`settings_updated`)
@@ -685,8 +693,11 @@ satu baris untuk output CLI) — keduanya memanggil
 pelengkap teks-bebas dari `redactSensitiveAttributes` yang berbasis
 KEY, untuk pola BENTUK NILAI (JWT, blok PEM private key, AWS access
 key, `Bearer`/`Basic` auth header, connection-string dengan kredensial
-`user:pass@`, dan pasangan `key=value`/`key: value` yang key-nya
-credential-shaped) di dalam `.message`/`.stack` exception itu sendiri.
+`user:pass@`, pasangan `key=value`/`key: value` yang key-nya
+credential-shaped, dan sejak Issue #785 juga format vendor umum GitHub
+PAT/OpenAI/Slack token+webhook/Stripe/Google API key — lihat §"Standar
+tambahan dipicu Issue #785" di bawah) di dalam `.message`/`.stack`
+exception itu sendiri.
 
 `REDACTION_KEYS` (redaksi berbasis key object) diperluas dengan
 `"cookie"`. **Temuan penting**: `"ip"` TIDAK bisa masuk daftar itu
@@ -772,6 +783,52 @@ sebelum merge, semuanya sudah diperbaiki di branch yang sama:
 Test regresi untuk setiap temuan di atas ada di `tests/audit-log.test.ts`,
 `tests/unit/error-sanitizer.test.ts`, dan
 `tests/unit/logging-lint-check.test.ts`.
+
+### Standar tambahan dipicu Issue #785 (format vendor secret-key + rekursi array)
+
+Dua audit keamanan independen selama epic #738 Wave 3 (PR #783/#750
+reference-data, PR #784/#754 integration-hub) menemukan celah yang sama
+di `src/modules/_shared/redaction.ts`: `findSecretShapedValues`
+sebelumnya HANYA mencocokkan JWT/PEM/AWS-`AKIA`/`Bearer|Basic`/
+connection-string — kredensial vendor umum (GitHub PAT, OpenAI, Slack,
+Stripe, Google) lolos total, dan `redactSensitiveAttributes` hanya
+merekursi objek JSON top-level, bukan array JSON top-level (payload
+batch-webhook yang array-of-records lolos masking sepenuhnya).
+
+Diperbaiki di `_shared/redaction.ts`:
+
+- `SECRET_VALUE_PATTERNS`/`TEXT_SECRET_PATTERNS` diperluas dengan format
+  vendor: GitHub PAT (`ghp_...`), GitHub fine-grained PAT
+  (`github_pat_...`), OpenAI (`sk-proj-...`/`sk-...`), Slack bot/user
+  token (`xoxb-...`/`xoxp-...`), Slack incoming-webhook URL
+  (`hooks.slack.com/services/...`), Stripe secret key
+  (`sk_live_...`/`sk_test_...`), Google API key (`AIzaSy...`). Setiap
+  pola punya floor panjang setelah prefix-nya (mis. `{20,}` untuk
+  `sk-...`) khusus supaya kode/label pendek yang kebetulan berawalan
+  sama (mis. SKU `sk-widget-2024`) tidak pernah ikut tertolak/teredaksi.
+- Heuristik entropy generik (flag string acak panjang APA PUN, tanpa
+  prefix vendor) DIEVALUASI lalu SENGAJA TIDAK dipakai — UUID primary/
+  foreign key, content hash `sync_storage`, idempotency key, dan
+  correlation id di codebase ini semuanya string high-entropy yang sah
+  dan rutin disimpan; heuristik generik di layer ini (dipakai lintas
+  SEMUA modul, bukan satu field bertujuan-khusus seperti
+  `social-publishing`'s `looksLikeRawSecretToken`) akan menghasilkan
+  false positive terus-menerus. Tetap berpegang pada pola prefix vendor
+  eksplisit, dengan konsekuensi yang diterima: bentuk secret di luar
+  daftar ini tidak terdeteksi (residual yang didokumentasikan, sama
+  seperti keterbatasan heuristik ini sejak awal).
+- `redactSensitiveJsonValue` (fungsi baru, sibling `redactSensitiveAttributes`
+  — BUKAN mengubah signature fungsi lama, supaya nol risiko ke
+  pemanggil yang sudah ada) menerima array JSON top-level dan merekursi
+  ke setiap elemen, untuk konsumen masa depan (mis. `integration_hub`'s
+  payload batch-webhook) yang top-level value-nya array, bukan objek.
+
+Test regresi (fixture kredensial FABRIKASI/non-kanonik, mengikuti
+konvensi fixture JWT yang sudah ada — lihat komentarnya sendiri di
+`tests/audit-log.test.ts` untuk alasan tidak memakai contoh publik resmi
+seperti AWS `AKIAIOSFODNN7EXAMPLE`) ada di `tests/audit-log.test.ts`,
+termasuk fixture negatif (UUID, content hash, kode pendek berawalan
+`sk-`, URL webhook generik) untuk memastikan tidak over-blocking.
 
 ### Troubleshooting operator-safe
 
