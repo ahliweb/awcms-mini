@@ -87,6 +87,35 @@ describe("isBlockedIpAddress", () => {
   ])("IPv6 embedded-IPv4 (round-3) %s -> blocked=%s", (address, expected) => {
     expect(isBlockedIpAddress(address)).toBe(expected);
   });
+
+  // Round-4 security-auditor findings (both non-blocking, gave a PASS
+  // verdict on the round-3 fix overall): the deprecated RFC 4291
+  // "IPv4-compatible" form (no `ffff` marker at all) was the one
+  // remaining known embedded-IPv4 encoding `isBlockedEmbeddedIPv4`
+  // didn't yet cover, and the loopback/unspecified check was a string
+  // special-case that a non-canonical fully-expanded literal could
+  // bypass — both fixed to work off the same `bytes` array the rest of
+  // this function already uses.
+  test.each([
+    ["::169.254.169.254", true], // deprecated IPv4-compatible, embeds cloud metadata
+    ["::127.0.0.1", true], // deprecated IPv4-compatible, embeds loopback
+    ["::8.8.8.8", false] // deprecated IPv4-compatible, embeds public 8.8.8.8
+  ])(
+    "IPv6 deprecated IPv4-compatible (round-4) %s -> blocked=%s",
+    (address, expected) => {
+      expect(isBlockedIpAddress(address)).toBe(expected);
+    }
+  );
+
+  test.each([
+    ["0:0:0:0:0:0:0:1", true], // fully-expanded, non-canonical loopback
+    ["0:0:0:0:0:0:0:0", true] // fully-expanded, non-canonical unspecified
+  ])(
+    "IPv6 fully-expanded loopback/unspecified (round-4) %s -> blocked=%s",
+    (address, expected) => {
+      expect(isBlockedIpAddress(address)).toBe(expected);
+    }
+  );
 });
 
 describe("validateOutboundUrlShape", () => {
@@ -219,4 +248,26 @@ describe("validateOutboundUrlShape", () => {
       expect(result.ok).toBe(true);
     }
   );
+
+  // Round-4 security-auditor findings (both non-blocking, PASS verdict
+  // overall) — through the real caller, same pattern as above.
+  test.each([
+    [
+      "http://[::169.254.169.254]/x",
+      "deprecated IPv4-compatible, embeds cloud metadata"
+    ],
+    ["http://[0:0:0:0:0:0:0:1]/x", "fully-expanded, non-canonical loopback"]
+  ])("rejects %s (%s)", (url) => {
+    const result = validateOutboundUrlShape(url, {
+      allowPrivateTargets: false
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  test("accepts a deprecated IPv4-compatible literal embedding a public address", () => {
+    const result = validateOutboundUrlShape("http://[::8.8.8.8]/x", {
+      allowPrivateTargets: false
+    });
+    expect(result.ok).toBe(true);
+  });
 });

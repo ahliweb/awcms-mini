@@ -218,6 +218,23 @@ function isBlockedEmbeddedIPv4(bytes: number[]): boolean {
     return isPrivateOrReservedIPv4(bytes.slice(12, 16).join("."));
   }
 
+  // IPv4-compatible, RFC 4291 §2.5.5.1 (deprecated, no `ffff` marker)
+  // (`::a.b.c.d`): 0000:0000:0000:0000:0000:0000:v4(32). Round-4
+  // security-auditor Medium finding (non-blocking, not currently
+  // reachable via this codebase's actual `fetch()`/DNS path — Bun/Linux
+  // won't route this deprecated form — but added so this function's own
+  // "every known embedded-IPv4 form" claim is literally true). Safe to
+  // run AFTER the mapped/translated checks above without an explicit
+  // exclusion: both of those require a specific non-zero `0xff` marker
+  // byte within `bytes[8..12]`, so a genuinely all-zero `bytes[0..12]`
+  // can never match either of them — mutually exclusive by construction.
+  // `isPrivateOrReservedIPv6`'s own loopback (`::1`) and unspecified
+  // (`::`) checks already run BEFORE this function is ever called, so
+  // this never double-classifies those two special cases either.
+  if (isZeroRange(bytes, 0, 12)) {
+    return isPrivateOrReservedIPv4(bytes.slice(12, 16).join("."));
+  }
+
   // NAT64 Well-Known Prefix, RFC 6052 §2.1/§2.2 (`64:ff9b::/96`):
   // 0064:ff9b:0000:0000:0000:0000:v4(32) — the /96 length embeds the
   // whole IPv4 address in the last 32 bits (no reserved "u" byte; that
@@ -260,14 +277,25 @@ function isBlockedEmbeddedIPv4(bytes: number[]): boolean {
 function isPrivateOrReservedIPv6(address: string): boolean {
   const normalized = address.toLowerCase();
 
-  if (normalized === "::1" || normalized === "::") {
-    return true; // loopback / unspecified
-  }
-
   const bytes = parseIPv6ToBytes(normalized);
 
   if (!bytes) {
     return true; // Fail closed — should not happen after isIP() already validated syntax.
+  }
+
+  // Byte-based, not a string special-case (round-4 security-auditor Low
+  // finding, non-blocking) — a non-canonical fully-expanded literal (e.g.
+  // `0:0:0:0:0:0:0:1`) is not reachable via either real call site today
+  // (both `URL.hostname` and a DNS-resolved address always canonicalize
+  // first), but this keeps `isBlockedIpAddress` safe by construction for
+  // any future direct caller too, consistent with how the rest of this
+  // function already works off `bytes`, not strings.
+  if (isZeroRange(bytes, 0, 15) && bytes[15] === 1) {
+    return true; // loopback ::1
+  }
+
+  if (isZeroRange(bytes, 0, 16)) {
+    return true; // unspecified ::
   }
 
   if (isBlockedEmbeddedIPv4(bytes)) {
