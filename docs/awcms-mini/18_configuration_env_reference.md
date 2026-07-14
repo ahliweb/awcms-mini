@@ -1019,6 +1019,20 @@ yang sengaja mengirim webhook ke sistem lain di jaringan privat yang sama.
 | --------------------------------------- | ----- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `INTEGRATION_HUB_ALLOW_PRIVATE_TARGETS` | –     | `false` | –        | Bila `true`, melewati proteksi SSRF (`src/modules/integration-hub/domain/ssrf-guard.ts`) yang menolak `target_url` langganan outbound privat/link-local/metadata/reserved. Deployment-wide, tidak pernah dikontrol tenant/request. |
 
+### Reporting projections/scheduled exports (Issue #753, epic #738 platform-evolution)
+
+Perluasan modul `reporting`: proyeksi read-model kontribusi-modul,
+pembaruan inkremental, rebuild idempotent, freshness/staleness,
+rekonsiliasi sumber, dan ekspor terjadwal — lihat
+`src/modules/reporting/README.md` §Projections. Dua var baru: lokasi
+filesystem export lokal/offline, dan berapa lama artefak export tetap
+bisa diunduh sebelum kedaluwarsa.
+
+| Var                               | Wajib | Default                   | Sensitif | Fungsi                                                                                                                                                    |
+| --------------------------------- | ----- | ------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `REPORTING_EXPORT_ROOT_PATH`      | –     | `./var/reporting-exports` | –        | Root filesystem tempat local/offline export adapter menulis artefak snapshot proyeksi (CSV/JSON, checksum tercatat di `awcms_mini_reporting_export_runs`) |
+| `REPORTING_EXPORT_RETENTION_DAYS` | –     | `7`                       | –        | Berapa hari artefak export tetap dapat diunduh sebelum `GET /api/v1/reports/exports/runs/{id}/download` menolak dengan `410 Gone`                         |
+
 ### Provider CRM (opsional) — contoh domain retail/POS
 
 | Var                    | Wajib      | Default | Sensitif | Fungsi             |

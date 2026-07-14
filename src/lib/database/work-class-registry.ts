@@ -128,5 +128,15 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     workClass: "background_sync",
     rationale:
       'Outbox dispatcher (integration-hub:outbound:dispatch, Issue #754), recommended every 1-2 minutes — same recurring dispatcher profile as email/object-sync/social-publish/domain-events dispatch; every withTenant call inside outbound-dispatch.ts already passes workClass: "background_sync" explicitly.'
+  },
+  "scripts/reporting-projections-refresh.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Incremental cursor_table projection updates + rebuild-continuation sweep (reporting:projections:refresh, Issue #753), recommended every 2 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; every withTenant call inside projection-incremental-worker.ts/projection-rebuild.ts already passes workClass: "maintenance" explicitly.'
+  },
+  "scripts/reporting-exports-dispatch.ts": {
+    workClass: "maintenance",
+    rationale:
+      "Scheduled projection export generation (reporting:exports:dispatch, Issue #753), recommended every 15 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; a delayed export run has no operational urgency."
   }
 };

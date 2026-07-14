@@ -581,7 +581,11 @@ channels:
       registry.ts`'s own doc comment). Producer: any caller of
       `application/append-domain-event.ts`'s `appendDomainEvent` for this
       event type (test fixtures in this issue); consumers:
-      `infrastructure/consumer-registry.ts`'s two reference consumers.
+      `infrastructure/consumer-registry.ts`'s reference consumers, including
+      `reporting`'s `eventActivityProjectorConsumer` (Issue #753) —
+      demonstrating a real module-contributed incremental projection
+      updater consuming this event type end-to-end, not just the
+      foundation-issue test fixtures.
   awcms-mini.workflow.instance.started:
     address: awcms-mini.workflow.instance.started
     messages:

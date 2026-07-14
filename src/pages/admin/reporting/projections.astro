@@ -1,0 +1,626 @@
+---
+/**
+ * Reporting projections admin screen (Issue #753, epic #738
+ * platform-evolution Wave 3). Shows every registered projection's live
+ * snapshot/freshness status (current/delayed/stale/rebuilding/failed —
+ * issue #753 acceptance criterion: "Freshness/current-stale-rebuilding-
+ * failed status is exposed in API and UI with documented semantics"),
+ * with permission-gated rebuild/reconcile actions and scheduled export
+ * management. SSR reads `application/projection-directory.ts` directly
+ * inside this page's own `withTenant` transaction (same pattern
+ * `admin/business-scope.astro` already uses); every mutation goes through
+ * the real `/api/v1/reports/*` endpoints via `submitJson` — this page has
+ * no privileged shortcut.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import ActionBanner from "../../../components/ui/ActionBanner.astro";
+import DataTable from "../../../components/ui/DataTable.astro";
+import StatusBadge from "../../../components/ui/StatusBadge.astro";
+import FormField from "../../../components/ui/FormField.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import {
+  listProjectionSummariesForTenant,
+  type ProjectionSummaryView
+} from "../../../modules/reporting/application/projection-directory";
+import {
+  listScheduledExports,
+  type ScheduledExportRow
+} from "../../../modules/reporting/application/scheduled-export-store";
+import {
+  listExportRuns,
+  type ExportRunRow
+} from "../../../modules/reporting/application/export-run-store";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/reporting/projections.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const clientStrings = {
+  rebuildTriggered: t("admin.reporting_projections.rebuild_triggered"),
+  rebuildResumed: t("admin.reporting_projections.rebuild_resumed"),
+  rebuildCancelRequested: t(
+    "admin.reporting_projections.rebuild_cancel_requested"
+  ),
+  reconcileComplete: t("admin.reporting_projections.reconcile_complete"),
+  reconcileMismatch: t("admin.reporting_projections.reconcile_mismatch"),
+  rebuildReasonPrompt: t("admin.reporting_projections.rebuild_reason_prompt"),
+  scheduleCreated: t("admin.reporting_projections.schedule_created"),
+  scheduleDisabled: t("admin.reporting_projections.schedule_disabled"),
+  exportTriggered: t("admin.reporting_projections.export_triggered"),
+  disableReasonPrompt: t("admin.reporting_projections.disable_reason_prompt"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+const CAN_READ = context.permissions.has(
+  permissionKey("reporting", "projections", "read")
+);
+const CAN_REBUILD = context.permissions.has(
+  permissionKey("reporting", "projections", "rebuild")
+);
+const CAN_ANALYZE = context.permissions.has(
+  permissionKey("reporting", "projections", "analyze")
+);
+const CAN_EXPORTS_READ = context.permissions.has(
+  permissionKey("reporting", "exports", "read")
+);
+const CAN_EXPORTS_CONFIGURE = context.permissions.has(
+  permissionKey("reporting", "exports", "configure")
+);
+const CAN_EXPORTS_TRIGGER = context.permissions.has(
+  permissionKey("reporting", "exports", "export")
+);
+
+let projections: ProjectionSummaryView[] = [];
+let scheduledExports: ScheduledExportRow[] = [];
+let exportRuns: ExportRunRow[] = [];
+let loadError = false;
+
+try {
+  await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+    if (CAN_READ) {
+      projections = await listProjectionSummariesForTenant(
+        tx,
+        context.tenantId,
+        context.permissions
+      );
+    }
+    if (CAN_EXPORTS_READ) {
+      scheduledExports = await listScheduledExports(tx, context.tenantId);
+      exportRuns = await listExportRuns(tx, context.tenantId);
+    }
+  });
+} catch (error) {
+  loadError = true;
+  logAdminPageError("admin/reporting/projections", error);
+}
+
+function freshnessVariant(
+  status: ProjectionSummaryView["freshness"]["status"]
+): "success" | "warning" | "danger" | "info" {
+  if (status === "current") return "success";
+  if (status === "delayed") return "warning";
+  if (status === "rebuilding") return "info";
+  return "danger"; // "stale" | "failed"
+}
+---
+
+<AdminLayout title={t("admin.reporting_projections.page_title")}>
+  <h1>{t("admin.reporting_projections.page_title")}</h1>
+  <p>{t("admin.reporting_projections.page_description")}</p>
+
+  <ActionBanner id="action-banner" />
+
+  {
+    loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+
+  {
+    !CAN_READ && !CAN_EXPORTS_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.reporting_projections.access_denied_title")}
+        body={t("admin.reporting_projections.access_denied_body")}
+      />
+    )
+  }
+
+  {
+    CAN_READ && (
+      <section>
+        <h2>{t("admin.reporting_projections.projections_heading")}</h2>
+
+        <DataTable
+          caption={t("admin.reporting_projections.projections_heading")}
+          columnCount={6}
+          isEmpty={projections.length === 0}
+          emptyMessage={t("admin.reporting_projections.projections_empty")}
+        >
+          <Fragment slot="head">
+            <tr>
+              <th scope="col">{t("admin.reporting_projections.col_key")}</th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_metrics")}
+              </th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_freshness")}
+              </th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_last_success")}
+              </th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_drill_down")}
+              </th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_actions")}
+              </th>
+            </tr>
+          </Fragment>
+          {projections.map((projection) => (
+            <tr>
+              <td>
+                <strong>{projection.key}</strong>
+                <br />
+                <small>{projection.description}</small>
+              </td>
+              <td>
+                <ul>
+                  {Object.entries(projection.metrics).map(
+                    ([metricKey, value]) => (
+                      <li>
+                        {projection.metricLabels[metricKey] ?? metricKey}:{" "}
+                        {value}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </td>
+              <td>
+                <StatusBadge
+                  label={t(
+                    `admin.reporting_projections.freshness_${projection.freshness.status}`
+                  )}
+                  variant={freshnessVariant(projection.freshness.status)}
+                />
+              </td>
+              <td>{projection.freshness.lastSuccessAt ?? "—"}</td>
+              <td>
+                {projection.drillDownPath && (
+                  <a href={projection.drillDownPath}>
+                    {t("admin.reporting_projections.view_source_link")}
+                  </a>
+                )}
+              </td>
+              <td>
+                {CAN_REBUILD && (
+                  <button
+                    type="button"
+                    class="rebuild-button"
+                    data-projection-key={projection.key}
+                  >
+                    {t("admin.reporting_projections.rebuild_button")}
+                  </button>
+                )}
+                {CAN_REBUILD &&
+                  projection.freshness.status === "rebuilding" && (
+                    <button
+                      type="button"
+                      class="cancel-rebuild-button"
+                      data-projection-key={projection.key}
+                    >
+                      {t("admin.reporting_projections.cancel_rebuild_button")}
+                    </button>
+                  )}
+                {CAN_ANALYZE && (
+                  <button
+                    type="button"
+                    class="reconcile-button"
+                    data-projection-key={projection.key}
+                  >
+                    {t("admin.reporting_projections.reconcile_button")}
+                  </button>
+                )}
+                {CAN_EXPORTS_TRIGGER && (
+                  <button
+                    type="button"
+                    class="export-button"
+                    data-projection-key={projection.key}
+                  >
+                    {t("admin.reporting_projections.export_button")}
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </DataTable>
+      </section>
+    )
+  }
+
+  {
+    CAN_EXPORTS_READ && (
+      <section>
+        <h2>{t("admin.reporting_projections.scheduled_exports_heading")}</h2>
+
+        <DataTable
+          caption={t("admin.reporting_projections.scheduled_exports_heading")}
+          columnCount={5}
+          isEmpty={scheduledExports.length === 0}
+          emptyMessage={t(
+            "admin.reporting_projections.scheduled_exports_empty"
+          )}
+        >
+          <Fragment slot="head">
+            <tr>
+              <th scope="col">{t("admin.reporting_projections.col_key")}</th>
+              <th scope="col">{t("admin.reporting_projections.col_format")}</th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_interval")}
+              </th>
+              <th scope="col">{t("admin.reporting_projections.col_status")}</th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_actions")}
+              </th>
+            </tr>
+          </Fragment>
+          {scheduledExports.map((scheduledExport) => (
+            <tr>
+              <td>{scheduledExport.projectionKey}</td>
+              <td>{scheduledExport.format}</td>
+              <td>{scheduledExport.scheduleIntervalMinutes} min</td>
+              <td>
+                <StatusBadge
+                  label={
+                    scheduledExport.enabled
+                      ? t("admin.reporting_projections.status_enabled")
+                      : t("admin.reporting_projections.status_disabled")
+                  }
+                  variant={scheduledExport.enabled ? "success" : "neutral"}
+                />
+              </td>
+              <td>
+                {CAN_EXPORTS_CONFIGURE && scheduledExport.enabled && (
+                  <button
+                    type="button"
+                    class="disable-schedule-button"
+                    data-schedule-id={scheduledExport.id}
+                  >
+                    {t("admin.reporting_projections.disable_button")}
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </DataTable>
+
+        {CAN_EXPORTS_CONFIGURE && (
+          <form id="create-schedule-form">
+            <h3>{t("admin.reporting_projections.create_schedule_heading")}</h3>
+            <FormField
+              id="schedule-projection-key"
+              label={t("admin.reporting_projections.col_key")}
+              required
+            >
+              <select
+                id="schedule-projection-key"
+                name="projectionKey"
+                required
+              >
+                {projections.map((projection) => (
+                  <option value={projection.key}>{projection.key}</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField
+              id="schedule-format"
+              label={t("admin.reporting_projections.col_format")}
+              required
+            >
+              <select id="schedule-format" name="format" required>
+                <option value="csv">CSV</option>
+                <option value="json">JSON</option>
+              </select>
+            </FormField>
+            <FormField
+              id="schedule-interval"
+              label={t("admin.reporting_projections.field_interval_minutes")}
+              required
+            >
+              <input
+                id="schedule-interval"
+                name="scheduleIntervalMinutes"
+                type="number"
+                min="15"
+                max="43200"
+                required
+                value="60"
+              />
+            </FormField>
+            <button type="submit">
+              {t("admin.reporting_projections.create_schedule_button")}
+            </button>
+          </form>
+        )}
+
+        <h3>{t("admin.reporting_projections.export_runs_heading")}</h3>
+        <DataTable
+          caption={t("admin.reporting_projections.export_runs_heading")}
+          columnCount={5}
+          isEmpty={exportRuns.length === 0}
+          emptyMessage={t("admin.reporting_projections.export_runs_empty")}
+        >
+          <Fragment slot="head">
+            <tr>
+              <th scope="col">{t("admin.reporting_projections.col_key")}</th>
+              <th scope="col">{t("admin.reporting_projections.col_status")}</th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_row_count")}
+              </th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_expires_at")}
+              </th>
+              <th scope="col">
+                {t("admin.reporting_projections.col_actions")}
+              </th>
+            </tr>
+          </Fragment>
+          {exportRuns.map((run) => (
+            <tr>
+              <td>{run.projectionKey}</td>
+              <td>
+                <StatusBadge
+                  label={run.status}
+                  variant={run.status === "completed" ? "success" : "danger"}
+                />
+              </td>
+              <td>{run.rowCount}</td>
+              <td>{run.expiresAt ?? "—"}</td>
+              <td>
+                {run.status === "completed" && (
+                  <a href={`/api/v1/reports/exports/runs/${run.id}/download`}>
+                    {t("admin.reporting_projections.download_link")}
+                  </a>
+                )}
+              </td>
+            </tr>
+          ))}
+        </DataTable>
+      </section>
+    )
+  }
+
+  <script
+    type="application/json"
+    id="i18n-strings"
+    set:html={JSON.stringify(clientStrings)}
+  />
+
+  <script>
+    import {
+      lockElement,
+      newIdempotencyKey,
+      readClientStrings,
+      reloadAfterDelay,
+      showBanner,
+      submitJson
+    } from "../../../lib/ui/admin-form-client";
+
+    const strings = readClientStrings<{
+      rebuildTriggered: string;
+      rebuildResumed: string;
+      rebuildCancelRequested: string;
+      reconcileComplete: string;
+      reconcileMismatch: string;
+      rebuildReasonPrompt: string;
+      scheduleCreated: string;
+      scheduleDisabled: string;
+      exportTriggered: string;
+      disableReasonPrompt: string;
+      networkError: string;
+      pleaseWait: string;
+      errorMessages: Record<string, string>;
+    }>();
+
+    document.querySelectorAll(".rebuild-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const reason = window.prompt(strings.rebuildReasonPrompt);
+        if (!reason) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const key = button.dataset.projectionKey;
+          const result = await submitJson<{ resumed: boolean }>(
+            `/api/v1/reports/projections/${key}/rebuild`,
+            "POST",
+            { reason },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok
+              ? result.data?.resumed
+                ? strings.rebuildResumed
+                : strings.rebuildTriggered
+              : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+    document.querySelectorAll(".cancel-rebuild-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const key = button.dataset.projectionKey;
+          const result = await submitJson(
+            `/api/v1/reports/projections/${key}/rebuild/cancel`,
+            "POST",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.rebuildCancelRequested : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+    document.querySelectorAll(".reconcile-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const key = button.dataset.projectionKey;
+          const result = await submitJson<{
+            reconciliation: { mismatch: boolean };
+          }>(
+            `/api/v1/reports/projections/${key}/reconcile`,
+            "POST",
+            {},
+            strings
+          );
+          showBanner(
+            "action-banner",
+            result.ok
+              ? result.data?.reconciliation.mismatch
+                ? strings.reconcileMismatch
+                : strings.reconcileComplete
+              : result.message,
+            result.ok
+              ? result.data?.reconciliation.mismatch
+                ? "warning"
+                : "success"
+              : "error"
+          );
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+    document.querySelectorAll(".export-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const key = button.dataset.projectionKey;
+          const result = await submitJson(
+            "/api/v1/reports/exports/trigger",
+            "POST",
+            { projectionKey: key, format: "csv" },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.exportTriggered : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+    document
+      .getElementById("create-schedule-form")
+      ?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.target as HTMLFormElement;
+        const button = form.querySelector<HTMLButtonElement>(
+          "button[type=submit]"
+        );
+        const unlock = button ? lockElement(button, strings.pleaseWait) : null;
+        try {
+          const data = new FormData(form);
+          const result = await submitJson(
+            "/api/v1/reports/exports",
+            "POST",
+            {
+              projectionKey: data.get("projectionKey"),
+              format: data.get("format"),
+              scheduleIntervalMinutes: Number(
+                data.get("scheduleIntervalMinutes")
+              )
+            },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.scheduleCreated : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock?.();
+        }
+      });
+
+    document.querySelectorAll(".disable-schedule-button").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const button = el as HTMLButtonElement;
+        if (button.disabled) return;
+        const reason = window.prompt(strings.disableReasonPrompt);
+        if (!reason) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const id = button.dataset.scheduleId;
+          const result = await submitJson(
+            `/api/v1/reports/exports/${id}/disable`,
+            "POST",
+            { reason },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          showBanner(
+            "action-banner",
+            result.ok ? strings.scheduleDisabled : result.message,
+            result.ok ? "success" : "error"
+          );
+          if (result.ok) reloadAfterDelay();
+        } finally {
+          unlock();
+        }
+      });
+    });
+  </script>
+</AdminLayout>

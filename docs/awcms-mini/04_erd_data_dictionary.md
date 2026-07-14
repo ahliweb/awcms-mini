@@ -89,7 +89,7 @@ erDiagram
 | AI Analyst           | `awcms_mini_ai_sessions`, `awcms_mini_ai_messages`, `awcms_mini_ai_tool_calls`, `awcms_mini_ai_tool_policies`                                                                                                                                                                                                                                                                                                                                     |
 | Logging              | `awcms_mini_log_events`, `awcms_mini_audit_events`, `awcms_mini_security_events`                                                                                                                                                                                                                                                                                                                                                                  |
 | Workflow             | `awcms_mini_workflow_definitions` (versioned: `version`/`lifecycle_status`/`graph`/`facts_schema`, Issue #747), `awcms_mini_workflow_instances` (pinned `workflow_definition_version`, `facts`), `awcms_mini_workflow_tasks` (node-based: `node_id`, `quorum_rule`, `due_at`, `escalation_step`), `awcms_mini_workflow_decisions`, `awcms_mini_workflow_task_assignments`, `awcms_mini_workflow_delegations`, `awcms_mini_workflow_join_arrivals` |
-| Reporting            | report views/materialized views                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Reporting            | report views/materialized views; proyeksi read-model (Issue #753): `awcms_mini_reporting_projection_state`, `awcms_mini_reporting_projection_cursors`, `awcms_mini_reporting_projection_metrics`, `awcms_mini_reporting_rebuild_runs`, `awcms_mini_reporting_reconciliation_runs`, `awcms_mini_reporting_scheduled_exports`, `awcms_mini_reporting_export_runs`                                                                                   |
 | Production Security  | `awcms_mini_security_controls`, `awcms_mini_security_readiness_assessments`, `awcms_mini_security_findings`, `awcms_mini_go_live_gates`                                                                                                                                                                                                                                                                                                           |
 | Module Management    | `awcms_mini_modules` (extended), `awcms_mini_tenant_modules`, `awcms_mini_module_dependencies`, `awcms_mini_module_settings`, `awcms_mini_module_navigation`, `awcms_mini_module_jobs`, `awcms_mini_module_health_checks`                                                                                                                                                                                                                         |
 | Data Lifecycle       | `awcms_mini_data_lifecycle_legal_holds`, `awcms_mini_data_lifecycle_cursors`, `awcms_mini_data_lifecycle_archive_manifests`, `awcms_mini_data_lifecycle_runs`                                                                                                                                                                                                                                                                                     |
@@ -779,7 +779,7 @@ di modul ini (ADR-0017 §4/§10 — sengaja tidak ada hard dependency ke
 scheduled job yang memutasi data di modul ini (semua mutasi terjadi di
 jalur request `awcms_mini_app`).
 
-### Integration Hub (Issue #754, epic `platform-evolution` #738 Wave 3, ADR-0018, `sql/069`–`070`)
+### Integration Hub (Issue #754, epic `platform-evolution` #738 Wave 3, ADR-0018, `sql/071`–`072`)
 
 Modul System baru `integration_hub` — batas integrasi generik
 provider-netral: endpoint webhook inbound bertanda tangan (HMAC
@@ -825,7 +825,7 @@ delivery_id IS NULL` mencegah duplikasi fan-out (sama pola
   per (tenant, adapter, direction).
 
 Permission seed: 15 permission
-(`070_awcms_mini_integration_hub_permissions.sql`) —
+(`072_awcms_mini_integration_hub_permissions.sql`) —
 `endpoints.{read,create,delete,configure,enable,disable}`,
 `subscriptions.{read,create,delete,enable,disable}`,
 `deliveries.{read,replay}`, `health.read`, `adapters.read`.
@@ -860,6 +860,70 @@ terhadap tabel ini. `_outbound_deliveries`/`_delivery_attempts` SENGAJA
 BELUM didaftarkan (FK non-CASCADE + self-reference replay membuat
 purge lintas-descriptor tanpa ordering berisiko FK violation — lihat
 README modul §Known limitations).
+
+### Reporting Projections (Issue #753, epic `platform-evolution` #738 Wave 3, `sql/069`–`070`)
+
+Perluasan modul `reporting` (bukan modul baru) — proyeksi read-model
+kontribusi-modul, pembaruan inkremental (cursor_table poll ATAU
+domain_event push via `domain_event_runtime`, Issue #742), rebuild
+idempotent, freshness/staleness, rekonsiliasi sumber, dan ekspor
+terjadwal. Lihat `src/modules/reporting/README.md` §Projections untuk
+detail lengkap; ringkasan skema di sini.
+
+Descriptor proyeksi (`ProjectionDescriptor`, sumber/metrik/freshness
+policy/permission) hidup di KODE
+(`ModuleDescriptor.reportingProjections`,
+`src/modules/_shared/module-contract.ts`), dideklarasikan oleh modul
+pemiliknya sendiri (`reporting`'s own `module.ts` untuk ketiga
+descriptor PR ini) — **tidak pernah** disalin ke tabel database (sama
+prinsip "jangan duplikasi fakta descriptor immutable ke settings
+mutable" Issue #745).
+
+Skema inti (`069_awcms_mini_reporting_projections_schema.sql`, semua
+tenant-scoped `ENABLE`+`FORCE ROW LEVEL SECURITY`):
+
+- **`awcms_mini_reporting_projection_state`** — freshness bookkeeping
+  mentah per `(tenant_id, projection_key)`: `last_attempt_at`,
+  `last_success_at`, `consecutive_failures`, `last_error_message`.
+  Status freshness (`current`/`delayed`/`stale`/`rebuilding`/`failed`)
+  SELALU dihitung live dari kolom ini saat dibaca
+  (`reporting/domain/freshness.ts`) — tidak pernah disimpan sebagai
+  enum cache (worker yang berhenti total tanpa write apa pun tetap
+  membuat status ini menua secara benar menjadi stale, murni dari
+  berlalunya waktu).
+- **`awcms_mini_reporting_projection_cursors`** — posisi resume bounded
+  scan per `(tenant_id, projection_key, stream_key)`, dipakai bergantian
+  (mutually exclusive) oleh incremental worker dan rebuild yang sedang
+  berjalan.
+- **`awcms_mini_reporting_projection_metrics`** — nilai read-model
+  aktual: satu counter non-negatif per `(tenant_id, projection_key,
+metric_key)`.
+- **`awcms_mini_reporting_rebuild_runs`** — state eksekusi/progress
+  rebuild. Partial unique index `(tenant_id, projection_key) WHERE
+status = 'running'` adalah jaminan tingkat-database (bukan sekadar
+  disiplin kode) bahwa paling banyak SATU rebuild berjalan per
+  proyeksi per tenant — inti mekanisme idempotent rebuild (lihat
+  `reporting/application/projection-rebuild.ts`'s header comment).
+- **`awcms_mini_reporting_reconciliation_runs`** — snapshot perbandingan
+  on-demand nilai proyeksi vs. control total segar dari tabel sumber.
+- **`awcms_mini_reporting_scheduled_exports`** — config ekspor terjadwal
+  tenant, soft-deletable (AGENTS.md rule 13).
+- **`awcms_mini_reporting_export_runs`** — manifest/checksum/expiry
+  setiap eksekusi ekspor (manual atau terjadwal).
+
+`awcms_mini_worker` diberi grant eksplisit persis pada tabel yang
+disentuh dua job terjadwal (`reporting:projections:refresh`,
+`reporting:exports:dispatch`) — termasuk `SELECT` baru pada
+`awcms_mini_abac_decision_logs`/`awcms_mini_identities`/
+`awcms_mini_sync_nodes` (sebelumnya TIDAK ada di grant matrix worker
+sama sekali, celah nyata yang ditutup migration 069, dibuktikan oleh
+integration test `provisionWorkerRole()`-based).
+
+Permission seed: 6 permission baru
+(`070_awcms_mini_reporting_projections_permissions.sql`) —
+`projections.{read,rebuild,analyze}`, `exports.{read,configure,export}`
+— additive terhadap `reporting.dashboard.read` yang sudah ada
+(migration 010, tidak berubah).
 
 ## Konten multi-bahasa (translatable content)
 

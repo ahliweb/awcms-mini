@@ -1,0 +1,912 @@
+# Source fragment for the "Reporting Projections" module/tag (Issue #753,
+# epic #738 platform-evolution Wave 3). Owns every path tagged "Reporting
+# Projections" and every schema referenced ONLY by this tag's operations.
+#
+# NOT independently valid OpenAPI -- see openapi/README.md. Real incremental
+# updates (bun run reporting:projections:refresh / reporting:exports:dispatch)
+# are internal scheduled jobs, deliberately NOT exposed here as HTTP paths --
+# same administrative-operation posture data-lifecycle.openapi.yaml already
+# documents for its own archive/purge job.
+paths:
+  /api/v1/reports/projections:
+    get:
+      tags:
+        - Reporting Projections
+      summary: List every registered projection descriptor's live snapshot/freshness for the caller's tenant
+      operationId: reportingProjectionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: 'Registered scope="tenant" projections with current metric values and computed freshness status.'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - projections
+                        properties:
+                          projections:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReportingProjectionSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/projections/{key}:
+    get:
+      tags:
+        - Reporting Projections
+      summary: A single projection's snapshot/freshness plus recent reconciliation history
+      operationId: reportingProjectionGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Projection snapshot plus its last 50 reconciliation runs.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - projection
+                          - recentReconciliations
+                        properties:
+                          projection:
+                            $ref: "#/components/schemas/ReportingProjectionSummary"
+                          recentReconciliations:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReportingReconciliationRun"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/projections/{key}/rebuild:
+    post:
+      tags:
+        - Reporting Projections
+      summary: Trigger a full projection rebuild, or return the already-running one
+      operationId: reportingProjectionRebuildCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "200":
+          description: Rebuild triggered (or resumed — see `resumed`).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - rebuild
+                          - resumed
+                        properties:
+                          rebuild:
+                            $ref: "#/components/schemas/ReportingRebuildRun"
+                          resumed:
+                            type: boolean
+                            description: true when a rebuild was already running for this projection and no reset happened.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/projections/{key}/rebuild/cancel:
+    post:
+      tags:
+        - Reporting Projections
+      summary: Request cooperative cancellation of the currently-running rebuild
+      operationId: reportingProjectionRebuildCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Cancellation requested — checked cooperatively between bounded passes, not immediate.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - rebuildId
+                          - cancelRequested
+                        properties:
+                          rebuildId:
+                            type: string
+                            format: uuid
+                          cancelRequested:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: No running rebuild for this projection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/projections/{key}/reconcile:
+    post:
+      tags:
+        - Reporting Projections
+      summary: On-demand reconciliation of a projection against a freshly computed source control total
+      operationId: reportingProjectionReconcileCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Deterministic comparison snapshot. No Idempotency-Key required -- mutates no business state (only appends a reconciliation history row), safe to retry.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - reconciliation
+                        properties:
+                          reconciliation:
+                            $ref: "#/components/schemas/ReportingReconciliationRun"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/exports:
+    get:
+      tags:
+        - Reporting Projections
+      summary: List scheduled export configs for the caller's tenant
+      operationId: reportingScheduledExportsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: projectionKey
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Scheduled export configs (limit 200, newest first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - scheduledExports
+                        properties:
+                          scheduledExports:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReportingScheduledExport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Reporting Projections
+      summary: Create a scheduled export config
+      operationId: reportingScheduledExportCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - projectionKey
+                - format
+                - scheduleIntervalMinutes
+              additionalProperties: false
+              properties:
+                projectionKey:
+                  type: string
+                format:
+                  type: string
+                  enum:
+                    - csv
+                    - json
+                scheduleIntervalMinutes:
+                  type: integer
+                  minimum: 15
+                  maximum: 43200
+                filter:
+                  type: object
+                  additionalProperties: true
+                  description: Not yet applied to generated exports (known limitation) -- omit or pass an empty object; a non-empty filter is rejected with 400 NOT_IMPLEMENTED until a follow-up issue defines the filter schema and wires it into export generation.
+      responses:
+        "200":
+          description: Scheduled export config created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - scheduledExport
+                        properties:
+                          scheduledExport:
+                            $ref: "#/components/schemas/ReportingScheduledExport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/exports/{id}/disable:
+    post:
+      tags:
+        - Reporting Projections
+      summary: Disable (soft-delete) a scheduled export config
+      operationId: reportingScheduledExportDisable
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "200":
+          description: Scheduled export disabled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - id
+                          - disabled
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          disabled:
+                            type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Scheduled export not found (or already disabled).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/exports/trigger:
+    post:
+      tags:
+        - Reporting Projections
+      summary: Manually generate an export of a projection's current snapshot
+      operationId: reportingExportTrigger
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - projectionKey
+                - format
+              additionalProperties: false
+              properties:
+                projectionKey:
+                  type: string
+                format:
+                  type: string
+                  enum:
+                    - csv
+                    - json
+      responses:
+        "200":
+          description: Export generated (or recorded as failed — see `export.status`).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - export
+                        properties:
+                          export:
+                            $ref: "#/components/schemas/ReportingExportRun"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/exports/runs:
+    get:
+      tags:
+        - Reporting Projections
+      summary: Export run history (manifest/checksum/expiry evidence)
+      operationId: reportingExportRunsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: projectionKey
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Export runs (limit 100, newest first).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - exportRuns
+                        properties:
+                          exportRuns:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReportingExportRun"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reports/exports/runs/{id}/download:
+    get:
+      tags:
+        - Reporting Projections
+      summary: Secure, tenant-scoped, checksum-verified download of a completed export artifact
+      operationId: reportingExportRunDownload
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: File content (CSV or JSON), with an `X-Checksum-Sha256` header matching the recorded manifest checksum.
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "410":
+          description: This export artifact has expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    ReportingProjectionFreshness:
+      type: object
+      required:
+        - status
+        - ageSeconds
+        - lastSuccessAt
+        - lastAttemptAt
+        - consecutiveFailures
+        - lastErrorMessage
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+            - current
+            - delayed
+            - stale
+            - rebuilding
+            - failed
+        ageSeconds:
+          type: number
+          nullable: true
+        lastSuccessAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+        consecutiveFailures:
+          type: integer
+        lastErrorMessage:
+          type: string
+          nullable: true
+    ReportingProjectionSummary:
+      type: object
+      description: Trusted code-declared descriptor metadata (key/version/owner/description/metricLabels/drillDownPath) combined with live, tenant-scoped snapshot/freshness state -- see src/modules/_shared/module-contract.ts's ProjectionDescriptor.
+      required:
+        - key
+        - version
+        - ownerModuleKey
+        - scope
+        - description
+        - metricLabels
+        - metrics
+        - freshness
+        - drillDownPath
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+        version:
+          type: integer
+        ownerModuleKey:
+          type: string
+        scope:
+          type: string
+          enum:
+            - tenant
+            - global
+        description:
+          type: string
+        metricLabels:
+          type: object
+          additionalProperties:
+            type: string
+        metrics:
+          type: object
+          additionalProperties:
+            type: integer
+        freshness:
+          $ref: "#/components/schemas/ReportingProjectionFreshness"
+        drillDownPath:
+          type: string
+          nullable: true
+    ReportingRebuildRun:
+      type: object
+      required:
+        - id
+        - projectionKey
+        - status
+        - startedAt
+        - completedAt
+        - rowsProcessed
+        - cancelRequested
+        - requestedBy
+        - reason
+        - errorMessage
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectionKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - running
+            - completed
+            - failed
+            - cancelled
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rowsProcessed:
+          type: integer
+        cancelRequested:
+          type: boolean
+        requestedBy:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    ReportingReconciliationDetail:
+      type: object
+      required:
+        - metricKey
+        - projectionTotal
+        - sourceTotal
+        - mismatch
+      additionalProperties: false
+      properties:
+        metricKey:
+          type: string
+        projectionTotal:
+          type: integer
+        sourceTotal:
+          type: integer
+        mismatch:
+          type: boolean
+    ReportingReconciliationRun:
+      type: object
+      required:
+        - id
+        - projectionKey
+        - mismatch
+        - details
+        - requestedBy
+        - executedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectionKey:
+          type: string
+        mismatch:
+          type: boolean
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportingReconciliationDetail"
+        requestedBy:
+          type: string
+          format: uuid
+          nullable: true
+        executedAt:
+          type: string
+          format: date-time
+    ReportingScheduledExport:
+      type: object
+      required:
+        - id
+        - projectionKey
+        - format
+        - scheduleIntervalMinutes
+        - enabled
+        - filter
+        - createdBy
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectionKey:
+          type: string
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+        scheduleIntervalMinutes:
+          type: integer
+        enabled:
+          type: boolean
+        filter:
+          type: object
+          additionalProperties: true
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ReportingExportRun:
+      type: object
+      required:
+        - id
+        - scheduledExportId
+        - projectionKey
+        - format
+        - status
+        - rowCount
+        - checksumSha256
+        - expiresAt
+        - requestedBy
+        - createdAt
+        - completedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        scheduledExportId:
+          type: string
+          format: uuid
+          nullable: true
+        projectionKey:
+          type: string
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+        status:
+          type: string
+          enum:
+            - completed
+            - failed
+        rowCount:
+          type: integer
+        checksumSha256:
+          type: string
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        requestedBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true

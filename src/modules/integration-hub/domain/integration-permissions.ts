@@ -3,7 +3,7 @@
  * #754) — same "module declares its own list once, `module.ts` + the
  * migration + every route handler reuse it" convention `data-lifecycle/
  * domain/data-lifecycle-permissions.ts` already established. The migration
- * (`sql/070_awcms_mini_integration_hub_permissions.sql`) is a verbatim,
+ * (`sql/072_awcms_mini_integration_hub_permissions.sql`) is a verbatim,
  * hand-kept-in-sync copy (SQL cannot import TypeScript) — any change here
  * MUST be mirrored there.
  */
