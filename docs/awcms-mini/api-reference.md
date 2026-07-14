@@ -7103,11 +7103,14 @@ Optional, tenant-scoped organization-structure foundation (epic `platform-evolut
 - **operationId**: `organizationStructureAssignmentsEnd`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
@@ -7115,15 +7118,15 @@ Optional, tenant-scoped organization-structure foundation (epic `platform-evolut
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Assignment ended.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Assignment has already ended.                       | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                       | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Assignment ended.                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                               | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                    | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                               | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Assignment has already ended, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                        | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/organization-structure/hierarchy/reparent` — Create or change an organization unit's current parent edge
 
@@ -7306,11 +7309,14 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 - **operationId**: `organizationStructureLegalEntitiesDeactivate`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key, audited critical.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
@@ -7318,40 +7324,43 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Legal entity deactivated.                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Legal entity is already deactivated.                | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                              | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal entity deactivated.                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                             | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                           | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                      | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Legal entity is already deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                               | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/organization-structure/legal-entities/{id}/restore` — Restore a previously deactivated legal entity
 
 - **operationId**: `organizationStructureLegalEntitiesRestore`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Legal entity restored.                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Legal entity is not currently deactivated.          | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                    | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal entity restored.                                                                         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                            | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Legal entity is not currently deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                     | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/organization-structure/location-unit-relationships` — List location-to-unit relationships
 
@@ -7409,25 +7418,28 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 - **operationId**: `organizationStructureLocationUnitRelationshipsEnd`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Relationship ended.                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Relationship has already ended.                     | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                         | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Relationship ended.                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Relationship has already ended, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                          | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/organization-structure/locations` — List operational locations
 
@@ -7530,11 +7542,14 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 - **operationId**: `organizationStructureLocationsDelete`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
@@ -7542,40 +7557,43 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Operational location soft-deleted.                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Operational location is already soft-deleted.       | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                       | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Operational location soft-deleted.                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                               | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                               | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Operational location is already soft-deleted, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                        | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/organization-structure/locations/{id}/restore` — Restore a soft-deleted operational location
 
 - **operationId**: `organizationStructureLocationsRestore`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Operational location restored.                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Operational location is not currently deleted.      | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                        | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Operational location restored.                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Operational location is not currently deleted, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                         | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/organization-structure/unit-types` — List organization-unit types
 
@@ -7679,11 +7697,14 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 - **operationId**: `organizationStructureUnitTypesDelete`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
@@ -7691,40 +7712,43 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Organization-unit type soft-deleted.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Organization-unit type is already soft-deleted.     | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                         | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization-unit type soft-deleted.                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Organization-unit type is already soft-deleted, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                          | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/organization-structure/unit-types/{id}/restore` — Restore a soft-deleted organization-unit type
 
 - **operationId**: `organizationStructureUnitTypesRestore`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Organization-unit type restored.                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Organization-unit type is not currently deleted.    | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                          | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization-unit type restored.                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Organization-unit type is not currently deleted, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/organization-structure/units` — List/search organization units (keyset-paginated)
 
@@ -7834,11 +7858,14 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 - **operationId**: `organizationStructureUnitsDeactivate`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
@@ -7846,40 +7873,43 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Organization unit deactivated.                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Organization unit is already deactivated.           | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                   | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization unit deactivated.                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                           | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Organization unit is already deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                    | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/organization-structure/units/{id}/restore` — Restore a deactivated organization unit
 
 - **operationId**: `organizationStructureUnitsRestore`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key.
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
 | ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
 | `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Organization unit restored.                         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Organization unit is not currently deactivated.     | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                         | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization unit restored.                                                                         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Organization unit is not currently deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                          | [`ApiError`](#standard-error-envelope)                   |
 
 ## Schema appendix
 

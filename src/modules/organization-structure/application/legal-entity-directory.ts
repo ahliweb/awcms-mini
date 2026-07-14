@@ -345,6 +345,7 @@ export async function fetchLegalEntityById(
 
 export type ListLegalEntitiesFilter = {
   status?: "active" | "inactive";
+  /** `true` only from the admin SSR page's own direct call (`admin/organization-structure/legal-entities.astro`, so the restore action has something to target) — the public `GET .../legal-entities` API route never sets this and always sees active-window rows only. */
   includeDeleted?: boolean;
 };
 

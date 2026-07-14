@@ -287,6 +287,7 @@ export async function fetchOrganizationUnitTypeById(
   return rows[0] ? toRow(rows[0]) : null;
 }
 
+/** Bounded list (`LIMIT 200`). `includeDeleted` is `true` only from the admin SSR page's own direct call (`admin/organization-structure/unit-types.astro`, so the restore action has something to target) — the public `GET .../unit-types` API route never sets this. */
 export async function listOrganizationUnitTypes(
   tx: Bun.SQL,
   tenantId: string,

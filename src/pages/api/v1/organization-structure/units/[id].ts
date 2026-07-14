@@ -1,6 +1,10 @@
 import type { APIRoute } from "astro";
 
-import { fail, ok } from "../../../../../modules/_shared/api-response";
+import {
+  fail,
+  jsonResponse,
+  ok
+} from "../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../lib/database/client";
 import { withTenant } from "../../../../../lib/database/tenant-context";
 import {
@@ -13,10 +17,17 @@ import {
   readJsonBody
 } from "../../../../../lib/security/request-body-limit";
 import {
+  computeRequestHash,
+  findIdempotencyRecord,
+  saveIdempotencyRecord
+} from "../../../../../modules/_shared/idempotency";
+import {
   deactivateOrganizationUnit,
   fetchOrganizationUnitById,
   updateOrganizationUnit
 } from "../../../../../modules/organization-structure/application/organization-unit-directory";
+
+const IDEMPOTENCY_SCOPE = "organization_structure_unit_delete";
 
 const READ_GUARD = {
   moduleKey: "organization_structure",
@@ -146,6 +157,7 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   });
 };
 
+/** High-risk mutation: requires `Idempotency-Key`. */
 export const DELETE: APIRoute = async ({
   request,
   cookies,
@@ -160,6 +172,15 @@ export const DELETE: APIRoute = async ({
   const unitId = params.id;
   if (!unitId) return fail(400, "VALIDATION_ERROR", "Unit id is required.");
 
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (!idempotencyKey) {
+    return fail(
+      400,
+      "IDEMPOTENCY_REQUIRED",
+      "Idempotency-Key header is required."
+    );
+  }
+
   const bodyRead = await readJsonBody<{ deleteReason?: unknown }>(
     request,
     "default"
@@ -169,6 +190,7 @@ export const DELETE: APIRoute = async ({
   const deleteReason =
     typeof body.deleteReason === "string" ? body.deleteReason : null;
 
+  const requestHash = computeRequestHash(body);
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
@@ -183,6 +205,26 @@ export const DELETE: APIRoute = async ({
       DELETE_GUARD
     );
     if (!auth.allowed) return auth.denied;
+
+    const existingIdempotency = await findIdempotencyRecord(
+      tx,
+      tenantId,
+      IDEMPOTENCY_SCOPE,
+      idempotencyKey
+    );
+
+    if (existingIdempotency) {
+      if (existingIdempotency.requestHash !== requestHash) {
+        return fail(
+          409,
+          "IDEMPOTENCY_CONFLICT",
+          "Idempotency-Key was already used with a different request."
+        );
+      }
+      return jsonResponse(existingIdempotency.responseBody, {
+        status: existingIdempotency.responseStatus
+      });
+    }
 
     const result = await deactivateOrganizationUnit(
       tx,
@@ -203,6 +245,19 @@ export const DELETE: APIRoute = async ({
       );
     }
 
-    return ok({ unit: result.unit });
+    const successResponse = ok({ unit: result.unit });
+    const successBody = await successResponse.clone().json();
+
+    await saveIdempotencyRecord(
+      tx,
+      tenantId,
+      IDEMPOTENCY_SCOPE,
+      idempotencyKey,
+      requestHash,
+      200,
+      successBody
+    );
+
+    return successResponse;
   });
 };

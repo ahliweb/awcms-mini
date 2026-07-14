@@ -1,6 +1,10 @@
 import type { APIRoute } from "astro";
 
-import { fail, ok } from "../../../../../../modules/_shared/api-response";
+import {
+  fail,
+  jsonResponse,
+  ok
+} from "../../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../../lib/database/client";
 import { withTenant } from "../../../../../../lib/database/tenant-context";
 import {
@@ -12,7 +16,14 @@ import {
   bodyTooLargeResponse,
   readJsonBody
 } from "../../../../../../lib/security/request-body-limit";
+import {
+  computeRequestHash,
+  findIdempotencyRecord,
+  saveIdempotencyRecord
+} from "../../../../../../modules/_shared/idempotency";
 import { endOrganizationUnitAssignment } from "../../../../../../modules/organization-structure/application/organization-unit-assignment-service";
+
+const IDEMPOTENCY_SCOPE = "organization_structure_assignment_end";
 
 const REVOKE_GUARD = {
   moduleKey: "organization_structure",
@@ -20,7 +31,7 @@ const REVOKE_GUARD = {
   action: "revoke" as const
 };
 
-/** `POST /api/v1/organization-structure/assignments/{id}/end` (Issue #749) — end an active assignment. `endReason` required. */
+/** `POST /api/v1/organization-structure/assignments/{id}/end` (Issue #749) — end an active assignment. `endReason` required. High-risk mutation: requires `Idempotency-Key`. */
 export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
   if (!tenantId)
@@ -31,6 +42,15 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   if (!assignmentId)
     return fail(400, "VALIDATION_ERROR", "Assignment id is required.");
 
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (!idempotencyKey) {
+    return fail(
+      400,
+      "IDEMPOTENCY_REQUIRED",
+      "Idempotency-Key header is required."
+    );
+  }
+
   const bodyRead = await readJsonBody<{ endReason?: unknown }>(
     request,
     "default"
@@ -39,6 +59,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   const body = bodyRead.value ?? {};
   const endReason = typeof body.endReason === "string" ? body.endReason : "";
 
+  const requestHash = computeRequestHash(body);
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
@@ -53,6 +74,26 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       REVOKE_GUARD
     );
     if (!auth.allowed) return auth.denied;
+
+    const existingIdempotency = await findIdempotencyRecord(
+      tx,
+      tenantId,
+      IDEMPOTENCY_SCOPE,
+      idempotencyKey
+    );
+
+    if (existingIdempotency) {
+      if (existingIdempotency.requestHash !== requestHash) {
+        return fail(
+          409,
+          "IDEMPOTENCY_CONFLICT",
+          "Idempotency-Key was already used with a different request."
+        );
+      }
+      return jsonResponse(existingIdempotency.responseBody, {
+        status: existingIdempotency.responseStatus
+      });
+    }
 
     const result = await endOrganizationUnitAssignment(
       tx,
@@ -81,6 +122,19 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       );
     }
 
-    return ok({ assignment: result.assignment });
+    const successResponse = ok({ assignment: result.assignment });
+    const successBody = await successResponse.clone().json();
+
+    await saveIdempotencyRecord(
+      tx,
+      tenantId,
+      IDEMPOTENCY_SCOPE,
+      idempotencyKey,
+      requestHash,
+      200,
+      successBody
+    );
+
+    return successResponse;
   });
 };

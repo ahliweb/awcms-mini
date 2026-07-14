@@ -2833,31 +2833,31 @@ msgstr ""
 msgid "admin.news_portal.homepage_sections.update_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:78
+#: src/pages/admin/organization-structure/assignments.astro:85
 msgid "admin.organization_structure.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:77
+#: src/pages/admin/organization-structure/assignments.astro:84
 msgid "admin.organization_structure.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:112
+#: src/pages/admin/organization-structure/assignments.astro:128
 msgid "admin.organization_structure.assignments.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:110
+#: src/pages/admin/organization-structure/assignments.astro:122
 msgid "admin.organization_structure.assignments.col_position"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:111
+#: src/pages/admin/organization-structure/assignments.astro:125
 msgid "admin.organization_structure.assignments.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:109
+#: src/pages/admin/organization-structure/assignments.astro:119
 msgid "admin.organization_structure.assignments.col_unit"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:155
+#: src/pages/admin/organization-structure/assignments.astro:189
 msgid "admin.organization_structure.assignments.create_submit"
 msgstr ""
 
@@ -2865,11 +2865,11 @@ msgstr ""
 msgid "admin.organization_structure.assignments.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:136
+#: src/pages/admin/organization-structure/assignments.astro:160
 msgid "admin.organization_structure.assignments.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:124
+#: src/pages/admin/organization-structure/assignments.astro:145
 msgid "admin.organization_structure.assignments.end_button"
 msgstr ""
 
@@ -2881,51 +2881,51 @@ msgstr ""
 msgid "admin.organization_structure.assignments.end_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:151
+#: src/pages/admin/organization-structure/assignments.astro:185
 msgid "admin.organization_structure.assignments.field_position"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:147
+#: src/pages/admin/organization-structure/assignments.astro:174
 msgid "admin.organization_structure.assignments.field_tenant_user"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:139
+#: src/pages/admin/organization-structure/assignments.astro:164
 msgid "admin.organization_structure.assignments.field_unit"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:104
+#: src/pages/admin/organization-structure/assignments.astro:112
 msgid "admin.organization_structure.assignments.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:72
+#: src/pages/admin/organization-structure/assignments.astro:79
 msgid "admin.organization_structure.assignments.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:112
+#: src/pages/admin/organization-structure/hierarchy.astro:118
 msgid "admin.organization_structure.hierarchy.col_parent"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:111
+#: src/pages/admin/organization-structure/hierarchy.astro:115
 msgid "admin.organization_structure.hierarchy.col_unit"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:139
+#: src/pages/admin/organization-structure/hierarchy.astro:152
 msgid "admin.organization_structure.hierarchy.field_parent"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:148
+#: src/pages/admin/organization-structure/hierarchy.astro:165
 msgid "admin.organization_structure.hierarchy.field_reason"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:131
+#: src/pages/admin/organization-structure/hierarchy.astro:142
 msgid "admin.organization_structure.hierarchy.field_unit"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:106
+#: src/pages/admin/organization-structure/hierarchy.astro:108
 msgid "admin.organization_structure.hierarchy.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:152
+#: src/pages/admin/organization-structure/hierarchy.astro:169
 msgid "admin.organization_structure.hierarchy.reparent_submit"
 msgstr ""
 
@@ -2933,35 +2933,35 @@ msgstr ""
 msgid "admin.organization_structure.hierarchy.reparent_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:128
+#: src/pages/admin/organization-structure/hierarchy.astro:138
 msgid "admin.organization_structure.hierarchy.reparent_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:74
+#: src/pages/admin/organization-structure/hierarchy.astro:75
 msgid "admin.organization_structure.hierarchy.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:69
+#: src/pages/admin/organization-structure/hierarchy.astro:70
 msgid "admin.organization_structure.hierarchy.top_level"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:127
+#: src/pages/admin/organization-structure/legal-entities.astro:131
 msgid "admin.organization_structure.legal_entities.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:119
+#: src/pages/admin/organization-structure/legal-entities.astro:123
 msgid "admin.organization_structure.legal_entities.col_identifier"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:116
+#: src/pages/admin/organization-structure/legal-entities.astro:120
 msgid "admin.organization_structure.legal_entities.col_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:124
+#: src/pages/admin/organization-structure/legal-entities.astro:128
 msgid "admin.organization_structure.legal_entities.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:202
+#: src/pages/admin/organization-structure/legal-entities.astro:206
 msgid "admin.organization_structure.legal_entities.create_submit"
 msgstr ""
 
@@ -2969,67 +2969,67 @@ msgstr ""
 msgid "admin.organization_structure.legal_entities.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:174
+#: src/pages/admin/organization-structure/legal-entities.astro:178
 msgid "admin.organization_structure.legal_entities.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:148
+#: src/pages/admin/organization-structure/legal-entities.astro:152
 msgid "admin.organization_structure.legal_entities.deactivate_button"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:47
+#: src/pages/admin/organization-structure/legal-entities.astro:51
 msgid "admin.organization_structure.legal_entities.deactivate_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:43
+#: src/pages/admin/organization-structure/legal-entities.astro:45
 msgid "admin.organization_structure.legal_entities.deactivate_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:192
+#: src/pages/admin/organization-structure/legal-entities.astro:196
 msgid "admin.organization_structure.legal_entities.field_identifier"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:182
+#: src/pages/admin/organization-structure/legal-entities.astro:186
 msgid "admin.organization_structure.legal_entities.field_identifier_label"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:178
+#: src/pages/admin/organization-structure/legal-entities.astro:182
 msgid "admin.organization_structure.legal_entities.field_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:109
+#: src/pages/admin/organization-structure/legal-entities.astro:113
 msgid "admin.organization_structure.legal_entities.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:159
+#: src/pages/admin/organization-structure/legal-entities.astro:163
 msgid "admin.organization_structure.legal_entities.restore_button"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:46
+#: src/pages/admin/organization-structure/legal-entities.astro:48
 msgid "admin.organization_structure.legal_entities.restore_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:76
+#: src/pages/admin/organization-structure/legal-entities.astro:80
 msgid "admin.organization_structure.legal_entities.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:107
+#: src/pages/admin/organization-structure/locations.astro:116
 msgid "admin.organization_structure.locations.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:105
+#: src/pages/admin/organization-structure/locations.astro:110
 msgid "admin.organization_structure.locations.col_city"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:104
+#: src/pages/admin/organization-structure/locations.astro:107
 msgid "admin.organization_structure.locations.col_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:106
+#: src/pages/admin/organization-structure/locations.astro:113
 msgid "admin.organization_structure.locations.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:155
+#: src/pages/admin/organization-structure/locations.astro:191
 msgid "admin.organization_structure.locations.create_submit"
 msgstr ""
 
@@ -3037,11 +3037,11 @@ msgstr ""
 msgid "admin.organization_structure.locations.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:136
+#: src/pages/admin/organization-structure/locations.astro:159
 msgid "admin.organization_structure.locations.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:119
+#: src/pages/admin/organization-structure/locations.astro:133
 msgid "admin.organization_structure.locations.delete_button"
 msgstr ""
 
@@ -3049,27 +3049,27 @@ msgstr ""
 msgid "admin.organization_structure.locations.delete_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:143
+#: src/pages/admin/organization-structure/locations.astro:167
 msgid "admin.organization_structure.locations.field_city"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:147
+#: src/pages/admin/organization-structure/locations.astro:171
 msgid "admin.organization_structure.locations.field_latitude"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:151
+#: src/pages/admin/organization-structure/locations.astro:181
 msgid "admin.organization_structure.locations.field_longitude"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:139
+#: src/pages/admin/organization-structure/locations.astro:163
 msgid "admin.organization_structure.locations.field_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:99
+#: src/pages/admin/organization-structure/locations.astro:100
 msgid "admin.organization_structure.locations.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:124
+#: src/pages/admin/organization-structure/locations.astro:144
 msgid "admin.organization_structure.locations.restore_button"
 msgstr ""
 
@@ -3081,23 +3081,23 @@ msgstr ""
 msgid "admin.organization_structure.locations.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:111
+#: src/pages/admin/organization-structure/unit-types.astro:118
 msgid "admin.organization_structure.unit_types.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:108
+#: src/pages/admin/organization-structure/unit-types.astro:109
 msgid "admin.organization_structure.unit_types.col_code"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:109
+#: src/pages/admin/organization-structure/unit-types.astro:112
 msgid "admin.organization_structure.unit_types.col_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:110
+#: src/pages/admin/organization-structure/unit-types.astro:115
 msgid "admin.organization_structure.unit_types.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:158
+#: src/pages/admin/organization-structure/unit-types.astro:187
 msgid "admin.organization_structure.unit_types.create_submit"
 msgstr ""
 
@@ -3105,11 +3105,11 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:140
+#: src/pages/admin/organization-structure/unit-types.astro:161
 msgid "admin.organization_structure.unit_types.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:123
+#: src/pages/admin/organization-structure/unit-types.astro:135
 msgid "admin.organization_structure.unit_types.delete_button"
 msgstr ""
 
@@ -3117,15 +3117,15 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.delete_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:146
+#: src/pages/admin/organization-structure/unit-types.astro:169
 msgid "admin.organization_structure.unit_types.field_code"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:154
+#: src/pages/admin/organization-structure/unit-types.astro:183
 msgid "admin.organization_structure.unit_types.field_description"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:150
+#: src/pages/admin/organization-structure/unit-types.astro:179
 msgid "admin.organization_structure.unit_types.field_name"
 msgstr ""
 
@@ -3133,7 +3133,7 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:128
+#: src/pages/admin/organization-structure/unit-types.astro:146
 msgid "admin.organization_structure.unit_types.restore_button"
 msgstr ""
 
@@ -3141,7 +3141,7 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.restore_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:142
+#: src/pages/admin/organization-structure/unit-types.astro:164
 msgid "admin.organization_structure.unit_types.suggested_codes"
 msgstr ""
 
@@ -3149,23 +3149,23 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:117
+#: src/pages/admin/organization-structure/units.astro:126
 msgid "admin.organization_structure.units.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:114
+#: src/pages/admin/organization-structure/units.astro:117
 msgid "admin.organization_structure.units.col_code"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:115
+#: src/pages/admin/organization-structure/units.astro:120
 msgid "admin.organization_structure.units.col_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:116
+#: src/pages/admin/organization-structure/units.astro:123
 msgid "admin.organization_structure.units.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:175
+#: src/pages/admin/organization-structure/units.astro:207
 msgid "admin.organization_structure.units.create_submit"
 msgstr ""
 
@@ -3173,11 +3173,11 @@ msgstr ""
 msgid "admin.organization_structure.units.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:146
+#: src/pages/admin/organization-structure/units.astro:167
 msgid "admin.organization_structure.units.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:129
+#: src/pages/admin/organization-structure/units.astro:143
 msgid "admin.organization_structure.units.deactivate_button"
 msgstr ""
 
@@ -3185,31 +3185,31 @@ msgstr ""
 msgid "admin.organization_structure.units.deactivate_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:149
+#: src/pages/admin/organization-structure/units.astro:171
 msgid "admin.organization_structure.units.field_code"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:157
+#: src/pages/admin/organization-structure/units.astro:185
 msgid "admin.organization_structure.units.field_legal_entity"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:153
+#: src/pages/admin/organization-structure/units.astro:181
 msgid "admin.organization_structure.units.field_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:166
+#: src/pages/admin/organization-structure/units.astro:196
 msgid "admin.organization_structure.units.field_unit_type"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:109
+#: src/pages/admin/organization-structure/units.astro:110
 msgid "admin.organization_structure.units.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:159
+#: src/pages/admin/organization-structure/units.astro:188
 msgid "admin.organization_structure.units.none_option"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:134
+#: src/pages/admin/organization-structure/units.astro:154
 msgid "admin.organization_structure.units.restore_button"
 msgstr ""
 

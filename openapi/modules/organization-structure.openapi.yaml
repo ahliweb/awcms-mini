@@ -190,6 +190,7 @@ paths:
     delete:
       tags: [Organization Structure]
       summary: Deactivate (soft-delete) a legal entity
+      description: High-risk mutation -- requires Idempotency-Key, audited critical.
       operationId: organizationStructureLegalEntitiesDeactivate
       security:
         - bearerAuth: []
@@ -201,6 +202,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       requestBody:
@@ -243,7 +245,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Legal entity is already deactivated.
+          description: Legal entity is already deactivated, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -254,6 +256,7 @@ paths:
     post:
       tags: [Organization Structure]
       summary: Restore a previously deactivated legal entity
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureLegalEntitiesRestore
       security:
         - bearerAuth: []
@@ -265,6 +268,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
@@ -294,7 +298,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Legal entity is not currently deactivated.
+          description: Legal entity is not currently deactivated, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -497,6 +501,7 @@ paths:
     delete:
       tags: [Organization Structure]
       summary: Soft-delete an organization-unit type
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureUnitTypesDelete
       security:
         - bearerAuth: []
@@ -508,6 +513,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       requestBody:
@@ -549,7 +555,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Organization-unit type is already soft-deleted.
+          description: Organization-unit type is already soft-deleted, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -560,6 +566,7 @@ paths:
     post:
       tags: [Organization Structure]
       summary: Restore a soft-deleted organization-unit type
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureUnitTypesRestore
       security:
         - bearerAuth: []
@@ -571,6 +578,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
@@ -600,7 +608,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Organization-unit type is not currently deleted.
+          description: Organization-unit type is not currently deleted, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -829,6 +837,7 @@ paths:
     delete:
       tags: [Organization Structure]
       summary: Soft-delete (deactivate) an organization unit
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureUnitsDeactivate
       security:
         - bearerAuth: []
@@ -840,6 +849,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       requestBody:
@@ -881,7 +891,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Organization unit is already deactivated.
+          description: Organization unit is already deactivated, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -892,6 +902,7 @@ paths:
     post:
       tags: [Organization Structure]
       summary: Restore a deactivated organization unit
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureUnitsRestore
       security:
         - bearerAuth: []
@@ -903,6 +914,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
@@ -932,7 +944,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Organization unit is not currently deactivated.
+          description: Organization unit is not currently deactivated, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -1318,6 +1330,7 @@ paths:
     delete:
       tags: [Organization Structure]
       summary: Soft-delete an operational location
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureLocationsDelete
       security:
         - bearerAuth: []
@@ -1329,6 +1342,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       requestBody:
@@ -1370,7 +1384,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Operational location is already soft-deleted.
+          description: Operational location is already soft-deleted, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -1381,6 +1395,7 @@ paths:
     post:
       tags: [Organization Structure]
       summary: Restore a soft-deleted operational location
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureLocationsRestore
       security:
         - bearerAuth: []
@@ -1392,6 +1407,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
@@ -1421,7 +1437,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Operational location is not currently deleted.
+          description: Operational location is not currently deleted, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -1543,6 +1559,7 @@ paths:
     post:
       tags: [Organization Structure]
       summary: End a location-to-unit relationship
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureLocationUnitRelationshipsEnd
       security:
         - bearerAuth: []
@@ -1554,6 +1571,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       responses:
@@ -1583,7 +1601,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Relationship has already ended.
+          description: Relationship has already ended, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -1707,6 +1725,7 @@ paths:
     post:
       tags: [Organization Structure]
       summary: End an active organization-unit assignment
+      description: High-risk mutation -- requires Idempotency-Key.
       operationId: organizationStructureAssignmentsEnd
       security:
         - bearerAuth: []
@@ -1718,6 +1737,7 @@ paths:
           schema:
             type: string
             format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       requestBody:
@@ -1760,7 +1780,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Assignment has already ended.
+          description: Assignment has already ended, or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:

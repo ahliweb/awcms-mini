@@ -305,6 +305,7 @@ export async function fetchOperationalLocationById(
   return rows[0] ? toRow(rows[0]) : null;
 }
 
+/** Bounded list (`LIMIT 200`), newest first. `includeDeleted` is `true` only from the admin SSR page's own direct call (`admin/organization-structure/locations.astro`, so the restore action has something to target) — the public `GET .../locations` API route never sets this. */
 export async function listOperationalLocations(
   tx: Bun.SQL,
   tenantId: string,

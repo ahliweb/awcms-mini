@@ -613,7 +613,7 @@ composite index:
   TIDAK PERNAH soft-delete — mengakhiri assignment adalah state
   terminal yang sama dengan pola `revoke` `business_scope_assignments`.
 
-Permission seed: 27 permission (`064_awcms_mini_organization_structure_
+Permission seed: 28 permission (`064_awcms_mini_organization_structure_
 permissions.sql`) — `legal_entities.{read,create,update,delete,restore}`,
 `unit_types.{read,create,update,delete,restore}`,
 `units.{read,create,update,delete,restore}`,
