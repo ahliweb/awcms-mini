@@ -3,7 +3,7 @@
 Issue #754, epic `platform-evolution` #738, Wave 3. `type: "system"` —
 ADR-0013 §1/§6 classifies `integration_hub` as a System Foundation
 candidate (status pengiriman envelope inbound/outbound — bukan data
-bisnis final). Admission decision: `docs/adr/0018-integration-hub-module-
+bisnis final). Admission decision: `docs/adr/0019-integration-hub-module-
 admission.md`. Depends on Issue #742 (`domain_event_runtime`) and Issue
 #745 (`data_lifecycle`), both merged.
 
@@ -170,7 +170,7 @@ object-dispatch.ts`'s own reclaim clause — a worker crash/kill mid-
   `fetch()` no longer strands a delivery forever (reviewer finding, PR
   #784, fixed before merge).
 
-## Tables (migration `071_awcms_mini_integration_hub_schema.sql`)
+## Tables (migration `073_awcms_mini_integration_hub_schema.sql`)
 
 | Table                                        | Purpose                                                                |
 | -------------------------------------------- | ---------------------------------------------------------------------- |

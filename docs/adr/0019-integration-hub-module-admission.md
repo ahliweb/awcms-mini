@@ -1,4 +1,4 @@
-# ADR-0018 — Admission of `integration_hub` as a System Foundation module
+# ADR-0019 — Admission of `integration_hub` as a System Foundation module
 
 - **Status:** Accepted
 - **Tanggal:** 2026-07-14

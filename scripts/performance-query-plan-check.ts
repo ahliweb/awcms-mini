@@ -25,7 +25,10 @@
  */
 import { getDatabaseClient } from "../src/lib/database/client";
 import { buildFixturePlan } from "../src/lib/performance/fixture-generator";
-import { seedPerformanceFixtures } from "../src/lib/performance/fixture-seeder";
+import {
+  resetPerformanceFixtureRows,
+  seedPerformanceFixtures
+} from "../src/lib/performance/fixture-seeder";
 import { runAllQueryPlanChecks } from "../src/lib/performance/query-plan-runner";
 import { SAFE_SCALE_PROFILE } from "../src/lib/performance/scale-profiles";
 import { authorizeDrDrill } from "../src/lib/resilience/target-guard";
@@ -78,10 +81,25 @@ async function main() {
 
   console.log(
     `performance-query-plan-check: target acknowledged (APP_ENV="${appEnv}"). ` +
-      `Seeding "safe" scale fixtures (seed="${options.seed}")...`
+      `Resetting any prior performance-fixture rows, then seeding "safe" ` +
+      `scale fixtures (seed="${options.seed}")...`
   );
 
   const sql = getDatabaseClient();
+
+  // Issue #782: this step runs in the same CI job/database right after
+  // `performance-suite.ts` (its own independent "safe"-scale seed) and
+  // `bun test` — with no reset in between, `awcms_mini_audit_events`
+  // (and the other driving tables below) accumulate well beyond the
+  // single-seed row count every registered budget's `maxTotalCost` was
+  // calibrated against, making the EXPLAIN cost this script evaluates
+  // depend on PostgreSQL autovacuum's background ANALYZE timing rather
+  // than a deterministic, reproducible measurement. Resetting first
+  // (scoped to ONLY synthetic `perf-*` fixture tenants — see
+  // `resetPerformanceFixtureRows`'s own comment) restores the clean,
+  // single-seed baseline every run, every time.
+  await resetPerformanceFixtureRows(sql);
+
   const plan = buildFixturePlan(SAFE_SCALE_PROFILE, options.seed);
   const seedSummary = await seedPerformanceFixtures(sql, plan);
 

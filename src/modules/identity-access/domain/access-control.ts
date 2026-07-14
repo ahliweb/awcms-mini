@@ -244,6 +244,14 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "reclassify",
   "reserve",
   "commit",
+  // Issue #752 (data_exchange): `imports.post` — executing the asynchronous
+  // idempotent commit of a staged import batch, the FIRST real consumer of
+  // the pre-existing `"post"` action (reserved since the initial union for
+  // exactly this "finalize a staged transaction" shape). High-risk: commit
+  // is the sole point where staged rows are actually applied to an owning
+  // module's real tables — same "irreversible-by-default, broad blast
+  // radius" reasoning as `merge`'s own comment above.
+  "post",
   // Issue #753 — see the `AccessAction` union's own comment above.
   "rebuild"
 ]);

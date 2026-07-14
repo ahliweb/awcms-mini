@@ -54,6 +54,12 @@ flowchart LR
 | `document_infrastructure`       | `sequences`                   | read, create, update, delete, restore (Issue #751)                                             |
 | `document_infrastructure`       | `reservations`                | read, reserve, commit, cancel (Issue #751)                                                     |
 | `document_infrastructure`       | `evidence`                    | read (Issue #751)                                                                              |
+| `data_exchange`                 | `descriptors`                 | read (Issue #752)                                                                              |
+| `data_exchange`                 | `imports`                     | read, create, post, cancel, retry, manage (Issue #752)                                         |
+| `data_exchange`                 | `preview_errors`              | read (Issue #752)                                                                              |
+| `data_exchange`                 | `exports`                     | read, create, cancel (Issue #752)                                                              |
+| `data_exchange`                 | `export_downloads`            | read (Issue #752)                                                                              |
+| `data_exchange`                 | `reconciliation`              | read (Issue #752)                                                                              |
 | `profile_identity`              | `profile_management`          | read, create, update, delete, restore                                                          |
 | `profile_identity`              | `profile_merge`               | read, approve                                                                                  |
 | `catalog_inventory`             | `product_management`          | read, create, update, delete, restore                                                          |

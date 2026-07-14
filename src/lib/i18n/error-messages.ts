@@ -94,7 +94,21 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   HOMEPAGE_SECTION_KEY_CONFLICT: "error.homepage_section_key_conflict",
   AD_PLACEMENT_REFERENCE_INVALID: "error.ad_placement_reference_invalid",
   CONTENT_QUALITY_CHECKLIST_BLOCKED: "error.content_quality_checklist_blocked",
-  SOCIAL_ACCOUNT_UNSUPPORTED_TYPE: "error.social_account_unsupported_type"
+  SOCIAL_ACCOUNT_UNSUPPORTED_TYPE: "error.social_account_unsupported_type",
+  // Issue #752 (data_exchange): PAYLOAD_TOO_LARGE is the shared code
+  // `bodyTooLargeResponse` (`src/lib/security/request-body-limit.ts`)
+  // already returns for every endpoint using it -- previously unmapped
+  // repo-wide; added here as this module's own first consumer that
+  // surfaces it directly to an admin-UI error banner. INVALID_STATE and
+  // CHECKSUM_MISMATCH are this module's own codes (staged-batch/export-job
+  // status-transition guard and intake checksum verification).
+  PAYLOAD_TOO_LARGE: "error.payload_too_large",
+  INVALID_STATE: "error.invalid_state",
+  CHECKSUM_MISMATCH: "error.checksum_mismatch",
+  // Reviewer finding on PR #782 (High): media-type verification was
+  // documented as done but never implemented -- UNSUPPORTED_MEDIA_TYPE is
+  // its real error code, added alongside the fix.
+  UNSUPPORTED_MEDIA_TYPE: "error.unsupported_media_type"
 };
 
 /**

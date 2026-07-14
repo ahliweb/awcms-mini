@@ -843,6 +843,60 @@ channels:
       the number is never reused (gap evidence, Issue #751). Producer:
       `document-infrastructure/application/document-number-reservation-
       service.ts`'s `cancelReservation`.
+  awcms-mini.data-exchange.import.staged:
+    address: awcms-mini.data-exchange.import.staged
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A staged import batch was created (Issue #752, epic
+      `platform-evolution` #738 Wave 3). Producer: `data-exchange/
+      application/import-batch-directory.ts`'s `stageImportBatch`.
+  awcms-mini.data-exchange.import.previewed:
+    address: awcms-mini.data-exchange.import.previewed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A staged import batch's asynchronous parse/validate pass completed
+      (Issue #752). Producer: `data-exchange/application/import-parse-
+      validate-job.ts`'s `runImportValidatePass`.
+  awcms-mini.data-exchange.import.committed:
+    address: awcms-mini.data-exchange.import.committed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A staged import batch's asynchronous commit pass finished (fully or
+      partially, Issue #752). Producer: `data-exchange/application/import-
+      commit-job.ts`'s `runImportCommitPass`.
+  awcms-mini.data-exchange.import.failed:
+    address: awcms-mini.data-exchange.import.failed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A staged import batch's validate or commit pass failed outright
+      (Issue #752). Producer: `data-exchange/application/import-parse-
+      validate-job.ts`/`import-commit-job.ts`.
+  awcms-mini.data-exchange.export.completed:
+    address: awcms-mini.data-exchange.export.completed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An export job finished writing its manifest/checksum (Issue #752).
+      Producer: `data-exchange/application/export-execute-job.ts`'s
+      `runExportJob`.
+  awcms-mini.data-exchange.reconciliation.mismatch:
+    address: awcms-mini.data-exchange.reconciliation.mismatch
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reconciliation report detected a source/processed count or
+      checksum mismatch (Issue #752). Producer: `data-exchange/
+      application/reconciliation-service.ts`'s `recordReconciliation`.
   awcms-mini.integration-hub.inbound-message.normalized:
     address: awcms-mini.integration-hub.inbound-message.normalized
     messages:
@@ -1347,6 +1401,42 @@ operations:
       $ref: "#/channels/awcms-mini.document-infrastructure.number.canceled"
     messages:
       - $ref: "#/channels/awcms-mini.document-infrastructure.number.canceled/messages/DomainEvent"
+  publishDataExchangeImportStaged:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.data-exchange.import.staged"
+    messages:
+      - $ref: "#/channels/awcms-mini.data-exchange.import.staged/messages/DomainEvent"
+  publishDataExchangeImportPreviewed:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.data-exchange.import.previewed"
+    messages:
+      - $ref: "#/channels/awcms-mini.data-exchange.import.previewed/messages/DomainEvent"
+  publishDataExchangeImportCommitted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.data-exchange.import.committed"
+    messages:
+      - $ref: "#/channels/awcms-mini.data-exchange.import.committed/messages/DomainEvent"
+  publishDataExchangeImportFailed:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.data-exchange.import.failed"
+    messages:
+      - $ref: "#/channels/awcms-mini.data-exchange.import.failed/messages/DomainEvent"
+  publishDataExchangeExportCompleted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.data-exchange.export.completed"
+    messages:
+      - $ref: "#/channels/awcms-mini.data-exchange.export.completed/messages/DomainEvent"
+  publishDataExchangeReconciliationMismatch:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.data-exchange.reconciliation.mismatch"
+    messages:
+      - $ref: "#/channels/awcms-mini.data-exchange.reconciliation.mismatch/messages/DomainEvent"
   publishIntegrationHubInboundMessageNormalized:
     action: send
     channel:

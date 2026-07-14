@@ -60,8 +60,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, and integration_hub are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #751, #754", () => {
-    expect(listModules()).toHaveLength(21);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, and integration_hub are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #751, #752, #754", () => {
+    expect(listModules()).toHaveLength(22);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -180,6 +180,17 @@ describe("module registry", () => {
       status: "active",
       type: "domain",
       dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"]
+    });
+    expect(getModuleByKey("data_exchange")).toMatchObject({
+      key: "data_exchange",
+      status: "active",
+      type: "domain",
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "logging",
+        "domain_event_runtime"
+      ]
     });
     expect(getModuleByKey("integration_hub")).toMatchObject({
       key: "integration_hub",
@@ -571,8 +582,10 @@ describe("database migration runner helpers", () => {
       "068_awcms_mini_document_infrastructure_confidentiality_permissions.sql",
       "069_awcms_mini_reporting_projections_schema.sql",
       "070_awcms_mini_reporting_projections_permissions.sql",
-      "071_awcms_mini_integration_hub_schema.sql",
-      "072_awcms_mini_integration_hub_permissions.sql"
+      "071_awcms_mini_data_exchange_schema.sql",
+      "072_awcms_mini_data_exchange_permissions.sql",
+      "073_awcms_mini_integration_hub_schema.sql",
+      "074_awcms_mini_integration_hub_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

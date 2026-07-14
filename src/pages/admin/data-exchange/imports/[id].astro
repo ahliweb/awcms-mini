@@ -1,0 +1,409 @@
+---
+/**
+ * Import batch detail/preview screen (Issue #752, epic #738
+ * platform-evolution Wave 3) — preview (first page, SSR), errors, and the
+ * commit/cancel/retry/pause/resume action set. Same SSR-load +
+ * client-action-via-fetch pattern as `imports.astro`.
+ */
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../../lib/database/client";
+import { withTenant } from "../../../../lib/database/tenant-context";
+import { permissionKey } from "../../../../modules/identity-access/domain/access-control";
+import {
+  getImportBatchById,
+  resolveImportDescriptor
+} from "../../../../modules/data-exchange/application/import-batch-directory";
+import {
+  countStagedRows,
+  listStagedRows,
+  maskSensitiveFields
+} from "../../../../modules/data-exchange/application/staged-row-directory";
+import { listReconciliationReports } from "../../../../modules/data-exchange/application/reconciliation-service";
+import { createTranslator } from "../../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/data-exchange/imports/[id].astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+const batchId = Astro.params.id;
+
+const CAN_READ = context.permissions.has(
+  permissionKey("data_exchange", "imports", "read")
+);
+const CAN_POST = context.permissions.has(
+  permissionKey("data_exchange", "imports", "post")
+);
+const CAN_CANCEL = context.permissions.has(
+  permissionKey("data_exchange", "imports", "cancel")
+);
+const CAN_RETRY = context.permissions.has(
+  permissionKey("data_exchange", "imports", "retry")
+);
+const CAN_MANAGE = context.permissions.has(
+  permissionKey("data_exchange", "imports", "manage")
+);
+const CAN_SEE_RAW = context.permissions.has(
+  permissionKey("data_exchange", "preview_errors", "read")
+);
+
+const clientStrings = {
+  actionSuccess: t("admin.data_exchange.imports.action_success"),
+  cancelReasonPrompt: t("admin.data_exchange.imports.cancel_reason_prompt"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let batch: Awaited<ReturnType<typeof getImportBatchById>> = null;
+let rows: Awaited<ReturnType<typeof listStagedRows>> = [];
+let totalRows = 0;
+let reconciliation: Awaited<ReturnType<typeof listReconciliationReports>> = [];
+let loadError = false;
+let notFound = false;
+
+if (CAN_READ && batchId) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      batch = await getImportBatchById(tx, context.tenantId, batchId);
+      if (!batch) return;
+
+      const descriptor = resolveImportDescriptor(batch.importKey);
+      const sensitiveFieldNames = descriptor?.sensitiveFields?.fieldNames ?? [];
+
+      const fetchedRows = await listStagedRows(tx, context.tenantId, batchId, {
+        offset: 0,
+        limit: 50
+      });
+      rows =
+        sensitiveFieldNames.length === 0 || CAN_SEE_RAW
+          ? fetchedRows
+          : fetchedRows.map((row) =>
+              maskSensitiveFields(row, sensitiveFieldNames)
+            );
+      totalRows = await countStagedRows(tx, context.tenantId, batchId);
+      reconciliation = await listReconciliationReports(
+        tx,
+        context.tenantId,
+        "import",
+        batchId
+      );
+    });
+    if (!batch) notFound = true;
+  } catch (error) {
+    logAdminPageError(
+      "admin/data-exchange/imports/[id].astro: failed to load batch",
+      error,
+      {
+        correlationId: Astro.locals.correlationId
+      }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.data_exchange.imports.detail_title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.data_exchange.access_denied_title")}
+        body={t("admin.data_exchange.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && notFound && (
+      <StateNotice
+        kind="empty"
+        title={t("common.not_found_title")}
+        body={t("common.not_found_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && batch && (
+      <div class="config-manager" data-batch-id={batch.id}>
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <dl class="summary-grid">
+          <dt>{t("admin.data_exchange.imports.col_import_key")}</dt>
+          <dd>{batch.importKey}</dd>
+          <dt>{t("admin.data_exchange.imports.col_status")}</dt>
+          <dd>{batch.status}</dd>
+          <dt>{t("admin.data_exchange.imports.summary_totals")}</dt>
+          <dd>
+            {t("admin.data_exchange.imports.summary_created")}:{" "}
+            {batch.createdCount},{" "}
+            {t("admin.data_exchange.imports.summary_updated")}:{" "}
+            {batch.updatedCount},{" "}
+            {t("admin.data_exchange.imports.summary_skipped")}:{" "}
+            {batch.skippedCount},{" "}
+            {t("admin.data_exchange.imports.summary_conflict")}:{" "}
+            {batch.conflictCount},{" "}
+            {t("admin.data_exchange.imports.summary_invalid")}:{" "}
+            {batch.invalidCount},{" "}
+            {t("admin.data_exchange.imports.summary_failed")}:{" "}
+            {batch.failedCount}
+          </dd>
+        </dl>
+
+        <div class="action-row">
+          {CAN_POST && batch.status === "previewed" && (
+            <button type="button" id="commit-button">
+              {t("admin.data_exchange.imports.commit_button")}
+            </button>
+          )}
+          {CAN_RETRY &&
+            ["partially_committed", "failed"].includes(batch.status) && (
+              <button type="button" id="retry-button">
+                {t("admin.data_exchange.imports.retry_button")}
+              </button>
+            )}
+          {CAN_MANAGE && batch.status === "committing" && !batch.pausedAt && (
+            <button type="button" id="pause-button">
+              {t("admin.data_exchange.imports.pause_button")}
+            </button>
+          )}
+          {CAN_MANAGE && batch.status === "committing" && batch.pausedAt && (
+            <button type="button" id="resume-button">
+              {t("admin.data_exchange.imports.resume_button")}
+            </button>
+          )}
+          {CAN_CANCEL &&
+            ["staged", "validating", "previewed", "failed"].includes(
+              batch.status
+            ) && (
+              <button type="button" id="cancel-button">
+                {t("admin.data_exchange.imports.cancel_button")}
+              </button>
+            )}
+        </div>
+
+        <h2>{t("admin.data_exchange.imports.preview_heading")}</h2>
+        {rows.length === 0 ? (
+          <p class="empty-state">{t("admin.data_exchange.imports.no_rows")}</p>
+        ) : (
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">
+                  {t("admin.data_exchange.imports.col_natural_key")}
+                </th>
+                <th scope="col">
+                  {t("admin.data_exchange.imports.col_proposed_action")}
+                </th>
+                <th scope="col">
+                  {t("admin.data_exchange.imports.col_commit_status")}
+                </th>
+                <th scope="col">
+                  {t("admin.data_exchange.imports.col_errors")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr>
+                  <td>{row.rowNumber}</td>
+                  <td>{row.naturalKey ?? "—"}</td>
+                  <td>{row.proposedAction ?? "—"}</td>
+                  <td>{row.commitStatus}</td>
+                  <td>
+                    {row.validationErrors && row.validationErrors.length > 0
+                      ? row.validationErrors
+                          .map((e) => `${e.field}: ${e.message}`)
+                          .join("; ")
+                      : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p class="pagination-note">
+          {t("admin.data_exchange.imports.showing_rows", {
+            count: rows.length,
+            total: totalRows
+          })}
+        </p>
+
+        {reconciliation.length > 0 && (
+          <>
+            <h2>{t("admin.data_exchange.imports.reconciliation_heading")}</h2>
+            <ul>
+              {reconciliation.map((report) => (
+                <li>
+                  {report.createdAt.toISOString()} —{" "}
+                  {t("admin.data_exchange.imports.source_count")}:{" "}
+                  {report.sourceCount},{" "}
+                  {t("admin.data_exchange.imports.processed_count")}:{" "}
+                  {report.processedCount},{" "}
+                  {report.mismatch
+                    ? t("admin.data_exchange.imports.mismatch")
+                    : t("admin.data_exchange.imports.matched")}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-surface, #e6f4ea);
+    color: var(--color-success-strong, #1e7e34);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-surface, #fdecea);
+    color: var(--color-danger-strong);
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--sp-1) var(--sp-3);
+  }
+  .action-row {
+    display: flex;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+  }
+  .action-row button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .data-table th,
+  .data-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    actionSuccess: string;
+    cancelReasonPrompt: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const container = document.querySelector<HTMLElement>(
+    ".config-manager[data-batch-id]"
+  );
+  const batchId = container?.dataset.batchId;
+
+  async function runAction(
+    button: HTMLButtonElement,
+    path: string,
+    body: unknown = {}
+  ) {
+    if (!batchId || button.disabled) return;
+    const unlock = lockElement(button, strings.pleaseWait);
+    try {
+      const result = await submitJson(
+        `/api/v1/data-exchange/imports/${batchId}/${path}`,
+        "POST",
+        body,
+        strings,
+        { "Idempotency-Key": newIdempotencyKey() }
+      );
+      if (result.ok) {
+        showBanner("action-banner", strings.actionSuccess, "success");
+        reloadAfterDelay();
+      } else {
+        showBanner("action-banner", result.message, "error");
+      }
+    } finally {
+      unlock();
+    }
+  }
+
+  document
+    .getElementById("commit-button")
+    ?.addEventListener("click", (event) =>
+      runAction(event.currentTarget as HTMLButtonElement, "commit")
+    );
+  document
+    .getElementById("retry-button")
+    ?.addEventListener("click", (event) =>
+      runAction(event.currentTarget as HTMLButtonElement, "retry")
+    );
+  document
+    .getElementById("pause-button")
+    ?.addEventListener("click", (event) =>
+      runAction(event.currentTarget as HTMLButtonElement, "pause")
+    );
+  document
+    .getElementById("resume-button")
+    ?.addEventListener("click", (event) =>
+      runAction(event.currentTarget as HTMLButtonElement, "resume")
+    );
+  document
+    .getElementById("cancel-button")
+    ?.addEventListener("click", (event) => {
+      const reason = window.prompt(strings.cancelReasonPrompt);
+      if (!reason) return;
+      runAction(event.currentTarget as HTMLButtonElement, "cancel", { reason });
+    });
+</script>

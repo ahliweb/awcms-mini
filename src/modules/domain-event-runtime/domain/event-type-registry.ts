@@ -127,8 +127,31 @@ export const DOCUMENT_INFRASTRUCTURE_NUMBER_CANCELED_EVENT_TYPE =
   "awcms-mini.document-infrastructure.number.canceled";
 
 /**
+ * `data_exchange`'s producer registration (Issue #752, epic
+ * `platform-evolution` #738, Wave 3, ADR-0018) — same real-producer pattern
+ * as `organization_structure`/`workflow_approval` above (Optional → System
+ * is an allowed DAG direction, ADR-0013 §1). `data-exchange/application/
+ * import-batch-directory.ts`, `import-commit-job.ts`, `export-job-
+ * directory.ts`, and `reconciliation-service.ts` call `appendDomainEvent`
+ * with these inside the SAME transaction as the state change they describe.
+ */
+export const DATA_EXCHANGE_EVENT_VERSION = "1.0";
+export const DATA_EXCHANGE_IMPORT_STAGED_EVENT_TYPE =
+  "awcms-mini.data-exchange.import.staged";
+export const DATA_EXCHANGE_IMPORT_PREVIEWED_EVENT_TYPE =
+  "awcms-mini.data-exchange.import.previewed";
+export const DATA_EXCHANGE_IMPORT_COMMITTED_EVENT_TYPE =
+  "awcms-mini.data-exchange.import.committed";
+export const DATA_EXCHANGE_IMPORT_FAILED_EVENT_TYPE =
+  "awcms-mini.data-exchange.import.failed";
+export const DATA_EXCHANGE_EXPORT_COMPLETED_EVENT_TYPE =
+  "awcms-mini.data-exchange.export.completed";
+export const DATA_EXCHANGE_RECONCILIATION_MISMATCH_EVENT_TYPE =
+  "awcms-mini.data-exchange.reconciliation.mismatch";
+
+/**
  * `integration_hub`'s producer registration (Issue #754, epic
- * `platform-evolution` #738 Wave 3, ADR-0018) — same real-producer pattern
+ * `platform-evolution` #738 Wave 3, ADR-0019) — same real-producer pattern
  * as `workflow_approval`/`organization_structure` above (Optional/System ->
  * System is an allowed DAG direction, ADR-0013 §1).
  * `integration-hub/application/inbound-webhook-intake.ts` calls
@@ -307,6 +330,42 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: DOCUMENT_INFRASTRUCTURE_EVENT_VERSION,
       description:
         "A reserved document number was canceled without being committed — the number is never reused (gap evidence, Issue #751)."
+    },
+    {
+      eventType: DATA_EXCHANGE_IMPORT_STAGED_EVENT_TYPE,
+      eventVersion: DATA_EXCHANGE_EVENT_VERSION,
+      description:
+        "A staged import batch was created (file intake accepted, checksum/media-type verified, Issue #752)."
+    },
+    {
+      eventType: DATA_EXCHANGE_IMPORT_PREVIEWED_EVENT_TYPE,
+      eventVersion: DATA_EXCHANGE_EVENT_VERSION,
+      description:
+        "A staged import batch's asynchronous parse/validate pass completed and a preview (totals, proposed actions, errors) is available (Issue #752)."
+    },
+    {
+      eventType: DATA_EXCHANGE_IMPORT_COMMITTED_EVENT_TYPE,
+      eventVersion: DATA_EXCHANGE_EVENT_VERSION,
+      description:
+        "A staged import batch's asynchronous commit pass finished (fully or partially committed) — see the batch's own status for which (Issue #752)."
+    },
+    {
+      eventType: DATA_EXCHANGE_IMPORT_FAILED_EVENT_TYPE,
+      eventVersion: DATA_EXCHANGE_EVENT_VERSION,
+      description:
+        "A staged import batch's validate or commit pass failed outright (distinct from a partial commit, which uses the .committed event above, Issue #752)."
+    },
+    {
+      eventType: DATA_EXCHANGE_EXPORT_COMPLETED_EVENT_TYPE,
+      eventVersion: DATA_EXCHANGE_EVENT_VERSION,
+      description:
+        "An export job finished writing its manifest/checksum and became downloadable (Issue #752)."
+    },
+    {
+      eventType: DATA_EXCHANGE_RECONCILIATION_MISMATCH_EVENT_TYPE,
+      eventVersion: DATA_EXCHANGE_EVENT_VERSION,
+      description:
+        "A reconciliation report detected a source/commit or source/export count or checksum mismatch (Issue #752)."
     },
     {
       eventType: INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE,

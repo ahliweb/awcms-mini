@@ -129,6 +129,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       'Outbox dispatcher (integration-hub:outbound:dispatch, Issue #754), recommended every 1-2 minutes — same recurring dispatcher profile as email/object-sync/social-publish/domain-events dispatch; every withTenant call inside outbound-dispatch.ts already passes workClass: "background_sync" explicitly.'
   },
+  "scripts/data-exchange-worker.ts": {
+    workClass: "background_sync",
+    rationale:
+      'Recurring worker (data-exchange:worker, Issue #752), recommended every 1-2 minutes — parses/validates/commits staged import batches and executes queued export jobs, driving user-visible batch/job status operators watch in the admin UI; same recurring dispatcher profile as domain-events-dispatch/workflow-escalations-dispatch, not a tolerant-of-delay maintenance sweep. Its own withTenant call (runDataExchangeWorkerPassForTenant) already passes workClass: "background_sync" explicitly.'
+  },
   "scripts/reporting-projections-refresh.ts": {
     workClass: "maintenance",
     rationale:
