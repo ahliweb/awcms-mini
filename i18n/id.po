@@ -3762,3 +3762,181 @@ msgstr "Kode yang disarankan"
 msgid "admin.organization_structure.unit_types.title"
 msgstr "Tipe Unit Organisasi"
 
+
+#. Issue #754 (integration_hub, epic platform-evolution Wave 3)
+msgid "admin.integration_hub.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.integration_hub.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat halaman ini."
+
+msgid "admin.integration_hub.endpoints.title"
+msgstr "Endpoint Webhook Masuk"
+
+msgid "admin.integration_hub.endpoints.create_success"
+msgstr "Endpoint webhook masuk berhasil dibuat."
+
+msgid "admin.integration_hub.endpoints.delete_success"
+msgstr "Endpoint webhook masuk berhasil dihapus."
+
+msgid "admin.integration_hub.endpoints.pause_success"
+msgstr "Endpoint dijeda."
+
+msgid "admin.integration_hub.endpoints.resume_success"
+msgstr "Endpoint dilanjutkan."
+
+msgid "admin.integration_hub.endpoints.delete_reason_prompt"
+msgstr "Alasan menghapus endpoint ini:"
+
+msgid "admin.integration_hub.endpoints.no_rows"
+msgstr "Belum ada endpoint webhook masuk."
+
+msgid "admin.integration_hub.endpoints.col_name"
+msgstr "Nama"
+
+msgid "admin.integration_hub.endpoints.col_adapter"
+msgstr "Adapter"
+
+msgid "admin.integration_hub.endpoints.col_status"
+msgstr "Status"
+
+msgid "admin.integration_hub.endpoints.col_actions"
+msgstr "Aksi"
+
+msgid "admin.integration_hub.endpoints.pause_button"
+msgstr "Jeda"
+
+msgid "admin.integration_hub.endpoints.resume_button"
+msgstr "Lanjutkan"
+
+msgid "admin.integration_hub.endpoints.delete_button"
+msgstr "Hapus"
+
+msgid "admin.integration_hub.endpoints.create_summary"
+msgstr "Daftarkan endpoint baru"
+
+msgid "admin.integration_hub.endpoints.field_display_name"
+msgstr "Nama tampilan"
+
+msgid "admin.integration_hub.endpoints.field_adapter_key"
+msgstr "Adapter"
+
+msgid "admin.integration_hub.endpoints.field_secret_reference"
+msgstr "Referensi secret (env:VAR_NAME)"
+
+msgid "admin.integration_hub.endpoints.create_submit"
+msgstr "Buat endpoint"
+
+msgid "admin.integration_hub.subscriptions.title"
+msgstr "Langganan Event Keluar"
+
+msgid "admin.integration_hub.subscriptions.create_success"
+msgstr "Langganan keluar berhasil dibuat."
+
+msgid "admin.integration_hub.subscriptions.delete_success"
+msgstr "Langganan keluar berhasil dihapus."
+
+msgid "admin.integration_hub.subscriptions.pause_success"
+msgstr "Langganan dijeda."
+
+msgid "admin.integration_hub.subscriptions.resume_success"
+msgstr "Langganan dilanjutkan."
+
+msgid "admin.integration_hub.subscriptions.delete_reason_prompt"
+msgstr "Alasan menghapus langganan ini:"
+
+msgid "admin.integration_hub.subscriptions.no_rows"
+msgstr "Belum ada langganan keluar."
+
+msgid "admin.integration_hub.subscriptions.col_event_type"
+msgstr "Tipe event"
+
+msgid "admin.integration_hub.subscriptions.col_target_url"
+msgstr "URL Tujuan"
+
+msgid "admin.integration_hub.subscriptions.col_status"
+msgstr "Status"
+
+msgid "admin.integration_hub.subscriptions.col_actions"
+msgstr "Aksi"
+
+msgid "admin.integration_hub.subscriptions.pause_button"
+msgstr "Jeda"
+
+msgid "admin.integration_hub.subscriptions.resume_button"
+msgstr "Lanjutkan"
+
+msgid "admin.integration_hub.subscriptions.delete_button"
+msgstr "Hapus"
+
+msgid "admin.integration_hub.subscriptions.create_summary"
+msgstr "Daftarkan langganan baru"
+
+msgid "admin.integration_hub.subscriptions.field_event_type"
+msgstr "Tipe event"
+
+msgid "admin.integration_hub.subscriptions.field_target_adapter_key"
+msgstr "Adapter tujuan"
+
+msgid "admin.integration_hub.subscriptions.field_target_url"
+msgstr "URL tujuan"
+
+msgid "admin.integration_hub.subscriptions.create_submit"
+msgstr "Buat langganan"
+
+msgid "admin.integration_hub.deliveries.title"
+msgstr "Pengiriman Integrasi"
+
+msgid "admin.integration_hub.deliveries.replay_success"
+msgstr "Replay pengiriman telah diantrekan."
+
+msgid "admin.integration_hub.deliveries.replay_reason_prompt"
+msgstr "Alasan mengulang pengiriman ini:"
+
+msgid "admin.integration_hub.deliveries.health_heading"
+msgstr "Kesehatan adapter"
+
+msgid "admin.integration_hub.deliveries.col_adapter"
+msgstr "Adapter"
+
+msgid "admin.integration_hub.deliveries.col_direction"
+msgstr "Arah"
+
+msgid "admin.integration_hub.deliveries.col_state"
+msgstr "Status"
+
+msgid "admin.integration_hub.deliveries.inbound_heading"
+msgstr "Pengiriman masuk terbaru"
+
+msgid "admin.integration_hub.deliveries.no_rows"
+msgstr "Belum ada pengiriman."
+
+msgid "admin.integration_hub.deliveries.col_status"
+msgstr "Status"
+
+msgid "admin.integration_hub.deliveries.col_received_at"
+msgstr "Diterima pada"
+
+msgid "admin.integration_hub.deliveries.outbound_heading"
+msgstr "Pengiriman keluar terbaru"
+
+msgid "admin.integration_hub.deliveries.col_event_type"
+msgstr "Tipe event"
+
+msgid "admin.integration_hub.deliveries.col_attempts"
+msgstr "Percobaan"
+
+msgid "admin.integration_hub.deliveries.col_actions"
+msgstr "Aksi"
+
+msgid "admin.integration_hub.deliveries.replay_button"
+msgstr "Ulangi"
+
+msgid "admin.layout.nav_integration_hub_endpoints"
+msgstr "Endpoint Webhook"
+
+msgid "admin.layout.nav_integration_hub_subscriptions"
+msgstr "Langganan Event"
+
+msgid "admin.layout.nav_integration_hub_deliveries"
+msgstr "Pengiriman"

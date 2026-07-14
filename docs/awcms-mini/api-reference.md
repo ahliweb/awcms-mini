@@ -7915,6 +7915,529 @@ High-risk mutation -- requires Idempotency-Key.
 | 409    | Organization unit is not currently deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                          | [`ApiError`](#standard-error-envelope)                   |
 
+## Integration Hub
+
+Generic, provider-neutral integration boundary (epic `platform-evolution` #738 Wave 3, Issue #754, ADR-0017) — signed inbound webhook endpoints (opaque server-generated tokens, per-endpoint HMAC secret with timing-safe verification and key rotation-with-overlap), database-uniqueness-enforced replay protection, normalization of verified inbound messages into this repo's own domain-event shape, outbound event subscriptions with a bounded declarative filter and SSRF-guarded delivery, and per-adapter health tracking. Provider-specific mapping/credentials always stay owned by the module that owns that capability — this hub ships exactly two self-contained fixture inbound signature schemes and one generic outbound HTTP adapter.
+
+### `GET /api/v1/integration-hub/adapters` — List the static, code-declared provider adapter registry
+
+- **operationId**: `integrationHubAdaptersList`
+- **Security**: bearerAuth + tenantHeader
+
+Metadata only (no schema field here can ever carry a credential/secret value).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Registered adapters.                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/integration-hub/deliveries/inbound` — List recent inbound delivery metadata
+
+- **operationId**: `integrationHubDeliveriesInboundList`
+- **Security**: bearerAuth + tenantHeader
+
+Bounded list (max 200). Never the raw payload — only bounded metadata (hash, size, verification outcome).
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `endpointId`       | query  | no       | string (uuid) |                                             |
+| `limit`            | query  | no       | integer       |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Inbound deliveries.                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/integration-hub/deliveries/outbound` — List outbound deliveries
+
+- **operationId**: `integrationHubDeliveriesOutboundList`
+- **Security**: bearerAuth + tenantHeader
+
+Bounded list (max 200). `status=dead_letter` is the DLQ inspection view.
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                                              | Description                                 |
+| ------------------ | ------ | -------- | --------------------------------------------------------------------------------- | ------------------------------------------- |
+| `subscriptionId`   | query  | no       | string (uuid)                                                                     |                                             |
+| `status`           | query  | no       | enum(`pending`, `sending`, `delivered`, `retry_wait`, `dead_letter`, `cancelled`) |                                             |
+| `limit`            | query  | no       | integer                                                                           |                                             |
+| `X-Correlation-ID` | header | no       | string                                                                            | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                                                            | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Outbound deliveries.                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/integration-hub/deliveries/outbound/{id}` — Get an outbound delivery, including attempt history
+
+- **operationId**: `integrationHubDeliveriesOutboundGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Delivery and its attempts.                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/deliveries/outbound/{id}/replay` — Replay a dead-lettered outbound delivery
+
+- **operationId**: `integrationHubDeliveriesOutboundReplay`
+- **Security**: bearerAuth + tenantHeader
+
+Permission-gated (`deliveries.replay`), reason-required, `Idempotency-Key` required, audited. Only valid from a `dead_letter` delivery. Creates a NEW delivery row referencing the original — never risks double-processing the same underlying source event.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                        | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Replay created.                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                     | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request, or delivery is not dead-lettered. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                         | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/integration-hub/endpoints` — List inbound webhook endpoints
+
+- **operationId**: `integrationHubEndpointsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Inbound webhook endpoints.                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/endpoints` — Register a new inbound webhook endpoint
+
+- **operationId**: `integrationHubEndpointsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Requires `Idempotency-Key`. `secretReference` is a pointer (`env:VAR_NAME`), never a raw secret value.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                      | Schema                                                   |
+| ------ | ------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Endpoint registered.                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/integration-hub/endpoints/{id}` — Get an inbound webhook endpoint by id
+
+- **operationId**: `integrationHubEndpointsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Endpoint.                                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/integration-hub/endpoints/{id}` — Soft-delete an inbound webhook endpoint
+
+- **operationId**: `integrationHubEndpointsDelete`
+- **Security**: bearerAuth + tenantHeader
+
+Reason-required, audited. No `Idempotency-Key` required (naturally converges to 404 on a repeat call).
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Deleted.                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/endpoints/{id}/pause` — Pause an inbound webhook endpoint
+
+- **operationId**: `integrationHubEndpointsPause`
+- **Security**: bearerAuth + tenantHeader
+
+Naturally idempotent — no `Idempotency-Key` required. Audited.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Paused.                                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/endpoints/{id}/resume` — Resume a paused inbound webhook endpoint
+
+- **operationId**: `integrationHubEndpointsResume`
+- **Security**: bearerAuth + tenantHeader
+
+Naturally idempotent — no `Idempotency-Key` required. Audited.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Resumed.                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/endpoints/{id}/rotate-secret` — Rotate an inbound webhook endpoint's signing secret
+
+- **operationId**: `integrationHubEndpointsRotateSecret`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk, `Idempotency-Key` required, audited. Supports key rotation with overlap — the previous secret keeps verifying until `overlapHours` elapses.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Secret rotated.                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/integration-hub/health` — Get per-adapter health state
+
+- **operationId**: `integrationHubHealthList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Adapter health rows.                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/inbound/{endpointToken}` — Receive a signed inbound webhook delivery
+
+- **operationId**: `integrationHubInboundReceive`
+- **Security**: none (public endpoint)
+
+Public, provider-facing endpoint — NOT tenant/bearer-authenticated. Authenticated by the opaque `endpointToken` path segment plus the registered adapter's own signature scheme (request headers vary by adapter — see module README). Replay-protected by a database uniqueness constraint; a duplicate verified delivery returns `duplicate_ignored` without reprocessing.
+
+**Parameters**
+
+| Name            | In   | Required | Type   | Description |
+| --------------- | ---- | -------- | ------ | ----------- |
+| `endpointToken` | path | yes      | string |             |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                                                        | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Accepted (new or duplicate-ignored) or safely rejected.                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Signature verification failed.                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Endpoint is not currently accepting traffic (paused/disabled, or tenant inactive). | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds this endpoint's configured maximum size.                      | [`ApiError`](#standard-error-envelope)                   |
+| 415    | Unsupported content type for this endpoint.                                        | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                         | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/integration-hub/subscriptions` — List outbound event subscriptions
+
+- **operationId**: `integrationHubSubscriptionsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Outbound subscriptions.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/subscriptions` — Register a new outbound event subscription
+
+- **operationId**: `integrationHubSubscriptionsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Requires `Idempotency-Key`. `targetUrl` is SSRF-validated (private/link-local/metadata/reserved destinations rejected unless the deployment opts in via `INTEGRATION_HUB_ALLOW_PRIVATE_TARGETS`).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                      | Schema                                                   |
+| ------ | ------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Subscription created.                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/integration-hub/subscriptions/{id}` — Get an outbound event subscription by id
+
+- **operationId**: `integrationHubSubscriptionsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Subscription.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/integration-hub/subscriptions/{id}` — Soft-delete an outbound event subscription
+
+- **operationId**: `integrationHubSubscriptionsDelete`
+- **Security**: bearerAuth + tenantHeader
+
+Reason-required, audited. No `Idempotency-Key` required.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Deleted.                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/subscriptions/{id}/pause` — Pause an outbound event subscription
+
+- **operationId**: `integrationHubSubscriptionsPause`
+- **Security**: bearerAuth + tenantHeader
+
+Naturally idempotent — no `Idempotency-Key` required. Audited.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Paused.                                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/integration-hub/subscriptions/{id}/resume` — Resume a paused outbound event subscription
+
+- **operationId**: `integrationHubSubscriptionsResume`
+- **Security**: bearerAuth + tenantHeader
+
+Naturally idempotent — no `Idempotency-Key` required. Audited.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Resumed.                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
@@ -14427,7 +14950,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (71)
+### Channels (72)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -14464,6 +14987,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.email.message.queued` — An email message was enqueued into `awcms_mini_email_messages` (Issue #494/#497). Documented contract only, same convention as `database.pool.saturated` above — the concrete producer is the structured JSON logger, invoked from `email/application/announcement-directory.ts`'s `enqueueAnnouncement` (`email.message.queued` log line).
 - `awcms-mini.email.message.sent` — The email dispatcher (Issue #495, `bun run email:dispatch`) successfully delivered a message through the configured provider. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.sent` log line).
 - `awcms-mini.email.message.suppressed` — The email dispatcher (Issue #499) found a claimed message's recipient newly present on `awcms_mini_email_suppression_list` (added after enqueue, before dispatch) and skipped the provider call entirely. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.suppressed` log line).
+- `awcms-mini.integration-hub.inbound-message.normalized` — A signed inbound webhook delivery was verified and normalized into this repo's own domain-event shape (Issue #754, epic `platform-evolution` #738 Wave 3). Payload: `endpointId`, `adapterKey`, `providerDeliveryId`, `inboundDeliveryId`, `receivedAt`, `contentType`, `bodySize`, `bodyTruncated`, and `body` (the parsed JSON body, only when the content type was `application/json` and under the normalization size bound) — never raw provider credentials. Producer: `integration-hub/application/ inbound-webhook-intake.ts`'s `processInboundWebhook`, via `appendDomainEvent` in the same transaction as the verified inbound delivery row. Consumer: `integration-hub`'s own static `infrastructure/consumer-registry.ts` entry in `domain-event-runtime` (`integrationHubOutboundFanoutConsumer`) — fans the event out to every active outbound subscription matching this event type by creating `pending` delivery rows; the real HTTP call to each subscriber happens later, outside any transaction, via `bun run integration-hub:outbound:dispatch`.
 - `awcms-mini.organization-structure.assignment.created` — An organization-unit assignment was created (Issue #749). Producer: `organization-structure/application/organization-unit-assignment- service.ts`'s `createOrganizationUnitAssignment`.
 - `awcms-mini.organization-structure.assignment.ended` — An organization-unit assignment was ended (Issue #749). Producer: `organization-structure/application/organization-unit-assignment- service.ts`'s `endOrganizationUnitAssignment`.
 - `awcms-mini.organization-structure.hierarchy.changed` — An organization-unit hierarchy edge was created or reparented — the previous open edge (if any) was closed and a new one opened at the current timestamp (Issue #749). Producer: `organization-structure/ application/organization-unit-hierarchy-service.ts`'s `reparentUnit`, the SOLE write path against `awcms_mini_organization_unit_hierarchies`.

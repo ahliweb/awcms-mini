@@ -8,6 +8,7 @@ import { emailModule } from "./email/module";
 import { formDraftsModule } from "./form-drafts/module";
 import { identityAccessModule } from "./identity-access/module";
 import { idnAdminRegionsModule } from "./idn-admin-regions/module";
+import { integrationHubModule } from "./integration-hub/module";
 import { loggingModule } from "./logging/module";
 import { moduleManagementModule } from "./module-management/module";
 import { newsPortalModule } from "./news-portal/module";
@@ -54,7 +55,13 @@ const baseModules: ModuleDescriptor[] = [
   // top-level module (unlike its Wave-2 siblings #746/#747/#748, which
   // extended existing modules) — appended at the end, same convention as
   // the Wave-1 entries immediately above.
-  organizationStructureModule
+  organizationStructureModule,
+  // Issue #754 (epic #738 platform-evolution Wave 3, ADR-0017) — brand new
+  // top-level module, appended at the end (same convention as every prior
+  // Wave entry above — multiple parallel Wave-3 PRs may each append their
+  // own new module independently with a minimal, easily-resolved merge
+  // conflict).
+  integrationHubModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

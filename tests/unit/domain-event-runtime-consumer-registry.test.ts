@@ -31,8 +31,17 @@ describe("DOMAIN_EVENT_CONSUMERS static registry (Issue #742)", () => {
   });
 
   test("getConsumersForEventType returns every consumer subscribed to the sample reference event", () => {
+    // Not necessarily EVERY registered consumer — a later real consumer
+    // (e.g. Issue #754's `integration_hub.outbound_subscription_fanout`)
+    // legitimately subscribes to its OWN event type, not the foundation
+    // issue's self-contained reference event. Compare against the actual
+    // declared subscribers instead of the whole registry's length.
+    const declaredSubscribers = DOMAIN_EVENT_CONSUMERS.filter((consumer) =>
+      consumer.eventTypes.includes(SAMPLE_RECORDED_EVENT_TYPE)
+    );
     const matched = getConsumersForEventType(SAMPLE_RECORDED_EVENT_TYPE);
-    expect(matched.length).toBe(DOMAIN_EVENT_CONSUMERS.length);
+    expect(matched.length).toBe(declaredSubscribers.length);
+    expect(matched.length).toBeGreaterThanOrEqual(2);
   });
 
   test("getConsumersForEventType returns an empty array for an unregistered event type", () => {

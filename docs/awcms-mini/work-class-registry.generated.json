@@ -496,6 +496,86 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/integration-hub/adapters.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/deliveries/inbound.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/deliveries/outbound/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/deliveries/outbound/[id]/replay.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/deliveries/outbound/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/endpoints/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/endpoints/[id]/pause.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/endpoints/[id]/resume.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/endpoints/[id]/rotate-secret.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/endpoints/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/health.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/inbound/[endpointToken].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/subscriptions/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/subscriptions/[id]/pause.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/subscriptions/[id]/resume.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/integration-hub/subscriptions/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/logs/audit.ts",
       "workClass": "reporting",
       "source": "explicit"
@@ -1093,6 +1173,12 @@
       "workClass": "maintenance",
       "source": "registry",
       "rationale": "Scheduled expiry sweep for business-scope assignments/SoD conflict exceptions (identity-access:business-scope:expiry, Issue #746) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; every withTenant call inside business-scope-expiry-job.ts already passes workClass: \"maintenance\" explicitly."
+    },
+    {
+      "path": "scripts/integration-hub-outbound-dispatch.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Outbox dispatcher (integration-hub:outbound:dispatch, Issue #754), recommended every 1-2 minutes — same recurring dispatcher profile as email/object-sync/social-publish/domain-events dispatch; every withTenant call inside outbound-dispatch.ts already passes workClass: \"background_sync\" explicitly."
     },
     {
       "path": "scripts/news-media-r2-reconcile.ts",

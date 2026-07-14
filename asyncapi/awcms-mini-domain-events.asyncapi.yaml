@@ -762,6 +762,29 @@ channels:
       An organization-unit assignment was ended (Issue #749). Producer:
       `organization-structure/application/organization-unit-assignment-
       service.ts`'s `endOrganizationUnitAssignment`.
+  awcms-mini.integration-hub.inbound-message.normalized:
+    address: awcms-mini.integration-hub.inbound-message.normalized
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A signed inbound webhook delivery was verified and normalized into
+      this repo's own domain-event shape (Issue #754, epic
+      `platform-evolution` #738 Wave 3). Payload: `endpointId`,
+      `adapterKey`, `providerDeliveryId`, `inboundDeliveryId`,
+      `receivedAt`, `contentType`, `bodySize`, `bodyTruncated`, and `body`
+      (the parsed JSON body, only when the content type was
+      `application/json` and under the normalization size bound) — never
+      raw provider credentials. Producer: `integration-hub/application/
+      inbound-webhook-intake.ts`'s `processInboundWebhook`, via
+      `appendDomainEvent` in the same transaction as the verified inbound
+      delivery row. Consumer: `integration-hub`'s own static
+      `infrastructure/consumer-registry.ts` entry in
+      `domain-event-runtime` (`integrationHubOutboundFanoutConsumer`) —
+      fans the event out to every active outbound subscription matching
+      this event type by creating `pending` delivery rows; the real HTTP
+      call to each subscriber happens later, outside any transaction, via
+      `bun run integration-hub:outbound:dispatch`.
 operations:
   publishSyncPushRequested:
     action: send
@@ -1195,6 +1218,18 @@ operations:
       $ref: "#/channels/awcms-mini.organization-structure.assignment.ended"
     messages:
       - $ref: "#/channels/awcms-mini.organization-structure.assignment.ended/messages/DomainEvent"
+  publishIntegrationHubInboundMessageNormalized:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.integration-hub.inbound-message.normalized"
+    messages:
+      - $ref: "#/channels/awcms-mini.integration-hub.inbound-message.normalized/messages/DomainEvent"
+  subscribeIntegrationHubInboundMessageNormalized:
+    action: receive
+    channel:
+      $ref: "#/channels/awcms-mini.integration-hub.inbound-message.normalized"
+    messages:
+      - $ref: "#/channels/awcms-mini.integration-hub.inbound-message.normalized/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

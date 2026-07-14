@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 19,
+  "baseModuleCount": 20,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 19,
+  "totalModuleCount": 20,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -140,6 +140,27 @@
       "permissionCount": 5,
       "navigationCount": 0,
       "jobCount": 0,
+      "hasHealthCheck": false,
+      "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "integration_hub",
+      "name": "Integration Hub",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "system",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime"
+      ],
+      "capabilitiesProvided": ["integration_adapter_registration"],
+      "capabilitiesConsumed": [],
+      "permissionCount": 15,
+      "navigationCount": 3,
+      "jobCount": 1,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,
       "deploymentProfiles": null

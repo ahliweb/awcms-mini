@@ -2184,6 +2184,230 @@ msgstr ""
 msgid "admin.examples.wizard.validation_title_required"
 msgstr ""
 
+#: src/pages/admin/integration-hub/deliveries.astro:87
+msgid "admin.integration_hub.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:86
+msgid "admin.integration_hub.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:196
+msgid "admin.integration_hub.deliveries.col_actions"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:119
+msgid "admin.integration_hub.deliveries.col_adapter"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:193
+msgid "admin.integration_hub.deliveries.col_attempts"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:122
+msgid "admin.integration_hub.deliveries.col_direction"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:187
+msgid "admin.integration_hub.deliveries.col_event_type"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:159
+msgid "admin.integration_hub.deliveries.col_received_at"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:125
+msgid "admin.integration_hub.deliveries.col_state"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:156
+msgid "admin.integration_hub.deliveries.col_status"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:114
+msgid "admin.integration_hub.deliveries.health_heading"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:143
+msgid "admin.integration_hub.deliveries.inbound_heading"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:146
+msgid "admin.integration_hub.deliveries.no_rows"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:177
+msgid "admin.integration_hub.deliveries.outbound_heading"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:215
+msgid "admin.integration_hub.deliveries.replay_button"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:43
+msgid "admin.integration_hub.deliveries.replay_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:42
+msgid "admin.integration_hub.deliveries.replay_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/deliveries.astro:81
+msgid "admin.integration_hub.deliveries.title"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:127
+msgid "admin.integration_hub.endpoints.col_actions"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:121
+msgid "admin.integration_hub.endpoints.col_adapter"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:118
+msgid "admin.integration_hub.endpoints.col_name"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:124
+msgid "admin.integration_hub.endpoints.col_status"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:208
+msgid "admin.integration_hub.endpoints.create_submit"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:47
+msgid "admin.integration_hub.endpoints.create_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:175
+msgid "admin.integration_hub.endpoints.create_summary"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:162
+msgid "admin.integration_hub.endpoints.delete_button"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:51
+msgid "admin.integration_hub.endpoints.delete_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:48
+msgid "admin.integration_hub.endpoints.delete_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:188
+msgid "admin.integration_hub.endpoints.field_adapter_key"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:179
+msgid "admin.integration_hub.endpoints.field_display_name"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:198
+msgid "admin.integration_hub.endpoints.field_secret_reference"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:111
+msgid "admin.integration_hub.endpoints.no_rows"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:144
+msgid "admin.integration_hub.endpoints.pause_button"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:49
+msgid "admin.integration_hub.endpoints.pause_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:153
+msgid "admin.integration_hub.endpoints.resume_button"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:50
+msgid "admin.integration_hub.endpoints.resume_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/endpoints.astro:78
+msgid "admin.integration_hub.endpoints.title"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:126
+msgid "admin.integration_hub.subscriptions.col_actions"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:117
+msgid "admin.integration_hub.subscriptions.col_event_type"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:123
+msgid "admin.integration_hub.subscriptions.col_status"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:120
+msgid "admin.integration_hub.subscriptions.col_target_url"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:203
+msgid "admin.integration_hub.subscriptions.create_submit"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:45
+msgid "admin.integration_hub.subscriptions.create_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:174
+msgid "admin.integration_hub.subscriptions.create_summary"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:161
+msgid "admin.integration_hub.subscriptions.delete_button"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:49
+msgid "admin.integration_hub.subscriptions.delete_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:46
+msgid "admin.integration_hub.subscriptions.delete_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:178
+msgid "admin.integration_hub.subscriptions.field_event_type"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:188
+msgid "admin.integration_hub.subscriptions.field_target_adapter_key"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:199
+msgid "admin.integration_hub.subscriptions.field_target_url"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:110
+msgid "admin.integration_hub.subscriptions.no_rows"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:143
+msgid "admin.integration_hub.subscriptions.pause_button"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:47
+msgid "admin.integration_hub.subscriptions.pause_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:152
+msgid "admin.integration_hub.subscriptions.resume_button"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:48
+msgid "admin.integration_hub.subscriptions.resume_success"
+msgstr ""
+
+#: src/pages/admin/integration-hub/subscriptions.astro:77
+msgid "admin.integration_hub.subscriptions.title"
+msgstr ""
+
 #: src/layouts/AdminLayout.astro:207
 msgid "admin.layout.active_tenant_aria_label"
 msgstr ""
@@ -2220,6 +2444,21 @@ msgstr ""
 
 #: src/layouts/AdminLayout.astro:263
 msgid "admin.layout.nav_dashboard"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/integration-hub/module.ts:48
+msgid "admin.layout.nav_integration_hub_deliveries"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/integration-hub/module.ts:32
+msgid "admin.layout.nav_integration_hub_endpoints"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/integration-hub/module.ts:40
+msgid "admin.layout.nav_integration_hub_subscriptions"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)

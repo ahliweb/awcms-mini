@@ -64,6 +64,7 @@
     "domain-events:dispatch": "bun scripts/domain-events-dispatch.ts",
     "workflow:escalations:dispatch": "bun scripts/workflow-escalations-dispatch.ts",
     "organization-structure:metrics-snapshot": "bun scripts/organization-structure-metrics-snapshot.ts",
+    "integration-hub:outbound:dispatch": "bun scripts/integration-hub-outbound-dispatch.ts",
     "modules:sync": "bun scripts/modules-sync.ts",
     "modules:dag:check": "bun scripts/validate-module-graph.ts",
     "modules:compose:check": "bun scripts/validate-module-composition.ts",

@@ -175,6 +175,7 @@ suite("tenant module preset application service", () => {
       "social_publishing",
       "data_lifecycle",
       "organization_structure",
+      "integration_hub",
       "domain_event_runtime"
     ]) {
       expect(changeByKey.get(key)?.outcome).toBe("applied");
@@ -203,6 +204,7 @@ suite("tenant module preset application service", () => {
     expect(state.get("social_publishing")).toBe(false);
     expect(state.get("data_lifecycle")).toBe(false);
     expect(state.get("organization_structure")).toBe(false);
+    expect(state.get("integration_hub")).toBe(false);
     expect(state.get("domain_event_runtime")).toBe(false);
 
     const auditRows = await fetchAuditActions(owner.tenantId);
@@ -221,6 +223,7 @@ suite("tenant module preset application service", () => {
         "social_publishing",
         "data_lifecycle",
         "organization_structure",
+        "integration_hub",
         "domain_event_runtime"
       ].sort()
     );

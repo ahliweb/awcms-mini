@@ -1962,6 +1962,22 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     default: "./var/data-lifecycle-archive",
     description:
       "Filesystem root the local/offline archive adapter (src/modules/data-lifecycle/infrastructure/local-archive-adapter.ts) writes archive artifacts under, one subdirectory per (tenantId, ownerModuleKey, tableShortName). The only new env var this issue adds — retention days/batch limits are already owned by each HighVolumeTableDescriptor in code (or, for a delegated adopter, by that module's own existing retention env var), never re-declared here."
+  },
+  // ---------------------------------------------------------------------
+  // Integration Hub (Issue #754, epic #738 platform-evolution Wave 3) —
+  // signed inbound webhooks, outbound event subscriptions, replay
+  // protection, adapter health.
+  // ---------------------------------------------------------------------
+  {
+    name: "INTEGRATION_HUB_ALLOW_PRIVATE_TARGETS",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "integration_hub",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "false",
+    description:
+      'The explicit "trusted deployment policy" opt-out from SSRF protection (src/modules/integration-hub/domain/ssrf-guard.ts) for outbound subscription delivery targets. Default false (private/link-local/metadata/reserved destinations blocked). A LAN-first deployment that legitimately wants to deliver webhooks to another system on the same private network sets this true — deployment-wide, never tenant/request-controlled.'
   }
 ];
 

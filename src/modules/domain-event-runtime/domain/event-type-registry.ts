@@ -101,6 +101,26 @@ export const ORGANIZATION_STRUCTURE_ASSIGNMENT_CREATED_EVENT_TYPE =
 export const ORGANIZATION_STRUCTURE_ASSIGNMENT_ENDED_EVENT_TYPE =
   "awcms-mini.organization-structure.assignment.ended";
 
+/**
+ * `integration_hub`'s producer registration (Issue #754, epic
+ * `platform-evolution` #738 Wave 3) — same real-producer pattern as
+ * `workflow_approval`/`organization_structure` above (Optional/System ->
+ * System is an allowed DAG direction, ADR-0013 §1).
+ * `integration-hub/application/inbound-webhook-intake.ts` calls
+ * `appendDomainEvent` with this event type, inside the SAME transaction
+ * that persists the verified inbound delivery row, after a signed inbound
+ * webhook passes verification and is normalized. `integration_hub`'s own
+ * static fan-out consumer (`infrastructure/consumer-registry.ts`'s
+ * `integrationHubOutboundFanoutConsumer`) subscribes to this event type to
+ * create outbound-subscription delivery rows (a DB-only write, still
+ * inside this same transaction) — the real HTTP delivery to each
+ * subscriber happens later, outside any transaction, via `bun run
+ * integration-hub:outbound:dispatch`.
+ */
+export const INTEGRATION_HUB_EVENT_VERSION = "1.0";
+export const INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE =
+  "awcms-mini.integration-hub.inbound-message.normalized";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -215,6 +235,12 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventType: ORGANIZATION_STRUCTURE_ASSIGNMENT_ENDED_EVENT_TYPE,
       eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
       description: "An organization-unit assignment was ended (Issue #749)."
+    },
+    {
+      eventType: INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE,
+      eventVersion: INTEGRATION_HUB_EVENT_VERSION,
+      description:
+        "A signed inbound webhook delivery was verified and normalized into this repo's own domain-event shape (Issue #754). Payload carries only the normalized/bounded envelope (endpoint id, adapter key, provider delivery id, inbound delivery id, received-at, content type, body size, and the parsed JSON body when the content type was application/json) — never raw provider credentials."
     }
   ];
 

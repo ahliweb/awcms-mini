@@ -1,7 +1,13 @@
 import { recordAuditEvent } from "../../logging/application/audit-log";
+import {
+  handleOutboundFanout,
+  INTEGRATION_HUB_OUTBOUND_FANOUT_CONSUMER_NAME
+} from "../../integration-hub/application/outbound-fanout-consumer";
 import { applyConsumerEffectOnce } from "../application/consumer-effect";
 import type { DomainEventConsumerDefinition } from "../domain/consumer-types";
 import {
+  INTEGRATION_HUB_EVENT_VERSION,
+  INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE,
   SAMPLE_RECORDED_EVENT_TYPE,
   SAMPLE_RECORDED_EVENT_VERSION
 } from "../domain/event-type-registry";
@@ -99,9 +105,29 @@ export const activityRollupProjectorConsumer: DomainEventConsumerDefinition = {
   }
 };
 
+/**
+ * `integration_hub`'s real (non-reference) CONSUMER registration (Issue
+ * #754, epic `platform-evolution` #738 Wave 3) — fans a normalized inbound
+ * webhook message out to every matching outbound subscription. See
+ * `integration-hub/application/outbound-fanout-consumer.ts`'s own doc
+ * comment for the full design (same-process, DB-only handler; the real
+ * HTTP delivery happens later, outside any transaction, via a separate
+ * worker job).
+ */
+export const integrationHubOutboundFanoutConsumer: DomainEventConsumerDefinition =
+  {
+    name: INTEGRATION_HUB_OUTBOUND_FANOUT_CONSUMER_NAME,
+    description:
+      "Fans a normalized integration_hub inbound-message event out to every active outbound subscription matching its event type (creates pending awcms_mini_integration_outbound_deliveries rows; the real HTTP delivery happens later via bun run integration-hub:outbound:dispatch, Issue #754).",
+    eventTypes: [INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE],
+    eventVersions: [INTEGRATION_HUB_EVENT_VERSION],
+    handler: handleOutboundFanout
+  };
+
 const BASE_DOMAIN_EVENT_CONSUMERS: readonly DomainEventConsumerDefinition[] = [
   sampleAuditProjectorConsumer,
-  activityRollupProjectorConsumer
+  activityRollupProjectorConsumer,
+  integrationHubOutboundFanoutConsumer
 ];
 
 /**
