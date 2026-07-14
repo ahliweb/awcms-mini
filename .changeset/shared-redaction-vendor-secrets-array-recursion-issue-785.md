@@ -42,3 +42,19 @@ avoid tripping GitGuardian's own shape-based secret scanning on this PR),
 the array-recursion case, and negative fixtures (UUID, content hash, a
 short `sk-`-prefixed code, an ordinary webhook URL) confirming no
 over-blocking.
+
+**PR #791 review round follow-up** (both fixed in the same PR before
+merge): added the same-privilege-class sibling prefixes the reviewer/
+security-auditor found still slipped through — GitHub OAuth/GitHub-App
+tokens (`gho_`/`ghu_`/`ghs_`/`ghr_`), Slack app-level/rotated/legacy
+tokens (`xoxa-`/`xoxe-`/`xoxe.xoxp-`/`xoxs-`), Stripe restricted keys
+(`rk_live_`/`rk_test_`) and webhook signing secret (`whsec_`), and
+OpenAI's newer service-account/admin key families
+(`sk-svcacct-`/`sk-admin-`) — and tightened the classic OpenAI key floor
+from `{20,}` to `{40,}` (matching this file's own comment that real
+classic keys run ~48 characters). Also fixed a fixed-length-match design
+flaw in the free-text `ghp_`/`AIzaSy` patterns: they previously matched
+an EXACT character count, so a real token a few characters longer than
+expected left its extra tail sitting in plaintext right next to the
+`[REDACTED_*]` tag — both now match a MINIMUM length instead, sweeping
+any same-charset tail into the redaction.

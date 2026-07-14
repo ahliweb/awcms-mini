@@ -218,29 +218,47 @@ const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
   // `TEXT_SECRET_PATTERNS` below for the unanchored, embedded-in-prose
   // equivalents of the same shapes).
   //
-  // GitHub personal access token — fixed-length real format (`ghp_` + 36
-  // base62 chars).
-  /^ghp_[A-Za-z0-9]{36}$/,
+  // GitHub personal access token, plus its OAuth/GitHub-App-installation
+  // token siblings — `gho_` (OAuth), `ghu_`/`ghs_` (GitHub App
+  // user-to-server/server-to-server), `ghr_` (refresh token) — added in
+  // the PR #791 review round (security-auditor: same fixed-length real
+  // format, 36 base62 chars after the prefix, and same blast radius as
+  // `ghp_`, previously slipped through completely undetected).
+  /^gh[opsru]_[A-Za-z0-9]{36}$/,
   // GitHub fine-grained personal access token — real tokens run much
   // longer than this floor, but the format has no official fixed length,
   // so `{22,}` only guards against a short non-secret string that merely
   // happens to start with the literal prefix.
   /^github_pat_[A-Za-z0-9_]{22,}$/,
-  // OpenAI key — new project-scoped keys (`sk-proj-...`) run to 100+
-  // characters and include `-`/`_`; classic keys (`sk-...`) are ~48
-  // alphanumeric characters with no separators. Both require a `{20,}`
-  // floor after the prefix specifically so a short, innocuous `sk-`-
-  // prefixed label/code (e.g. a locale tag or SKU-style identifier) is
-  // never flagged — only the vendor's own minimum real key length is.
-  /^sk-proj-[A-Za-z0-9_-]{20,}$/,
-  /^sk-[A-Za-z0-9]{20,}$/,
-  // Slack bot/user OAuth tokens — real tokens are 3 hyphen-separated
-  // segments (workspace id, bot/installation id, secret); `{10,}` after
-  // the prefix is a floor, not the exact real length.
-  /^xox[bp]-[A-Za-z0-9-]{10,}$/,
-  // Stripe secret keys (live and test mode) — real keys run ~24+
-  // alphanumeric characters after the prefix.
-  /^sk_(live|test)_[A-Za-z0-9]{10,}$/,
+  // OpenAI key — new project/service-account/admin-scoped keys
+  // (`sk-proj-...`/`sk-svcacct-...`/`sk-admin-...`, the latter two added
+  // in the PR #791 review round — same hyphenated body shape as
+  // `sk-proj-`) run to 100+ characters and include `-`/`_`; classic keys
+  // (`sk-...`) are ~48 alphanumeric characters with no separators.
+  // Classic-key floor tightened from `{20,}` to `{40,}` in the PR #791
+  // review round (reviewer: the comment above already says real classic
+  // keys are ~48 chars, so a `{20,}` floor left unnecessary false-positive
+  // room against a short internal `sk-`-prefixed code) — the hyphenated
+  // family keeps its original `{20,}` floor since a legitimate real body
+  // there already runs much longer regardless.
+  /^sk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}$/,
+  /^sk-[A-Za-z0-9]{40,}$/,
+  // Slack OAuth/app-level/legacy tokens — `xoxb`/`xoxp` (bot/user, already
+  // covered) plus `xoxa` (app-level), `xoxe`/`xoxe.xoxp` (rotated/refresh),
+  // `xoxs` (legacy workspace) — added in the PR #791 review round
+  // (security-auditor: same privilege class, previously slipped through
+  // completely undetected). Real tokens are hyphen-separated segments
+  // (workspace id, bot/installation id, secret); `{10,}` after the prefix
+  // is a floor, not the exact real length.
+  /^xox(?:[abps]|e\.xoxp|e)-[A-Za-z0-9-]{10,}$/,
+  // Stripe secret keys (live/test) and their same-privilege-class sibling
+  // restricted keys (`rk_live_`/`rk_test_`) — added in the PR #791 review
+  // round (security-auditor). Real keys run ~24+ alphanumeric characters
+  // after the prefix.
+  /^(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}$/,
+  // Stripe webhook signing secret — added in the PR #791 review round
+  // (security-auditor). Real secrets run much longer than this floor.
+  /^whsec_[A-Za-z0-9]{20,}$/,
   // Google API key — fixed-length real format (`AIzaSy` + 33 chars from
   // `[A-Za-z0-9_-]`).
   /^AIzaSy[A-Za-z0-9_-]{33}$/,
@@ -386,7 +404,19 @@ const TEXT_SECRET_PATTERNS: ReadonlyArray<{
   // match when embedded anywhere in prose (an error message, a stack
   // trace) rather than being the entire string.
   {
-    pattern: /ghp_[A-Za-z0-9]{36}/g,
+    // `{36,}` — a MINIMUM, not the exact `{36}` count `SECRET_VALUE_PATTERNS`
+    // above uses. PR #791 review round (reviewer, Low): the pre-existing
+    // `AKIA[0-9A-Z]{16}` pattern has the same fixed-length-match design and
+    // wasn't changed here (real AWS ids are always exactly that length,
+    // not exploitable today), but this free-text/log-scrubbing regex is
+    // NEW, so an exact `{36}` here would leave any same-charset tail (e.g.
+    // a token 4 characters longer than expected) sitting in plaintext
+    // directly next to the `[REDACTED_GITHUB_TOKEN]` tag — the opposite of
+    // what redaction is for. A minimum-length match sweeps the whole
+    // same-charset run into the tag instead. Covers `ghp_` and its
+    // OAuth/GitHub-App-installation siblings (`gho_`/`ghu_`/`ghs_`/`ghr_`)
+    // in one pattern — see the matching comment on `SECRET_VALUE_PATTERNS`.
+    pattern: /gh[opsru]_[A-Za-z0-9]{36,}/g,
     replacement: "[REDACTED_GITHUB_TOKEN]"
   },
   {
@@ -394,28 +424,38 @@ const TEXT_SECRET_PATTERNS: ReadonlyArray<{
     replacement: "[REDACTED_GITHUB_TOKEN]"
   },
   {
-    // Project-scoped key checked first — see the matching comment on
-    // `SECRET_VALUE_PATTERNS` for why the classic `sk-...` pattern's
-    // alphanumeric-only class can never match a `sk-proj-...` value on its
-    // own (the literal `-` after `proj` breaks that run), so ordering here
-    // is for readability, not correctness.
-    pattern: /sk-proj-[A-Za-z0-9_-]{20,}/g,
+    // Hyphenated key family (`sk-proj-`/`sk-svcacct-`/`sk-admin-`) checked
+    // first — see the matching comment on `SECRET_VALUE_PATTERNS` for why
+    // the classic `sk-...` pattern's alphanumeric-only class can never
+    // match one of these on its own (the literal `-` inside the family
+    // name breaks that run), so ordering here is for readability, not
+    // correctness.
+    pattern: /sk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}/g,
     replacement: "[REDACTED_OPENAI_KEY]"
   },
   {
-    pattern: /sk-[A-Za-z0-9]{20,}/g,
+    // Floor tightened from `{20,}` to `{40,}` to match the anchored
+    // pattern's tightening — see that comment on `SECRET_VALUE_PATTERNS`.
+    pattern: /sk-[A-Za-z0-9]{40,}/g,
     replacement: "[REDACTED_OPENAI_KEY]"
   },
   {
-    pattern: /xox[bp]-[A-Za-z0-9-]{10,}/g,
+    pattern: /xox(?:[abps]|e\.xoxp|e)-[A-Za-z0-9-]{10,}/g,
     replacement: "[REDACTED_SLACK_TOKEN]"
   },
   {
-    pattern: /sk_(live|test)_[A-Za-z0-9]{10,}/g,
+    pattern: /(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}/g,
     replacement: "[REDACTED_STRIPE_KEY]"
   },
   {
-    pattern: /AIzaSy[A-Za-z0-9_-]{33}/g,
+    pattern: /whsec_[A-Za-z0-9]{20,}/g,
+    replacement: "[REDACTED_STRIPE_KEY]"
+  },
+  {
+    // `{33,}` — a MINIMUM, not the exact `{33}` count `SECRET_VALUE_PATTERNS`
+    // above uses — same tail-leak fix and rationale as the GitHub pattern
+    // above (PR #791 review round, reviewer, Low).
+    pattern: /AIzaSy[A-Za-z0-9_-]{33,}/g,
     replacement: "[REDACTED_GOOGLE_API_KEY]"
   },
   {

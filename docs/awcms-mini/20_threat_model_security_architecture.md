@@ -830,6 +830,39 @@ seperti AWS `AKIAIOSFODNN7EXAMPLE`) ada di `tests/audit-log.test.ts`,
 termasuk fixture negatif (UUID, content hash, kode pendek berawalan
 `sk-`, URL webhook generik) untuk memastikan tidak over-blocking.
 
+**PR #791 review round follow-up** (security-auditor Medium + reviewer
+Low, keduanya diperbaiki di PR yang sama sebelum merge):
+
+- Sibling prefix per vendor yang sudah dicakup tapi masih lolos total —
+  GitHub OAuth/GitHub-App token (`gho_`/`ghu_`/`ghs_`/`ghr_`, kelas
+  privilege sama dengan `ghp_`), Slack app-level/rotated/legacy token
+  (`xoxa-`/`xoxe-`/`xoxe.xoxp-`/`xoxs-`, kelas privilege sama dengan
+  bot/user token), Stripe restricted key (`rk_live_`/`rk_test_`, kelas
+  privilege sama dengan secret key) dan webhook signing secret
+  (`whsec_`), serta keluarga key OpenAI yang lebih baru
+  (`sk-svcacct-`/`sk-admin-`, bentuk hyphenated sama seperti
+  `sk-proj-`) — ditambahkan ke `SECRET_VALUE_PATTERNS`/
+  `TEXT_SECRET_PATTERNS`.
+- Floor classic OpenAI key (`sk-...`) diperketat dari `{20,}` ke `{40,}`
+  (komentar kode sendiri sudah bilang key asli ~48 karakter, jadi floor
+  `{20,}` sebelumnya menyisakan ruang false-positive yang tidak perlu
+  terhadap kode internal pendek berawalan `sk-`).
+- **Celah desain fixed-length-match pada pola free-text** — versi
+  unanchored `ghp_`/`AIzaSy` sebelumnya mensyaratkan JUMLAH KARAKTER
+  PERSIS (`{36}`/`{33}`), sehingga token asli yang sedikit lebih panjang
+  dari itu hanya ter-redact sebagian — sisa "ekor" karakter yang sama
+  charset-nya tetap plaintext, persis di sebelah tag
+  `[REDACTED_GITHUB_TOKEN]`/`[REDACTED_GOOGLE_API_KEY]` — kebalikan dari
+  tujuan redaksi. Pola pre-existing `AKIA[0-9A-Z]{16}` punya desain sama
+  tapi TIDAK diubah (format AWS asli memang selalu persis sepanjang itu,
+  tidak eksploitable hari ini); tapi karena desain yang sama BARU saja
+  diterapkan ke `ghp_`/`AIzaSy` di PR ini, diperbaiki sekarang sebelum
+  polanya diulang lagi ke prefix vendor berikutnya. Kedua pola sekarang
+  memakai floor MINIMUM (`{36,}`/`{33,}`), bukan jumlah persis — versi
+  anchored (`findSecretShapedValues`) tetap memakai jumlah persis karena
+  memang dimaksudkan memvalidasi bentuk exact-value, bukan menyapu teks
+  bebas.
+
 ### Troubleshooting operator-safe
 
 Operator yang membaca output `bun run <script>` atau baris log JSON
