@@ -1046,11 +1046,20 @@ default-deny, audit) yang sudah berlaku sama di sini.
   (scope type lain, atau modul nonaktif untuk tenant itu) — diverifikasi
   end-to-end lewat `tests/integration/business-scope-organization-
 structure-wiring.integration.test.ts` (bukan hanya unit test adapter
-  itu sendiri). Catatan jujur: pencocokan konflik SoD (`same_scope_only`)
-  tetap berbasis kesetaraan `(scopeType, scopeId)` persis — belum
-  mengonsultasikan `ancestorScopes`/`descendantScopes`; hierarki
-  ancestor/descendant nyata yang di-hitung adapter belum dipakai fitur SoD
-  apa pun hari ini.
+  itu sendiri). **Catatan jujur, diperbarui pasca-audit PR #790**:
+  pencocokan konflik SoD (`same_scope_only`) tetap berbasis kesetaraan
+  `(scopeType, scopeId)` persis — belum mengonsultasikan
+  `ancestorScopes`/`descendantScopes` yang kini benar-benar dihitung
+  adapter. Sebelum PR ini, batasan tersebut murni teoritis (scope
+  `legal_entity`/`organization_unit` tidak pernah benar-benar resolve);
+  PR #790 membuatnya nyata dapat dijangkau — subjek yang menggenggam
+  `business_scope_assignments.create` pada `organization_unit` induk kini
+  bisa mendapat `.revoke` pada unit anak yang berelasi hierarkis tanpa
+  memicu rule `same_scope_only` (`business_scope_assignment_scope_maker_
+  checker`). Tidak melintasi batas tenant/RLS dan tidak melewati
+  default-deny ABAC — tetap butuh permission pemberian assignment yang
+  sah. Dilacak sebagai Issue #794 (severity Medium, bukan blocker
+  go-live per gerbang doc 07, karena hanya Critical yang memblokir).
 - **Tiga rule fixture SoD** (bukan katalog domain lengkap) — dua dimiliki
   `identity_access` sendiri (maker/checker atas mekanisme exception itu
   sendiri, dan atas assignment create/revoke pada scope yang sama), satu
