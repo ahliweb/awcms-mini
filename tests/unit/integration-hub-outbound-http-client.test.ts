@@ -69,6 +69,26 @@ describe("validateOutboundDestination — bracketed IPv6 literals (security-audi
     );
     expect(result.ok).toBe(true);
   });
+
+  // Security-auditor round-3 Critical finding (PR #784): a DIFFERENT
+  // bit-pattern embedded-IPv4 class (IPv4-translated, NAT64, 6to4) than
+  // the ::ffff:/96 bracketed form above bypassed dispatch-time validation
+  // entirely too — proven here through the exact async function the
+  // outbound dispatch job calls, no fetch/DNS ever reached.
+  test.each([
+    "http://[64:ff9b::7f00:1]/x",
+    "http://[64:ff9b::a9fe:a9fe]/x",
+    "http://[::ffff:0:169.254.169.254]/x",
+    "http://[64:ff9b:1:a9fe:a9:fe00::]/x",
+    "http://[2002:7f00:1::]/x",
+    "http://[2002:a9fe:a9fe::]/x"
+  ])("rejects the embedded-IPv4 IPv6 literal %s", async (url) => {
+    const result = await validateOutboundDestination(url, false);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("private_or_reserved_address");
+    }
+  });
 });
 
 describe("followBoundedRedirects — redirect Location is SSRF-validated (reviewer High finding, PR #784)", () => {

@@ -99,6 +99,164 @@ function isPrivateOrReservedIPv4(address: string): boolean {
   );
 }
 
+/**
+ * Expands a syntactically-valid IPv6 literal (already confirmed by
+ * `isIP() === 6` before this is ever called, by every caller in this
+ * file) into its 16 raw bytes. Handles `::` zero-compression and a
+ * trailing dotted-decimal IPv4 form (e.g. `::ffff:127.0.0.1`, which this
+ * file's own pre-existing test suite already exercises directly) by
+ * rewriting it into two equivalent 16-bit hex groups first, so the rest
+ * of the function only ever deals with plain hex groups. Returns `null`
+ * only if the input somehow isn't parseable despite passing `isIP()`
+ * (defensive; should not happen in practice) — callers fail closed on
+ * `null` the same way they already fail closed on "not a valid IP at
+ * all" elsewhere in this file.
+ */
+function parseIPv6ToBytes(address: string): number[] | null {
+  let text = address;
+  const lastColonIndex = text.lastIndexOf(":");
+  const tail = text.slice(lastColonIndex + 1);
+
+  if (tail.includes(".")) {
+    const octets = tail.split(".").map((part) => Number(part));
+
+    if (
+      octets.length !== 4 ||
+      octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
+    ) {
+      return null;
+    }
+
+    const high = ((octets[0]! << 8) | octets[1]!).toString(16);
+    const low = ((octets[2]! << 8) | octets[3]!).toString(16);
+    text = `${text.slice(0, lastColonIndex + 1)}${high}:${low}`;
+  }
+
+  if ((text.match(/::/g) ?? []).length > 1) {
+    return null;
+  }
+
+  const doubleColonIndex = text.indexOf("::");
+  const hasDoubleColon = doubleColonIndex !== -1;
+  const headPart = hasDoubleColon ? text.slice(0, doubleColonIndex) : text;
+  const tailPart = hasDoubleColon ? text.slice(doubleColonIndex + 2) : "";
+
+  const headGroups = headPart.length > 0 ? headPart.split(":") : [];
+  const tailGroups = tailPart.length > 0 ? tailPart.split(":") : [];
+
+  if (!hasDoubleColon && headGroups.length !== 8) {
+    return null;
+  }
+
+  if (hasDoubleColon && headGroups.length + tailGroups.length > 8) {
+    return null;
+  }
+
+  const missingGroups = 8 - headGroups.length - tailGroups.length;
+  const groups = hasDoubleColon
+    ? [...headGroups, ...new Array(missingGroups).fill("0"), ...tailGroups]
+    : headGroups;
+
+  if (groups.length !== 8) {
+    return null;
+  }
+
+  const bytes: number[] = [];
+
+  for (const group of groups) {
+    if (!/^[0-9a-f]{1,4}$/i.test(group)) {
+      return null;
+    }
+
+    const value = Number.parseInt(group, 16);
+    bytes.push((value >>> 8) & 0xff, value & 0xff);
+  }
+
+  return bytes;
+}
+
+function isZeroRange(bytes: number[], from: number, to: number): boolean {
+  for (let i = from; i < to; i += 1) {
+    if (bytes[i] !== 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * The actual bug CLASS (security-auditor round-3 Critical finding, PR
+ * #784): "an IPv6 address with an embedded IPv4 payload in a known
+ * translation prefix" — not a growing list of one-off regexes, one per
+ * encoding discovered. Every known embedded-IPv4 form is enumerated here
+ * explicitly, each one extracting the 32-bit IPv4 payload from its
+ * RFC-defined bit position and re-running the EXISTING, already-reviewed
+ * `isPrivateOrReservedIPv4` check against it — never a second,
+ * reimplemented IPv4 classification.
+ */
+function isBlockedEmbeddedIPv4(bytes: number[]): boolean {
+  // IPv4-mapped, RFC 4291 §2.5.5.2 (`::ffff:a.b.c.d`):
+  // 0000:0000:0000:0000:0000:ffff:v4(32).
+  if (isZeroRange(bytes, 0, 10) && bytes[10] === 0xff && bytes[11] === 0xff) {
+    return isPrivateOrReservedIPv4(bytes.slice(12, 16).join("."));
+  }
+
+  // IPv4-translated (`::ffff:0:a.b.c.d`) — the same `ffff` marker one
+  // group earlier, with an extra reserved zero group before the IPv4
+  // payload. Security-auditor round-3 finding: this bypassed the guard
+  // entirely because it is a DIFFERENT bit pattern from the mapped form
+  // above (the WHATWG URL parser normalizes it to `::ffff:0:xxxx:yyyy`),
+  // not merely a textual variant of it.
+  if (
+    isZeroRange(bytes, 0, 8) &&
+    bytes[8] === 0xff &&
+    bytes[9] === 0xff &&
+    bytes[10] === 0 &&
+    bytes[11] === 0
+  ) {
+    return isPrivateOrReservedIPv4(bytes.slice(12, 16).join("."));
+  }
+
+  // NAT64 Well-Known Prefix, RFC 6052 §2.1/§2.2 (`64:ff9b::/96`):
+  // 0064:ff9b:0000:0000:0000:0000:v4(32) — the /96 length embeds the
+  // whole IPv4 address in the last 32 bits (no reserved "u" byte; that
+  // byte's position, bits 64-71, falls INSIDE the 96-bit prefix here).
+  if (
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    isZeroRange(bytes, 4, 12)
+  ) {
+    return isPrivateOrReservedIPv4(bytes.slice(12, 16).join("."));
+  }
+
+  // NAT64 Local-Use Prefix, RFC 8215 (`64:ff9b:1::/48`), embedded per RFC
+  // 6052 §2.2's PL=48 rule: 48-bit prefix, then IPv4 octets 0-1, then a
+  // reserved "u" byte (bits 64-71), then IPv4 octets 2-3, then suffix.
+  if (
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    bytes[4] === 0x00 &&
+    bytes[5] === 0x01
+  ) {
+    return isPrivateOrReservedIPv4(
+      [bytes[6]!, bytes[7]!, bytes[9]!, bytes[10]!].join(".")
+    );
+  }
+
+  // 6to4, RFC 3056 (`2002:WWXX:YYZZ::/16`): the 32-bit IPv4 address is
+  // encoded directly as the next two groups after the `2002::` prefix.
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) {
+    return isPrivateOrReservedIPv4(bytes.slice(2, 6).join("."));
+  }
+
+  return false;
+}
+
 function isPrivateOrReservedIPv6(address: string): boolean {
   const normalized = address.toLowerCase();
 
@@ -106,33 +264,14 @@ function isPrivateOrReservedIPv6(address: string): boolean {
     return true; // loopback / unspecified
   }
 
-  // IPv4-mapped, dotted-decimal form (::ffff:a.b.c.d) — validate the
-  // embedded IPv4 address.
-  const dottedMappedMatch = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (dottedMappedMatch) {
-    return isPrivateOrReservedIPv4(dottedMappedMatch[1]!);
+  const bytes = parseIPv6ToBytes(normalized);
+
+  if (!bytes) {
+    return true; // Fail closed — should not happen after isIP() already validated syntax.
   }
 
-  // IPv4-mapped, hex-group form (::ffff:xxxx:yyyy) — the WHATWG URL
-  // parser normalizes an IPv4-mapped literal typed as
-  // `[::ffff:169.254.169.254]` into this hex-group shape, NEVER the
-  // dotted-decimal form above, so `new URL(...).hostname` for this class
-  // of target never matches `dottedMappedMatch` — a second real gap the
-  // security-auditor's own reproduction (`[::ffff:169.254.169.254]`)
-  // caught (PR #784). Each hex group is 16 bits = 2 IPv4 octets.
-  const hexMappedMatch = normalized.match(
-    /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/
-  );
-  if (hexMappedMatch) {
-    const high = Number.parseInt(hexMappedMatch[1]!, 16);
-    const low = Number.parseInt(hexMappedMatch[2]!, 16);
-    const octets = [
-      (high >>> 8) & 0xff,
-      high & 0xff,
-      (low >>> 8) & 0xff,
-      low & 0xff
-    ];
-    return isPrivateOrReservedIPv4(octets.join("."));
+  if (isBlockedEmbeddedIPv4(bytes)) {
+    return true;
   }
 
   return (
