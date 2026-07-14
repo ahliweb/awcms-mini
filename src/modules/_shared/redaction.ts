@@ -103,6 +103,43 @@ export function redactSensitiveAttributes(
   return redactRecord(input);
 }
 
+/**
+ * Sibling to `redactSensitiveAttributes` that also accepts a top-level JSON
+ * *array* (Issue #785 — a batch-webhook provider body, e.g.
+ * `integration_hub`'s normalized event payload/`raw_body_snippet`, is often
+ * an array of records rather than a single object; `redactSensitiveAttributes`
+ * above only ever recurses into a top-level *object*, so an array passed to
+ * it directly would need the caller to map over it manually, and a caller
+ * that forgot to would silently persist/log every element completely
+ * unredacted).
+ *
+ * Deliberately a NEW, additive export rather than a change to
+ * `redactSensitiveAttributes`'s own signature — every existing call site
+ * (`logging/application/audit-log.ts`, `lib/logging/logger.ts`,
+ * `domain-event-runtime/domain/payload-redaction.ts`) is typed to only ever
+ * pass a plain object (or `undefined`), so widening that function's
+ * parameter type could subtly change its inferred return type at each call
+ * site (e.g. `logger.ts`'s `...redactedContext` object-spread) for zero
+ * benefit to any of them. Reuses the same internal `redactValue` the object
+ * path already calls per-property, so array/object/primitive/`null` all
+ * behave identically to how `redactRecord` already treats a nested value at
+ * any depth — only the TOP-LEVEL type accepted is wider here.
+ *
+ * `null` is returned unchanged (never coerced to `undefined` or `{}`) and
+ * any primitive is returned as-is (nothing to recurse into) — both already
+ * fall out of `redactValue`'s existing `Array.isArray` / `typeof === "object"`
+ * checks with no special-casing needed here.
+ */
+export function redactSensitiveJsonValue(
+  input: Record<string, unknown> | unknown[] | null | undefined
+): Record<string, unknown> | unknown[] | null | undefined {
+  if (input === undefined || input === null) {
+    return input;
+  }
+
+  return redactValue(input) as Record<string, unknown> | unknown[];
+}
+
 function collectKeysDeep(value: unknown, keys: Set<string>): void {
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -173,8 +210,92 @@ const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
   // greedy `+` backtracking to the LAST `@` in the run (not the first) is
   // what correctly separates "password" from "host" when both `:` and `@`
   // appear inside the password itself.
-  /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@/\s]+:[^/\s]+@/
+  /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^:@/\s]+:[^/\s]+@/,
+  // --- Issue #785 (surfaced independently by both #750's and #754's
+  // security review during epic #738 Wave 3): common vendor secret-key
+  // formats, each anchored to the WHOLE value like the patterns above (this
+  // function checks one already-isolated string value, not free text — see
+  // `TEXT_SECRET_PATTERNS` below for the unanchored, embedded-in-prose
+  // equivalents of the same shapes).
+  //
+  // GitHub personal access token, plus its OAuth/GitHub-App-installation
+  // token siblings — `gho_` (OAuth), `ghu_`/`ghs_` (GitHub App
+  // user-to-server/server-to-server), `ghr_` (refresh token) — added in
+  // the PR #791 review round (security-auditor: same fixed-length real
+  // format, 36 base62 chars after the prefix, and same blast radius as
+  // `ghp_`, previously slipped through completely undetected).
+  /^gh[opsru]_[A-Za-z0-9]{36}$/,
+  // GitHub fine-grained personal access token — real tokens run much
+  // longer than this floor, but the format has no official fixed length,
+  // so `{22,}` only guards against a short non-secret string that merely
+  // happens to start with the literal prefix.
+  /^github_pat_[A-Za-z0-9_]{22,}$/,
+  // OpenAI key — new project/service-account/admin-scoped keys
+  // (`sk-proj-...`/`sk-svcacct-...`/`sk-admin-...`, the latter two added
+  // in the PR #791 review round — same hyphenated body shape as
+  // `sk-proj-`) run to 100+ characters and include `-`/`_`; classic keys
+  // (`sk-...`) are ~48 alphanumeric characters with no separators.
+  // Classic-key floor tightened from `{20,}` to `{40,}` in the PR #791
+  // review round (reviewer: the comment above already says real classic
+  // keys are ~48 chars, so a `{20,}` floor left unnecessary false-positive
+  // room against a short internal `sk-`-prefixed code) — the hyphenated
+  // family keeps its original `{20,}` floor since a legitimate real body
+  // there already runs much longer regardless.
+  /^sk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}$/,
+  /^sk-[A-Za-z0-9]{40,}$/,
+  // Slack OAuth/app-level/legacy tokens — `xoxb`/`xoxp` (bot/user, already
+  // covered) plus `xoxa` (app-level), `xoxe`/`xoxe.xoxp` (rotated/refresh),
+  // `xoxs` (legacy workspace) — added in the PR #791 review round
+  // (security-auditor: same privilege class, previously slipped through
+  // completely undetected). Real tokens are hyphen-separated segments
+  // (workspace id, bot/installation id, secret); `{10,}` after the prefix
+  // is a floor, not the exact real length.
+  /^xox(?:[abps]|e\.xoxp|e)-[A-Za-z0-9-]{10,}$/,
+  // Stripe secret keys (live/test) and their same-privilege-class sibling
+  // restricted keys (`rk_live_`/`rk_test_`) — added in the PR #791 review
+  // round (security-auditor). Real keys run ~24+ alphanumeric characters
+  // after the prefix.
+  /^(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}$/,
+  // Stripe webhook signing secret — added in the PR #791 review round
+  // (security-auditor). Real secrets run much longer than this floor.
+  /^whsec_[A-Za-z0-9]{20,}$/,
+  // Google API key — fixed-length real format (`AIzaSy` + 33 chars from
+  // `[A-Za-z0-9_-]`).
+  /^AIzaSy[A-Za-z0-9_-]{33}$/,
+  // Slack incoming-webhook URL — not anchored to the whole value (unlike
+  // every pattern above) because the value may legitimately carry a scheme
+  // prefix (`https://`) or trailing query text; the three-segment
+  // `/services/<T>/<B>/<secret>` path is what's actually diagnostic, not
+  // the exact surrounding string. The `(?<![A-Za-z0-9.-])` lookbehind is a
+  // host-label boundary, not a full URL-authority parse — it only rules
+  // out `hooks.slack.com` appearing mid-label of some OTHER hostname
+  // (e.g. `evil-hooks.slack.com`), which CodeQL's missing-regexp-anchor
+  // rule (js/regex/missing-regexp-anchor) flags. It intentionally does
+  // NOT need to fully validate the URL as an authority component, since
+  // this pattern only ever feeds a redaction decision (mask more text,
+  // never grant trust/access) — over-matching here is safe overinclusion,
+  // not a vulnerability, unlike the rule's own SSRF/open-redirect example.
+  /(?<![A-Za-z0-9.-])hooks\.slack\.com\/services\/[A-Za-z0-9]+\/[A-Za-z0-9]+\/[A-Za-z0-9]+/
 ];
+
+// Issue #785 — a generic high-entropy-string backstop (flag any long
+// random-looking blob regardless of vendor prefix) was deliberately NOT
+// added to the list above after evaluating it against this codebase's own
+// realistic non-secret data: `profile_identity`/every other tenant-scoped
+// table's UUID primary/foreign keys, `sync_storage`'s content hashes,
+// idempotency keys, and correlation ids are ALL long, high-entropy-looking
+// strings that are legitimately stored and returned every day. Unlike
+// `social-publishing/domain/social-account-validation.ts`'s own
+// `looksLikeRawSecretToken` (which applies a *whole-field* entropy check
+// only to a field whose entire declared purpose is to hold a secret
+// reference), `findSecretShapedValues`/`SECRET_VALUE_PATTERNS` here scan
+// arbitrary metadata/settings values across every module — a blanket
+// entropy heuristic at this generic layer would flag routine,
+// already-legitimate identifiers constantly. Sticking to explicit
+// vendor-prefix patterns keeps the false-positive rate near zero, at the
+// accepted cost of missing any secret shape not on this list (documented
+// residual, same caveat as the rest of this heuristic — see the file-level
+// doc comment and this function's own doc comment below).
 
 function isSecretShapedValue(value: unknown): boolean {
   return (
@@ -285,6 +406,76 @@ const TEXT_SECRET_PATTERNS: ReadonlyArray<{
   {
     pattern: /AKIA[0-9A-Z]{16}/g,
     replacement: "[REDACTED_AWS_KEY]"
+  },
+  // --- Issue #785: free-text equivalents of the vendor-prefix shapes added
+  // to `SECRET_VALUE_PATTERNS` above — same formats, unanchored so they
+  // match when embedded anywhere in prose (an error message, a stack
+  // trace) rather than being the entire string.
+  {
+    // `{36,}` — a MINIMUM, not the exact `{36}` count `SECRET_VALUE_PATTERNS`
+    // above uses. PR #791 review round (reviewer, Low): the pre-existing
+    // `AKIA[0-9A-Z]{16}` pattern has the same fixed-length-match design and
+    // wasn't changed here (real AWS ids are always exactly that length,
+    // not exploitable today), but this free-text/log-scrubbing regex is
+    // NEW, so an exact `{36}` here would leave any same-charset tail (e.g.
+    // a token 4 characters longer than expected) sitting in plaintext
+    // directly next to the `[REDACTED_GITHUB_TOKEN]` tag — the opposite of
+    // what redaction is for. A minimum-length match sweeps the whole
+    // same-charset run into the tag instead. Covers `ghp_` and its
+    // OAuth/GitHub-App-installation siblings (`gho_`/`ghu_`/`ghs_`/`ghr_`)
+    // in one pattern — see the matching comment on `SECRET_VALUE_PATTERNS`.
+    pattern: /gh[opsru]_[A-Za-z0-9]{36,}/g,
+    replacement: "[REDACTED_GITHUB_TOKEN]"
+  },
+  {
+    pattern: /github_pat_[A-Za-z0-9_]{22,}/g,
+    replacement: "[REDACTED_GITHUB_TOKEN]"
+  },
+  {
+    // Hyphenated key family (`sk-proj-`/`sk-svcacct-`/`sk-admin-`) checked
+    // first — see the matching comment on `SECRET_VALUE_PATTERNS` for why
+    // the classic `sk-...` pattern's alphanumeric-only class can never
+    // match one of these on its own (the literal `-` inside the family
+    // name breaks that run), so ordering here is for readability, not
+    // correctness.
+    pattern: /sk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}/g,
+    replacement: "[REDACTED_OPENAI_KEY]"
+  },
+  {
+    // Floor tightened from `{20,}` to `{40,}` to match the anchored
+    // pattern's tightening — see that comment on `SECRET_VALUE_PATTERNS`.
+    pattern: /sk-[A-Za-z0-9]{40,}/g,
+    replacement: "[REDACTED_OPENAI_KEY]"
+  },
+  {
+    pattern: /xox(?:[abps]|e\.xoxp|e)-[A-Za-z0-9-]{10,}/g,
+    replacement: "[REDACTED_SLACK_TOKEN]"
+  },
+  {
+    pattern: /(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{10,}/g,
+    replacement: "[REDACTED_STRIPE_KEY]"
+  },
+  {
+    pattern: /whsec_[A-Za-z0-9]{20,}/g,
+    replacement: "[REDACTED_STRIPE_KEY]"
+  },
+  {
+    // `{33,}` — a MINIMUM, not the exact `{33}` count `SECRET_VALUE_PATTERNS`
+    // above uses — same tail-leak fix and rationale as the GitHub pattern
+    // above (PR #791 review round, reviewer, Low).
+    pattern: /AIzaSy[A-Za-z0-9_-]{33,}/g,
+    replacement: "[REDACTED_GOOGLE_API_KEY]"
+  },
+  {
+    // Same host-label-boundary lookbehind as the SECRET_VALUE_PATTERNS
+    // twin above, and same rationale: this only feeds a redaction
+    // decision, never a trust/access decision, so ruling out
+    // `hooks.slack.com` as a mid-label substring of some other hostname
+    // is enough to satisfy js/regex/missing-regexp-anchor without needing
+    // a full URL-authority parse.
+    pattern:
+      /https?:\/\/(?<![A-Za-z0-9.-])hooks\.slack\.com\/services\/[A-Za-z0-9/]+/g,
+    replacement: "[REDACTED_SLACK_WEBHOOK]"
   },
   {
     // Password character class deliberately excludes only `/` and

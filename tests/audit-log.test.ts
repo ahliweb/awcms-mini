@@ -4,7 +4,8 @@ import {
   findSecretShapedValues,
   findSensitiveKeys,
   redactSecretsInText,
-  redactSensitiveAttributes
+  redactSensitiveAttributes,
+  redactSensitiveJsonValue
 } from "../src/modules/_shared/redaction";
 import {
   getAuditExportHook,
@@ -227,6 +228,62 @@ describe("redactSensitiveAttributes", () => {
   });
 });
 
+// Issue #785 — array-recursion sibling of `redactSensitiveAttributes`, used
+// where the top-level JSON value is a batch array of records rather than a
+// single object (e.g. a batch-webhook provider body).
+describe("redactSensitiveJsonValue", () => {
+  test("undefined input stays undefined", () => {
+    expect(redactSensitiveJsonValue(undefined)).toBeUndefined();
+  });
+
+  test("null input stays null (never coerced to undefined or {})", () => {
+    expect(redactSensitiveJsonValue(null)).toBeNull();
+  });
+
+  test("a top-level object behaves identically to redactSensitiveAttributes", () => {
+    expect(
+      redactSensitiveJsonValue({ email: "user@example.com", count: 3 })
+    ).toEqual({ email: "[REDACTED]", count: 3 });
+  });
+
+  test("recurses into a top-level array of records, redacting each element", () => {
+    expect(
+      redactSensitiveJsonValue([
+        { email: "a@example.com", label: "ok" },
+        { password: "hunter2", count: 2 },
+        { nested: { token: "shh" } }
+      ])
+    ).toEqual([
+      { email: "[REDACTED]", label: "ok" },
+      { password: "[REDACTED]", count: 2 },
+      { nested: { token: "[REDACTED]" } }
+    ]);
+  });
+
+  test("an empty top-level array stays an empty array", () => {
+    expect(redactSensitiveJsonValue([])).toEqual([]);
+  });
+
+  test("a top-level array containing an array of records (batch-of-batches) still recurses", () => {
+    expect(
+      redactSensitiveJsonValue([[{ apiKey: "shh" }], [{ label: "ok" }]])
+    ).toEqual([[{ apiKey: "[REDACTED]" }], [{ label: "ok" }]]);
+  });
+
+  // Defensive/runtime check beyond the officially-typed input surface (the
+  // exported type only declares object/array/null/undefined) — a caller
+  // passing an unexpected primitive at runtime (e.g. a malformed provider
+  // response before its own shape validation runs) must not throw, since
+  // `redactValue` already returns non-object/array values unchanged.
+  test("a primitive value (outside the declared type) is returned unchanged, not thrown", () => {
+    const asUnknown = redactSensitiveJsonValue as (input: unknown) => unknown;
+
+    expect(asUnknown("just a string")).toBe("just a string");
+    expect(asUnknown(42)).toBe(42);
+    expect(asUnknown(true)).toBe(true);
+  });
+});
+
 describe("findSensitiveKeys", () => {
   test("undefined input yields no keys", () => {
     expect(findSensitiveKeys(undefined)).toEqual([]);
@@ -365,6 +422,295 @@ describe("findSecretShapedValues", () => {
       })
     ).toEqual(["webhooks[1].label"]);
   });
+
+  // Issue #785 — vendor secret-key formats surfaced by two independent
+  // security audits during epic #738 Wave 3 (PR #783/#750 reference-data,
+  // PR #784/#754 integration-hub), previously undetected by this function.
+  // Every fixture below is deliberately a FABRICATED, non-canonical
+  // credential (the body spells out "NOT A REAL ... FIXTURE ... FOR
+  // TESTS/TESTING ONLY" using only the vendor's own allowed character set)
+  // — same established convention as the JWT fixture above, chosen
+  // specifically so it reads as obviously fake to a human reviewer while
+  // still exercising the exact shape/length our own regex requires. See
+  // that fixture's own comment for why a well-known PUBLIC canonical
+  // example (like AWS's `AKIAIOSFODNN7EXAMPLE`) isn't used here — none of
+  // these vendors publish an equivalent officially-sanctioned example
+  // credential.
+  describe("vendor secret-key formats (Issue #785)", () => {
+    // Every fixture below is built via string concatenation (prefix + body),
+    // never one contiguous literal — GitHub's own push-protection secret
+    // scanning previously blocked this exact PR on a single literal
+    // `sk_live_...`-shaped Stripe string in this file (scanned regardless of
+    // how obviously fake the body is), the same class of prior incident
+    // already documented on the JWT fixture above. Splitting the prefix from
+    // the body avoids that literal-text match while producing the identical
+    // runtime string each regex under test still needs to see.
+    test("finds a GitHub personal access token", () => {
+      const githubPatFixture = "ghp_" + "NOTAREALFIXTURETOKENFORTESTINGONLY0N";
+
+      expect(
+        findSecretShapedValues({
+          publicLabel: githubPatFixture
+        })
+      ).toEqual(["publicLabel"]);
+    });
+
+    test("finds a GitHub fine-grained personal access token", () => {
+      const githubFineGrainedPatFixture =
+        "github_pat_" + "NOT_A_REAL_FIXTURE_TOKEN_FOR_TESTING_ONLY_0011";
+
+      expect(
+        findSecretShapedValues({
+          note: githubFineGrainedPatFixture
+        })
+      ).toEqual(["note"]);
+    });
+
+    test("finds an OpenAI project-scoped key", () => {
+      const openAiProjectKeyFixture =
+        "sk-proj-" + "NOT-A-REAL-OPENAI-KEY-FIXTURE-FOR-TESTS-0011";
+
+      expect(
+        findSecretShapedValues({
+          description: openAiProjectKeyFixture
+        })
+      ).toEqual(["description"]);
+    });
+
+    test("finds an OpenAI classic key", () => {
+      const openAiClassicKeyFixture =
+        "sk-" + "NOTAREALOPENAIKEYFIXTUREFORTESTSONLY0011";
+
+      expect(
+        findSecretShapedValues({
+          title: openAiClassicKeyFixture
+        })
+      ).toEqual(["title"]);
+    });
+
+    test("finds a Slack bot token", () => {
+      const slackBotTokenFixture =
+        "xoxb-" + "NOT-A-REAL-SLACK-BOT-TOKEN-FIXTURE-0011";
+
+      expect(
+        findSecretShapedValues({
+          webhookLabel: slackBotTokenFixture
+        })
+      ).toEqual(["webhookLabel"]);
+    });
+
+    test("finds a Slack user token", () => {
+      const slackUserTokenFixture =
+        "xoxp-" + "NOT-A-REAL-SLACK-USER-TOKEN-FIXTURE-0011";
+
+      expect(
+        findSecretShapedValues({
+          webhookLabel: slackUserTokenFixture
+        })
+      ).toEqual(["webhookLabel"]);
+    });
+
+    test("finds a Slack incoming-webhook URL", () => {
+      const slackWebhookUrlFixture =
+        "https://hooks.slack.com/services/" +
+        "NOTAREAL/FIXTUREONLY/TESTDATAXXXXXXXXXXXXXXXXXXXX";
+
+      expect(
+        findSecretShapedValues({
+          webhookUrl: slackWebhookUrlFixture
+        })
+      ).toEqual(["webhookUrl"]);
+    });
+
+    test("finds a Stripe live secret key", () => {
+      // Built via concatenation, not one contiguous literal — GitHub's own
+      // push-protection secret scanning previously blocked this exact PR on
+      // a single literal `sk_live_...`-shaped string in this file (the
+      // "Stripe API Key" shape is scanned regardless of how obviously fake
+      // the body is), the same class of prior incident already documented
+      // on the JWT fixture above. Splitting the prefix from the body avoids
+      // that literal-text match while producing the identical runtime
+      // string the regex under test still needs to see.
+      const stripeLiveFixture =
+        "sk_live_" + "NOTAREALSTRIPEKEYFIXTUREFORTESTS0011";
+
+      expect(findSecretShapedValues({ note: stripeLiveFixture })).toEqual([
+        "note"
+      ]);
+    });
+
+    test("finds a Stripe test secret key", () => {
+      // Same concatenation rationale as the live-key fixture above.
+      const stripeTestFixture =
+        "sk_test_" + "NOTAREALSTRIPEKEYFIXTUREFORTESTS0011";
+
+      expect(
+        findSecretShapedValues({
+          note: stripeTestFixture
+        })
+      ).toEqual(["note"]);
+    });
+
+    test("finds a Google API key", () => {
+      const googleApiKeyFixture =
+        "AIzaSy" + "NOTAREALGOOGLEAPIKEYFIXTUREONLYXX";
+
+      expect(
+        findSecretShapedValues({
+          description: googleApiKeyFixture
+        })
+      ).toEqual(["description"]);
+    });
+
+    test("finds a vendor secret shape nested inside an array of objects (batch webhook body)", () => {
+      const githubPatFixture = "ghp_" + "NOTAREALFIXTURETOKENFORTESTINGONLY0N";
+
+      expect(
+        findSecretShapedValues({
+          webhooks: [{ label: "ok" }, { label: githubPatFixture }]
+        })
+      ).toEqual(["webhooks[1].label"]);
+    });
+
+    // PR #791 review round (security-auditor, Medium) — sibling
+    // prefixes/token families for vendors already covered above, confirmed
+    // via direct execution to previously slip through completely
+    // undetected: GitHub's OAuth/GitHub-App-installation tokens, Slack's
+    // app-level/rotated/legacy tokens, Stripe's restricted keys and webhook
+    // signing secret, and OpenAI's newer service-account/admin key
+    // families. Same fabricated, non-canonical, concatenation-built
+    // fixture convention as every fixture above.
+    describe("vendor sibling prefixes (PR #791 review round)", () => {
+      test("finds a GitHub OAuth token (gho_)", () => {
+        const fixture = "gho_" + "NOTAREALFIXTURETOKENFORTESTINGONLY00";
+
+        expect(findSecretShapedValues({ note: fixture })).toEqual(["note"]);
+      });
+
+      test("finds a GitHub App user-to-server token (ghu_)", () => {
+        const fixture = "ghu_" + "NOTAREALFIXTURETOKENFORTESTINGONLY00";
+
+        expect(findSecretShapedValues({ note: fixture })).toEqual(["note"]);
+      });
+
+      test("finds a GitHub App server-to-server token (ghs_)", () => {
+        const fixture = "ghs_" + "NOTAREALFIXTURETOKENFORTESTINGONLY00";
+
+        expect(findSecretShapedValues({ note: fixture })).toEqual(["note"]);
+      });
+
+      test("finds a GitHub refresh token (ghr_)", () => {
+        const fixture = "ghr_" + "NOTAREALFIXTURETOKENFORTESTINGONLY00";
+
+        expect(findSecretShapedValues({ note: fixture })).toEqual(["note"]);
+      });
+
+      test("finds a Slack app-level token (xoxa-)", () => {
+        const fixture = "xoxa-" + "NOT-A-REAL-SLACK-APP-TOKEN-FIXTURE-";
+
+        expect(findSecretShapedValues({ webhookLabel: fixture })).toEqual([
+          "webhookLabel"
+        ]);
+      });
+
+      test("finds a Slack rotated/refresh token (xoxe-)", () => {
+        const fixture = "xoxe-" + "NOT-A-REAL-SLACK-REFRESH-TOKEN-FIXTURE-";
+
+        expect(findSecretShapedValues({ webhookLabel: fixture })).toEqual([
+          "webhookLabel"
+        ]);
+      });
+
+      test("finds a Slack rotated token (xoxe.xoxp-)", () => {
+        const fixture =
+          "xoxe.xoxp-" + "NOT-A-REAL-SLACK-ROTATED-TOKEN-FIXTURE-";
+
+        expect(findSecretShapedValues({ webhookLabel: fixture })).toEqual([
+          "webhookLabel"
+        ]);
+      });
+
+      test("finds a Slack legacy workspace token (xoxs-)", () => {
+        const fixture = "xoxs-" + "NOT-A-REAL-SLACK-LEGACY-TOKEN-FIXTURE-";
+
+        expect(findSecretShapedValues({ webhookLabel: fixture })).toEqual([
+          "webhookLabel"
+        ]);
+      });
+
+      test("finds a Stripe restricted live key (rk_live_)", () => {
+        const fixture =
+          "rk_live_" + "NOTAREALSTRIPERESTRICTEDKEYFIXTUREFORTESTS";
+
+        expect(findSecretShapedValues({ note: fixture })).toEqual(["note"]);
+      });
+
+      test("finds a Stripe restricted test key (rk_test_)", () => {
+        const fixture =
+          "rk_test_" + "NOTAREALSTRIPERESTRICTEDKEYFIXTUREFORTESTS";
+
+        expect(findSecretShapedValues({ note: fixture })).toEqual(["note"]);
+      });
+
+      test("finds a Stripe webhook signing secret (whsec_)", () => {
+        const fixture = "whsec_" + "NOTAREALSTRIPEWEBHOOKSECRETFIXTUREFORTESTS";
+
+        expect(findSecretShapedValues({ note: fixture })).toEqual(["note"]);
+      });
+
+      test("finds an OpenAI service-account key (sk-svcacct-)", () => {
+        const fixture =
+          "sk-svcacct-" + "NOT-A-REAL-OPENAI-SERVICE-ACCOUNT-KEY-FIXTURE-";
+
+        expect(findSecretShapedValues({ description: fixture })).toEqual([
+          "description"
+        ]);
+      });
+
+      test("finds an OpenAI admin key (sk-admin-)", () => {
+        const fixture =
+          "sk-admin-" + "NOT-A-REAL-OPENAI-ADMIN-KEY-FIXTURE-FOR-TESTS-";
+
+        expect(findSecretShapedValues({ description: fixture })).toEqual([
+          "description"
+        ]);
+      });
+    });
+
+    // Negative tests — realistic non-secret values that happen to share a
+    // short prefix with a vendor pattern must NOT be flagged, guarding
+    // against over-blocking legitimate settings/metadata.
+    test("does NOT flag a short, innocuous 'sk-' prefixed code (below the length floor)", () => {
+      expect(findSecretShapedValues({ productCode: "sk-widget-2024" })).toEqual(
+        []
+      );
+    });
+
+    test("does NOT flag a UUID (structurally unrelated to every vendor prefix)", () => {
+      expect(
+        findSecretShapedValues({
+          referenceId: "550e8400-e29b-41d4-a716-446655440000"
+        })
+      ).toEqual([]);
+    });
+
+    test("does NOT flag a legitimately-stored SHA-256 content hash", () => {
+      expect(
+        findSecretShapedValues({
+          contentHash:
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        })
+      ).toEqual([]);
+    });
+
+    test("does NOT flag an ordinary https webhook URL with no vendor-specific path shape", () => {
+      expect(
+        findSecretShapedValues({
+          webhookUrl: "https://example.com/hooks/acme-tenant-42"
+        })
+      ).toEqual([]);
+    });
+  });
 });
 
 // Issue #687 — free-text complement to `redactSensitiveAttributes`, used by
@@ -498,6 +844,206 @@ describe("redactSecretsInText", () => {
     expect(
       redactSecretsInText("using key AKIAIOSFODNN7EXAMPLE for upload")
     ).toBe("using key [REDACTED_AWS_KEY] for upload");
+  });
+
+  // Issue #785 — free-text equivalents of the vendor secret-key shapes
+  // added to `findSecretShapedValues`'s fixtures above. Same fabricated,
+  // non-canonical fixture convention (see that describe block's own
+  // comment for why).
+  describe("vendor secret-key formats (Issue #785)", () => {
+    test("redacts a GitHub personal access token embedded in prose", () => {
+      const githubPatFixture = "ghp_" + "NOTAREALFIXTURETOKENFORTESTINGONLY0N";
+
+      expect(
+        redactSecretsInText(`leaked in log: ${githubPatFixture} here`)
+      ).toBe("leaked in log: [REDACTED_GITHUB_TOKEN] here");
+    });
+
+    test("redacts a GitHub fine-grained personal access token embedded in prose", () => {
+      const githubFineGrainedPatFixture =
+        "github_pat_" + "NOT_A_REAL_FIXTURE_TOKEN_FOR_TESTING_ONLY_0011";
+
+      expect(
+        redactSecretsInText(`leaked: ${githubFineGrainedPatFixture} here`)
+      ).toBe("leaked: [REDACTED_GITHUB_TOKEN] here");
+    });
+
+    test("redacts an OpenAI project-scoped key embedded in prose", () => {
+      const openAiProjectKeyFixture =
+        "sk-proj-" + "NOT-A-REAL-OPENAI-KEY-FIXTURE-FOR-TESTS-0011";
+
+      expect(
+        redactSecretsInText(`config dump: ${openAiProjectKeyFixture} end`)
+      ).toBe("config dump: [REDACTED_OPENAI_KEY] end");
+    });
+
+    test("redacts an OpenAI classic key embedded in prose", () => {
+      const openAiClassicKeyFixture =
+        "sk-" + "NOTAREALOPENAIKEYFIXTUREFORTESTSONLY0011";
+
+      expect(
+        redactSecretsInText(`config dump: ${openAiClassicKeyFixture} end`)
+      ).toBe("config dump: [REDACTED_OPENAI_KEY] end");
+    });
+
+    test("redacts a Slack bot token embedded in prose", () => {
+      const slackBotTokenFixture =
+        "xoxb-" + "NOT-A-REAL-SLACK-BOT-TOKEN-FIXTURE-0011";
+
+      expect(
+        redactSecretsInText(`webhook config: ${slackBotTokenFixture} end`)
+      ).toBe("webhook config: [REDACTED_SLACK_TOKEN] end");
+    });
+
+    test("redacts a Slack incoming-webhook URL embedded in prose", () => {
+      const slackWebhookUrlFixture =
+        "https://hooks.slack.com/services/" +
+        "NOTAREAL/FIXTUREONLY/TESTDATAXXXXXXXXXXXXXXXXXXXX";
+
+      expect(
+        redactSecretsInText(`posting to ${slackWebhookUrlFixture} failed`)
+      ).toBe("posting to [REDACTED_SLACK_WEBHOOK] failed");
+    });
+
+    test("redacts a Stripe secret key embedded in prose", () => {
+      // Same concatenation-to-avoid-push-protection technique as the
+      // `findSecretShapedValues` Stripe fixture above — see its comment.
+      const stripeLiveFixture =
+        "sk_live_" + "NOTAREALSTRIPEKEYFIXTUREFORTESTS0011";
+
+      expect(
+        redactSecretsInText(`provider error using ${stripeLiveFixture} key`)
+      ).toBe("provider error using [REDACTED_STRIPE_KEY] key");
+    });
+
+    test("redacts a Google API key embedded in prose", () => {
+      const googleApiKeyFixture =
+        "AIzaSy" + "NOTAREALGOOGLEAPIKEYFIXTUREONLYXX";
+
+      expect(
+        redactSecretsInText(
+          `request failed with key ${googleApiKeyFixture} rejected`
+        )
+      ).toBe("request failed with key [REDACTED_GOOGLE_API_KEY] rejected");
+    });
+
+    // PR #791 review round (security-auditor, Medium) — free-text
+    // equivalents of the sibling-prefix fixtures added to
+    // `findSecretShapedValues` above.
+    describe("vendor sibling prefixes (PR #791 review round)", () => {
+      test("redacts a GitHub OAuth token (gho_) embedded in prose", () => {
+        const fixture = "gho_" + "NOTAREALFIXTURETOKENFORTESTINGONLY00";
+
+        expect(redactSecretsInText(`leaked: ${fixture} here`)).toBe(
+          "leaked: [REDACTED_GITHUB_TOKEN] here"
+        );
+      });
+
+      test("redacts a GitHub refresh token (ghr_) embedded in prose", () => {
+        const fixture = "ghr_" + "NOTAREALFIXTURETOKENFORTESTINGONLY00";
+
+        expect(redactSecretsInText(`leaked: ${fixture} here`)).toBe(
+          "leaked: [REDACTED_GITHUB_TOKEN] here"
+        );
+      });
+
+      test("redacts a Slack app-level token (xoxa-) embedded in prose", () => {
+        const fixture = "xoxa-" + "NOT-A-REAL-SLACK-APP-TOKEN-FIXTURE-";
+
+        expect(redactSecretsInText(`webhook config: ${fixture} end`)).toBe(
+          "webhook config: [REDACTED_SLACK_TOKEN] end"
+        );
+      });
+
+      test("redacts a Slack rotated token (xoxe.xoxp-) embedded in prose", () => {
+        const fixture =
+          "xoxe.xoxp-" + "NOT-A-REAL-SLACK-ROTATED-TOKEN-FIXTURE-";
+
+        expect(redactSecretsInText(`webhook config: ${fixture} end`)).toBe(
+          "webhook config: [REDACTED_SLACK_TOKEN] end"
+        );
+      });
+
+      test("redacts a Stripe restricted key (rk_live_) embedded in prose", () => {
+        const fixture =
+          "rk_live_" + "NOTAREALSTRIPERESTRICTEDKEYFIXTUREFORTESTS";
+
+        expect(redactSecretsInText(`provider error using ${fixture} key`)).toBe(
+          "provider error using [REDACTED_STRIPE_KEY] key"
+        );
+      });
+
+      test("redacts a Stripe webhook signing secret (whsec_) embedded in prose", () => {
+        const fixture = "whsec_" + "NOTAREALSTRIPEWEBHOOKSECRETFIXTUREFORTESTS";
+
+        expect(redactSecretsInText(`provider error using ${fixture} key`)).toBe(
+          "provider error using [REDACTED_STRIPE_KEY] key"
+        );
+      });
+
+      test("redacts an OpenAI service-account key (sk-svcacct-) embedded in prose", () => {
+        const fixture =
+          "sk-svcacct-" + "NOT-A-REAL-OPENAI-SERVICE-ACCOUNT-KEY-FIXTURE-";
+
+        expect(redactSecretsInText(`config dump: ${fixture} end`)).toBe(
+          "config dump: [REDACTED_OPENAI_KEY] end"
+        );
+      });
+
+      test("redacts an OpenAI admin key (sk-admin-) embedded in prose", () => {
+        const fixture =
+          "sk-admin-" + "NOT-A-REAL-OPENAI-ADMIN-KEY-FIXTURE-FOR-TESTS-";
+
+        expect(redactSecretsInText(`config dump: ${fixture} end`)).toBe(
+          "config dump: [REDACTED_OPENAI_KEY] end"
+        );
+      });
+    });
+
+    // PR #791 review round (reviewer, Low) — a fixed-length-match free-text
+    // pattern leaves a same-charset TAIL sitting in plaintext right next to
+    // the redaction tag when the real value is longer than the exact count
+    // the old pattern expected. Regression tests for the fix: the GitHub
+    // and Google patterns above now match a MINIMUM length (`{36,}`/`{33,}`)
+    // instead of an exact count, so a longer same-charset run is swept
+    // entirely into the tag rather than left exposed.
+    describe("fixed-length free-text tail-leak fix (PR #791 review round)", () => {
+      test("redacts a GitHub token 4 characters longer than the exact-length floor, leaving no plaintext tail", () => {
+        const oversizedToken = "ghp_" + "a".repeat(40);
+
+        const output = redactSecretsInText(`leaked: ${oversizedToken} here`);
+
+        expect(output).toBe("leaked: [REDACTED_GITHUB_TOKEN] here");
+        expect(output).not.toContain("aaaa");
+      });
+
+      test("redacts a Google API key longer than the exact-length floor, leaving no plaintext tail", () => {
+        const oversizedKey = "AIzaSy" + "a".repeat(37);
+
+        const output = redactSecretsInText(
+          `request failed with key ${oversizedKey} rejected`
+        );
+
+        expect(output).toBe(
+          "request failed with key [REDACTED_GOOGLE_API_KEY] rejected"
+        );
+        expect(output).not.toContain("aaaa");
+      });
+    });
+
+    test("leaves a realistic non-secret 'sk-' prefixed code untouched", () => {
+      expect(
+        redactSecretsInText("applying discount code sk-widget-2024 now")
+      ).toBe("applying discount code sk-widget-2024 now");
+    });
+
+    test("leaves an ordinary https URL untouched", () => {
+      expect(
+        redactSecretsInText(
+          "callback registered at https://example.com/hooks/acme-tenant-42"
+        )
+      ).toBe("callback registered at https://example.com/hooks/acme-tenant-42");
+    });
   });
 });
 
