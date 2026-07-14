@@ -262,27 +262,28 @@ nya. Kolom **Owner** mengikuti `.github/CODEOWNERS` (satu maintainer,
 `ModuleDescriptor.maintainers` belum diisi di modul manapun — lihat
 remediasi R3 di bawah.
 
-| Modul (`key`)            | Kategori (dokumen ini)   | `type` di kode saat ini | `isCore` di kode | Status lifecycle | Owner    |
-| ------------------------ | ------------------------ | ----------------------- | ---------------- | ---------------- | -------- |
-| `tenant_admin`           | Core                     | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `identity_access`        | Core                     | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `profile_identity`       | Core                     | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `module_management`      | System                   | `system`                | `true`           | `active`         | @ahliweb |
-| `logging`                | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `sync_storage`           | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `email`                  | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `form_drafts`            | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `tenant_domain`          | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
-| `visitor_analytics`      | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
-| `reporting`              | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `workflow`               | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
-| `blog_content`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
-| `news_portal`            | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
-| `social_publishing`      | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
-| `organization_structure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
-| `data_exchange`          | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| Modul (`key`)             | Kategori (dokumen ini)   | `type` di kode saat ini | `isCore` di kode | Status lifecycle | Owner    |
+| ------------------------- | ------------------------ | ----------------------- | ---------------- | ---------------- | -------- |
+| `tenant_admin`            | Core                     | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `identity_access`         | Core                     | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `profile_identity`        | Core                     | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `module_management`       | System                   | `system`                | `true`           | `active`         | @ahliweb |
+| `logging`                 | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `sync_storage`            | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `email`                   | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `form_drafts`             | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `tenant_domain`           | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `visitor_analytics`       | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `reporting`               | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `workflow`                | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `blog_content`            | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `news_portal`             | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `social_publishing`       | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `organization_structure`  | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 
-Total: 3 Core + 9 System + 5 Official Optional Module = 17 dari 18 modul
+Total: 3 Core + 9 System + 6 Official Optional Module = 18 dari 21 modul
 terdaftar diklasifikasikan di tabel ini, cocok dengan `src/modules/
 index.ts`. `organization_structure` (Issue #749, epic #738
 `platform-evolution` Wave 2) ditambahkan lewat admission decision
@@ -290,9 +291,17 @@ index.ts`. `organization_structure` (Issue #749, epic #738
 entity, unit organisasi tipe-tenant-configurable, hierarki
 efektif-tanggal, lokasi operasional, dan assignment pihak/unit; tenant
 dan legal entity/organization unit tetap konsep berbeda (ADR-0013 §2),
+RLS predicate tabelnya selalu dan hanya `tenant_id`. `document_infrastructure`
+(Issue #751, epic #738 `platform-evolution` Wave 3) ditambahkan lewat
+admission decision `docs/adr/0017-document-infrastructure-module-admission.md`
+— registry dokumen generik, versi immutable, klasifikasi/confidentiality,
+evidence, generic resource relations (capability port, bukan FK/table
+write lintas modul), dan numbering sequence concurrency-safe (reservation/
+commit/cancel, atomik lewat `SELECT ... FOR UPDATE`, tidak pernah reuse
+nomor).
 RLS predicate tabelnya selalu dan hanya `tenant_id`. `data_exchange`
 (Issue #752, epic #738 `platform-evolution` Wave 3) ditambahkan lewat
-admission decision `docs/adr/0017-data-exchange-module-admission.md` —
+admission decision `docs/adr/0018-data-exchange-module-admission.md` —
 mesin generik staged import/export CSV/JSON (staging, validasi, preview/
 diff, commit asinkron idempoten, export manifest/checksum, rekonsiliasi)
 dikonsumsi modul pemilik lewat capability port (`DataExchangeAdapterPort`)

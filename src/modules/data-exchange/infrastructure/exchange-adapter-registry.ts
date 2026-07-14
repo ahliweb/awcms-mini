@@ -10,7 +10,7 @@
  * Ships exactly ONE entry today — `reference_items`, this module's own
  * self-contained fixture (`application/reference-items-exchange-adapter.ts`)
  * — proving the mechanism end-to-end without importing another module's
- * `application`/`domain` code (ADR-0017 §10). A REAL owning module
+ * `application`/`domain` code (ADR-0018 §10). A REAL owning module
  * registers its own entry here when it starts using this mechanism, by
  * importing its adapter from `<module>/application/*-data-exchange-
  * adapter.ts` — a one-directional `data_exchange -> <owning module>`

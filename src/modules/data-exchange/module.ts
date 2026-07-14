@@ -2,7 +2,7 @@ import { defineModule } from "../_shared/module-contract";
 
 /**
  * `data_exchange` (Issue #752, epic `platform-evolution` #738, Wave 3,
- * ADR-0017 — Official Optional Module, "Official Optional Business
+ * ADR-0018 — Official Optional Module, "Official Optional Business
  * Foundation" per ADR-0013 §3, `type: "domain"`).
  *
  * Provider-neutral staged CSV/JSON import/export framework: staged
@@ -24,7 +24,7 @@ import { defineModule } from "../_shared/module-contract";
  * (`reference_items`, `application/reference-items-exchange-adapter.ts`)
  * to prove create/update/conflict, partial-failure/resume, and export/
  * reconciliation end-to-end — real owning-module adapters are a follow-up
- * (ADR-0017 §10, mirrors the accepted "foundation issue ships zero real
+ * (ADR-0018 §10, mirrors the accepted "foundation issue ships zero real
  * business integrations" precedent from `domain_event_runtime`, #742).
  *
  * Formula-injection (CSV injection) neutralization is applied at BOTH
@@ -37,7 +37,7 @@ export const dataExchangeModule = defineModule({
   version: "0.1.0",
   status: "active",
   description:
-    "Provider-neutral staged CSV/JSON import/export framework (Issue #752, epic #738 platform-evolution Wave 3, ADR-0017): module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner, export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port; this module never writes to another module's tables directly. Ships one self-contained reference fixture (reference_items) to prove the mechanism end-to-end.",
+    "Provider-neutral staged CSV/JSON import/export framework (Issue #752, epic #738 platform-evolution Wave 3, ADR-0018): module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner, export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port; this module never writes to another module's tables directly. Ships one self-contained reference fixture (reference_items) to prove the mechanism end-to-end.",
   dependencies: [
     "tenant_admin",
     "identity_access",

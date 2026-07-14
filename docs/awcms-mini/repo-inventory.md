@@ -6,108 +6,112 @@
 
 ## Modules
 
-20 modules registered in `src/modules/index.ts` `listModules()`.
+21 modules registered in `src/modules/index.ts` `listModules()`.
 
-| Key                      | Version | Status         | Type     | Dependencies                                                         |
-| ------------------------ | ------- | -------------- | -------- | -------------------------------------------------------------------- |
-| `blog_content`           | `0.9.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                    |
-| `data_exchange`          | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `logging`, `domain_event_runtime` |
-| `data_lifecycle`         | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`                         |
-| `domain_event_runtime`   | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`                         |
-| `email`                  | `0.5.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`, `identity_access`                |
-| `form_drafts`            | `1.0.0` | `active`       | `-`      | `identity_access`                                                    |
-| `identity_access`        | `1.0.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`                                   |
-| `idn_admin_regions`      | `0.1.0` | `experimental` | `base`   | `identity_access`, `logging`, `module_management`                    |
-| `logging`                | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                       |
-| `module_management`      | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                                    |
-| `news_portal`            | `0.4.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                    |
-| `organization_structure` | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`            |
-| `profile_identity`       | `1.1.0` | `active`       | `-`      | `tenant_admin`                                                       |
-| `reporting`              | `1.1.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email`           |
-| `social_publishing`      | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                    |
-| `sync_storage`           | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                       |
-| `tenant_admin`           | `1.0.0` | `active`       | `-`      | -                                                                    |
-| `tenant_domain`          | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                                    |
-| `visitor_analytics`      | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`, `reporting`            |
-| `workflow`               | `2.0.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `domain_event_runtime`            |
+| Key                       | Version | Status         | Type     | Dependencies                                                         |
+| ------------------------- | ------- | -------------- | -------- | -------------------------------------------------------------------- |
+| `blog_content`            | `0.9.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                    |
+| `data_exchange`           | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `logging`, `domain_event_runtime` |
+| `data_lifecycle`          | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`                         |
+| `document_infrastructure` | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`            |
+| `domain_event_runtime`    | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`                         |
+| `email`                   | `0.5.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`, `identity_access`                |
+| `form_drafts`             | `1.0.0` | `active`       | `-`      | `identity_access`                                                    |
+| `identity_access`         | `1.0.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`                                   |
+| `idn_admin_regions`       | `0.1.0` | `experimental` | `base`   | `identity_access`, `logging`, `module_management`                    |
+| `logging`                 | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                       |
+| `module_management`       | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                                    |
+| `news_portal`             | `0.4.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                    |
+| `organization_structure`  | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`            |
+| `profile_identity`        | `1.1.0` | `active`       | `-`      | `tenant_admin`                                                       |
+| `reporting`               | `1.1.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email`           |
+| `social_publishing`       | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                    |
+| `sync_storage`            | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                       |
+| `tenant_admin`            | `1.0.0` | `active`       | `-`      | -                                                                    |
+| `tenant_domain`           | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                                    |
+| `visitor_analytics`       | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`, `reporting`            |
+| `workflow`                | `2.0.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `domain_event_runtime`            |
 
 ## Migrations
 
-67 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `067_awcms_mini_data_exchange_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
+70 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `070_awcms_mini_data_exchange_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
-| #   | File                                                                |
-| --- | ------------------------------------------------------------------- |
-| 001 | `001_awcms_mini_foundation_schema.sql`                              |
-| 002 | `002_awcms_mini_tenant_office_schema.sql`                           |
-| 003 | `003_awcms_mini_central_profile_management_schema.sql`              |
-| 004 | `004_awcms_mini_identity_login_schema.sql`                          |
-| 005 | `005_awcms_mini_abac_access_control_schema.sql`                     |
-| 006 | `006_awcms_mini_setup_wizard_schema.sql`                            |
-| 007 | `007_awcms_mini_sync_storage_outbox_inbox_schema.sql`               |
-| 008 | `008_awcms_mini_sync_storage_conflict_schema.sql`                   |
-| 009 | `009_awcms_mini_object_sync_queue_schema.sql`                       |
-| 010 | `010_awcms_mini_management_reporting_permission_schema.sql`         |
-| 011 | `011_awcms_mini_audit_logging_schema.sql`                           |
-| 012 | `012_awcms_mini_workflow_approval_schema.sql`                       |
-| 013 | `013_awcms_mini_enforce_rls_least_privilege.sql`                    |
-| 014 | `014_awcms_mini_sync_node_management_permission_schema.sql`         |
-| 015 | `015_awcms_mini_tenant_settings_management_permission_schema.sql`   |
-| 016 | `016_awcms_mini_tenant_default_locale_english_schema.sql`           |
-| 017 | `017_awcms_mini_sync_queue_conflict_performance_indexes.sql`        |
-| 018 | `018_awcms_mini_object_sync_queue_dispatcher_schema.sql`            |
-| 019 | `019_awcms_mini_form_drafts_schema.sql`                             |
-| 020 | `020_awcms_mini_email_schema.sql`                                   |
-| 021 | `021_awcms_mini_email_template_i18n_schema.sql`                     |
-| 022 | `022_awcms_mini_password_reset_schema.sql`                          |
-| 023 | `023_awcms_mini_email_announcement_permission_schema.sql`           |
-| 024 | `024_awcms_mini_email_message_cancel_permission_schema.sql`         |
-| 025 | `025_awcms_mini_module_management_schema.sql`                       |
-| 026 | `026_awcms_mini_blog_content_schema.sql`                            |
-| 027 | `027_awcms_mini_blog_content_permissions.sql`                       |
-| 028 | `028_awcms_mini_blog_content_search_vector.sql`                     |
-| 029 | `029_awcms_mini_blog_content_presentation_schema.sql`               |
-| 030 | `030_awcms_mini_blog_content_presentation_permissions.sql`          |
-| 031 | `031_awcms_mini_tenant_domain_schema.sql`                           |
-| 032 | `032_awcms_mini_tenant_domain_permissions.sql`                      |
-| 033 | `033_awcms_mini_tenant_domain_lookup_function.sql`                  |
-| 034 | `034_awcms_mini_mfa_totp_schema.sql`                                |
-| 035 | `035_awcms_mini_google_oidc_schema.sql`                             |
-| 036 | `036_awcms_mini_tenant_oidc_sso_schema.sql`                         |
-| 037 | `037_awcms_mini_tenant_oidc_sso_permissions.sql`                    |
-| 038 | `038_awcms_mini_visitor_analytics_permissions.sql`                  |
-| 039 | `039_awcms_mini_visitor_analytics_schema.sql`                       |
-| 040 | `040_awcms_mini_visitor_analytics_session_lookup_index.sql`         |
-| 041 | `041_awcms_mini_news_media_object_registry_schema.sql`              |
-| 042 | `042_awcms_mini_news_media_permissions.sql`                         |
-| 043 | `043_awcms_mini_news_portal_tenant_state_schema.sql`                |
-| 044 | `044_awcms_mini_news_portal_homepage_sections_schema.sql`           |
-| 045 | `045_awcms_mini_db_role_separation.sql`                             |
-| 046 | `046_awcms_mini_news_media_orphan_lifecycle.sql`                    |
-| 047 | `047_awcms_mini_observability_metrics_permission.sql`               |
-| 048 | `048_awcms_mini_idn_admin_regions_permissions.sql`                  |
-| 049 | `049_awcms_mini_news_portal_ad_placements_schema.sql`               |
-| 050 | `050_awcms_mini_blog_posts_seo_image.sql`                           |
-| 051 | `051_awcms_mini_blog_content_internal_tag_links_schema.sql`         |
-| 052 | `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`    |
-| 053 | `053_awcms_mini_social_publishing_schema.sql`                       |
-| 054 | `054_awcms_mini_idn_admin_regions_schema.sql`                       |
-| 055 | `055_awcms_mini_social_publishing_verify_permission.sql`            |
-| 056 | `056_awcms_mini_domain_event_runtime_schema.sql`                    |
-| 057 | `057_awcms_mini_data_lifecycle_schema.sql`                          |
-| 058 | `058_awcms_mini_data_lifecycle_permissions.sql`                     |
-| 059 | `059_awcms_mini_profile_identity_party_lifecycle_schema.sql`        |
-| 060 | `060_awcms_mini_workflow_managed_definitions_schema.sql`            |
-| 061 | `061_awcms_mini_business_scope_assignments_schema.sql`              |
-| 062 | `062_awcms_mini_business_scope_permissions.sql`                     |
-| 063 | `063_awcms_mini_organization_structure_schema.sql`                  |
-| 064 | `064_awcms_mini_organization_structure_permissions.sql`             |
-| 065 | `065_awcms_mini_organization_structure_assignment_unique_index.sql` |
-| 066 | `066_awcms_mini_data_exchange_schema.sql`                           |
-| 067 | `067_awcms_mini_data_exchange_permissions.sql`                      |
+| #   | File                                                                     |
+| --- | ------------------------------------------------------------------------ |
+| 001 | `001_awcms_mini_foundation_schema.sql`                                   |
+| 002 | `002_awcms_mini_tenant_office_schema.sql`                                |
+| 003 | `003_awcms_mini_central_profile_management_schema.sql`                   |
+| 004 | `004_awcms_mini_identity_login_schema.sql`                               |
+| 005 | `005_awcms_mini_abac_access_control_schema.sql`                          |
+| 006 | `006_awcms_mini_setup_wizard_schema.sql`                                 |
+| 007 | `007_awcms_mini_sync_storage_outbox_inbox_schema.sql`                    |
+| 008 | `008_awcms_mini_sync_storage_conflict_schema.sql`                        |
+| 009 | `009_awcms_mini_object_sync_queue_schema.sql`                            |
+| 010 | `010_awcms_mini_management_reporting_permission_schema.sql`              |
+| 011 | `011_awcms_mini_audit_logging_schema.sql`                                |
+| 012 | `012_awcms_mini_workflow_approval_schema.sql`                            |
+| 013 | `013_awcms_mini_enforce_rls_least_privilege.sql`                         |
+| 014 | `014_awcms_mini_sync_node_management_permission_schema.sql`              |
+| 015 | `015_awcms_mini_tenant_settings_management_permission_schema.sql`        |
+| 016 | `016_awcms_mini_tenant_default_locale_english_schema.sql`                |
+| 017 | `017_awcms_mini_sync_queue_conflict_performance_indexes.sql`             |
+| 018 | `018_awcms_mini_object_sync_queue_dispatcher_schema.sql`                 |
+| 019 | `019_awcms_mini_form_drafts_schema.sql`                                  |
+| 020 | `020_awcms_mini_email_schema.sql`                                        |
+| 021 | `021_awcms_mini_email_template_i18n_schema.sql`                          |
+| 022 | `022_awcms_mini_password_reset_schema.sql`                               |
+| 023 | `023_awcms_mini_email_announcement_permission_schema.sql`                |
+| 024 | `024_awcms_mini_email_message_cancel_permission_schema.sql`              |
+| 025 | `025_awcms_mini_module_management_schema.sql`                            |
+| 026 | `026_awcms_mini_blog_content_schema.sql`                                 |
+| 027 | `027_awcms_mini_blog_content_permissions.sql`                            |
+| 028 | `028_awcms_mini_blog_content_search_vector.sql`                          |
+| 029 | `029_awcms_mini_blog_content_presentation_schema.sql`                    |
+| 030 | `030_awcms_mini_blog_content_presentation_permissions.sql`               |
+| 031 | `031_awcms_mini_tenant_domain_schema.sql`                                |
+| 032 | `032_awcms_mini_tenant_domain_permissions.sql`                           |
+| 033 | `033_awcms_mini_tenant_domain_lookup_function.sql`                       |
+| 034 | `034_awcms_mini_mfa_totp_schema.sql`                                     |
+| 035 | `035_awcms_mini_google_oidc_schema.sql`                                  |
+| 036 | `036_awcms_mini_tenant_oidc_sso_schema.sql`                              |
+| 037 | `037_awcms_mini_tenant_oidc_sso_permissions.sql`                         |
+| 038 | `038_awcms_mini_visitor_analytics_permissions.sql`                       |
+| 039 | `039_awcms_mini_visitor_analytics_schema.sql`                            |
+| 040 | `040_awcms_mini_visitor_analytics_session_lookup_index.sql`              |
+| 041 | `041_awcms_mini_news_media_object_registry_schema.sql`                   |
+| 042 | `042_awcms_mini_news_media_permissions.sql`                              |
+| 043 | `043_awcms_mini_news_portal_tenant_state_schema.sql`                     |
+| 044 | `044_awcms_mini_news_portal_homepage_sections_schema.sql`                |
+| 045 | `045_awcms_mini_db_role_separation.sql`                                  |
+| 046 | `046_awcms_mini_news_media_orphan_lifecycle.sql`                         |
+| 047 | `047_awcms_mini_observability_metrics_permission.sql`                    |
+| 048 | `048_awcms_mini_idn_admin_regions_permissions.sql`                       |
+| 049 | `049_awcms_mini_news_portal_ad_placements_schema.sql`                    |
+| 050 | `050_awcms_mini_blog_posts_seo_image.sql`                                |
+| 051 | `051_awcms_mini_blog_content_internal_tag_links_schema.sql`              |
+| 052 | `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`         |
+| 053 | `053_awcms_mini_social_publishing_schema.sql`                            |
+| 054 | `054_awcms_mini_idn_admin_regions_schema.sql`                            |
+| 055 | `055_awcms_mini_social_publishing_verify_permission.sql`                 |
+| 056 | `056_awcms_mini_domain_event_runtime_schema.sql`                         |
+| 057 | `057_awcms_mini_data_lifecycle_schema.sql`                               |
+| 058 | `058_awcms_mini_data_lifecycle_permissions.sql`                          |
+| 059 | `059_awcms_mini_profile_identity_party_lifecycle_schema.sql`             |
+| 060 | `060_awcms_mini_workflow_managed_definitions_schema.sql`                 |
+| 061 | `061_awcms_mini_business_scope_assignments_schema.sql`                   |
+| 062 | `062_awcms_mini_business_scope_permissions.sql`                          |
+| 063 | `063_awcms_mini_organization_structure_schema.sql`                       |
+| 064 | `064_awcms_mini_organization_structure_permissions.sql`                  |
+| 065 | `065_awcms_mini_organization_structure_assignment_unique_index.sql`      |
+| 066 | `066_awcms_mini_document_infrastructure_schema.sql`                      |
+| 067 | `067_awcms_mini_document_infrastructure_permissions.sql`                 |
+| 068 | `068_awcms_mini_document_infrastructure_confidentiality_permissions.sql` |
+| 069 | `069_awcms_mini_data_exchange_schema.sql`                                |
+| 070 | `070_awcms_mini_data_exchange_permissions.sql`                           |
 
 ## Tables & Row-Level Security
 
-118 tables created across all migrations; 108 carry a `tenant_id` column; 107 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
+125 tables created across all migrations; 115 carry a `tenant_id` column; 114 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
@@ -129,19 +133,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-302 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+308 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 91         |
+| `integration` | 92         |
 | `modules`     | 5          |
-| `unit`        | 151        |
+| `unit`        | 156        |
 
 ## Routes / Operations (summary)
 
-229 OpenAPI paths, 312 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+250 OpenAPI paths, 342 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

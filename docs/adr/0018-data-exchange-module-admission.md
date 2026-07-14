@@ -1,4 +1,4 @@
-# ADR-0017 — Admission of `data_exchange` as an Official Optional Business Foundation module
+# ADR-0018 — Admission of `data_exchange` as an Official Optional Business Foundation module
 
 - **Status:** Accepted
 - **Tanggal:** 2026-07-14

@@ -1,5 +1,5 @@
 # Source fragment for the "Data Exchange" module/tag (Issue #752, epic #738
-# platform-evolution Wave 3, ADR-0017). Owns every path tagged
+# platform-evolution Wave 3, ADR-0018). Owns every path tagged
 # "Data Exchange" and every schema referenced only by this tag's
 # operations.
 #

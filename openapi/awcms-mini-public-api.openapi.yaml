@@ -81,8 +81,10 @@ tags:
     description: "Transactional, versioned domain-event outbox and dispatcher admin API (epic `platform-evolution` #738 Wave 1, Issue #742) — read-only inspection of outbox events and per-consumer deliveries (redacted payload projections only, including dead-letter/DLQ status), permission-gated/reason-required/idempotent/audited replay of a dead-lettered delivery, and per-tenant pause/resume of a registered consumer. The actual claim/execute/finalize dispatch happens entirely outside any HTTP request, via a separate internal worker (`bun run domain-events:dispatch`, built on the shared worker runner), not exposed over HTTP. Consumers themselves are a static, reviewed-source-code registry — not configurable via this API."
   - name: Organization Structure
     description: "Optional, tenant-scoped organization-structure foundation (epic `platform-evolution` #738 Wave 2, Issue #749, ADR-0016) — legal entities (generic opaque registration identifier pair, never government-specific fields), tenant-configurable organization-unit types, effective-dated organization units, a versioned/effective-dated parent-child hierarchy (reparent rejects self-parent/cycle, requires Idempotency-Key, audited critical), operational locations (optional lat/lng), an explicit location-to-unit many-to-many relationship, and effective-dated party/unit assignments referencing `identity_access`'s existing tenant users. Tenant and legal entity/organization unit remain distinct concepts — RLS predicate is always and only `tenant_id`."
+  - name: Document Infrastructure
+    description: "Optional, tenant-scoped generic document METADATA infrastructure (epic `platform-evolution` #738 Wave 3, Issue #751, ADR-0017) — a classification catalog, the document registry itself (owner module + document type + a primary generic resource reference), IMMUTABLE append-only versions (content referenced through an approved managed-object storage contract, never a binary blob), additional typed generic resource relations (written only through the capability port), concurrency-safe effective-dated numbering sequence definitions (SCD Type 2 style — revising the format never resets or reuses the counter), atomic number reservations (reserve/commit/cancel, a reservation's number can never be silently reused), and an append-only evidence trail. Never a domain document schema — no letters/invoices/POs/journal batches/medical records/contracts here."
   - name: Data Exchange
-    description: "Provider-neutral staged CSV/JSON import/export framework (epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0017) — module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner (`bun run data-exchange:worker`, never inline with an HTTP request), export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port (`DataExchangeAdapterPort`); this module never writes to another module's tables directly. Ships one self-contained reference fixture (`reference_items`) to prove the mechanism end-to-end."
+    description: "Provider-neutral staged CSV/JSON import/export framework (epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0018) — module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner (`bun run data-exchange:worker`, never inline with an HTTP request), export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port (`DataExchangeAdapterPort`); this module never writes to another module's tables directly. Ships one self-contained reference fixture (`reference_items`) to prove the mechanism end-to-end."
 paths:
   /api/v1/access/assignments:
     post:
@@ -5500,6 +5502,1759 @@ paths:
                     properties:
                       data:
                         $ref: "#/components/schemas/DatabasePoolHealthResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/classifications:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: List document classifications for the caller's tenant
+      operationId: documentInfrastructureClassificationsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Document classifications for this tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - classifications
+                        properties:
+                          classifications:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DocumentInfrastructureClassification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Create a document classification
+      description: Not idempotent (low-risk admin-config-create).
+      operationId: documentInfrastructureClassificationsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureCreateClassificationRequest"
+      responses:
+        "200":
+          description: Classification created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - classification
+                        properties:
+                          classification:
+                            $ref: "#/components/schemas/DocumentInfrastructureClassification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/classifications/{id}:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: Get a document classification by id
+      operationId: documentInfrastructureClassificationsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The classification.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - classification
+                        properties:
+                          classification:
+                            $ref: "#/components/schemas/DocumentInfrastructureClassification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Document Infrastructure
+      summary: Update a document classification's neutral metadata
+      description: Not idempotent (low-risk admin-config-update).
+      operationId: documentInfrastructureClassificationsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureUpdateClassificationRequest"
+      responses:
+        "200":
+          description: Classification updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - classification
+                        properties:
+                          classification:
+                            $ref: "#/components/schemas/DocumentInfrastructureClassification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Document Infrastructure
+      summary: Deactivate (soft-delete) a document classification
+      description: High-risk mutation -- requires Idempotency-Key, audited.
+      operationId: documentInfrastructureClassificationsDeactivate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - deleteReason
+              additionalProperties: false
+              properties:
+                deleteReason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Classification deactivated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - classification
+                        properties:
+                          classification:
+                            $ref: "#/components/schemas/DocumentInfrastructureClassification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already deactivated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/classifications/{id}/restore:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Restore a previously deactivated document classification
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureClassificationsRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Classification restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - classification
+                        properties:
+                          classification:
+                            $ref: "#/components/schemas/DocumentInfrastructureClassification"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Not currently deactivated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/documents:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: List/search documents
+      description: Confidential/restricted documents are silently omitted unless the caller also holds documents_confidential.read/documents_restricted.read, additive to the base documents.read (Issue
+      operationId: documentInfrastructureDocumentsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - superseded
+              - archived
+              - void
+        - name: ownerModuleKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: resourceType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: resourceId
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Documents for this tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - documents
+                        properties:
+                          documents:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DocumentInfrastructureDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Create a document registry entry
+      description: High-risk mutation -- requires Idempotency-Key (anchors an append-only version chain and numbering reservations).
+      operationId: documentInfrastructureDocumentsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureCreateDocumentRequest"
+      responses:
+        "200":
+          description: Document created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - document
+                        properties:
+                          document:
+                            $ref: "#/components/schemas/DocumentInfrastructureDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: classificationId does not reference an existing classification for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/documents/{id}:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: Get a document by id
+      description: 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
+      operationId: documentInfrastructureDocumentsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The document.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - document
+                        properties:
+                          document:
+                            $ref: "#/components/schemas/DocumentInfrastructureDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Document Infrastructure
+      summary: Update a document's neutral metadata (title/summary/dates)
+      description: Not idempotent (low-risk metadata update).
+      operationId: documentInfrastructureDocumentsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureUpdateDocumentMetadataRequest"
+      responses:
+        "200":
+          description: Document metadata updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - document
+                        properties:
+                          document:
+                            $ref: "#/components/schemas/DocumentInfrastructureDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Document Infrastructure
+      summary: Soft-delete a mistakenly created document registry entry
+      description: High-risk mutation -- requires Idempotency-Key. Distinct from void (see the void operation).
+      operationId: documentInfrastructureDocumentsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - deleteReason
+              additionalProperties: false
+              properties:
+                deleteReason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Document soft-deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - document
+                        properties:
+                          document:
+                            $ref: "#/components/schemas/DocumentInfrastructureDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already deleted, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/documents/{id}/reclassify:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Change a document's classification and/or confidentiality level
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureDocumentsReclassify
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureReclassifyRequest"
+      responses:
+        "200":
+          description: Document reclassified.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - document
+                        properties:
+                          document:
+                            $ref: "#/components/schemas/DocumentInfrastructureDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: classificationId does not reference an existing classification for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/documents/{id}/relations:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: List a document's resource relations
+      description: 404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue
+      operationId: documentInfrastructureRelationsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Relations for this document.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - relations
+                        properties:
+                          relations:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DocumentInfrastructureRelation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Link a document to a module-owned resource
+      description: High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -- callers pass an opaque ownerModuleKey/resourceType/resourceId they have already validated belongs to their own tenant-scoped data.
+      operationId: documentInfrastructureRelationsLink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureLinkRelationRequest"
+      responses:
+        "200":
+          description: Relation created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - relation
+                        properties:
+                          relation:
+                            $ref: "#/components/schemas/DocumentInfrastructureRelation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already linked with the same relation type, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/documents/{id}/relations/{relationId}:
+    delete:
+      tags:
+        - Document Infrastructure
+      summary: Unlink a document from a resource
+      description: High-risk mutation (revoke) -- requires Idempotency-Key.
+      operationId: documentInfrastructureRelationsUnlink
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: relationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Relation removed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - relation
+                        properties:
+                          relation:
+                            $ref: "#/components/schemas/DocumentInfrastructureRelation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/documents/{id}/restore:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Restore a soft-deleted document, or un-void a voided document
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureDocumentsRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Document restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - document
+                        properties:
+                          document:
+                            $ref: "#/components/schemas/DocumentInfrastructureDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Not currently deleted or voided, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/documents/{id}/versions:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: List versions of a document
+      description: 404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue
+      operationId: documentInfrastructureVersionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Document versions, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - versions
+                        properties:
+                          versions:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DocumentInfrastructureVersion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Create a new (append-only, immutable) document version
+      description: High-risk mutation -- requires Idempotency-Key (a retry must never create two versions).
+      operationId: documentInfrastructureVersionsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureCreateVersionRequest"
+      responses:
+        "200":
+          description: Version created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - version
+                        properties:
+                          version:
+                            $ref: "#/components/schemas/DocumentInfrastructureVersion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/documents/{id}/void:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Void a document
+      description: Irreversible-by-default business-state transition, kept visible as evidence. High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureDocumentsVoid
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - voidReason
+              additionalProperties: false
+              properties:
+                voidReason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Document voided.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - document
+                        properties:
+                          document:
+                            $ref: "#/components/schemas/DocumentInfrastructureDocument"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already voided or soft-deleted, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/evidence:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: Read the document/numbering evidence trail
+      operationId: documentInfrastructureEvidenceList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: documentId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: sequenceId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Evidence entries, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - evidence
+                        properties:
+                          evidence:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DocumentInfrastructureEvidence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/reservations:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: List number reservations
+      operationId: documentInfrastructureReservationsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: sequenceId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - reserved
+              - committed
+              - canceled
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Reservations for this tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - reservations
+                        properties:
+                          reservations:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DocumentInfrastructureReservation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/reservations/{id}/cancel:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Cancel a reserved (not yet committed) number
+      description: Recorded as durable gap evidence -- the number is never reused. High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureReservationsCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - cancelReason
+              additionalProperties: false
+              properties:
+                cancelReason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Reservation canceled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - reservation
+                        properties:
+                          reservation:
+                            $ref: "#/components/schemas/DocumentInfrastructureReservation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Reservation is not in a reserved state, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/reservations/{id}/commit:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Commit a reserved number to a document
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureReservationsCommit
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - documentId
+              additionalProperties: false
+              properties:
+                documentId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Reservation committed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - reservation
+                        properties:
+                          reservation:
+                            $ref: "#/components/schemas/DocumentInfrastructureReservation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Reservation is not in a reserved state, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: documentId does not reference an existing document for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/reservations/reserve:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Atomically reserve the next number from a sequence
+      description: Row-level SELECT ... FOR UPDATE on the sequence's current definition row serializes concurrent callers. High-risk mutation -- requires Idempotency-Key (a retry with the SAME key must replay the SAME reservation, never allocate a second number).
+      operationId: documentInfrastructureReservationsReserve
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureSequenceScope"
+      responses:
+        "200":
+          description: Number reserved.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - reservation
+                        properties:
+                          reservation:
+                            $ref: "#/components/schemas/DocumentInfrastructureReservation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: No active sequence definition found for that scope/key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/sequences:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: List every currently active number sequence definition for the tenant
+      operationId: documentInfrastructureSequencesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Currently active sequence definitions.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - sequences
+                        properties:
+                          sequences:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DocumentInfrastructureSequence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Define a new number sequence
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureSequencesDefine
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureDefineSequenceRequest"
+      responses:
+        "200":
+          description: Sequence defined.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - sequence
+                        properties:
+                          sequence:
+                            $ref: "#/components/schemas/DocumentInfrastructureSequence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Already defined and active for this scope/key, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/sequences/deactivate:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Deactivate a number sequence
+      description: Closes the current open definition without opening a new one. High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureSequencesDeactivate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureDeactivateSequenceRequest"
+      responses:
+        "200":
+          description: Sequence deactivated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - sequence
+                        properties:
+                          sequence:
+                            $ref: "#/components/schemas/DocumentInfrastructureSequence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/sequences/history:
+    get:
+      tags:
+        - Document Infrastructure
+      summary: Full effective-dated history (open + closed definitions) for one scope
+      operationId: documentInfrastructureSequencesHistory
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: scopeType
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: scopeId
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sequenceKey
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Sequence definition history, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - history
+                        properties:
+                          history:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DocumentInfrastructureSequence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/sequences/restore:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Reactivate a deactivated number sequence
+      description: Opens a new definition row carrying the most recently closed definition's format/counter forward. High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureSequencesRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureSequenceScope"
+      responses:
+        "200":
+          description: Sequence restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - sequence
+                        properties:
+                          sequence:
+                            $ref: "#/components/schemas/DocumentInfrastructureSequence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A definition is already active for that scope/key, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/document-infrastructure/sequences/revise:
+    post:
+      tags:
+        - Document Infrastructure
+      summary: Revise a sequence's format/reset policy without resetting or reusing its counter
+      description: Effective-dated (SCD Type 2) -- closes the current definition and opens a new one carrying the counter forward. High-risk mutation -- requires Idempotency-Key.
+      operationId: documentInfrastructureSequencesRevise
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInfrastructureReviseSequenceRequest"
+      responses:
+        "200":
+          description: Sequence definition revised.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - sequence
+                        properties:
+                          sequence:
+                            $ref: "#/components/schemas/DocumentInfrastructureSequence"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/domain-events/consumers:
@@ -19288,6 +21043,818 @@ components:
         queued:
           type: integer
           minimum: 0
+    DocumentInfrastructureClassification:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - code
+        - name
+        - description
+        - confidentialityLevel
+        - retentionReference
+        - status
+        - createdAt
+        - updatedAt
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        confidentialityLevel:
+          type: string
+          enum:
+            - public
+            - internal
+            - confidential
+            - restricted
+        retentionReference:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    DocumentInfrastructureCreateClassificationRequest:
+      type: object
+      required:
+        - code
+        - name
+        - confidentialityLevel
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        confidentialityLevel:
+          type: string
+          enum:
+            - public
+            - internal
+            - confidential
+            - restricted
+        retentionReference:
+          type: string
+          nullable: true
+          maxLength: 200
+    DocumentInfrastructureCreateDocumentRequest:
+      type: object
+      required:
+        - ownerModuleKey
+        - documentType
+        - title
+        - confidentialityLevel
+        - resourceType
+        - resourceId
+      additionalProperties: false
+      properties:
+        ownerModuleKey:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        documentType:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        classificationId:
+          type: string
+          format: uuid
+          nullable: true
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        summary:
+          type: string
+          nullable: true
+          maxLength: 4000
+        issuedAt:
+          type: string
+          format: date-time
+          nullable: true
+        effectiveAt:
+          type: string
+          format: date-time
+          nullable: true
+        confidentialityLevel:
+          type: string
+          enum:
+            - public
+            - internal
+            - confidential
+            - restricted
+        retentionReference:
+          type: string
+          nullable: true
+          maxLength: 200
+        resourceType:
+          type: string
+          minLength: 1
+        resourceId:
+          type: string
+          minLength: 1
+          maxLength: 200
+    DocumentInfrastructureCreateVersionRequest:
+      type: object
+      required:
+        - contentReference
+        - contentReferenceKind
+        - mediaType
+        - sizeBytes
+        - checksumSha256
+        - source
+      additionalProperties: false
+      properties:
+        contentReference:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        contentReferenceKind:
+          type: string
+          enum:
+            - object_storage_reference
+            - external_url
+            - external_system_reference
+        mediaType:
+          type: string
+          minLength: 1
+          maxLength: 200
+        sizeBytes:
+          type: integer
+          minimum: 0
+        checksumSha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        source:
+          type: string
+          enum:
+            - upload
+            - import
+            - generated
+            - migrated
+    DocumentInfrastructureDeactivateSequenceRequest:
+      type: object
+      required:
+        - scopeType
+        - sequenceKey
+        - deleteReason
+      additionalProperties: false
+      properties:
+        scopeType:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        scopeId:
+          type: string
+          nullable: true
+          maxLength: 200
+        sequenceKey:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        deleteReason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    DocumentInfrastructureDefineSequenceRequest:
+      type: object
+      required:
+        - scopeType
+        - sequenceKey
+        - formatTemplate
+        - resetPolicy
+      additionalProperties: false
+      properties:
+        scopeType:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        scopeId:
+          type: string
+          nullable: true
+          maxLength: 200
+        sequenceKey:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        formatTemplate:
+          type: string
+          minLength: 1
+          maxLength: 128
+        resetPolicy:
+          type: string
+          enum:
+            - never
+            - yearly
+            - monthly
+            - daily
+    DocumentInfrastructureDocument:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - ownerModuleKey
+        - documentType
+        - classificationId
+        - status
+        - title
+        - summary
+        - issuedAt
+        - effectiveAt
+        - confidentialityLevel
+        - retentionReference
+        - resourceType
+        - resourceId
+        - currentVersionNumber
+        - voidReason
+        - voidedAt
+        - createdAt
+        - updatedAt
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        ownerModuleKey:
+          type: string
+        documentType:
+          type: string
+        classificationId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum:
+            - active
+            - superseded
+            - archived
+            - void
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        issuedAt:
+          type: string
+          format: date-time
+          nullable: true
+        effectiveAt:
+          type: string
+          format: date-time
+          nullable: true
+        confidentialityLevel:
+          type: string
+          enum:
+            - public
+            - internal
+            - confidential
+            - restricted
+        retentionReference:
+          type: string
+          nullable: true
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        currentVersionNumber:
+          type: integer
+          minimum: 0
+        voidReason:
+          type: string
+          nullable: true
+        voidedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    DocumentInfrastructureEvidence:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - evidenceType
+        - subjectType
+        - subjectId
+        - documentId
+        - sequenceId
+        - reservationId
+        - actorTenantUserId
+        - reason
+        - metadata
+        - correlationId
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        evidenceType:
+          type: string
+          enum:
+            - number_reserved
+            - number_committed
+            - number_canceled
+            - version_created
+            - document_voided
+            - document_restored
+            - document_reclassified
+            - sequence_defined
+            - sequence_revised
+            - sequence_deactivated
+            - sequence_restored
+        subjectType:
+          type: string
+          enum:
+            - document
+            - document_version
+            - number_reservation
+            - number_sequence
+        subjectId:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+          nullable: true
+        sequenceId:
+          type: string
+          format: uuid
+          nullable: true
+        reservationId:
+          type: string
+          format: uuid
+          nullable: true
+        actorTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    DocumentInfrastructureLinkRelationRequest:
+      type: object
+      required:
+        - ownerModuleKey
+        - resourceType
+        - resourceId
+        - relationType
+      additionalProperties: false
+      properties:
+        ownerModuleKey:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        resourceType:
+          type: string
+          minLength: 1
+        resourceId:
+          type: string
+          minLength: 1
+          maxLength: 200
+        relationType:
+          type: string
+          enum:
+            - evidence_for
+            - attachment_of
+            - reference_of
+            - related_to
+            - supersedes
+    DocumentInfrastructureReclassifyRequest:
+      type: object
+      required:
+        - confidentialityLevel
+        - reason
+      additionalProperties: false
+      properties:
+        classificationId:
+          type: string
+          format: uuid
+          nullable: true
+        confidentialityLevel:
+          type: string
+          enum:
+            - public
+            - internal
+            - confidential
+            - restricted
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    DocumentInfrastructureRelation:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - documentId
+        - ownerModuleKey
+        - resourceType
+        - resourceId
+        - relationType
+        - createdBy
+        - createdAt
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        ownerModuleKey:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        relationType:
+          type: string
+          enum:
+            - evidence_for
+            - attachment_of
+            - reference_of
+            - related_to
+            - supersedes
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    DocumentInfrastructureReservation:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - sequenceId
+        - reservedNumber
+        - formattedNumber
+        - periodKey
+        - status
+        - documentId
+        - reservedByTenantUserId
+        - reservedAt
+        - committedAt
+        - committedByTenantUserId
+        - canceledAt
+        - canceledByTenantUserId
+        - cancelReason
+        - correlationId
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        sequenceId:
+          type: string
+          format: uuid
+        reservedNumber:
+          type: integer
+          minimum: 1
+        formattedNumber:
+          type: string
+        periodKey:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - reserved
+            - committed
+            - canceled
+        documentId:
+          type: string
+          format: uuid
+          nullable: true
+        reservedByTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        reservedAt:
+          type: string
+          format: date-time
+        committedAt:
+          type: string
+          format: date-time
+          nullable: true
+        committedByTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        canceledAt:
+          type: string
+          format: date-time
+          nullable: true
+        canceledByTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+    DocumentInfrastructureReviseSequenceRequest:
+      type: object
+      required:
+        - scopeType
+        - sequenceKey
+        - formatTemplate
+        - resetPolicy
+        - revisionReason
+      additionalProperties: false
+      properties:
+        scopeType:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        scopeId:
+          type: string
+          nullable: true
+          maxLength: 200
+        sequenceKey:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        formatTemplate:
+          type: string
+          minLength: 1
+          maxLength: 128
+        resetPolicy:
+          type: string
+          enum:
+            - never
+            - yearly
+            - monthly
+            - daily
+        revisionReason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    DocumentInfrastructureSequence:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - scopeType
+        - scopeId
+        - sequenceKey
+        - formatTemplate
+        - resetPolicy
+        - currentPeriodKey
+        - currentValue
+        - effectiveFrom
+        - effectiveTo
+        - revisionReason
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+          nullable: true
+        sequenceKey:
+          type: string
+        formatTemplate:
+          type: string
+        resetPolicy:
+          type: string
+          enum:
+            - never
+            - yearly
+            - monthly
+            - daily
+        currentPeriodKey:
+          type: string
+          nullable: true
+        currentValue:
+          type: integer
+          minimum: 0
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        revisionReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DocumentInfrastructureSequenceScope:
+      type: object
+      description: Identifies a number sequence definition by its scope + key.
+      required:
+        - scopeType
+        - sequenceKey
+      additionalProperties: false
+      properties:
+        scopeType:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        scopeId:
+          type: string
+          nullable: true
+          maxLength: 200
+        sequenceKey:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+    DocumentInfrastructureUpdateClassificationRequest:
+      type: object
+      required:
+        - name
+        - confidentialityLevel
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        confidentialityLevel:
+          type: string
+          enum:
+            - public
+            - internal
+            - confidential
+            - restricted
+        retentionReference:
+          type: string
+          nullable: true
+          maxLength: 200
+    DocumentInfrastructureUpdateDocumentMetadataRequest:
+      type: object
+      required:
+        - title
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 300
+        summary:
+          type: string
+          nullable: true
+          maxLength: 4000
+        issuedAt:
+          type: string
+          format: date-time
+          nullable: true
+        effectiveAt:
+          type: string
+          format: date-time
+          nullable: true
+    DocumentInfrastructureVersion:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - documentId
+        - versionNumber
+        - contentReference
+        - contentReferenceKind
+        - mediaType
+        - sizeBytes
+        - checksumSha256
+        - source
+        - previousVersionId
+        - createdByTenantUserId
+        - correlationId
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        versionNumber:
+          type: integer
+          minimum: 1
+        contentReference:
+          type: string
+        contentReferenceKind:
+          type: string
+          enum:
+            - object_storage_reference
+            - external_url
+            - external_system_reference
+        mediaType:
+          type: string
+        sizeBytes:
+          type: integer
+          minimum: 0
+        checksumSha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        source:
+          type: string
+          enum:
+            - upload
+            - import
+            - generated
+            - migrated
+        previousVersionId:
+          type: string
+          format: uuid
+          nullable: true
+        createdByTenantUserId:
+          type: string
+          format: uuid
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
     DomainEventConsumerItem:
       type: object
       required:

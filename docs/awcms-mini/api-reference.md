@@ -7915,9 +7915,845 @@ High-risk mutation -- requires Idempotency-Key.
 | 409    | Organization unit is not currently deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                          | [`ApiError`](#standard-error-envelope)                   |
 
+## Document Infrastructure
+
+Optional, tenant-scoped generic document METADATA infrastructure (epic `platform-evolution` #738 Wave 3, Issue #751, ADR-0017) — a classification catalog, the document registry itself (owner module + document type + a primary generic resource reference), IMMUTABLE append-only versions (content referenced through an approved managed-object storage contract, never a binary blob), additional typed generic resource relations (written only through the capability port), concurrency-safe effective-dated numbering sequence definitions (SCD Type 2 style — revising the format never resets or reuses the counter), atomic number reservations (reserve/commit/cancel, a reservation's number can never be silently reused), and an append-only evidence trail. Never a domain document schema — no letters/invoices/POs/journal batches/medical records/contracts here.
+
+### `GET /api/v1/document-infrastructure/classifications` — List document classifications for the caller's tenant
+
+- **operationId**: `documentInfrastructureClassificationsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                       | Description                                 |
+| ------------------ | ------ | -------- | -------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`active`, `inactive`) |                                             |
+| `X-Correlation-ID` | header | no       | string                     | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                     | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Document classifications for this tenant.      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/classifications` — Create a document classification
+
+- **operationId**: `documentInfrastructureClassificationsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Not idempotent (low-risk admin-config-create).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureCreateClassificationRequest`](#schema-documentinfrastructurecreateclassificationrequest)
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Classification created.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/classifications/{id}` — Get a document classification by id
+
+- **operationId**: `documentInfrastructureClassificationsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The classification.                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/document-infrastructure/classifications/{id}` — Update a document classification's neutral metadata
+
+- **operationId**: `documentInfrastructureClassificationsUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+Not idempotent (low-risk admin-config-update).
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureUpdateClassificationRequest`](#schema-documentinfrastructureupdateclassificationrequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Classification updated.                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/document-infrastructure/classifications/{id}` — Deactivate (soft-delete) a document classification
+
+- **operationId**: `documentInfrastructureClassificationsDeactivate`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key, audited.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                              | Schema                                                   |
+| ------ | ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Classification deactivated.                                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                             | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                      | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                           | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                      | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Already deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                               | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/classifications/{id}/restore` — Restore a previously deactivated document classification
+
+- **operationId**: `documentInfrastructureClassificationsRestore`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                    | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Classification restored.                                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                 | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                            | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Not currently deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/documents` — List/search documents
+
+- **operationId**: `documentInfrastructureDocumentsList`
+- **Security**: bearerAuth + tenantHeader
+
+Confidential/restricted documents are silently omitted unless the caller also holds documents_confidential.read/documents_restricted.read, additive to the base documents.read (Issue
+
+**Parameters**
+
+| Name               | In     | Required | Type                                             | Description                                 |
+| ------------------ | ------ | -------- | ------------------------------------------------ | ------------------------------------------- |
+| `status`           | query  | no       | enum(`active`, `superseded`, `archived`, `void`) |                                             |
+| `ownerModuleKey`   | query  | no       | string                                           |                                             |
+| `resourceType`     | query  | no       | string                                           |                                             |
+| `resourceId`       | query  | no       | string                                           |                                             |
+| `X-Correlation-ID` | header | no       | string                                           | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                           | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Documents for this tenant.                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/documents` — Create a document registry entry
+
+- **operationId**: `documentInfrastructureDocumentsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key (anchors an append-only version chain and numbering reservations).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureCreateDocumentRequest`](#schema-documentinfrastructurecreatedocumentrequest)
+
+**Responses**
+
+| Status | Description                                                                     | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Document created.                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                             | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.                                | [`ApiError`](#standard-error-envelope)                   |
+| 422    | classificationId does not reference an existing classification for this tenant. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                      | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/documents/{id}` — Get a document by id
+
+- **operationId**: `documentInfrastructureDocumentsGet`
+- **Security**: bearerAuth + tenantHeader
+
+404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The document.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/document-infrastructure/documents/{id}` — Update a document's neutral metadata (title/summary/dates)
+
+- **operationId**: `documentInfrastructureDocumentsUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+Not idempotent (low-risk metadata update).
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureUpdateDocumentMetadataRequest`](#schema-documentinfrastructureupdatedocumentmetadatarequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Document metadata updated.                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/document-infrastructure/documents/{id}` — Soft-delete a mistakenly created document registry entry
+
+- **operationId**: `documentInfrastructureDocumentsDelete`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key. Distinct from void (see the void operation).
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                          | Schema                                                   |
+| ------ | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Document soft-deleted.                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Already deleted, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                           | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/documents/{id}/reclassify` — Change a document's classification and/or confidentiality level
+
+- **operationId**: `documentInfrastructureDocumentsReclassify`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureReclassifyRequest`](#schema-documentinfrastructurereclassifyrequest)
+
+**Responses**
+
+| Status | Description                                                                     | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Document reclassified.                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                             | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                  | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                             | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.                                | [`ApiError`](#standard-error-envelope)                   |
+| 422    | classificationId does not reference an existing classification for this tenant. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                      | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/documents/{id}/relations` — List a document's resource relations
+
+- **operationId**: `documentInfrastructureRelationsList`
+- **Security**: bearerAuth + tenantHeader
+
+404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Relations for this document.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/documents/{id}/relations` — Link a document to a module-owned resource
+
+- **operationId**: `documentInfrastructureRelationsLink`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -- callers pass an opaque ownerModuleKey/resourceType/resourceId they have already validated belongs to their own tenant-scoped data.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureLinkRelationRequest`](#schema-documentinfrastructurelinkrelationrequest)
+
+**Responses**
+
+| Status | Description                                                                                     | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Relation created.                                                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                             | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                             | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Already linked with the same relation type, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                      | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/document-infrastructure/documents/{id}/relations/{relationId}` — Unlink a document from a resource
+
+- **operationId**: `documentInfrastructureRelationsUnlink`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation (revoke) -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `relationId`       | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Relation removed.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/documents/{id}/restore` — Restore a soft-deleted document, or un-void a voided document
+
+- **operationId**: `documentInfrastructureDocumentsRestore`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                          | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Document restored.                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Not currently deleted or voided, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                           | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/documents/{id}/versions` — List versions of a document
+
+- **operationId**: `documentInfrastructureVersionsList`
+- **Security**: bearerAuth + tenantHeader
+
+404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Document versions, newest first.                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/documents/{id}/versions` — Create a new (append-only, immutable) document version
+
+- **operationId**: `documentInfrastructureVersionsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key (a retry must never create two versions).
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureCreateVersionRequest`](#schema-documentinfrastructurecreateversionrequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Version created.                                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/documents/{id}/void` — Void a document
+
+- **operationId**: `documentInfrastructureDocumentsVoid`
+- **Security**: bearerAuth + tenantHeader
+
+Irreversible-by-default business-state transition, kept visible as evidence. High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                         | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Document voided.                                                                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Already voided or soft-deleted, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/evidence` — Read the document/numbering evidence trail
+
+- **operationId**: `documentInfrastructureEvidenceList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `documentId`       | query  | no       | string (uuid) |                                             |
+| `sequenceId`       | query  | no       | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Evidence entries, newest first.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/reservations` — List number reservations
+
+- **operationId**: `documentInfrastructureReservationsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                      | Description                                 |
+| ------------------ | ------ | -------- | ----------------------------------------- | ------------------------------------------- |
+| `sequenceId`       | query  | no       | string (uuid)                             |                                             |
+| `status`           | query  | no       | enum(`reserved`, `committed`, `canceled`) |                                             |
+| `X-Correlation-ID` | header | no       | string                                    | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                    | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reservations for this tenant.                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/reservations/{id}/cancel` — Cancel a reserved (not yet committed) number
+
+- **operationId**: `documentInfrastructureReservationsCancel`
+- **Security**: bearerAuth + tenantHeader
+
+Recorded as durable gap evidence -- the number is never reused. High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                 | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reservation canceled.                                                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                              | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                         | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Reservation is not in a reserved state, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                  | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/reservations/{id}/commit` — Commit a reserved number to a document
+
+- **operationId**: `documentInfrastructureReservationsCommit`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                 | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reservation committed.                                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                              | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                         | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Reservation is not in a reserved state, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 422    | documentId does not reference an existing document for this tenant.                         | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                  | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/reservations/reserve` — Atomically reserve the next number from a sequence
+
+- **operationId**: `documentInfrastructureReservationsReserve`
+- **Security**: bearerAuth + tenantHeader
+
+Row-level SELECT ... FOR UPDATE on the sequence's current definition row serializes concurrent callers. High-risk mutation -- requires Idempotency-Key (a retry with the SAME key must replay the SAME reservation, never allocate a second number).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureSequenceScope`](#schema-documentinfrastructuresequencescope)
+
+**Responses**
+
+| Status | Description                                             | Schema                                                   |
+| ------ | ------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Number reserved.                                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                            | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                     | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.          | [`ApiError`](#standard-error-envelope)                   |
+| 404    | No active sequence definition found for that scope/key. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.        | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.              | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/sequences` — List every currently active number sequence definition for the tenant
+
+- **operationId**: `documentInfrastructureSequencesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Currently active sequence definitions.         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/sequences` — Define a new number sequence
+
+- **operationId**: `documentInfrastructureSequencesDefine`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureDefineSequenceRequest`](#schema-documentinfrastructuredefinesequencerequest)
+
+**Responses**
+
+| Status | Description                                                                                        | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Sequence defined.                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Already defined and active for this scope/key, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                         | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/sequences/deactivate` — Deactivate a number sequence
+
+- **operationId**: `documentInfrastructureSequencesDeactivate`
+- **Security**: bearerAuth + tenantHeader
+
+Closes the current open definition without opening a new one. High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureDeactivateSequenceRequest`](#schema-documentinfrastructuredeactivatesequencerequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Sequence deactivated.                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/document-infrastructure/sequences/history` — Full effective-dated history (open + closed definitions) for one scope
+
+- **operationId**: `documentInfrastructureSequencesHistory`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `scopeType`        | query  | yes      | string |                                             |
+| `scopeId`          | query  | no       | string |                                             |
+| `sequenceKey`      | query  | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Sequence definition history, newest first.     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/sequences/restore` — Reactivate a deactivated number sequence
+
+- **operationId**: `documentInfrastructureSequencesRestore`
+- **Security**: bearerAuth + tenantHeader
+
+Opens a new definition row carrying the most recently closed definition's format/counter forward. High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureSequenceScope`](#schema-documentinfrastructuresequencescope)
+
+**Responses**
+
+| Status | Description                                                                                            | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Sequence restored.                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A definition is already active for that scope/key, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                             | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/document-infrastructure/sequences/revise` — Revise a sequence's format/reset policy without resetting or reusing its counter
+
+- **operationId**: `documentInfrastructureSequencesRevise`
+- **Security**: bearerAuth + tenantHeader
+
+Effective-dated (SCD Type 2) -- closes the current definition and opens a new one carrying the counter forward. High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DocumentInfrastructureReviseSequenceRequest`](#schema-documentinfrastructurerevisesequencerequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Sequence definition revised.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
 ## Data Exchange
 
-Provider-neutral staged CSV/JSON import/export framework (epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0017) — module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner (`bun run data-exchange:worker`, never inline with an HTTP request), export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port (`DataExchangeAdapterPort`); this module never writes to another module's tables directly. Ships one self-contained reference fixture (`reference_items`) to prove the mechanism end-to-end.
+Provider-neutral staged CSV/JSON import/export framework (epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0018) — module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner (`bun run data-exchange:worker`, never inline with an HTTP request), export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port (`DataExchangeAdapterPort`); this module never writes to another module's tables directly. Ships one self-contained reference fixture (`reference_items`) to prove the mechanism end-to-end.
 
 ### `GET /api/v1/data-exchange/descriptors` — List module-contributed exchange descriptors
 
@@ -10554,6 +11390,250 @@ Enum values: `staged`, `validating`, `previewed`, `committing`, `committed`, `pa
   "active": 0,
   "max": 0,
   "queued": 0
+}
+```
+
+### Schema: DocumentInfrastructureCreateClassificationRequest
+
+| Field                  | Type                                                     | Required | Nullable | Description |
+| ---------------------- | -------------------------------------------------------- | -------- | -------- | ----------- |
+| `code`                 | string                                                   | yes      | no       |             |
+| `name`                 | string                                                   | yes      | no       |             |
+| `description`          | string                                                   | no       | yes      |             |
+| `confidentialityLevel` | enum(`public`, `internal`, `confidential`, `restricted`) | yes      | no       |             |
+| `retentionReference`   | string                                                   | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "code": "string",
+  "name": "string",
+  "description": "string",
+  "confidentialityLevel": "public",
+  "retentionReference": "string"
+}
+```
+
+### Schema: DocumentInfrastructureCreateDocumentRequest
+
+| Field                  | Type                                                     | Required | Nullable | Description |
+| ---------------------- | -------------------------------------------------------- | -------- | -------- | ----------- |
+| `ownerModuleKey`       | string                                                   | yes      | no       |             |
+| `documentType`         | string                                                   | yes      | no       |             |
+| `classificationId`     | string (uuid)                                            | no       | yes      |             |
+| `title`                | string                                                   | yes      | no       |             |
+| `summary`              | string                                                   | no       | yes      |             |
+| `issuedAt`             | string (date-time)                                       | no       | yes      |             |
+| `effectiveAt`          | string (date-time)                                       | no       | yes      |             |
+| `confidentialityLevel` | enum(`public`, `internal`, `confidential`, `restricted`) | yes      | no       |             |
+| `retentionReference`   | string                                                   | no       | yes      |             |
+| `resourceType`         | string                                                   | yes      | no       |             |
+| `resourceId`           | string                                                   | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "ownerModuleKey": "string",
+  "documentType": "string",
+  "classificationId": "00000000-0000-0000-0000-000000000000",
+  "title": "string",
+  "summary": "string",
+  "issuedAt": "2026-01-01T00:00:00.000Z",
+  "effectiveAt": "2026-01-01T00:00:00.000Z",
+  "confidentialityLevel": "public",
+  "retentionReference": "string",
+  "resourceType": "string",
+  "resourceId": "string"
+}
+```
+
+### Schema: DocumentInfrastructureCreateVersionRequest
+
+| Field                  | Type                                                                          | Required | Nullable | Description |
+| ---------------------- | ----------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `contentReference`     | string                                                                        | yes      | no       |             |
+| `contentReferenceKind` | enum(`object_storage_reference`, `external_url`, `external_system_reference`) | yes      | no       |             |
+| `mediaType`            | string                                                                        | yes      | no       |             |
+| `sizeBytes`            | integer                                                                       | yes      | no       |             |
+| `checksumSha256`       | string                                                                        | yes      | no       |             |
+| `source`               | enum(`upload`, `import`, `generated`, `migrated`)                             | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "contentReference": "string",
+  "contentReferenceKind": "object_storage_reference",
+  "mediaType": "string",
+  "sizeBytes": 0,
+  "checksumSha256": "string",
+  "source": "upload"
+}
+```
+
+### Schema: DocumentInfrastructureDeactivateSequenceRequest
+
+| Field          | Type   | Required | Nullable | Description |
+| -------------- | ------ | -------- | -------- | ----------- |
+| `scopeType`    | string | yes      | no       |             |
+| `scopeId`      | string | no       | yes      |             |
+| `sequenceKey`  | string | yes      | no       |             |
+| `deleteReason` | string | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "scopeType": "string",
+  "scopeId": "string",
+  "sequenceKey": "string",
+  "deleteReason": "string"
+}
+```
+
+### Schema: DocumentInfrastructureDefineSequenceRequest
+
+| Field            | Type                                        | Required | Nullable | Description |
+| ---------------- | ------------------------------------------- | -------- | -------- | ----------- |
+| `scopeType`      | string                                      | yes      | no       |             |
+| `scopeId`        | string                                      | no       | yes      |             |
+| `sequenceKey`    | string                                      | yes      | no       |             |
+| `formatTemplate` | string                                      | yes      | no       |             |
+| `resetPolicy`    | enum(`never`, `yearly`, `monthly`, `daily`) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "scopeType": "string",
+  "scopeId": "string",
+  "sequenceKey": "string",
+  "formatTemplate": "string",
+  "resetPolicy": "never"
+}
+```
+
+### Schema: DocumentInfrastructureLinkRelationRequest
+
+| Field            | Type                                                                              | Required | Nullable | Description |
+| ---------------- | --------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `ownerModuleKey` | string                                                                            | yes      | no       |             |
+| `resourceType`   | string                                                                            | yes      | no       |             |
+| `resourceId`     | string                                                                            | yes      | no       |             |
+| `relationType`   | enum(`evidence_for`, `attachment_of`, `reference_of`, `related_to`, `supersedes`) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "ownerModuleKey": "string",
+  "resourceType": "string",
+  "resourceId": "string",
+  "relationType": "evidence_for"
+}
+```
+
+### Schema: DocumentInfrastructureReclassifyRequest
+
+| Field                  | Type                                                     | Required | Nullable | Description |
+| ---------------------- | -------------------------------------------------------- | -------- | -------- | ----------- |
+| `classificationId`     | string (uuid)                                            | no       | yes      |             |
+| `confidentialityLevel` | enum(`public`, `internal`, `confidential`, `restricted`) | yes      | no       |             |
+| `reason`               | string                                                   | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "classificationId": "00000000-0000-0000-0000-000000000000",
+  "confidentialityLevel": "public",
+  "reason": "string"
+}
+```
+
+### Schema: DocumentInfrastructureReviseSequenceRequest
+
+| Field            | Type                                        | Required | Nullable | Description |
+| ---------------- | ------------------------------------------- | -------- | -------- | ----------- |
+| `scopeType`      | string                                      | yes      | no       |             |
+| `scopeId`        | string                                      | no       | yes      |             |
+| `sequenceKey`    | string                                      | yes      | no       |             |
+| `formatTemplate` | string                                      | yes      | no       |             |
+| `resetPolicy`    | enum(`never`, `yearly`, `monthly`, `daily`) | yes      | no       |             |
+| `revisionReason` | string                                      | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "scopeType": "string",
+  "scopeId": "string",
+  "sequenceKey": "string",
+  "formatTemplate": "string",
+  "resetPolicy": "never",
+  "revisionReason": "string"
+}
+```
+
+### Schema: DocumentInfrastructureSequenceScope
+
+Identifies a number sequence definition by its scope + key.
+
+| Field         | Type   | Required | Nullable | Description |
+| ------------- | ------ | -------- | -------- | ----------- |
+| `scopeType`   | string | yes      | no       |             |
+| `scopeId`     | string | no       | yes      |             |
+| `sequenceKey` | string | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "scopeType": "string",
+  "scopeId": "string",
+  "sequenceKey": "string"
+}
+```
+
+### Schema: DocumentInfrastructureUpdateClassificationRequest
+
+| Field                  | Type                                                     | Required | Nullable | Description |
+| ---------------------- | -------------------------------------------------------- | -------- | -------- | ----------- |
+| `name`                 | string                                                   | yes      | no       |             |
+| `description`          | string                                                   | no       | yes      |             |
+| `confidentialityLevel` | enum(`public`, `internal`, `confidential`, `restricted`) | yes      | no       |             |
+| `retentionReference`   | string                                                   | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "description": "string",
+  "confidentialityLevel": "public",
+  "retentionReference": "string"
+}
+```
+
+### Schema: DocumentInfrastructureUpdateDocumentMetadataRequest
+
+| Field         | Type               | Required | Nullable | Description |
+| ------------- | ------------------ | -------- | -------- | ----------- |
+| `title`       | string             | yes      | no       |             |
+| `summary`     | string             | no       | yes      |             |
+| `issuedAt`    | string (date-time) | no       | yes      |             |
+| `effectiveAt` | string (date-time) | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "title": "string",
+  "summary": "string",
+  "issuedAt": "2026-01-01T00:00:00.000Z",
+  "effectiveAt": "2026-01-01T00:00:00.000Z"
 }
 ```
 
@@ -14897,7 +15977,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (77)
+### Channels (85)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -14934,6 +16014,14 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.data-exchange.reconciliation.mismatch` — A reconciliation report detected a source/processed count or checksum mismatch (Issue #752). Producer: `data-exchange/ application/reconciliation-service.ts`'s `recordReconciliation`.
 - `awcms-mini.database.pool.rejected` — Emitted when a work-class concurrency gate's bounded FIFO queue is already full and a caller is rejected IMMEDIATELY, without ever waiting (Issue #743, epic #738 platform-evolution — distinct from `database.pool.saturated` above, which is a caller that waited and THEN timed out; doc 16 §Connection pooling dan backpressure, doc 05 "DB Connectivity" category). Documented contract only, same convention as `database.pool.saturated` — the concrete producer is the structured JSON logger (`src/lib/logging/logger.ts`) invoked from `withTenant` (`src/lib/database/tenant-context.ts`) on a `WorkClassQueueFullError`.
 - `awcms-mini.database.pool.saturated` — Emitted when a work-class concurrency gate times out a queued caller (Issue 10.2, doc 16 §Connection pooling dan backpressure, doc 05 "DB Connectivity" category). Documented contract only — this repo has no live pub/sub dispatcher for any domain event yet; the concrete producer is the structured JSON logger (`src/lib/logging/logger.ts`) invoked from `withTenant` (`src/lib/database/tenant-context.ts`), consistent with how AsyncAPI events have been documented since Issue 0.3 without requiring a live producer.
+- `awcms-mini.document-infrastructure.document.created` — A document registry entry was created (Issue #751, epic `platform-evolution` #738 Wave 3). Producer: `document-infrastructure/ application/document-directory.ts`'s `createDocument`.
+- `awcms-mini.document-infrastructure.document.reclassified` — A document's classification and/or confidentiality level was changed (Issue #751). Producer: `document-infrastructure/ application/document-directory.ts`'s `reclassifyDocument`.
+- `awcms-mini.document-infrastructure.document.restored` — A soft-deleted document was restored, or a voided document was un-voided (Issue #751). Producer: `document-infrastructure/ application/document-directory.ts`'s `restoreDocument`.
+- `awcms-mini.document-infrastructure.document.voided` — A document was voided (irreversible-by-default business-state transition, kept visible as evidence, Issue #751). Producer: `document-infrastructure/application/document-directory.ts`'s `voidDocument`.
+- `awcms-mini.document-infrastructure.number.canceled` — A reserved document number was canceled without being committed — the number is never reused (gap evidence, Issue #751). Producer: `document-infrastructure/application/document-number-reservation- service.ts`'s `cancelReservation`.
+- `awcms-mini.document-infrastructure.number.committed` — A reserved document number was committed to a document (Issue #751). Producer: `document-infrastructure/application/document- number-reservation-service.ts`'s `commitReservation`.
+- `awcms-mini.document-infrastructure.number.reserved` — A document number was atomically reserved from a numbering sequence (Issue #751), via row-level `SELECT ... FOR UPDATE` on the sequence's current definition row. Producer: `document- infrastructure/application/document-number-reservation-service.ts`'s `reserveNumber`.
+- `awcms-mini.document-infrastructure.version.created` — A new immutable, append-only document version was created (Issue #751). Producer: `document-infrastructure/application/document- version-service.ts`'s `createDocumentVersion`, the SOLE write path against `awcms_mini_document_versions`.
 - `awcms-mini.domain-event-runtime.sample.recorded` — Reference/example event (Issue #742, epic `platform-evolution` #738) used to exercise the domain-event-runtime outbox, dispatcher, ordering, retry/backoff, dead-letter, and replay mechanism end-to-end. Real producer modules publish their OWN event types the same way, via `appendDomainEvent` — this one is intentionally self-contained rather than tied to another module's business logic in this foundation issue (see `src/modules/domain-event-runtime/domain/event-type- registry.ts`'s own doc comment). Producer: any caller of `application/append-domain-event.ts`'s `appendDomainEvent` for this event type (test fixtures in this issue); consumers: `infrastructure/consumer-registry.ts`'s two reference consumers.
 - `awcms-mini.email.message.cancelled` — An operator cancelled a still-queued message (Issue #499, `POST /api/v1/email/messages/{id}/cancel`) — the technical mitigation for the "accidental bulk send" incident scenario. Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/email/messages/[id]/cancel.ts` (`email.message.cancelled` log line).
 - `awcms-mini.email.message.failed` — The email dispatcher exhausted retries (or hit a non-retryable failure) for a queued message. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.failed` log line).

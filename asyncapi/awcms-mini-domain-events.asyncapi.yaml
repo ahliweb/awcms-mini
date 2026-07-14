@@ -762,6 +762,83 @@ channels:
       An organization-unit assignment was ended (Issue #749). Producer:
       `organization-structure/application/organization-unit-assignment-
       service.ts`'s `endOrganizationUnitAssignment`.
+  awcms-mini.document-infrastructure.document.created:
+    address: awcms-mini.document-infrastructure.document.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A document registry entry was created (Issue #751, epic
+      `platform-evolution` #738 Wave 3). Producer: `document-infrastructure/
+      application/document-directory.ts`'s `createDocument`.
+  awcms-mini.document-infrastructure.document.voided:
+    address: awcms-mini.document-infrastructure.document.voided
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A document was voided (irreversible-by-default business-state
+      transition, kept visible as evidence, Issue #751). Producer:
+      `document-infrastructure/application/document-directory.ts`'s
+      `voidDocument`.
+  awcms-mini.document-infrastructure.document.restored:
+    address: awcms-mini.document-infrastructure.document.restored
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A soft-deleted document was restored, or a voided document was
+      un-voided (Issue #751). Producer: `document-infrastructure/
+      application/document-directory.ts`'s `restoreDocument`.
+  awcms-mini.document-infrastructure.document.reclassified:
+    address: awcms-mini.document-infrastructure.document.reclassified
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A document's classification and/or confidentiality level was
+      changed (Issue #751). Producer: `document-infrastructure/
+      application/document-directory.ts`'s `reclassifyDocument`.
+  awcms-mini.document-infrastructure.version.created:
+    address: awcms-mini.document-infrastructure.version.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A new immutable, append-only document version was created (Issue
+      #751). Producer: `document-infrastructure/application/document-
+      version-service.ts`'s `createDocumentVersion`, the SOLE write path
+      against `awcms_mini_document_versions`.
+  awcms-mini.document-infrastructure.number.reserved:
+    address: awcms-mini.document-infrastructure.number.reserved
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A document number was atomically reserved from a numbering
+      sequence (Issue #751), via row-level `SELECT ... FOR UPDATE` on the
+      sequence's current definition row. Producer: `document-
+      infrastructure/application/document-number-reservation-service.ts`'s
+      `reserveNumber`.
+  awcms-mini.document-infrastructure.number.committed:
+    address: awcms-mini.document-infrastructure.number.committed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reserved document number was committed to a document (Issue
+      #751). Producer: `document-infrastructure/application/document-
+      number-reservation-service.ts`'s `commitReservation`.
+  awcms-mini.document-infrastructure.number.canceled:
+    address: awcms-mini.document-infrastructure.number.canceled
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reserved document number was canceled without being committed —
+      the number is never reused (gap evidence, Issue #751). Producer:
+      `document-infrastructure/application/document-number-reservation-
+      service.ts`'s `cancelReservation`.
   awcms-mini.data-exchange.import.staged:
     address: awcms-mini.data-exchange.import.staged
     messages:
@@ -1249,6 +1326,54 @@ operations:
       $ref: "#/channels/awcms-mini.organization-structure.assignment.ended"
     messages:
       - $ref: "#/channels/awcms-mini.organization-structure.assignment.ended/messages/DomainEvent"
+  publishDocumentInfrastructureDocumentCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.document-infrastructure.document.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.document-infrastructure.document.created/messages/DomainEvent"
+  publishDocumentInfrastructureDocumentVoided:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.document-infrastructure.document.voided"
+    messages:
+      - $ref: "#/channels/awcms-mini.document-infrastructure.document.voided/messages/DomainEvent"
+  publishDocumentInfrastructureDocumentRestored:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.document-infrastructure.document.restored"
+    messages:
+      - $ref: "#/channels/awcms-mini.document-infrastructure.document.restored/messages/DomainEvent"
+  publishDocumentInfrastructureDocumentReclassified:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.document-infrastructure.document.reclassified"
+    messages:
+      - $ref: "#/channels/awcms-mini.document-infrastructure.document.reclassified/messages/DomainEvent"
+  publishDocumentInfrastructureVersionCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.document-infrastructure.version.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.document-infrastructure.version.created/messages/DomainEvent"
+  publishDocumentInfrastructureNumberReserved:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.document-infrastructure.number.reserved"
+    messages:
+      - $ref: "#/channels/awcms-mini.document-infrastructure.number.reserved/messages/DomainEvent"
+  publishDocumentInfrastructureNumberCommitted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.document-infrastructure.number.committed"
+    messages:
+      - $ref: "#/channels/awcms-mini.document-infrastructure.number.committed/messages/DomainEvent"
+  publishDocumentInfrastructureNumberCanceled:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.document-infrastructure.number.canceled"
+    messages:
+      - $ref: "#/channels/awcms-mini.document-infrastructure.number.canceled/messages/DomainEvent"
   publishDataExchangeImportStaged:
     action: send
     channel:
@@ -1282,9 +1407,6 @@ operations:
   publishDataExchangeReconciliationMismatch:
     action: send
     channel:
-      $ref: "#/channels/awcms-mini.data-exchange.reconciliation.mismatch"
-    messages:
-      - $ref: "#/channels/awcms-mini.data-exchange.reconciliation.mismatch/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

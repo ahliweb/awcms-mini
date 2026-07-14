@@ -1,6 +1,6 @@
 /**
  * Integration tests for `data_exchange` (Issue #752, epic #738
- * platform-evolution Wave 3, ADR-0017) against real PostgreSQL, through
+ * platform-evolution Wave 3, ADR-0018) against real PostgreSQL, through
  * the REAL Astro route handlers plus the REAL worker pipeline
  * (`runDataExchangeWorkerPassForTenant`):
  *

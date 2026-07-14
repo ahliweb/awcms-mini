@@ -139,7 +139,24 @@ export type AccessAction =
   // holds an `awcms_mini_profile_entity_links` reference, so a role
   // granted `profile_merge.approve` is NOT implicitly allowed to also
   // execute the merge itself. Added to `HIGH_RISK_ACTIONS` below.
-  | "merge";
+  | "merge"
+  // Issue #751 (document_infrastructure): four new literals, all added
+  // to `HIGH_RISK_ACTIONS` below. `void` — an irreversible-by-default
+  // business-state transition on a document (kept visible as evidence,
+  // distinct from `delete`/soft-delete of a mistakenly created record —
+  // see `sql/067`'s own header). `reclassify` — change a document's
+  // classification/confidentiality level, security-sensitive since it
+  // can widen or narrow who is allowed to read the document.  `reserve`/
+  // `commit` — the two numbering-integrity operations on a document
+  // number sequence's reservation (`cancel` reuses the existing base
+  // literal below, deliberately NOT added to `HIGH_RISK_ACTIONS` to
+  // avoid reclassifying every OTHER module's already-shipped `cancel`
+  // action; this module's own reservation-cancel route still requires
+  // `Idempotency-Key` unconditionally at the route layer regardless).
+  | "void"
+  | "reclassify"
+  | "reserve"
+  | "commit";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -211,6 +228,13 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "reassign",
   "force_decide",
   "merge",
+  // Issue #751: see `AccessAction`'s own comment above for why `void`/
+  // `reclassify`/`reserve`/`commit` are here but the pre-existing shared
+  // `cancel` literal is deliberately NOT added.
+  "void",
+  "reclassify",
+  "reserve",
+  "commit",
   // Issue #752 (data_exchange): `imports.post` — executing the asynchronous
   // idempotent commit of a staged import batch, the FIRST real consumer of
   // the pre-existing `"post"` action (reserved since the initial union for

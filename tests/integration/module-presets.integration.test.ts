@@ -159,12 +159,12 @@ suite("tenant module preset application service", () => {
     // ordering disables domain_event_runtime first, same as it does for
     // visitor_analytics before logging) — nothing depends on
     // domain_event_runtime itself, also a pure leaf. organization_structure
-    // (Issue #749) depends on tenant_admin/identity_access/
-    // domain_event_runtime, all of which stay enabled or disable in this
-    // same pass — nothing depends on organization_structure itself, also a
-    // pure leaf, and it disables BEFORE domain_event_runtime (leaves-first
-    // ordering: a module that still depends on domain_event_runtime must
-    // be disabled first).
+    // (Issue #749) and document_infrastructure (Issue #751) both depend on
+    // tenant_admin/identity_access/domain_event_runtime, all of which stay
+    // enabled or disable in this same pass — nothing depends on either of
+    // them, also pure leaves, and both disable BEFORE domain_event_runtime
+    // (leaves-first ordering: a module that still depends on
+    // domain_event_runtime must be disabled first).
     // data_exchange (Issue #752) depends on tenant_admin/identity_access/
     // logging/domain_event_runtime, all of which stay enabled or disable in
     // this same pass — nothing depends on data_exchange itself, also a pure
@@ -180,6 +180,7 @@ suite("tenant module preset application service", () => {
       "social_publishing",
       "data_lifecycle",
       "organization_structure",
+      "document_infrastructure",
       "domain_event_runtime",
       "data_exchange"
     ]) {
@@ -209,6 +210,7 @@ suite("tenant module preset application service", () => {
     expect(state.get("social_publishing")).toBe(false);
     expect(state.get("data_lifecycle")).toBe(false);
     expect(state.get("organization_structure")).toBe(false);
+    expect(state.get("document_infrastructure")).toBe(false);
     expect(state.get("domain_event_runtime")).toBe(false);
     expect(state.get("data_exchange")).toBe(false);
 
@@ -228,6 +230,7 @@ suite("tenant module preset application service", () => {
         "social_publishing",
         "data_lifecycle",
         "organization_structure",
+        "document_infrastructure",
         "domain_event_runtime",
         "data_exchange"
       ].sort()

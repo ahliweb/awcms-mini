@@ -1,7 +1,7 @@
 # `data_exchange`
 
 Provider-neutral staged CSV/JSON import/export framework (Issue #752, epic
-`platform-evolution` #738 Wave 3, `docs/adr/0017-data-exchange-module-admission.md`).
+`platform-evolution` #738 Wave 3, `docs/adr/0018-data-exchange-module-admission.md`).
 Official Optional Module (`type: "domain"`, ADR-0013 §3 "Official Optional
 Business Foundation"), opt-in per tenant.
 
@@ -131,8 +131,8 @@ needs it.
   `descriptor-authorization.ts`, `data-exchange-worker.ts`.
 - `infrastructure/exchange-adapter-registry.ts` — static registry, same
   shape as `domain-event-runtime/infrastructure/consumer-registry.ts`.
-- `sql/066_awcms_mini_data_exchange_schema.sql`,
-  `sql/067_awcms_mini_data_exchange_permissions.sql`.
+- `sql/069_awcms_mini_data_exchange_schema.sql`,
+  `sql/070_awcms_mini_data_exchange_permissions.sql`.
 - `scripts/data-exchange-worker.ts` (`bun run data-exchange:worker`).
 - Admin UI: `src/pages/admin/data-exchange/imports.astro`,
   `imports/[id].astro`, `exports.astro`.
