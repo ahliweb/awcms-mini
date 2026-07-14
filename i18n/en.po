@@ -3763,6 +3763,153 @@ msgstr "Suggested codes"
 msgid "admin.organization_structure.unit_types.title"
 msgstr "Organization-Unit Types"
 
+msgid "admin.layout.nav_reporting_projections"
+msgstr "Reporting Projections"
+
+msgid "admin.reporting_projections.access_denied_body"
+msgstr "You do not have permission to view reporting projections or scheduled exports."
+
+msgid "admin.reporting_projections.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.reporting_projections.cancel_rebuild_button"
+msgstr "Cancel rebuild"
+
+msgid "admin.reporting_projections.col_actions"
+msgstr "Actions"
+
+msgid "admin.reporting_projections.col_drill_down"
+msgstr "Source"
+
+msgid "admin.reporting_projections.col_expires_at"
+msgstr "Expires at"
+
+msgid "admin.reporting_projections.col_format"
+msgstr "Format"
+
+msgid "admin.reporting_projections.col_freshness"
+msgstr "Freshness"
+
+msgid "admin.reporting_projections.col_interval"
+msgstr "Interval"
+
+msgid "admin.reporting_projections.col_key"
+msgstr "Key"
+
+msgid "admin.reporting_projections.col_last_success"
+msgstr "Last success"
+
+msgid "admin.reporting_projections.col_metrics"
+msgstr "Metrics"
+
+msgid "admin.reporting_projections.col_row_count"
+msgstr "Rows"
+
+msgid "admin.reporting_projections.col_status"
+msgstr "Status"
+
+msgid "admin.reporting_projections.create_schedule_button"
+msgstr "Create schedule"
+
+msgid "admin.reporting_projections.create_schedule_heading"
+msgstr "Create scheduled export"
+
+msgid "admin.reporting_projections.disable_button"
+msgstr "Disable"
+
+msgid "admin.reporting_projections.disable_reason_prompt"
+msgstr "Reason for disabling this scheduled export:"
+
+msgid "admin.reporting_projections.download_link"
+msgstr "Download"
+
+msgid "admin.reporting_projections.export_button"
+msgstr "Export now"
+
+msgid "admin.reporting_projections.export_runs_empty"
+msgstr "No export runs yet."
+
+msgid "admin.reporting_projections.export_runs_heading"
+msgstr "Export run history"
+
+msgid "admin.reporting_projections.export_triggered"
+msgstr "Export generated."
+
+msgid "admin.reporting_projections.field_interval_minutes"
+msgstr "Interval (minutes)"
+
+msgid "admin.reporting_projections.freshness_current"
+msgstr "Current"
+
+msgid "admin.reporting_projections.freshness_delayed"
+msgstr "Delayed"
+
+msgid "admin.reporting_projections.freshness_failed"
+msgstr "Failed"
+
+msgid "admin.reporting_projections.freshness_rebuilding"
+msgstr "Rebuilding"
+
+msgid "admin.reporting_projections.freshness_stale"
+msgstr "Stale"
+
+msgid "admin.reporting_projections.page_description"
+msgstr "Module-contributed read-model projections — incremental updates, freshness status, rebuild, reconciliation, and scheduled exports."
+
+msgid "admin.reporting_projections.page_title"
+msgstr "Reporting Projections"
+
+msgid "admin.reporting_projections.projections_empty"
+msgstr "No registered projections."
+
+msgid "admin.reporting_projections.projections_heading"
+msgstr "Projections"
+
+msgid "admin.reporting_projections.rebuild_button"
+msgstr "Rebuild"
+
+msgid "admin.reporting_projections.rebuild_cancel_requested"
+msgstr "Cancellation requested."
+
+msgid "admin.reporting_projections.rebuild_reason_prompt"
+msgstr "Reason for this rebuild:"
+
+msgid "admin.reporting_projections.rebuild_resumed"
+msgstr "A rebuild was already running — progress will continue."
+
+msgid "admin.reporting_projections.rebuild_triggered"
+msgstr "Rebuild triggered."
+
+msgid "admin.reporting_projections.reconcile_button"
+msgstr "Reconcile"
+
+msgid "admin.reporting_projections.reconcile_complete"
+msgstr "Reconciliation complete — no mismatch found."
+
+msgid "admin.reporting_projections.reconcile_mismatch"
+msgstr "Reconciliation complete — a mismatch was found."
+
+msgid "admin.reporting_projections.schedule_created"
+msgstr "Scheduled export created."
+
+msgid "admin.reporting_projections.schedule_disabled"
+msgstr "Scheduled export disabled."
+
+msgid "admin.reporting_projections.scheduled_exports_empty"
+msgstr "No scheduled exports configured."
+
+msgid "admin.reporting_projections.scheduled_exports_heading"
+msgstr "Scheduled exports"
+
+msgid "admin.reporting_projections.status_disabled"
+msgstr "Disabled"
+
+msgid "admin.reporting_projections.status_enabled"
+msgstr "Enabled"
+
+msgid "admin.reporting_projections.view_source_link"
+msgstr "View live source"
+
 msgid "admin.document_infrastructure.access_denied_body"
 msgstr "You do not have permission to view this document-infrastructure screen."
 

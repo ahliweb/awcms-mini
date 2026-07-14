@@ -80,6 +80,9 @@ flowchart LR
 | `sync_storage`                  | `conflict_resolution`         | read, approve                                                                                  |
 | `ai_analyst`                    | `analysis`                    | analyze                                                                                        |
 | `management_reporting`          | `reports`                     | read                                                                                           |
+| `reporting`                     | `dashboard`                   | read                                                                                           |
+| `reporting`                     | `projections`                 | read, rebuild, analyze (Issue #753)                                                            |
+| `reporting`                     | `exports`                     | read, configure, export (Issue #753)                                                           |
 | `workflow_approval`             | `approval`                    | read, approve                                                                                  |
 | `workflow_approval`             | `definition`                  | read, create, update, publish, retire, delete (Issue #747)                                     |
 | `workflow_approval`             | `recovery`                    | reassign, cancel, force_decide (Issue #747)                                                    |

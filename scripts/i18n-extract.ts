@@ -185,6 +185,12 @@ export const DYNAMIC_KEY_FAMILIES: readonly DynamicKeyFamily[] = [
     suffixes: ["pending_verification", "active", "suspended", "failed"],
     source:
       "sql/031_awcms_mini_tenant_domain_schema.sql CHECK (status IN ('pending_verification','active','suspended','failed')); src/modules/tenant-domain/domain/tenant-domain-validation.ts TENANT_DOMAIN_UPDATABLE_STATUSES covers all but 'active'"
+  },
+  {
+    prefix: "admin.reporting_projections.freshness_",
+    suffixes: ["current", "delayed", "stale", "rebuilding", "failed"],
+    source:
+      "src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus"
   }
 ];
 

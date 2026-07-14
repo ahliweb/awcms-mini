@@ -131,8 +131,8 @@ needs it.
   `descriptor-authorization.ts`, `data-exchange-worker.ts`.
 - `infrastructure/exchange-adapter-registry.ts` — static registry, same
   shape as `domain-event-runtime/infrastructure/consumer-registry.ts`.
-- `sql/069_awcms_mini_data_exchange_schema.sql`,
-  `sql/070_awcms_mini_data_exchange_permissions.sql`.
+- `sql/071_awcms_mini_data_exchange_schema.sql`,
+  `sql/072_awcms_mini_data_exchange_permissions.sql`.
 - `scripts/data-exchange-worker.ts` (`bun run data-exchange:worker`).
 - Admin UI: `src/pages/admin/data-exchange/imports.astro`,
   `imports/[id].astro`, `exports.astro`.

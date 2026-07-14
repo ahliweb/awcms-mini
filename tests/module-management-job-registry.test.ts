@@ -104,6 +104,8 @@ describe("fetchModuleJobs", () => {
         "bun run news-media:reconcile",
         "bun run organization-structure:metrics-snapshot",
         "bun run production:preflight",
+        "bun run reporting:exports:dispatch",
+        "bun run reporting:projections:refresh",
         "bun run security:readiness",
         "bun run social-publishing:dispatch",
         "bun run sync:objects:dispatch",

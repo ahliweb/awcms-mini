@@ -311,6 +311,8 @@ export type ModuleDescriptor = {
   sodRules?: SoDRuleDescriptor[];
   /** Staged import/export exchange descriptors this module owns (Issue #752) — see `ExchangeDescriptor`'s own doc comment below. */
   dataExchange?: ExchangeDescriptor[];
+  /** Read-model projection descriptors this module owns (Issue #753) — see `ProjectionDescriptor`'s own doc comment below (declared after this type since it's mutually referenced only by name, TypeScript type declarations are not order-sensitive). */
+  reportingProjections?: ProjectionDescriptor[];
 };
 
 /**
@@ -426,6 +428,104 @@ export type ExchangeDescriptor = {
   description: string;
 };
 
+/**
+ * Module-contributed read-model projection descriptor (Issue #753, epic
+ * #738 `platform-evolution` Wave 3). Same "module declares its own array,
+ * a central aggregator (`reporting/domain/projection-registry.ts`) reads
+ * `listModules()`" shape `dataLifecycle`/`sodRules` above already use — a
+ * module that wants a derived, incrementally-maintained read model instead
+ * of repeated live aggregation contributes ONE of these per projection in
+ * its OWN `module.ts`'s `reportingProjections` array. `reporting`'s engine
+ * never writes another module's transactional tables (it reads via a
+ * bounded cursor re-scan of a column the owning module already declared
+ * here, or via a `domain_event_runtime` consumer it registers itself) and
+ * only ever writes ITS OWN projection tables
+ * (`awcms_mini_reporting_projection_*`).
+ *
+ * TRUSTED CODE-ONLY METADATA (same rule as every descriptor type above) —
+ * declared by the owning module's source, never tenant/request-controlled.
+ */
+export type ProjectionScope = "tenant" | "global";
+
+/** One event type/version this projection's steady-state updates consume via a `domain_event_runtime` consumer (Issue #742) — see `reporting`'s own `module.ts` for the registered example and `domain-event-runtime/infrastructure/consumer-registry.ts` for where the actual consumer entry lives (the cross-module wiring point). `eventVersion` is a STRING (e.g. `"1.0"`), matching `domain-event-runtime/domain/consumer-types.ts`'s own `DomainEventConsumerDefinition.eventVersions`/`DomainEventEnvelope.eventVersion` — never a number. */
+export type ProjectionEventSource = {
+  eventType: string;
+  eventVersion: string;
+};
+
+/** One rule evaluated against a fetched batch row (Issue #753's incremental cursor engine, `reporting/application/projection-incremental-worker.ts`) — `matchColumn`/`matchValue` are optional (omit both to count every row in the batch); when present, both are required together. */
+export type ProjectionCursorMetricRule = {
+  metricKey: string;
+  effect: "increment" | "decrement";
+  matchColumn?: string;
+  matchValue?: string;
+};
+
+/**
+ * One bounded, cursor-ordered re-scan of a single source table — the ONLY
+ * mechanism this system uses to either (a) poll-update a `cursor_table`
+ * strategy projection's steady state, or (b) recompute ANY projection
+ * (including a `domain_event` strategy one) from scratch during a rebuild.
+ * `cursorColumn` must be a monotonically-increasing, insert-time-only
+ * column (e.g. `created_at`) on an effectively append-only table/stream —
+ * a column that can move backward on UPDATE (or a soft-delete-then-restore
+ * table) is not safe here; see `reporting/README.md` §Projections for the
+ * append-only-source rule this repo's own registered descriptors follow.
+ */
+export type ProjectionCursorStream = {
+  /** Unique within the descriptor — keys this stream's own cursor row. */
+  streamKey: string;
+  /** Must start with `awcms_mini_` (same convention/validation `data_lifecycle`'s `HighVolumeTableDescriptor.tableName` already enforces). */
+  tableName: string;
+  /** Defaults to `"tenant_id"`. */
+  tenantColumn?: string;
+  cursorColumn: string;
+  metrics: readonly ProjectionCursorMetricRule[];
+};
+
+export type ProjectionSourceContract =
+  | { strategy: "cursor_table"; streams: readonly ProjectionCursorStream[] }
+  | {
+      strategy: "domain_event";
+      events: readonly ProjectionEventSource[];
+      /** Must match the `DomainEventConsumerDefinition.name` registered for this projection in `domain-event-runtime/infrastructure/consumer-registry.ts` — cross-checked at runtime by that registry's own tests, not by this repo's static registry validator (which has no visibility into the OTHER module's registry). */
+      consumerName: string;
+    };
+
+export type ProjectionFreshnessPolicy = {
+  /** Below this age since the last successful update, the projection reports `"current"`. */
+  targetSeconds: number;
+  /** At or above this age, the projection reports `"stale"` (between `targetSeconds` and this, it reports `"delayed"`). Must be `>= targetSeconds`. */
+  staleAfterSeconds: number;
+  /** Consecutive update failures at or above this count report `"failed"` regardless of age (Issue #753: "a projection-update job silently fail/skip a tenant must reflect stale/failed, never falsely fresh"). */
+  errorAfterConsecutiveFailures: number;
+};
+
+export type ProjectionDescriptor = {
+  /** Stable, unique across the whole registry, `"<ownerModuleKey>.<name>"`. */
+  key: string;
+  version: number;
+  /** Must equal the declaring module's own `key` — validated by the registry gate, not the type system (see `reporting/domain/projection-registry.ts`). */
+  ownerModuleKey: string;
+  scope: ProjectionScope;
+  description: string;
+  /** How this projection's STEADY-STATE (ongoing, incremental) updates arrive. */
+  source: ProjectionSourceContract;
+  /** How a REBUILD recomputes this projection from scratch — ALWAYS a bounded cursor re-scan of the authoritative source table(s), even for a `domain_event`-strategy projection (rebuild reads the event outbox table directly rather than re-triggering delivery, so it never depends on `domain_event_runtime` replaying anything). See `reporting/application/projection-rebuild.ts`. */
+  rebuildSource: { streams: readonly ProjectionCursorStream[] };
+  /** `metricKey` (from `source`/`rebuildSource`'s own rules) -> human-readable label. */
+  metricLabels: Readonly<Record<string, string>>;
+  /** `module.activity.action` permission key (`identity-access/domain/access-control.ts`'s `permissionKey()` format) required to READ this projection's snapshot/freshness/reconciliation. Rebuild/export use their own separate permissions (not declared here — see `reporting`'s own permission catalog). */
+  requiredPermission: string;
+  freshness: ProjectionFreshnessPolicy;
+  /** API path a client can follow to see the live, fully-reauthorized source view this projection summarizes — MUST be an endpoint that independently re-checks RBAC/ABAC at request time (every existing `/api/v1/reports/*` route already does), never a shortcut that trusts the projection's own permission check. */
+  drillDownPath?: string;
+  /** Free-text reference to a `data_lifecycle` `HighVolumeTableDescriptor.key` if this projection's own tables are (or should become) separately registered there, or a short rationale if not — documentation only, `reporting`'s projection tables are not auto-enrolled. */
+  retentionClass: string;
+  /** Bounded per-pass row limit for both incremental and rebuild cursor scans — same purpose as `HighVolumeTableDescriptor.batchLimit`. */
+  batchLimit: number;
+};
+
 export function defineModule(descriptor: ModuleDescriptor): ModuleDescriptor {
   return descriptor;
 }
@@ -477,6 +577,11 @@ export type ModuleMigrationNamespace = {
  * addition (Issue #511, #681, #740) was already additive/non-breaking by
  * convention, just never assigned a number a derived repository could
  * check against.
+ *
+ * `1.2.0` (Issue #753) — added the optional `ModuleDescriptor.
+ * reportingProjections` field plus the new `ProjectionDescriptor` family
+ * of exported types (MINOR: purely additive, same rule as `1.1.0`'s own
+ * `dataLifecycle`/`sodRules` additions).
  */
 export const MODULE_CONTRACT_VERSION = "1.2.0";
 

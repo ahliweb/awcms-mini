@@ -147,6 +147,13 @@ jobs:
       - name: Business-scope SoD rule registry validation check
         run: bun run identity-access:sod-registry:check
 
+      # Issue #753 (epic #738): added alongside the other registry checks
+      # above, for the exact same "CI silently runs a subset of `bun run
+      # check`" reason Issue #685/#740/#745/#746 already documented for the
+      # other checks in this file — do not rely on `bun run check` alone.
+      - name: Reporting projection registry validation check
+        run: bun run reporting:projections:registry:check
+
       - name: Typecheck (tsc --noEmit)
         run: bun run typecheck
 

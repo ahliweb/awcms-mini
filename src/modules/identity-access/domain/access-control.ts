@@ -156,7 +156,16 @@ export type AccessAction =
   | "void"
   | "reclassify"
   | "reserve"
-  | "commit";
+  | "commit"
+  // Issue #753 (reporting projections): `reporting.projections.rebuild` —
+  // trigger or resume a full projection rebuild (reset + bounded re-scan
+  // of the authoritative source table(s)). Distinct from `analyze`
+  // (reconciliation, read-only) and from `export`/`configure` (the
+  // export surface) — a rebuild is a real, resource-costly recomputation
+  // with its own permission so a role that can read/reconcile a
+  // projection is not implicitly allowed to also force a rebuild of it.
+  // Added to `HIGH_RISK_ACTIONS` below.
+  | "rebuild";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -242,7 +251,9 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   // is the sole point where staged rows are actually applied to an owning
   // module's real tables — same "irreversible-by-default, broad blast
   // radius" reasoning as `merge`'s own comment above.
-  "post"
+  "post",
+  // Issue #753 — see the `AccessAction` union's own comment above.
+  "rebuild"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

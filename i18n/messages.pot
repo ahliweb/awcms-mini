@@ -3016,6 +3016,11 @@ msgid "admin.layout.nav_profile_identity_parties"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/reporting/module.ts:65
+msgid "admin.layout.nav_reporting_projections"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/identity-access/module.ts:26
 msgid "admin.layout.nav_security"
 msgstr ""
@@ -4240,6 +4245,203 @@ msgstr ""
 
 #: src/pages/admin/profile-identity/index.astro:76
 msgid "admin.profile_identity.parties.title"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:144
+msgid "admin.reporting_projections.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:143
+msgid "admin.reporting_projections.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:232
+msgid "admin.reporting_projections.cancel_rebuild_button"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:176
+msgid "admin.reporting_projections.col_actions"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:173
+msgid "admin.reporting_projections.col_drill_down"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:381
+msgid "admin.reporting_projections.col_expires_at"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:277
+msgid "admin.reporting_projections.col_format"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:167
+msgid "admin.reporting_projections.col_freshness"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:279
+msgid "admin.reporting_projections.col_interval"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:162
+msgid "admin.reporting_projections.col_key"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:170
+msgid "admin.reporting_projections.col_last_success"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:164
+msgid "admin.reporting_projections.col_metrics"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:378
+msgid "admin.reporting_projections.col_row_count"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:281
+msgid "admin.reporting_projections.col_status"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:361
+msgid "admin.reporting_projections.create_schedule_button"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:319
+msgid "admin.reporting_projections.create_schedule_heading"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:309
+msgid "admin.reporting_projections.disable_button"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:62
+msgid "admin.reporting_projections.disable_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:402
+msgid "admin.reporting_projections.download_link"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:250
+msgid "admin.reporting_projections.export_button"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:371
+msgid "admin.reporting_projections.export_runs_empty"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:366
+msgid "admin.reporting_projections.export_runs_heading"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:61
+msgid "admin.reporting_projections.export_triggered"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:347
+msgid "admin.reporting_projections.field_interval_minutes"
+msgstr ""
+
+#. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
+#: src/pages/admin/reporting/projections.astro:201
+msgid "admin.reporting_projections.freshness_current"
+msgstr ""
+
+#. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
+#: src/pages/admin/reporting/projections.astro:201
+msgid "admin.reporting_projections.freshness_delayed"
+msgstr ""
+
+#. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
+#: src/pages/admin/reporting/projections.astro:201
+msgid "admin.reporting_projections.freshness_failed"
+msgstr ""
+
+#. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
+#: src/pages/admin/reporting/projections.astro:201
+msgid "admin.reporting_projections.freshness_rebuilding"
+msgstr ""
+
+#. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
+#: src/pages/admin/reporting/projections.astro:201
+msgid "admin.reporting_projections.freshness_stale"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:123
+msgid "admin.reporting_projections.page_description"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:121
+msgid "admin.reporting_projections.page_title"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:158
+msgid "admin.reporting_projections.projections_empty"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:152
+msgid "admin.reporting_projections.projections_heading"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:222
+msgid "admin.reporting_projections.rebuild_button"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:53
+msgid "admin.reporting_projections.rebuild_cancel_requested"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:58
+msgid "admin.reporting_projections.rebuild_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:52
+msgid "admin.reporting_projections.rebuild_resumed"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:51
+msgid "admin.reporting_projections.rebuild_triggered"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:241
+msgid "admin.reporting_projections.reconcile_button"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:56
+msgid "admin.reporting_projections.reconcile_complete"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:57
+msgid "admin.reporting_projections.reconcile_mismatch"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:59
+msgid "admin.reporting_projections.schedule_created"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:60
+msgid "admin.reporting_projections.schedule_disabled"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:270
+msgid "admin.reporting_projections.scheduled_exports_empty"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:264
+msgid "admin.reporting_projections.scheduled_exports_heading"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:297
+msgid "admin.reporting_projections.status_disabled"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:296
+msgid "admin.reporting_projections.status_enabled"
+msgstr ""
+
+#: src/pages/admin/reporting/projections.astro:211
+msgid "admin.reporting_projections.view_source_link"
 msgstr ""
 
 #: src/pages/admin/security.astro:199

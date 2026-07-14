@@ -128,5 +128,15 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     workClass: "background_sync",
     rationale:
       'Recurring worker (data-exchange:worker, Issue #752), recommended every 1-2 minutes — parses/validates/commits staged import batches and executes queued export jobs, driving user-visible batch/job status operators watch in the admin UI; same recurring dispatcher profile as domain-events-dispatch/workflow-escalations-dispatch, not a tolerant-of-delay maintenance sweep. Its own withTenant call (runDataExchangeWorkerPassForTenant) already passes workClass: "background_sync" explicitly.'
+  },
+  "scripts/reporting-projections-refresh.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Incremental cursor_table projection updates + rebuild-continuation sweep (reporting:projections:refresh, Issue #753), recommended every 2 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; every withTenant call inside projection-incremental-worker.ts/projection-rebuild.ts already passes workClass: "maintenance" explicitly.'
+  },
+  "scripts/reporting-exports-dispatch.ts": {
+    workClass: "maintenance",
+    rationale:
+      "Scheduled projection export generation (reporting:exports:dispatch, Issue #753), recommended every 15 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; a delayed export run has no operational urgency."
   }
 };
