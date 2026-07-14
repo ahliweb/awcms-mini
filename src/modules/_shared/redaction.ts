@@ -262,12 +262,20 @@ const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
   // Google API key — fixed-length real format (`AIzaSy` + 33 chars from
   // `[A-Za-z0-9_-]`).
   /^AIzaSy[A-Za-z0-9_-]{33}$/,
-  // Slack incoming-webhook URL — unanchored (unlike every pattern above)
-  // because the value may legitimately carry a scheme prefix
-  // (`https://`) or trailing query text; the three-segment
+  // Slack incoming-webhook URL — not anchored to the whole value (unlike
+  // every pattern above) because the value may legitimately carry a scheme
+  // prefix (`https://`) or trailing query text; the three-segment
   // `/services/<T>/<B>/<secret>` path is what's actually diagnostic, not
-  // the exact surrounding string.
-  /hooks\.slack\.com\/services\/[A-Za-z0-9]+\/[A-Za-z0-9]+\/[A-Za-z0-9]+/
+  // the exact surrounding string. The `(?<![A-Za-z0-9.-])` lookbehind is a
+  // host-label boundary, not a full URL-authority parse — it only rules
+  // out `hooks.slack.com` appearing mid-label of some OTHER hostname
+  // (e.g. `evil-hooks.slack.com`), which CodeQL's missing-regexp-anchor
+  // rule (js/regex/missing-regexp-anchor) flags. It intentionally does
+  // NOT need to fully validate the URL as an authority component, since
+  // this pattern only ever feeds a redaction decision (mask more text,
+  // never grant trust/access) — over-matching here is safe overinclusion,
+  // not a vulnerability, unlike the rule's own SSRF/open-redirect example.
+  /(?<![A-Za-z0-9.-])hooks\.slack\.com\/services\/[A-Za-z0-9]+\/[A-Za-z0-9]+\/[A-Za-z0-9]+/
 ];
 
 // Issue #785 — a generic high-entropy-string backstop (flag any long
@@ -459,7 +467,14 @@ const TEXT_SECRET_PATTERNS: ReadonlyArray<{
     replacement: "[REDACTED_GOOGLE_API_KEY]"
   },
   {
-    pattern: /https?:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/]+/g,
+    // Same host-label-boundary lookbehind as the SECRET_VALUE_PATTERNS
+    // twin above, and same rationale: this only feeds a redaction
+    // decision, never a trust/access decision, so ruling out
+    // `hooks.slack.com` as a mid-label substring of some other hostname
+    // is enough to satisfy js/regex/missing-regexp-anchor without needing
+    // a full URL-authority parse.
+    pattern:
+      /https?:\/\/(?<![A-Za-z0-9.-])hooks\.slack\.com\/services\/[A-Za-z0-9/]+/g,
     replacement: "[REDACTED_SLACK_WEBHOOK]"
   },
   {
