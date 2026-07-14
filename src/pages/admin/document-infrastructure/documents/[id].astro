@@ -45,6 +45,16 @@ const CAN_LINK = context.permissions.has(
 const CAN_UNLINK = context.permissions.has(
   permissionKey("document_infrastructure", "relations", "revoke")
 );
+// Confidentiality-tier clearance (Issue #751 security-review Critical
+// finding) — see `documents.astro`'s identical comment.
+const DOCUMENT_ACCESS = {
+  canReadConfidential: context.permissions.has(
+    permissionKey("document_infrastructure", "documents_confidential", "read")
+  ),
+  canReadRestricted: context.permissions.has(
+    permissionKey("document_infrastructure", "documents_restricted", "read")
+  )
+};
 
 const clientStrings = {
   reclassifySuccess: t(
@@ -78,7 +88,12 @@ let loadError = false;
 if (CAN_READ && documentId) {
   try {
     await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
-      document = await fetchDocumentById(tx, context.tenantId, documentId);
+      document = await fetchDocumentById(
+        tx,
+        context.tenantId,
+        documentId,
+        DOCUMENT_ACCESS
+      );
       if (document) {
         versions = await listDocumentVersions(tx, context.tenantId, documentId);
         relations = await listRelationsForDocument(

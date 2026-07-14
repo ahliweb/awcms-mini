@@ -114,6 +114,18 @@ export const documentInfrastructureModule = defineModule({
         "Change a document's classification and/or confidentiality level"
     },
     {
+      activityCode: "documents_confidential",
+      action: "read",
+      description:
+        "Read documents classified confidential (additive to the base documents.read permission, not implied by it)"
+    },
+    {
+      activityCode: "documents_restricted",
+      action: "read",
+      description:
+        "Read documents classified restricted (additive to the base documents.read permission, not implied by it)"
+    },
+    {
       activityCode: "versions",
       action: "read",
       description: "Read/list document versions"

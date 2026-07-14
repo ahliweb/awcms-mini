@@ -234,3 +234,75 @@ export function canRestoreVoidedDocument(document: {
 }): boolean {
   return document.deletedAt === null && document.status === "void";
 }
+
+/**
+ * Confidentiality-tier read permission keys (Issue #751 security-review
+ * finding — `confidentiality_level` was stored but never enforced at
+ * read time: any caller holding only the base `documents.read`
+ * permission could list/fetch `confidential`/`restricted` documents
+ * identically to `public` ones). Same "separate, additive read
+ * permission gates an extra tier" pattern
+ * `visitor_analytics.raw_detail.read` already establishes for this
+ * codebase (`sql/038`) — declared here (not re-hardcoded per route
+ * file, unlike that precedent) since four route files
+ * (`documents/index.ts`, `documents/[id].ts`, `documents/[id]/versions/
+ * index.ts`, `documents/[id]/relations/index.ts`) need the identical
+ * literal, and duplicating a security-relevant string four times is a
+ * real drift risk this module can avoid by centralizing it.
+ */
+export const CONFIDENTIAL_READ_PERMISSION_KEY =
+  "document_infrastructure.documents_confidential.read";
+export const RESTRICTED_READ_PERMISSION_KEY =
+  "document_infrastructure.documents_restricted.read";
+
+export type ConfidentialityReadAccess = {
+  canReadConfidential: boolean;
+  canReadRestricted: boolean;
+};
+
+/**
+ * Pure access decision — the ROUTE HANDLER decides both booleans from
+ * whether `auth.grantedPermissionKeys` (already fetched by the single
+ * `authorizeInTransaction` call every route already makes for its base
+ * guard) contains `CONFIDENTIAL_READ_PERMISSION_KEY`/
+ * `RESTRICTED_READ_PERMISSION_KEY`; this function never itself resolves
+ * a permission set (same "pure function receives an already-decided
+ * boolean, never makes its own authorization decision" convention
+ * `visitor-analytics/domain/analytics-response-shaping.ts`'s
+ * `shapeVisitorSession` establishes for that module's own tiered-read
+ * permission — see that file's header comment). `public`/`internal`
+ * are always readable to anyone who already passed the base
+ * `documents.read`/`versions.read`/`relations.read` guard.
+ */
+export function isConfidentialityLevelReadable(
+  confidentialityLevel: string,
+  access: ConfidentialityReadAccess
+): boolean {
+  if (confidentialityLevel === "confidential") {
+    return access.canReadConfidential;
+  }
+  if (confidentialityLevel === "restricted") {
+    return access.canReadRestricted;
+  }
+  return true;
+}
+
+/**
+ * The confidentiality levels a caller with the given clearance may
+ * read — used to build the SQL `= ANY(...)` list-query filter in
+ * `application/document-directory.ts`'s `listDocuments` (never fetch
+ * rows the caller isn't cleared for in the first place, rather than
+ * fetch-then-filter in application code).
+ */
+export function readableConfidentialityLevels(
+  access: ConfidentialityReadAccess
+): string[] {
+  const levels = ["public", "internal"];
+  if (access.canReadConfidential) {
+    levels.push("confidential");
+  }
+  if (access.canReadRestricted) {
+    levels.push("restricted");
+  }
+  return levels;
+}

@@ -21,10 +21,15 @@ import {
   findIdempotencyRecord,
   saveIdempotencyRecord
 } from "../../../../../../../modules/_shared/idempotency";
+import { fetchDocumentById } from "../../../../../../../modules/document-infrastructure/application/document-directory";
 import {
   linkDocumentToResource,
   listRelationsForDocument
 } from "../../../../../../../modules/document-infrastructure/application/document-resource-relation-port";
+import {
+  CONFIDENTIAL_READ_PERMISSION_KEY,
+  RESTRICTED_READ_PERMISSION_KEY
+} from "../../../../../../../modules/document-infrastructure/domain/document";
 
 const IDEMPOTENCY_SCOPE = "document_infrastructure_relation_link";
 
@@ -64,6 +69,22 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
       READ_GUARD
     );
     if (!auth.allowed) return auth.denied;
+
+    // Confidentiality-tier clearance on the PARENT document (Issue #751
+    // security-review Critical finding) — see `documents/[id]/versions/
+    // index.ts`'s identical comment.
+    const access = {
+      canReadConfidential: auth.grantedPermissionKeys.has(
+        CONFIDENTIAL_READ_PERMISSION_KEY
+      ),
+      canReadRestricted: auth.grantedPermissionKeys.has(
+        RESTRICTED_READ_PERMISSION_KEY
+      )
+    };
+    const document = await fetchDocumentById(tx, tenantId, documentId, access);
+    if (!document) {
+      return fail(404, "NOT_FOUND", "Document not found.");
+    }
 
     const relations = await listRelationsForDocument(tx, tenantId, documentId);
     return ok({ relations });

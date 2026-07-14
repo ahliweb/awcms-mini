@@ -39,6 +39,19 @@ const CAN_VOID = context.permissions.has(
 const CAN_RESTORE = context.permissions.has(
   permissionKey("document_infrastructure", "documents", "restore")
 );
+// Confidentiality-tier clearance (Issue #751 security-review Critical
+// finding) — same permission keys the API routes check via
+// `auth.grantedPermissionKeys`; this page reads `context.permissions`
+// (the SSR-resolved equivalent) the same way it already does for every
+// other permission above.
+const DOCUMENT_ACCESS = {
+  canReadConfidential: context.permissions.has(
+    permissionKey("document_infrastructure", "documents_confidential", "read")
+  ),
+  canReadRestricted: context.permissions.has(
+    permissionKey("document_infrastructure", "documents_restricted", "read")
+  )
+};
 
 const clientStrings = {
   createSuccess: t("admin.document_infrastructure.documents.create_success"),
@@ -59,7 +72,12 @@ let loadError = false;
 if (CAN_READ) {
   try {
     await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
-      documents = await listDocuments(tx, context.tenantId, {});
+      documents = await listDocuments(
+        tx,
+        context.tenantId,
+        {},
+        DOCUMENT_ACCESS
+      );
       classifications = await listClassifications(tx, context.tenantId, {
         status: "active"
       });

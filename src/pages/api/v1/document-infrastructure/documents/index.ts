@@ -25,6 +25,10 @@ import {
   createDocument,
   listDocuments
 } from "../../../../../modules/document-infrastructure/application/document-directory";
+import {
+  CONFIDENTIAL_READ_PERMISSION_KEY,
+  RESTRICTED_READ_PERMISSION_KEY
+} from "../../../../../modules/document-infrastructure/domain/document";
 
 const IDEMPOTENCY_SCOPE = "document_infrastructure_document_create";
 
@@ -85,13 +89,33 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
     );
     if (!auth.allowed) return auth.denied;
 
-    const documents = await listDocuments(tx, tenantId, {
-      status: statusParam as
-        "active" | "superseded" | "archived" | "void" | undefined,
-      ownerModuleKey: url.searchParams.get("ownerModuleKey") ?? undefined,
-      resourceType: url.searchParams.get("resourceType") ?? undefined,
-      resourceId: url.searchParams.get("resourceId") ?? undefined
-    });
+    // Confidentiality-tier clearance (Issue #751 security-review Critical
+    // finding) — resolved HERE, once, from the permission Set the single
+    // `authorizeInTransaction` call above already fetched; never
+    // re-derived inside `listDocuments` itself. See `domain/document.ts`'s
+    // own header comment for why this mirrors the
+    // `visitor_analytics.raw_detail.read` precedent.
+    const access = {
+      canReadConfidential: auth.grantedPermissionKeys.has(
+        CONFIDENTIAL_READ_PERMISSION_KEY
+      ),
+      canReadRestricted: auth.grantedPermissionKeys.has(
+        RESTRICTED_READ_PERMISSION_KEY
+      )
+    };
+
+    const documents = await listDocuments(
+      tx,
+      tenantId,
+      {
+        status: statusParam as
+          "active" | "superseded" | "archived" | "void" | undefined,
+        ownerModuleKey: url.searchParams.get("ownerModuleKey") ?? undefined,
+        resourceType: url.searchParams.get("resourceType") ?? undefined,
+        resourceId: url.searchParams.get("resourceId") ?? undefined
+      },
+      access
+    );
 
     return ok({ documents });
   });

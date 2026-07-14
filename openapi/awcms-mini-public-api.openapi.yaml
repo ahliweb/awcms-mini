@@ -4893,6 +4893,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: List/search documents
+      description: Confidential/restricted documents are silently omitted unless the caller also holds documents_confidential.read/documents_restricted.read, additive to the base documents.read (Issue
       operationId: documentInfrastructureDocumentsList
       security:
         - bearerAuth: []
@@ -5019,6 +5020,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: Get a document by id
+      description: 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
       operationId: documentInfrastructureDocumentsGet
       security:
         - bearerAuth: []
@@ -5258,6 +5260,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: List a document's resource relations
+      description: 404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue
       operationId: documentInfrastructureRelationsList
       security:
         - bearerAuth: []
@@ -5299,6 +5302,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
     post:
@@ -5499,6 +5504,7 @@ paths:
       tags:
         - Document Infrastructure
       summary: List versions of a document
+      description: 404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue
       operationId: documentInfrastructureVersionsList
       security:
         - bearerAuth: []
@@ -5540,6 +5546,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
     post:

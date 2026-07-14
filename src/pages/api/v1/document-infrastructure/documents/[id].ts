@@ -26,6 +26,10 @@ import {
   fetchDocumentById,
   updateDocumentMetadata
 } from "../../../../../modules/document-infrastructure/application/document-directory";
+import {
+  CONFIDENTIAL_READ_PERMISSION_KEY,
+  RESTRICTED_READ_PERMISSION_KEY
+} from "../../../../../modules/document-infrastructure/domain/document";
 
 const IDEMPOTENCY_SCOPE = "document_infrastructure_document_delete";
 
@@ -71,8 +75,23 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
     );
     if (!auth.allowed) return auth.denied;
 
-    const document = await fetchDocumentById(tx, tenantId, documentId);
+    // Confidentiality-tier clearance (Issue #751 security-review Critical
+    // finding) — see `documents/index.ts`'s identical comment.
+    const access = {
+      canReadConfidential: auth.grantedPermissionKeys.has(
+        CONFIDENTIAL_READ_PERMISSION_KEY
+      ),
+      canReadRestricted: auth.grantedPermissionKeys.has(
+        RESTRICTED_READ_PERMISSION_KEY
+      )
+    };
+
+    const document = await fetchDocumentById(tx, tenantId, documentId, access);
     if (!document) {
+      // Deliberately identical to "genuinely does not exist" — never
+      // confirms a confidential/restricted document's existence to a
+      // caller who lacks clearance for it (see `fetchDocumentById`'s own
+      // doc comment).
       return fail(404, "NOT_FOUND", "Document not found.");
     }
     return ok({ document });

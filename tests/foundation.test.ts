@@ -555,7 +555,8 @@ describe("database migration runner helpers", () => {
       "064_awcms_mini_organization_structure_permissions.sql",
       "065_awcms_mini_organization_structure_assignment_unique_index.sql",
       "066_awcms_mini_document_infrastructure_schema.sql",
-      "067_awcms_mini_document_infrastructure_permissions.sql"
+      "067_awcms_mini_document_infrastructure_permissions.sql",
+      "068_awcms_mini_document_infrastructure_confidentiality_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

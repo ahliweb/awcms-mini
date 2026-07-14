@@ -8083,6 +8083,8 @@ High-risk mutation -- requires Idempotency-Key.
 - **operationId**: `documentInfrastructureDocumentsList`
 - **Security**: bearerAuth + tenantHeader
 
+Confidential/restricted documents are silently omitted unless the caller also holds documents_confidential.read/documents_restricted.read, additive to the base documents.read (Issue
+
 **Parameters**
 
 | Name               | In     | Required | Type                                             | Description                                 |
@@ -8137,6 +8139,8 @@ High-risk mutation -- requires Idempotency-Key (anchors an append-only version c
 
 - **operationId**: `documentInfrastructureDocumentsGet`
 - **Security**: bearerAuth + tenantHeader
+
+404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
 
 **Parameters**
 
@@ -8251,6 +8255,8 @@ High-risk mutation -- requires Idempotency-Key.
 - **operationId**: `documentInfrastructureRelationsList`
 - **Security**: bearerAuth + tenantHeader
 
+404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
@@ -8261,13 +8267,14 @@ High-risk mutation -- requires Idempotency-Key.
 
 **Responses**
 
-| Status | Description                                    | Schema                                                   |
-| ------ | ---------------------------------------------- | -------------------------------------------------------- |
-| 200    | Relations for this document.                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Relations for this document.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/document-infrastructure/documents/{id}/relations` — Link a document to a module-owned resource
 
@@ -8363,6 +8370,8 @@ High-risk mutation -- requires Idempotency-Key.
 - **operationId**: `documentInfrastructureVersionsList`
 - **Security**: bearerAuth + tenantHeader
 
+404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
@@ -8373,13 +8382,14 @@ High-risk mutation -- requires Idempotency-Key.
 
 **Responses**
 
-| Status | Description                                    | Schema                                                   |
-| ------ | ---------------------------------------------- | -------------------------------------------------------- |
-| 200    | Document versions, newest first.               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Document versions, newest first.                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/document-infrastructure/documents/{id}/versions` — Create a new (append-only, immutable) document version
 

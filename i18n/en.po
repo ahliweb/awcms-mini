@@ -4030,6 +4030,15 @@ msgstr "Reason for canceling this reservation:"
 msgid "admin.document_infrastructure.sequences.cancel_success"
 msgstr "Reservation canceled."
 
+msgid "admin.document_infrastructure.sequences.commit_button"
+msgstr "Commit to document"
+
+msgid "admin.document_infrastructure.sequences.commit_document_id_prompt"
+msgstr "Document id to commit this number to:"
+
+msgid "admin.document_infrastructure.sequences.commit_success"
+msgstr "Number committed to document."
+
 msgid "admin.document_infrastructure.sequences.col_actions"
 msgstr "Actions"
 

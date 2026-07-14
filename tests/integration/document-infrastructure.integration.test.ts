@@ -243,6 +243,8 @@ async function createDocumentFixture(
     documentType: string;
     resourceType: string;
     resourceId: string;
+    title: string;
+    confidentialityLevel: string;
   }> = {}
 ): Promise<string> {
   const result = await invoke<{ data: { document: { id: string } } }>(
@@ -254,8 +256,8 @@ async function createDocumentFixture(
       body: {
         ownerModuleKey: overrides.ownerModuleKey ?? "profile_identity",
         documentType: overrides.documentType ?? "correspondence",
-        title: "Fixture document",
-        confidentialityLevel: "internal",
+        title: overrides.title ?? "Fixture document",
+        confidentialityLevel: overrides.confidentialityLevel ?? "internal",
         resourceType: overrides.resourceType ?? "profile",
         resourceId:
           overrides.resourceId ?? "11111111-1111-1111-1111-111111111111"
@@ -264,6 +266,96 @@ async function createDocumentFixture(
   );
   expect(result.status).toBe(200);
   return result.body.data.document.id;
+}
+
+/**
+ * Creates a SECOND, low-privilege real tenant_user in the SAME tenant,
+ * with a role granting exactly the given permission keys (or none) — same
+ * "genuinely-authenticated, tenant-scoped user differing only in granted
+ * permission set" pattern
+ * `visitor-analytics-api.integration.test.ts`'s own
+ * `provisionScopedTenantUser` establishes for this codebase's negative
+ * ABAC tests.
+ */
+async function provisionScopedTenantUser(
+  tenantId: string,
+  loginIdentifier: string,
+  permissionKeys: string[]
+): Promise<{ token: string }> {
+  const admin = getAdminSql();
+  const password = "integration-test-scoped-user-password";
+  const passwordHash = await Bun.password.hash(password);
+
+  await admin.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+    const profile = (await tx`
+      INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+      VALUES (${tenantId}, 'person', 'Scoped User') RETURNING id
+    `) as { id: string }[];
+    const identity = (await tx`
+      INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+      VALUES (${tenantId}, ${profile[0]!.id}, ${loginIdentifier}, ${passwordHash})
+      RETURNING id
+    `) as { id: string }[];
+    const tenantUser = (await tx`
+      INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+      VALUES (${tenantId}, ${identity[0]!.id}) RETURNING id
+    `) as { id: string }[];
+
+    if (permissionKeys.length > 0) {
+      const role = (await tx`
+        INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name)
+        VALUES (${tenantId}, ${`scoped-${loginIdentifier}`}, 'Scoped Role')
+        RETURNING id
+      `) as { id: string }[];
+
+      for (const key of permissionKeys) {
+        const [moduleKey, activityCode, action] = key.split(".");
+        const permission = (await tx`
+          SELECT id FROM awcms_mini_permissions
+          WHERE module_key = ${moduleKey} AND activity_code = ${activityCode} AND action = ${action}
+        `) as { id: string }[];
+
+        await tx`
+          INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+          VALUES (${tenantId}, ${role[0]!.id}, ${permission[0]!.id})
+        `;
+      }
+
+      await tx`
+        INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+        VALUES (${tenantId}, ${tenantUser[0]!.id}, ${role[0]!.id})
+      `;
+    }
+  });
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return { token: login.body.data.token };
+}
+
+function scopedAuthHeaders(
+  tenantId: string,
+  token: string,
+  idempotencyKey?: string
+): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    "x-awcms-mini-tenant-id": tenantId,
+    authorization: `Bearer ${token}`,
+    ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {})
+  };
 }
 
 beforeAll(async () => {
@@ -1046,5 +1138,153 @@ suite("document_infrastructure integration", () => {
     }
     expect(createdIds.length).toBe(5);
     expect(new Set(createdIds).size).toBe(5);
+  });
+
+  test("confidentiality-tier read access (security-review Critical finding, PR #780): a caller holding only the base documents.read permission is denied confidential/restricted documents; the tier permission restores access", async () => {
+    const owner = await bootstrap();
+
+    const publicDocId = await createDocumentFixture(owner, {
+      title: "Public memo",
+      confidentialityLevel: "public"
+    });
+    const confidentialDocId = await createDocumentFixture(owner, {
+      title: "Confidential salary review",
+      confidentialityLevel: "confidential"
+    });
+    const restrictedDocId = await createDocumentFixture(owner, {
+      title: "Restricted SoD exception evidence",
+      confidentialityLevel: "restricted"
+    });
+
+    // The exact exploit from the finding: a "general staff" role granted
+    // only the base documents.read permission (the only read permission
+    // that existed before this fix).
+    const generalStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "general-staff@example.com",
+      ["document_infrastructure.documents.read"]
+    );
+    const generalHeaders = scopedAuthHeaders(
+      owner.tenantId,
+      generalStaff.token
+    );
+
+    // LIST: confidential/restricted are silently omitted; public remains.
+    const listResult = await invoke<{
+      data: { documents: { id: string }[] };
+    }>(listDocuments, {
+      method: "GET",
+      path: "/api/v1/document-infrastructure/documents",
+      headers: generalHeaders
+    });
+    expect(listResult.status).toBe(200);
+    const listedIds = listResult.body.data.documents.map((d) => d.id);
+    expect(listedIds).toContain(publicDocId);
+    expect(listedIds).not.toContain(confidentialDocId);
+    expect(listedIds).not.toContain(restrictedDocId);
+
+    // SINGLE FETCH: 404 for confidential/restricted -- indistinguishable
+    // from "does not exist", never confirms existence to an unauthorized
+    // caller in the same tenant.
+    const getConfidential = await invoke(getDocument, {
+      method: "GET",
+      path: `/api/v1/document-infrastructure/documents/${confidentialDocId}`,
+      headers: generalHeaders,
+      params: { id: confidentialDocId }
+    });
+    expect(getConfidential.status).toBe(404);
+
+    const getRestricted = await invoke(getDocument, {
+      method: "GET",
+      path: `/api/v1/document-infrastructure/documents/${restrictedDocId}`,
+      headers: generalHeaders,
+      params: { id: restrictedDocId }
+    });
+    expect(getRestricted.status).toBe(404);
+
+    // The public document itself remains readable (this is masking of a
+    // TIER, not a blanket deny).
+    const getPublic = await invoke(getDocument, {
+      method: "GET",
+      path: `/api/v1/document-infrastructure/documents/${publicDocId}`,
+      headers: generalHeaders,
+      params: { id: publicDocId }
+    });
+    expect(getPublic.status).toBe(200);
+
+    // Secondary leak check: a caller who holds versions.read/relations.read
+    // (but NOT the confidentiality tier) must not be able to enumerate
+    // version/relation metadata for a restricted document by guessing its
+    // id -- the parent-document readability pre-check closes this.
+    const versionsReader = await provisionScopedTenantUser(
+      owner.tenantId,
+      "versions-reader@example.com",
+      ["document_infrastructure.versions.read"]
+    );
+    const versionsResult = await invoke(listVersions, {
+      method: "GET",
+      path: `/api/v1/document-infrastructure/documents/${restrictedDocId}/versions`,
+      headers: scopedAuthHeaders(owner.tenantId, versionsReader.token),
+      params: { id: restrictedDocId }
+    });
+    expect(versionsResult.status).toBe(404);
+
+    const relationsReader = await provisionScopedTenantUser(
+      owner.tenantId,
+      "relations-reader@example.com",
+      ["document_infrastructure.relations.read"]
+    );
+    const relationsResult = await invoke(listRelations, {
+      method: "GET",
+      path: `/api/v1/document-infrastructure/documents/${restrictedDocId}/relations`,
+      headers: scopedAuthHeaders(owner.tenantId, relationsReader.token),
+      params: { id: restrictedDocId }
+    });
+    expect(relationsResult.status).toBe(404);
+
+    // Granting the tier permission restores access (list, single fetch,
+    // AND the sub-resource routes).
+    const clearedStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "cleared-staff@example.com",
+      [
+        "document_infrastructure.documents.read",
+        "document_infrastructure.documents_confidential.read",
+        "document_infrastructure.documents_restricted.read"
+      ]
+    );
+    const clearedHeaders = scopedAuthHeaders(
+      owner.tenantId,
+      clearedStaff.token
+    );
+
+    const clearedList = await invoke<{
+      data: { documents: { id: string }[] };
+    }>(listDocuments, {
+      method: "GET",
+      path: "/api/v1/document-infrastructure/documents",
+      headers: clearedHeaders
+    });
+    expect(clearedList.status).toBe(200);
+    const clearedIds = clearedList.body.data.documents.map((d) => d.id);
+    expect(clearedIds).toContain(publicDocId);
+    expect(clearedIds).toContain(confidentialDocId);
+    expect(clearedIds).toContain(restrictedDocId);
+
+    const clearedGetConfidential = await invoke(getDocument, {
+      method: "GET",
+      path: `/api/v1/document-infrastructure/documents/${confidentialDocId}`,
+      headers: clearedHeaders,
+      params: { id: confidentialDocId }
+    });
+    expect(clearedGetConfidential.status).toBe(200);
+
+    const clearedGetRestricted = await invoke(getDocument, {
+      method: "GET",
+      path: `/api/v1/document-infrastructure/documents/${restrictedDocId}`,
+      headers: clearedHeaders,
+      params: { id: restrictedDocId }
+    });
+    expect(clearedGetRestricted.status).toBe(200);
   });
 });

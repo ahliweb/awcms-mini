@@ -2,7 +2,7 @@
  * Unit tests for numbering-sequence domain rules (Issue #751) — pure, no
  * I/O. The REAL concurrency-safe allocation lives in `application/
  * document-number-reservation-service.ts` and is exercised by
- * `tests/integration/document-infrastructure-numbering.integration.test.ts`;
+ * `tests/integration/document-infrastructure.integration.test.ts`;
  * this file only covers the pure period/counter math those functions
  * build on.
  */

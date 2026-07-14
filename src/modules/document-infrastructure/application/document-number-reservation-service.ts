@@ -9,7 +9,7 @@
  * transaction's `SELECT ... FOR UPDATE` is even allowed to return,
  * guaranteeing distinct `reserved_number` values under real concurrent
  * load (proven by
- * `tests/integration/document-infrastructure-numbering.integration.test.ts`'s
+ * `tests/integration/document-infrastructure.integration.test.ts`'s
  * genuine parallel-request test — not just documented, exercised).
  *
  * `UNIQUE (tenant_id, sequence_id, reserved_number)` (sql/066) is the

@@ -26,11 +26,14 @@ import { recordDocumentEvidence } from "./document-evidence-directory";
 import {
   canRestoreVoidedDocument,
   canVoidDocument,
+  isConfidentialityLevelReadable,
+  readableConfidentialityLevels,
   validateCreateDocumentInput,
   validateDeleteDocumentInput,
   validateReclassifyDocumentInput,
   validateUpdateDocumentMetadataInput,
   validateVoidDocumentInput,
+  type ConfidentialityReadAccess,
   type CreateDocumentInput,
   type DeleteDocumentInput,
   type DocumentStatus,
@@ -621,10 +624,26 @@ export async function reclassifyDocument(
   return { ok: true, document };
 }
 
+/**
+ * `access` is REQUIRED (not optional/defaulted) — Issue #751 security-
+ * review Critical finding: `confidentiality_level` was stored but never
+ * consulted for access decisions, so any caller holding only the base
+ * `documents.read` permission could fetch `confidential`/`restricted`
+ * documents identically to `public` ones. A required parameter forces
+ * every call site to consciously supply real clearance booleans (caught
+ * at compile time), rather than an optional flag that could silently
+ * default to "allow everything" if a future call site forgets it. A
+ * document the caller lacks clearance for returns `null` — IDENTICAL to
+ * "not found" — so this never confirms a restricted document's mere
+ * existence to an unauthorized caller in the same tenant (same
+ * information-disclosure reasoning RLS-driven cross-tenant 404s already
+ * use in this codebase).
+ */
 export async function fetchDocumentById(
   tx: Bun.SQL,
   tenantId: string,
-  documentId: string
+  documentId: string,
+  access: ConfidentialityReadAccess
 ): Promise<DocumentRow | null> {
   const rows = (await tx`
     SELECT id, tenant_id, owner_module_key, document_type, classification_id,
@@ -635,7 +654,15 @@ export async function fetchDocumentById(
     WHERE tenant_id = ${tenantId} AND id = ${documentId}
   `) as DocumentDbRow[];
 
-  return rows[0] ? toRow(rows[0]) : null;
+  const row = rows[0];
+  if (!row) {
+    return null;
+  }
+  if (!isConfidentialityLevelReadable(row.confidentiality_level, access)) {
+    return null;
+  }
+
+  return toRow(row);
 }
 
 export type ListDocumentsFilter = {
@@ -646,12 +673,22 @@ export type ListDocumentsFilter = {
   includeDeleted?: boolean;
 };
 
-/** Bounded list (`LIMIT 200`), newest first. */
+/**
+ * Bounded list (`LIMIT 200`), newest first. `access` is REQUIRED — see
+ * `fetchDocumentById`'s own doc comment above for why. Filtering happens
+ * IN THE QUERY (`confidentiality_level = ANY(...)`) rather than
+ * fetch-then-filter in application code, so a caller without
+ * `confidential`/`restricted` clearance never has those rows leave
+ * PostgreSQL at all.
+ */
 export async function listDocuments(
   tx: Bun.SQL,
   tenantId: string,
-  filter: ListDocumentsFilter = {}
+  filter: ListDocumentsFilter,
+  access: ConfidentialityReadAccess
 ): Promise<DocumentRow[]> {
+  const readableLevels = readableConfidentialityLevels(access);
+
   const rows = (await tx`
     SELECT id, tenant_id, owner_module_key, document_type, classification_id,
       status, title, summary, issued_at, effective_at, confidentiality_level,
@@ -664,6 +701,7 @@ export async function listDocuments(
       AND (${filter.ownerModuleKey ?? null}::text IS NULL OR owner_module_key = ${filter.ownerModuleKey ?? null})
       AND (${filter.resourceType ?? null}::text IS NULL OR resource_type = ${filter.resourceType ?? null})
       AND (${filter.resourceId ?? null}::text IS NULL OR resource_id = ${filter.resourceId ?? null})
+      AND confidentiality_level = ANY(${tx.array(readableLevels, "text")})
     ORDER BY created_at DESC
     LIMIT 200
   `) as DocumentDbRow[];
@@ -675,13 +713,19 @@ export async function listDocuments(
  * Read surface any OTHER module may call directly (in-process, ADR-0011
  * pattern) to find documents whose PRIMARY resource reference points at
  * one of their own resources — the counterpart to `application/document-
- * resource-relation-port.ts`'s relations-table lookups.
+ * resource-relation-port.ts`'s relations-table lookups. `access` is
+ * REQUIRED — the calling module must resolve its OWN caller's
+ * confidentiality clearance the same way `document_infrastructure`'s own
+ * routes do (grantedPermissionKeys.has(CONFIDENTIAL_READ_PERMISSION_KEY)/
+ * RESTRICTED_READ_PERMISSION_KEY) before calling this — it is never
+ * resolved here.
  */
 export async function listDocumentsByPrimaryResource(
   tx: Bun.SQL,
   tenantId: string,
   resourceType: string,
-  resourceId: string
+  resourceId: string,
+  access: ConfidentialityReadAccess
 ): Promise<DocumentRow[]> {
-  return listDocuments(tx, tenantId, { resourceType, resourceId });
+  return listDocuments(tx, tenantId, { resourceType, resourceId }, access);
 }

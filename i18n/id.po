@@ -4029,6 +4029,15 @@ msgstr "Alasan membatalkan reservasi ini:"
 msgid "admin.document_infrastructure.sequences.cancel_success"
 msgstr "Reservasi berhasil dibatalkan."
 
+msgid "admin.document_infrastructure.sequences.commit_button"
+msgstr "Commit ke dokumen"
+
+msgid "admin.document_infrastructure.sequences.commit_document_id_prompt"
+msgstr "ID dokumen untuk commit nomor ini:"
+
+msgid "admin.document_infrastructure.sequences.commit_success"
+msgstr "Nomor berhasil di-commit ke dokumen."
+
 msgid "admin.document_infrastructure.sequences.col_actions"
 msgstr "Aksi"
 

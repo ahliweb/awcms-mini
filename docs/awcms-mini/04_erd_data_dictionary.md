@@ -722,9 +722,40 @@ parser scan karakter tunggal manual, BUKAN `eval`/regex bebas/dynamic
 code (issue #751 security requirement). Token yang didukung:
 `{SEQ}`/`{SEQ:n}` (n=1-12), `{YYYY}`, `{YY}`, `{MM}`, `{DD}`.
 
-Permission seed: 27 permission (`067_awcms_mini_document_infrastructure_
+**Penegakan confidentiality-tier saat membaca** (security-review
+Critical finding, PR #780 — `confidentiality_level` semula tersimpan
+tapi tidak pernah dikonsultasikan untuk keputusan akses). Dua permission
+tambahan, ADDITIF terhadap `documents.read` dasar (bukan hierarki — satu
+tidak menyiratkan yang lain), pola sama `visitor_analytics.raw_detail.read`
+(`sql/038`): `documents_confidential.read` dan `documents_restricted.read`
+(`068_awcms_mini_document_infrastructure_confidentiality_permissions.sql`).
+`domain/document.ts`'s `isConfidentialityLevelReadable`/
+`readableConfidentialityLevels` (murni, tidak resolve permission sendiri)
+
+- `application/document-directory.ts`'s `listDocuments`/
+  `fetchDocumentById`/`listDocumentsByPrimaryResource` (parameter `access`
+  WAJIB, bukan opsional — dipaksa compile-time) adalah titik penegakan
+  nyata: `listDocuments` memfilter di level SQL (`confidentiality_level =
+ANY(...)`, baris `confidential`/`restricted` tanpa clearance tidak
+  pernah keluar dari PostgreSQL), `fetchDocumentById` mengembalikan `null`
+  (identik "tidak ditemukan", tidak pernah mengonfirmasi keberadaan
+  dokumen ke caller tanpa clearance) untuk dokumen yang levelnya di luar
+  clearance caller. Route `GET .../documents`, `GET .../documents/{id}`,
+  `GET .../documents/{id}/versions`, dan `GET .../documents/{id}/relations`
+  semua menerapkan ini (dua route terakhir memverifikasi parent document
+  readable dulu sebelum mengembalikan sub-resource-nya). **Batasan
+  tercatat**: endpoint mutasi (void/restore/reclassify/versions.create/
+  relations.assign/revoke) dan `GET .../evidence`/`GET .../reservations`
+  BELUM menerapkan gating tingkat-confidentiality yang sama — permission
+  action-spesifik (mis. `documents.void`) tetap jadi satu-satunya gate
+  untuk mutasi, sengaja dipisah dari dimensi "siapa boleh membaca level
+  apa" (lihat ADR-0017 §7 untuk rasional lengkap).
+
+Permission seed: 29 permission (`067_awcms_mini_document_infrastructure_
+permissions.sql` + `068_awcms_mini_document_infrastructure_confidentiality_
 permissions.sql`) — `classifications.{read,create,update,delete,restore}`,
 `documents.{read,create,update,delete,restore,void,reclassify}`,
+`documents_confidential.read`, `documents_restricted.read`,
 `versions.{read,create}`, `relations.{read,assign,revoke}`,
 `sequences.{read,create,update,delete,restore}`,
 `reservations.{read,reserve,commit,cancel}`, `evidence.read`. Empat

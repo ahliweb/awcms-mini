@@ -25,7 +25,7 @@ Ketujuh tabel: `tenant_id` + `ENABLE`+`FORCE ROW LEVEL SECURITY` + index tenant-
 
 ## Concurrency-safe numbering — cara kerja
 
-`application/document-number-reservation-service.ts`'s `reserveNumber` mengunci baris definisi sequence yang SEDANG TERBUKA (`SELECT ... FOR UPDATE ... WHERE effective_to IS NULL`) sebelum membaca/menaikkan `current_value`. Dua pemanggil konkuren pada sequence YANG SAMA otomatis diserialisasi oleh row lock Postgres — pemanggil kedua baru bisa membaca setelah transaksi pertama commit/rollback. `UNIQUE (tenant_id, sequence_id, reserved_number)` adalah backstop level database: bahkan jika lock entah bagaimana terlewati, duplikat akan gagal dengan unique-violation, bukan diam-diam mengalokasikan dua kali. Dibuktikan lewat test konkurensi nyata (bukan cuma didokumentasikan) di `tests/integration/document-infrastructure-numbering.integration.test.ts` — beberapa request paralel benar-benar dikirim ke handler API yang sama, hasilnya diverifikasi tidak ada nomor duplikat.
+`application/document-number-reservation-service.ts`'s `reserveNumber` mengunci baris definisi sequence yang SEDANG TERBUKA (`SELECT ... FOR UPDATE ... WHERE effective_to IS NULL`) sebelum membaca/menaikkan `current_value`. Dua pemanggil konkuren pada sequence YANG SAMA otomatis diserialisasi oleh row lock Postgres — pemanggil kedua baru bisa membaca setelah transaksi pertama commit/rollback. `UNIQUE (tenant_id, sequence_id, reserved_number)` adalah backstop level database: bahkan jika lock entah bagaimana terlewati, duplikat akan gagal dengan unique-violation, bukan diam-diam mengalokasikan dua kali. Dibuktikan lewat test konkurensi nyata (bukan cuma didokumentasikan) di `tests/integration/document-infrastructure.integration.test.ts` — beberapa request paralel benar-benar dikirim ke handler API yang sama, hasilnya diverifikasi tidak ada nomor duplikat.
 
 Format nomor (`format_template`, mis. `INV/{YYYY}/{SEQ:6}`) divalidasi lewat grammar token TERBATAS (`domain/number-format-template.ts`) — parser scan karakter tunggal manual, bukan `eval`/regex bebas/dynamic code. Token yang didukung: `{SEQ}`/`{SEQ:n}` (n=1-12), `{YYYY}`, `{YY}`, `{MM}`, `{DD}`.
 
@@ -54,20 +54,23 @@ Format nomor (`format_template`, mis. `INV/{YYYY}/{SEQ:6}`) divalidasi lewat gra
 
 **Catatan idempotency**: `documents.create`/`versions.create` sengaja idempotency-gated MESKI `create`/`update` tidak ada di `HIGH_RISK_ACTIONS` (`identity-access/domain/access-control.ts`) — issue #751 sendiri memperingatkan eksplisit bahwa sebuah PR sibling di epic ini butuh ronde perbaikan tambahan karena pass idempotency pertamanya melewatkan endpoint `create`. Empat action baru ditambahkan ke `AccessAction`/`HIGH_RISK_ACTIONS`: `void`, `reclassify`, `reserve`, `commit` — `cancel` (reservation) reuse literal yang sudah ada TANPA menambahkannya ke `HIGH_RISK_ACTIONS` (menghindari mengubah blast radius `cancel` di modul lain); endpoint cancel reservasi modul ini tetap mewajibkan `Idempotency-Key` di level route secara independen.
 
+**Catatan confidentiality-tier** (security-review Critical finding, PR #780): `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/versions`, dan `GET /documents/{id}/relations` semuanya menegakkan `confidentiality_level` — memegang `documents.read` dasar saja hanya memberi akses ke dokumen `public`/`internal`; membaca `confidential`/`restricted` butuh permission tambahan ADDITIF `documents_confidential.read`/`documents_restricted.read` (`068_awcms_mini_document_infrastructure_confidentiality_permissions.sql`, pola sama `visitor_analytics.raw_detail.read`). Dokumen yang levelnya di luar clearance caller mengembalikan hasil IDENTIK dengan "tidak ditemukan" (dihilangkan dari list, `404` untuk fetch tunggal) — tidak pernah mengonfirmasi keberadaannya. Endpoint mutasi (void/restore/reclassify/versions.create/relations.assign/revoke) dan `GET /evidence`/`GET /reservations` BELUM menerapkan gating yang sama — lihat §Belum tersedia.
+
 ## Domain event (AsyncAPI: `asyncapi/awcms-mini-domain-events.asyncapi.yaml`)
 
 `document.created`, `document.voided`, `document.restored`, `document.reclassified`, `version.created`, `number.reserved`, `number.committed`, `number.canceled` — semua diterbitkan di transaksi yang sama dengan perubahan state (`appendDomainEvent`, `domain_event_runtime`).
 
 ## Admin UI
 
-`/admin/document-infrastructure/classifications`, `/admin/document-infrastructure/documents` (+ `/documents/{id}` detail: versi/relasi/reclassify/evidence), `/admin/document-infrastructure/sequences` (+ reservasi).
+`/admin/document-infrastructure/classifications`, `/admin/document-infrastructure/documents` (+ `/documents/{id}` detail: versi/relasi/reclassify/evidence), `/admin/document-infrastructure/sequences` (definisi sequence + reservasi: reserve/commit/cancel semuanya reachable dari layar ini — `commit` prompt id dokumen bebas teks, tidak ada picker lintas modul).
 
 ## Lima fixture netral (bukti reusability, issue #751 acceptance criterion)
 
-`tests/integration/document-infrastructure-fixtures.integration.test.ts` mendemonstrasikan modul ini dipakai ulang untuk lima skenario domain BERBEDA tanpa modul ini pernah mengetahui/mengimpor aturan domain apa pun: correspondence evidence, contract attachment, invoice reference, approval evidence, dan asset-disposal evidence — masing-masing hanya string `ownerModuleKey`/`documentType`/`resourceType` yang berbeda, bukan skema/tabel berbeda.
+`tests/integration/document-infrastructure.integration.test.ts` mendemonstrasikan modul ini dipakai ulang untuk lima skenario domain BERBEDA tanpa modul ini pernah mengetahui/mengimpor aturan domain apa pun: correspondence evidence, contract attachment, invoice reference, approval evidence, dan asset-disposal evidence — masing-masing hanya string `ownerModuleKey`/`documentType`/`resourceType` yang berbeda, bukan skema/tabel berbeda. File yang sama juga berisi negative test confidentiality-tier (deny tanpa permission tier, allow dengan permission tier) dan test konkurensi numbering nyata.
 
 ## Belum tersedia
 
 - Capability edge nyata ke `data_lifecycle` untuk retensi (kolom `retention_reference` tetap teks bebas sampai ada admission decision terpisah).
 - Upload/download nyata lewat `sync_storage` — modul ini hanya menyimpan REFERENSI (string), tidak pernah memanggil provider penyimpanan.
 - Integrasi workflow/approval (#747) untuk siklus dokumen — di luar scope PR ini.
+- Gating confidentiality-tier BELUM diterapkan pada endpoint mutasi (void/restore/reclassify/versions.create/relations.assign/revoke — permission action-spesifik tetap satu-satunya gate) maupun `GET /evidence`/`GET /reservations` — sengaja dipisah dari dimensi "siapa boleh membaca level apa", lihat ADR-0017 §7.

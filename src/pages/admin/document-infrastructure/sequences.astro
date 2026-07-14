@@ -2,10 +2,13 @@
 /**
  * Number sequences admin screen (Issue #751, epic #738
  * platform-evolution Wave 3) — define/revise/deactivate/restore
- * concurrency-safe numbering sequences, and a read-only view of recent
- * reservations (reserve/cancel exposed for manual/admin numbering; a
- * document's own detail screen is the more common commit path once a
- * reservation is used).
+ * concurrency-safe numbering sequences, and reserve/commit/cancel for
+ * recent reservations. Commit prompts for a target document id (free
+ * text — there is no cross-module document picker here, same
+ * constraint `documents/[id].astro`'s relation-link form documents for
+ * `resourceType`/`resourceId`) since this is the only admin surface
+ * that exposes reservation commit at all (reviewer finding, PR #780:
+ * the document detail screen has no reservation UI).
  */
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import StateNotice from "../../../components/ui/StateNotice.astro";
@@ -46,6 +49,9 @@ const CAN_RESERVE = context.permissions.has(
 const CAN_CANCEL_RESERVATION = context.permissions.has(
   permissionKey("document_infrastructure", "reservations", "cancel")
 );
+const CAN_COMMIT_RESERVATION = context.permissions.has(
+  permissionKey("document_infrastructure", "reservations", "commit")
+);
 
 const clientStrings = {
   defineSuccess: t("admin.document_infrastructure.sequences.define_success"),
@@ -59,6 +65,10 @@ const clientStrings = {
   cancelSuccess: t("admin.document_infrastructure.sequences.cancel_success"),
   cancelReasonPrompt: t(
     "admin.document_infrastructure.sequences.cancel_reason_prompt"
+  ),
+  commitSuccess: t("admin.document_infrastructure.sequences.commit_success"),
+  commitDocumentIdPrompt: t(
+    "admin.document_infrastructure.sequences.commit_document_id_prompt"
   ),
   networkError: t("common.network_error"),
   pleaseWait: t("common.please_wait"),
@@ -286,6 +296,18 @@ if (CAN_READ) {
                     <td>{reservation.formattedNumber}</td>
                     <td>{reservation.status}</td>
                     <td>
+                      {CAN_COMMIT_RESERVATION &&
+                        reservation.status === "reserved" && (
+                          <button
+                            type="button"
+                            class="commit-reservation-button"
+                            data-id={reservation.id}
+                          >
+                            {t(
+                              "admin.document_infrastructure.sequences.commit_button"
+                            )}
+                          </button>
+                        )}
                       {CAN_CANCEL_RESERVATION &&
                         reservation.status === "reserved" && (
                           <button
@@ -356,7 +378,8 @@ if (CAN_READ) {
     margin-right: var(--sp-1);
   }
 
-  .reserve-button {
+  .reserve-button,
+  .commit-reservation-button {
     min-height: 44px;
     padding: var(--sp-1) var(--sp-2);
     border-radius: var(--radius-sm);
@@ -364,6 +387,10 @@ if (CAN_READ) {
     border: none;
     color: var(--color-primary-contrast);
     cursor: pointer;
+  }
+
+  .commit-reservation-button {
+    margin-right: var(--sp-1);
   }
 
   .create-config {
@@ -437,6 +464,8 @@ if (CAN_READ) {
     reserveSuccess: string;
     cancelSuccess: string;
     cancelReasonPrompt: string;
+    commitSuccess: string;
+    commitDocumentIdPrompt: string;
     networkError: string;
     pleaseWait: string;
     errorMessages?: Record<string, string>;
@@ -543,6 +572,36 @@ if (CAN_READ) {
 
           if (result.ok) {
             showBanner("action-banner", strings.reserveSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".commit-reservation-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const documentId = window.prompt(strings.commitDocumentIdPrompt);
+        if (!documentId) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+
+        try {
+          const result = await submitJson(
+            `${BASE_URL}/reservations/${button.dataset.id}/commit`,
+            "POST",
+            { documentId },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+
+          if (result.ok) {
+            showBanner("action-banner", strings.commitSuccess, "success");
             reloadAfterDelay();
           } else {
             showBanner("action-banner", result.message, "error");

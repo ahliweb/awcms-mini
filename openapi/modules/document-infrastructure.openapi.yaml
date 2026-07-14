@@ -300,6 +300,7 @@ paths:
     get:
       tags: [Document Infrastructure]
       summary: List/search documents
+      description: Confidential/restricted documents are silently omitted unless the caller also holds documents_confidential.read/documents_restricted.read, additive to the base documents.read (Issue #751 security-review Critical finding) -- same tiered-permission pattern visitor_analytics.raw_detail.read already establishes.
       operationId: documentInfrastructureDocumentsList
       security:
         - bearerAuth: []
@@ -413,6 +414,7 @@ paths:
     get:
       tags: [Document Infrastructure]
       summary: Get a document by id
+      description: 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue #751 security-review Critical finding) -- never confirms a confidential/restricted document's existence to an unauthorized caller.
       operationId: documentInfrastructureDocumentsGet
       security:
         - bearerAuth: []
@@ -740,6 +742,7 @@ paths:
     get:
       tags: [Document Infrastructure]
       summary: List versions of a document
+      description: 404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue #751 security-review Critical finding) -- identical to the parent document genuinely not existing.
       operationId: documentInfrastructureVersionsList
       security:
         - bearerAuth: []
@@ -777,6 +780,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
     post:
@@ -839,6 +844,7 @@ paths:
     get:
       tags: [Document Infrastructure]
       summary: List a document's resource relations
+      description: 404s (not just an empty list) if the parent document is not readable at the caller's confidentiality clearance (Issue #751 security-review Critical finding) -- identical to the parent document genuinely not existing.
       operationId: documentInfrastructureRelationsList
       security:
         - bearerAuth: []
@@ -876,6 +882,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
     post:

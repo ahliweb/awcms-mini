@@ -73,7 +73,7 @@
       ],
       "capabilitiesProvided": ["document_resource_relations"],
       "capabilitiesConsumed": [],
-      "permissionCount": 27,
+      "permissionCount": 29,
       "navigationCount": 3,
       "jobCount": 0,
       "hasHealthCheck": false,
