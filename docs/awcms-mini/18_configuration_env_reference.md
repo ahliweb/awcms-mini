@@ -1008,6 +1008,17 @@ var baru issue ini adalah lokasi filesystem arsip lokal/offline.
 | ---------------------------------- | ----- | ------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DATA_LIFECYCLE_ARCHIVE_ROOT_PATH` | –     | `./var/data-lifecycle-archive` | –        | Root filesystem tempat local/offline archive adapter menulis artefak JSONL/CSV (manifest+checksum bertengger di `awcms_mini_data_lifecycle_archive_manifests`) |
 
+### Integration hub (Issue #754, epic #738 platform-evolution Wave 3)
+
+Signed inbound webhook, langganan event outbound, replay protection, dan
+kesehatan adapter — lihat `src/modules/integration-hub/README.md`. Satu
+var baru: opt-out eksplisit dari proteksi SSRF untuk deployment LAN-first
+yang sengaja mengirim webhook ke sistem lain di jaringan privat yang sama.
+
+| Var                                     | Wajib | Default | Sensitif | Fungsi                                                                                                                                                                                                                             |
+| --------------------------------------- | ----- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTEGRATION_HUB_ALLOW_PRIVATE_TARGETS` | –     | `false` | –        | Bila `true`, melewati proteksi SSRF (`src/modules/integration-hub/domain/ssrf-guard.ts`) yang menolak `target_url` langganan outbound privat/link-local/metadata/reserved. Deployment-wide, tidak pernah dikontrol tenant/request. |
+
 ### Reporting projections/scheduled exports (Issue #753, epic #738 platform-evolution)
 
 Perluasan modul `reporting`: proyeksi read-model kontribusi-modul,
