@@ -644,6 +644,86 @@ hierarchy max depth, expiring-soon assignments) — TIDAK ada grant
 INSERT/UPDATE/DELETE untuk worker role (semua mutasi terjadi di jalur
 request `awcms_mini_app`).
 
+### Data Exchange (Issue #752, epic `platform-evolution` #738 Wave 3, ADR-0017, `sql/066`–`067`)
+
+Modul Official Optional Module baru `data_exchange` — kerangka generik
+staged import/export CSV/JSON: staging, validasi/parse ber-batas,
+preview tanpa mutasi domain, commit asinkron idempoten (worker), export
+dengan manifest/checksum, dan rekonsiliasi. Modul ini TIDAK pernah
+mendefinisikan skema bisnis sendiri — setiap modul pemilik kontribusi
+schema/validasi/mapping/commit adapter-nya sendiri lewat capability port
+(`DataExchangeAdapterPort`/`DataExchangeExportSourcePort`, `_shared/
+ports/data-exchange-adapter-port.ts`) dan deskriptor statis
+(`ExchangeDescriptor`, `_shared/module-contract.ts`'s field
+`dataExchange`) — TIDAK PERNAH menulis langsung ke tabel modul lain
+(ADR-0013 §6). Lihat `src/modules/data-exchange/README.md`. Lima tabel,
+semua tenant-scoped `ENABLE`+`FORCE ROW LEVEL SECURITY`, `tenant_id`-first
+pada setiap composite index:
+
+- **`awcms_mini_data_exchange_import_batches`** — satu baris per staged
+  upload. `raw_content` (text) menyimpan byte file ASLI inline di database
+  (BUKAN object storage eksternal — offline-lan-safe), dibatasi ukuran
+  yang sama dengan tier HTTP `large` (5 MiB, `src/lib/security/request-
+body-limit.ts`). `checksum_sha256` dihitung SERVER-SIDE saat intake
+  (tidak pernah percaya nilai klaim klien sebagai sumber kebenaran).
+  `validate_cursor`/`commit_cursor` adalah cursor progress asinkron
+  ber-batas — mekanisme yang membuat worker-restart-lalu-resume TIDAK
+  PERNAH menerapkan ulang baris yang sudah selesai. `paused_at`
+  memungkinkan operator menjeda commit yang sedang berjalan lama; worker
+  melewati batch yang dijeda sepenuhnya. `expires_at` (default 30 hari)
+  untuk integrasi lifecycle (`data_lifecycle`, lihat di bawah).
+- **`awcms_mini_data_exchange_staged_rows`** — satu baris per record
+  sumber yang sudah di-parse. `fields` (jsonb) SUDAH dinetralkan dari
+  formula injection (Issue #752 syarat keamanan) SEBELUM baris ini pernah
+  di-INSERT — lihat `domain/formula-injection-guard.ts`. `natural_key`
+  adalah identitas stabil per-baris milik adapter pemilik, dipakai untuk
+  pelacakan idempotency commit per-baris. Cascade-delete mengikuti induk
+  `import_batches` (`ON DELETE CASCADE`) — tidak didaftarkan sebagai
+  descriptor lifecycle terpisah.
+- **`awcms_mini_data_exchange_export_jobs`** — satu baris per export yang
+  dipicu. `file_content` (artifact export) dan `manifest` (jsonb: schema/
+  versi/filter/row count/checksum/metadata pembuatan — syarat acceptance
+  Issue #752) terisi setelah job selesai.
+- **`awcms_mini_data_exchange_reconciliation_reports`** — append-only,
+  satu baris per pass commit import yang selesai atau export job yang
+  selesai. Membandingkan `source_count`/`processed_count` dan
+  `source_checksum_sha256`/`processed_checksum_sha256` opsional
+  (`domain/reconciliation.ts`'s `evaluateReconciliation`) — `mismatch`
+  boolean + `details` text.
+- **`awcms_mini_data_exchange_reference_items`** — fixture referensi
+  SWADAYA (bukan domain bisnis nyata) yang dimiliki modul ini sendiri
+  (`code`/`label`/`value`/`status`, unique `(tenant_id, code)` WHERE tidak
+  soft-deleted) — membuktikan mekanisme staging/validate/preview/commit/
+  export/rekonsiliasi end-to-end (create/update/conflict, partial-failure/
+  resume, export/rekonsiliasi) tanpa menyentuh modul lain (ADR-0017 §10,
+  preseden "foundation issue ships zero real business integrations" dari
+  `domain_event_runtime`).
+
+Permission seed: 13 permission (`067_awcms_mini_data_exchange_
+permissions.sql`) — `descriptors.read`, `imports.{read,create,post,
+cancel,retry,manage}` (`post` = SATU-SATUNYA konsumen nyata literal aksi
+`"post"` yang sudah dicadangkan sejak awal union `AccessAction`;
+`manage` = pause/resume, meng-reuse aksi generik yang sama
+`domain_event_runtime` pakai untuk pause/resume consumer),
+`preview_errors.read` (permission TERPISAH dari `imports.read` — nilai
+baris invalid mentah wajib permission eksplisit), `exports.{read,create,
+cancel}`, `export_downloads.read` (permission TERPISAH dari
+`exports.read` — isi FILE export lebih sensitif dari sekadar metadata
+job), `reconciliation.read`.
+
+`awcms_mini_worker` diberi grant sesuai kebutuhan pipeline asinkron
+(`SELECT, UPDATE` pada `import_batches`/`export_jobs`; `SELECT, INSERT,
+UPDATE` pada `staged_rows`/`reference_items`; `SELECT, INSERT` pada
+`reconciliation_reports`) — seluruh pipeline parse/validate/commit/export
+berjalan di jalur worker (`bun run data-exchange:worker`), bukan jalur
+request `awcms_mini_app`.
+
+Integrasi lifecycle (`data_lifecycle`, Issue #745): tiga descriptor
+`dataLifecycle` (`import_batches`/`export_jobs`/`reconciliation_reports`)
+didaftarkan di `module.ts` modul ini sendiri — `executionMode: "generic"`,
+`retentionClass: "operational_queue"`, legal hold `overrides_retention`.
+`staged_rows` TIDAK didaftarkan terpisah (cascade mengikuti induknya).
+
 ## Konten multi-bahasa (translatable content)
 
 Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik sudah punya satu contoh nyata (`awcms_mini_email_templates.subject_template`/`text_body_template`/`html_body_template`, `sql/021`, Issue #498 — lihat §Email di atas) — bukan lagi sekadar konvensi belum-terpakai; ini **standar** yang wajib diikuti aplikasi turunan (mis. modul domain seperti `blog_content`, epic #536) saat menambah field konten translatable baru.

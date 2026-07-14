@@ -309,6 +309,8 @@ export type ModuleDescriptor = {
   dataLifecycle?: HighVolumeTableDescriptor[];
   /** Segregation-of-duties conflict rules this module owns (Issue #746) — see `SoDRuleDescriptor`'s own doc comment above. */
   sodRules?: SoDRuleDescriptor[];
+  /** Staged import/export exchange descriptors this module owns (Issue #752) — see `ExchangeDescriptor`'s own doc comment below. */
+  dataExchange?: ExchangeDescriptor[];
 };
 
 /**
@@ -364,6 +366,66 @@ export type SoDRuleDescriptor = {
   exceptionPolicy: SoDRuleExceptionPolicy;
 };
 
+/**
+ * Staged import/export exchange descriptor (Issue #752, epic #738
+ * platform-evolution Wave 3, ADR-0017). Same "module declares its own
+ * descriptor, a central engine reads `listModules()`" shape `dataLifecycle`/
+ * `sodRules` above already use — `data_exchange`'s `domain/exchange-
+ * registry.ts` is the aggregator/validator, mirroring `data-lifecycle/
+ * domain/lifecycle-registry.ts` exactly. A module contributes ONE of these
+ * per import OR export contract it wants staged/committed through the
+ * generic `data_exchange` engine — the base never hardcodes a domain-
+ * specific schema itself (this repo's own `data_exchange` module ships
+ * exactly one self-contained reference descriptor pair, `reference_items`,
+ * to prove the mechanism end-to-end — see that module's README).
+ *
+ * TRUSTED CODE-ONLY METADATA (same rule as every descriptor type above) —
+ * declared by the owning module's source, never tenant/request-controlled.
+ * Deliberately carries NO function/adapter reference (a descriptor is pure
+ * data, importable from any module.ts without creating a cross-module
+ * source dependency) — `adapterRegistryKey` is a plain string the owning
+ * module's REAL adapter implementation (a `DataExchangeAdapterPort`,
+ * `_shared/ports/data-exchange-adapter-port.ts`) registers itself under, in
+ * `data_exchange/infrastructure/exchange-adapter-registry.ts` (a static,
+ * reviewed-source-code registry — same shape as `domain-event-runtime/
+ * infrastructure/consumer-registry.ts`'s `DOMAIN_EVENT_CONSUMERS`).
+ */
+export type ExchangeDirection = "import" | "export" | "both";
+
+export type ExchangeFormat = "csv" | "json";
+
+export type ExchangeSensitiveFieldPolicy = {
+  /** Field names (as they appear in the parsed row, not a column name) that must never appear unmasked in a preview/error artifact without the caller holding the descriptor's `rawValuePermission`. */
+  fieldNames: readonly string[];
+  /** Permission key (module.activity.action format) required to view unmasked values for the fields above — required when `fieldNames` is non-empty. */
+  rawValuePermission?: string;
+};
+
+export type ExchangeLimits = {
+  /** Hard cap on the staged file's byte size — must not exceed the HTTP-layer tier this descriptor's intake endpoint uses (`src/lib/security/request-body-limit.ts`'s `large` tier, 5 MiB, as of this issue). */
+  maxFileBytes: number;
+  maxRowCount: number;
+  maxFieldsPerRow: number;
+};
+
+export type ExchangeDescriptor = {
+  /** Stable, unique across the whole registry, e.g. `"data_exchange.reference_items"`. */
+  key: string;
+  /** Must equal the declaring module's own `key` — validated by the registry gate, not the type system (see `data-exchange/domain/exchange-registry.ts`). */
+  ownerModuleKey: string;
+  direction: ExchangeDirection;
+  formats: readonly ExchangeFormat[];
+  /** Versioned schema identifier the owning module's adapter validates against — bumped by the owning module whenever its field shape changes (independent of `MODULE_CONTRACT_VERSION`). */
+  schemaVersion: string;
+  limits: ExchangeLimits;
+  /** The `infrastructure/exchange-adapter-registry.ts` lookup key for this descriptor's REAL `DataExchangeAdapterPort` implementation — never a function reference (see this type's own header). */
+  adapterRegistryKey: string;
+  /** Permission key (module.activity.action) required to stage/preview/commit against this descriptor, beyond the generic `data_exchange.imports.*`/`data_exchange.exports.*` gate — e.g. an owning module may require its OWN write permission (`reference_data.items.create`) in addition. `undefined` means no additional permission beyond the generic gate. */
+  requiredPermission?: string;
+  sensitiveFields?: ExchangeSensitiveFieldPolicy;
+  description: string;
+};
+
 export function defineModule(descriptor: ModuleDescriptor): ModuleDescriptor {
   return descriptor;
 }
@@ -416,7 +478,7 @@ export type ModuleMigrationNamespace = {
  * convention, just never assigned a number a derived repository could
  * check against.
  */
-export const MODULE_CONTRACT_VERSION = "1.1.0";
+export const MODULE_CONTRACT_VERSION = "1.2.0";
 
 /**
  * One derived/downstream repository's contribution to the final composed

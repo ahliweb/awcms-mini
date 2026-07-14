@@ -165,6 +165,11 @@ suite("tenant module preset application service", () => {
     // pure leaf, and it disables BEFORE domain_event_runtime (leaves-first
     // ordering: a module that still depends on domain_event_runtime must
     // be disabled first).
+    // data_exchange (Issue #752) depends on tenant_admin/identity_access/
+    // logging/domain_event_runtime, all of which stay enabled or disable in
+    // this same pass — nothing depends on data_exchange itself, also a pure
+    // leaf, and it disables BEFORE both logging and domain_event_runtime for
+    // the same reason.
     for (const key of [
       "logging",
       "workflow",
@@ -175,7 +180,8 @@ suite("tenant module preset application service", () => {
       "social_publishing",
       "data_lifecycle",
       "organization_structure",
-      "domain_event_runtime"
+      "domain_event_runtime",
+      "data_exchange"
     ]) {
       expect(changeByKey.get(key)?.outcome).toBe("applied");
       expect(changeByKey.get(key)?.action).toBe("disabled");
@@ -204,6 +210,7 @@ suite("tenant module preset application service", () => {
     expect(state.get("data_lifecycle")).toBe(false);
     expect(state.get("organization_structure")).toBe(false);
     expect(state.get("domain_event_runtime")).toBe(false);
+    expect(state.get("data_exchange")).toBe(false);
 
     const auditRows = await fetchAuditActions(owner.tenantId);
     const disabledResourceIds = auditRows
@@ -221,7 +228,8 @@ suite("tenant module preset application service", () => {
         "social_publishing",
         "data_lifecycle",
         "organization_structure",
-        "domain_event_runtime"
+        "domain_event_runtime",
+        "data_exchange"
       ].sort()
     );
     // No audit event for modules that were already in the target state.

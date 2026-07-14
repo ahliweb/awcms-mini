@@ -1,0 +1,1032 @@
+/**
+ * Integration tests for `data_exchange` (Issue #752, epic #738
+ * platform-evolution Wave 3, ADR-0017) against real PostgreSQL, through
+ * the REAL Astro route handlers plus the REAL worker pipeline
+ * (`runDataExchangeWorkerPassForTenant`):
+ *
+ * - Full pipeline: stage (multipart HTTP) -> validate pass -> preview ->
+ *   commit trigger -> commit pass, covering create/update/conflict
+ *   proposed actions against the self-contained `reference_items` fixture.
+ * - Partial-failure-then-resume idempotency: a fault-injecting test
+ *   adapter proves a retried commit pass never double-applies an
+ *   already-committed row.
+ * - Export + manifest/checksum + reconciliation, including a DELIBERATE
+ *   mismatch via a fault-injecting export adapter.
+ * - Formula-injection (CSV injection) round-trips safely end-to-end
+ *   (import -> stored -> export).
+ * - An oversized file (row count AND HTTP byte size) is rejected without
+ *   hanging.
+ * - Cross-tenant isolation (RLS) and a default-deny ABAC negative test.
+ * - Idempotency-Key replay on the stage-upload and commit endpoints.
+ *
+ * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
+ */
+import type { APIContext } from "astro";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test
+} from "bun:test";
+
+import {
+  applyMigrations,
+  createCookieJar,
+  getAdminSql,
+  getWorkerTestSql,
+  integrationEnabled,
+  invoke,
+  invokeRaw,
+  provisionAppRole,
+  provisionWorkerRole,
+  resetDatabase,
+  type CookieJar
+} from "./harness";
+
+import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize";
+import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
+import {
+  GET as listImports,
+  POST as stageImport
+} from "../../src/pages/api/v1/data-exchange/imports/index";
+import { GET as getImportBatchRoute } from "../../src/pages/api/v1/data-exchange/imports/[id]/index";
+import { GET as getPreview } from "../../src/pages/api/v1/data-exchange/imports/[id]/preview";
+import { POST as commitImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/commit";
+import { POST as cancelImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/cancel";
+import { POST as retryImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/retry";
+import { POST as createExportRoute } from "../../src/pages/api/v1/data-exchange/exports/index";
+import { GET as getExportJobRoute } from "../../src/pages/api/v1/data-exchange/exports/[id]/index";
+import { GET as downloadExportRoute } from "../../src/pages/api/v1/data-exchange/exports/[id]/download";
+import { GET as getReconciliation } from "../../src/pages/api/v1/data-exchange/reconciliation/[subjectType]/[subjectId]";
+
+import { hashPassword } from "../../src/lib/auth/password";
+import { runDataExchangeWorkerPassForTenant } from "../../src/modules/data-exchange/application/data-exchange-worker";
+import { findReferenceItemByCode } from "../../src/modules/data-exchange/application/reference-items-directory";
+import { referenceItemsImportAdapter } from "../../src/modules/data-exchange/application/reference-items-exchange-adapter";
+import {
+  registerExchangeAdapterForTests,
+  resetExchangeAdaptersForTests
+} from "../../src/modules/data-exchange/infrastructure/exchange-adapter-registry";
+import type {
+  DataExchangeAdapterPort,
+  DataExchangeCommitOutcome
+} from "../../src/modules/_shared/ports/data-exchange-adapter-port";
+
+const OWNER_LOGIN = "owner@example.com";
+const OWNER_PASSWORD = "integration-test-data-exchange-owner-password";
+const REFERENCE_ITEMS_KEY = "data_exchange.reference_items";
+
+type Bootstrap = {
+  tenantId: string;
+  token: string;
+  tenantUserId: string;
+};
+
+async function bootstrap(
+  tenantCode = "acme",
+  tenantName = "Acme"
+): Promise<Bootstrap> {
+  const loginIdentifier = `${tenantCode}-${OWNER_LOGIN}`;
+  const setup = await invoke<{ data: { tenantId: string } }>(setupInitialize, {
+    method: "POST",
+    path: "/api/v1/setup/initialize",
+    headers: { "content-type": "application/json" },
+    body: {
+      tenantName,
+      tenantCode,
+      officeCode: "hq",
+      officeName: "HQ",
+      ownerLoginIdentifier: loginIdentifier,
+      ownerPassword: OWNER_PASSWORD,
+      ownerDisplayName: "Owner"
+    }
+  });
+  expect(setup.status).toBe(200);
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": setup.body.data.tenantId
+    },
+    body: { loginIdentifier, password: OWNER_PASSWORD },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  const admin = getAdminSql();
+  const tenantUserRows = (await admin`
+    SELECT tu.id FROM awcms_mini_tenant_users tu
+    JOIN awcms_mini_identities i ON i.id = tu.identity_id
+    WHERE tu.tenant_id = ${setup.body.data.tenantId} AND i.login_identifier = ${loginIdentifier}
+  `) as { id: string }[];
+
+  return {
+    tenantId: setup.body.data.tenantId,
+    token: login.body.data.token,
+    tenantUserId: tenantUserRows[0]!.id
+  };
+}
+
+/** Mirrors `organization-structure.integration.test.ts`'s own `bootstrapSecondTenant` — the setup wizard is a global one-time singleton, so a second tenant is seeded directly via the privileged client with a fully-permissioned owner role. */
+async function bootstrapSecondTenant(
+  tenantCode: string,
+  tenantName: string
+): Promise<Bootstrap> {
+  const admin = getAdminSql();
+  const loginIdentifier = `${tenantCode}-${OWNER_LOGIN}`;
+
+  const tenantRows = (await admin`
+    INSERT INTO awcms_mini_tenants (tenant_code, tenant_name, status)
+    VALUES (${tenantCode}, ${tenantName}, 'active')
+    RETURNING id
+  `) as { id: string }[];
+  const tenantId = tenantRows[0]!.id;
+
+  const profileRows = (await admin`
+    INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+    VALUES (${tenantId}, 'person', 'Owner')
+    RETURNING id
+  `) as { id: string }[];
+
+  const passwordHash = await hashPassword(OWNER_PASSWORD);
+  const identityRows = (await admin`
+    INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+    VALUES (${tenantId}, ${profileRows[0]!.id}, ${loginIdentifier}, ${passwordHash})
+    RETURNING id
+  `) as { id: string }[];
+
+  const tenantUserRows = (await admin`
+    INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+    VALUES (${tenantId}, ${identityRows[0]!.id})
+    RETURNING id
+  `) as { id: string }[];
+  const tenantUserId = tenantUserRows[0]!.id;
+
+  const roleRows = (await admin`
+    INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name, is_system)
+    VALUES (${tenantId}, 'owner', 'Owner', true)
+    RETURNING id
+  `) as { id: string }[];
+
+  await admin`
+    INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+    SELECT ${tenantId}, ${roleRows[0]!.id}, id FROM awcms_mini_permissions
+  `;
+
+  await admin`
+    INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id, assigned_by)
+    VALUES (${tenantId}, ${tenantUserId}, ${roleRows[0]!.id}, ${tenantUserId})
+  `;
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password: OWNER_PASSWORD },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return { tenantId, token: login.body.data.token, tenantUserId };
+}
+
+/** A tenant user with a role that grants ZERO permissions -- for the default-deny ABAC negative test. */
+async function bootstrapNoAccessUser(owner: Bootstrap): Promise<Bootstrap> {
+  const admin = getAdminSql();
+  const loginIdentifier = `no-access-${owner.tenantId}@example.com`;
+
+  const profileRows = (await admin`
+    INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+    VALUES (${owner.tenantId}, 'person', 'No Access')
+    RETURNING id
+  `) as { id: string }[];
+
+  const passwordHash = await hashPassword(OWNER_PASSWORD);
+  const identityRows = (await admin`
+    INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+    VALUES (${owner.tenantId}, ${profileRows[0]!.id}, ${loginIdentifier}, ${passwordHash})
+    RETURNING id
+  `) as { id: string }[];
+
+  const tenantUserRows = (await admin`
+    INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+    VALUES (${owner.tenantId}, ${identityRows[0]!.id})
+    RETURNING id
+  `) as { id: string }[];
+  const tenantUserId = tenantUserRows[0]!.id;
+
+  const roleRows = (await admin`
+    INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name, is_system)
+    VALUES (${owner.tenantId}, 'no_access', 'No Access', false)
+    RETURNING id
+  `) as { id: string }[];
+
+  await admin`
+    INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id, assigned_by)
+    VALUES (${owner.tenantId}, ${tenantUserId}, ${roleRows[0]!.id}, ${owner.tenantUserId})
+  `;
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": owner.tenantId
+    },
+    body: { loginIdentifier, password: OWNER_PASSWORD },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return {
+    tenantId: owner.tenantId,
+    token: login.body.data.token,
+    tenantUserId
+  };
+}
+
+function authHeaders(
+  owner: Bootstrap,
+  idempotencyKey?: string
+): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    "x-awcms-mini-tenant-id": owner.tenantId,
+    authorization: `Bearer ${owner.token}`,
+    ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {})
+  };
+}
+
+/** `invoke()` (harness.ts) only ever JSON-encodes its body -- the stage-upload endpoint needs a real `multipart/form-data` body, so this mirrors `invoke()`'s own context-building shape for a `FormData` body instead. */
+async function invokeMultipart<T = unknown>(
+  handler: typeof stageImport,
+  options: {
+    path: string;
+    headers?: Record<string, string>;
+    formData: FormData;
+    cookies?: CookieJar;
+  }
+): Promise<{ status: number; body: T; response: Response }> {
+  const url = new URL(`http://integration.test${options.path}`);
+  const request = new Request(url.toString(), {
+    method: "POST",
+    headers: options.headers,
+    body: options.formData
+  });
+
+  const context = {
+    request,
+    url,
+    params: {},
+    locals: {},
+    cookies: options.cookies ?? createCookieJar()
+  } as unknown as APIContext;
+
+  const response = await handler(context);
+  const text = await response.text();
+  const body = text.length > 0 ? (JSON.parse(text) as T) : (undefined as T);
+
+  return { status: response.status, body, response };
+}
+
+async function stageCsv(
+  owner: Bootstrap,
+  csvContent: string,
+  idempotencyKey: string,
+  importKey = REFERENCE_ITEMS_KEY
+): Promise<{ status: number; body: any }> {
+  const formData = new FormData();
+  formData.set("importKey", importKey);
+  formData.set("format", "csv");
+  formData.set(
+    "file",
+    new File([csvContent], "reference-items.csv", { type: "text/csv" })
+  );
+
+  return invokeMultipart(stageImport, {
+    path: "/api/v1/data-exchange/imports",
+    headers: {
+      "x-awcms-mini-tenant-id": owner.tenantId,
+      authorization: `Bearer ${owner.token}`,
+      "idempotency-key": idempotencyKey
+    },
+    formData
+  });
+}
+
+/** Runs the real worker pass repeatedly until it reports zero total work for a tenant, or `maxPasses` is hit -- mirrors `runBoundedBatches`'s own "count -> keep looping, 0 -> drained" contract without importing that internal helper. */
+async function drainWorker(
+  sql: Bun.SQL,
+  tenantId: string,
+  maxPasses = 10
+): Promise<void> {
+  for (let i = 0; i < maxPasses; i += 1) {
+    const result = await runDataExchangeWorkerPassForTenant(sql, tenantId);
+    if (result.count === 0) return;
+  }
+}
+
+const suite = integrationEnabled ? describe : describe.skip;
+
+suite("data_exchange integration", () => {
+  beforeAll(async () => {
+    await applyMigrations();
+    await provisionAppRole();
+    await provisionWorkerRole();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  afterEach(() => {
+    resetExchangeAdaptersForTests();
+  });
+
+  describe("full pipeline: stage -> validate -> preview -> commit (create/update/conflict)", () => {
+    test("create/update/conflict proposed actions are computed and committed correctly", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      // Pre-seed two existing reference items directly (simulating prior data).
+      await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        await tx`
+          INSERT INTO awcms_mini_data_exchange_reference_items (tenant_id, code, label, value, status)
+          VALUES (${owner.tenantId}, 'widget-b', 'Old Label', 5, 'active')
+        `;
+        await tx`
+          INSERT INTO awcms_mini_data_exchange_reference_items (tenant_id, code, label, value, status)
+          VALUES (${owner.tenantId}, 'widget-c', 'Widget C', 20, 'active')
+        `;
+      });
+
+      const csv =
+        "code,label,value,expectedValue\n" +
+        "widget-a,Widget A,10,\n" +
+        "widget-b,Widget B Updated,7,\n" +
+        "widget-c,Should Not Apply,99,999\n";
+
+      const stage = await stageCsv(owner, csv, "stage-key-1");
+      expect(stage.status).toBe(200);
+      const batchId = stage.body.data.batch.id;
+
+      await drainWorker(sql, owner.tenantId);
+
+      const afterValidate = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(afterValidate.status).toBe(200);
+      expect(afterValidate.body.data.batch.status).toBe("previewed");
+      expect(afterValidate.body.data.batch.createdCount).toBe(1);
+      expect(afterValidate.body.data.batch.updatedCount).toBe(1);
+      expect(afterValidate.body.data.batch.conflictCount).toBe(1);
+
+      const preview = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(owner)
+      });
+      expect(preview.status).toBe(200);
+      const byCode = new Map(
+        preview.body.data.rows.map((r: any) => [r.naturalKey, r.proposedAction])
+      );
+      expect(byCode.get("widget-a")).toBe("create");
+      expect(byCode.get("widget-b")).toBe("update");
+      expect(byCode.get("widget-c")).toBe("conflict");
+
+      const commit = await invoke<{ data: { batch: any } }>(commitImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+        params: { id: batchId },
+        headers: authHeaders(owner, "commit-key-1")
+      });
+      expect(commit.status).toBe(200);
+      expect(commit.body.data.batch.status).toBe("committing");
+
+      await drainWorker(sql, owner.tenantId);
+
+      const afterCommit = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(afterCommit.body.data.batch.status).toBe("committed");
+
+      // widget-a: created.
+      const widgetA = await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        return findReferenceItemByCode(tx, owner.tenantId, "widget-a");
+      });
+      expect(widgetA?.label).toBe("Widget A");
+      expect(widgetA?.value).toBe(10);
+
+      // widget-b: updated.
+      const widgetB = await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        return findReferenceItemByCode(tx, owner.tenantId, "widget-b");
+      });
+      expect(widgetB?.label).toBe("Widget B Updated");
+      expect(widgetB?.value).toBe(7);
+
+      // widget-c: UNCHANGED (conflict rows are never committed).
+      const widgetC = await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        return findReferenceItemByCode(tx, owner.tenantId, "widget-c");
+      });
+      expect(widgetC?.label).toBe("Widget C");
+      expect(widgetC?.value).toBe(20);
+
+      // Reconciliation was recorded and matches (2 intended, 2 committed).
+      const reconciliation = await invoke<{ data: { reports: any[] } }>(
+        getReconciliation,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/reconciliation/import/${batchId}`,
+          params: { subjectType: "import", subjectId: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(reconciliation.status).toBe(200);
+      expect(reconciliation.body.data.reports.length).toBe(1);
+      expect(reconciliation.body.data.reports[0].mismatch).toBe(false);
+      expect(reconciliation.body.data.reports[0].sourceCount).toBe(2);
+      expect(reconciliation.body.data.reports[0].processedCount).toBe(2);
+    });
+
+    test("Idempotency-Key replay on stage-upload returns the same batch, does not create a second one", async () => {
+      const owner = await bootstrap();
+      const csv = "code,label\nwidget-a,Widget A\n";
+
+      const first = await stageCsv(owner, csv, "same-stage-key");
+      expect(first.status).toBe(200);
+
+      const second = await stageCsv(owner, csv, "same-stage-key");
+      expect(second.status).toBe(200);
+      expect(second.body.data.batch.id).toBe(first.body.data.batch.id);
+
+      const list = await invoke<{ data: { batches: any[] } }>(listImports, {
+        method: "GET",
+        path: "/api/v1/data-exchange/imports",
+        headers: authHeaders(owner)
+      });
+      expect(list.body.data.batches.length).toBe(1);
+    });
+
+    test("stage-upload without Idempotency-Key is rejected", async () => {
+      const owner = await bootstrap();
+      const formData = new FormData();
+      formData.set("importKey", REFERENCE_ITEMS_KEY);
+      formData.set("format", "csv");
+      formData.set("file", new File(["code,label\na,A\n"], "f.csv"));
+
+      const result = await invokeMultipart(stageImport, {
+        path: "/api/v1/data-exchange/imports",
+        headers: {
+          "x-awcms-mini-tenant-id": owner.tenantId,
+          authorization: `Bearer ${owner.token}`
+        },
+        formData
+      });
+
+      expect(result.status).toBe(400);
+      expect((result.body as any).error.code).toBe("IDEMPOTENCY_REQUIRED");
+    });
+  });
+
+  describe("partial-failure-then-resume idempotency", () => {
+    test("a retryable commit failure is retried on the next pass WITHOUT double-applying the row", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      let commitAttempts = 0;
+      let realApplyCount = 0;
+
+      const flakyAdapter: DataExchangeAdapterPort = {
+        importKey: REFERENCE_ITEMS_KEY,
+        schemaVersion: "1.0",
+        validateRow: referenceItemsImportAdapter.validateRow,
+        async commitRow(
+          tx,
+          tenantId,
+          row,
+          proposedAction,
+          naturalKey
+        ): Promise<DataExchangeCommitOutcome> {
+          commitAttempts += 1;
+          if (naturalKey === "flaky-widget" && commitAttempts === 1) {
+            // Simulate a transient failure on the FIRST attempt only.
+            return {
+              committed: false,
+              retryable: true,
+              reason: "simulated transient failure"
+            };
+          }
+          realApplyCount += 1;
+          return referenceItemsImportAdapter.commitRow(
+            tx,
+            tenantId,
+            row,
+            proposedAction,
+            naturalKey
+          );
+        }
+      };
+      registerExchangeAdapterForTests({
+        registryKey: "reference_items",
+        importAdapter: flakyAdapter
+      });
+
+      const csv = "code,label\nflaky-widget,Flaky Widget\n";
+      const stage = await stageCsv(owner, csv, "flaky-stage-key");
+      expect(stage.status).toBe(200);
+      const batchId = stage.body.data.batch.id;
+
+      // Validate pass only.
+      await runDataExchangeWorkerPassForTenant(sql, owner.tenantId);
+
+      const commit = await invoke<{ data: { batch: any } }>(commitImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+        params: { id: batchId },
+        headers: authHeaders(owner, "flaky-commit-key")
+      });
+      expect(commit.status).toBe(200);
+
+      // Pass 1: the ONLY row fails retryably -- batch must stay "committing", not advance.
+      const pass1 = await runDataExchangeWorkerPassForTenant(
+        sql,
+        owner.tenantId
+      );
+      expect(pass1.committed).toBe(0);
+
+      const afterPass1 = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(afterPass1.body.data.batch.status).toBe("committing");
+
+      // Pass 2 (simulating the NEXT scheduled worker tick / a resume after a
+      // worker restart): the same row is retried and now succeeds.
+      const pass2 = await runDataExchangeWorkerPassForTenant(
+        sql,
+        owner.tenantId
+      );
+      expect(pass2.committed).toBe(1);
+
+      const afterPass2 = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(afterPass2.body.data.batch.status).toBe("committed");
+
+      // The critical assertion: the REAL adapter's write path only ever
+      // executed ONCE, despite commitRow being invoked twice for the same
+      // row (once failing, once succeeding) -- no double-apply.
+      expect(realApplyCount).toBe(1);
+      expect(commitAttempts).toBe(2);
+
+      const item = await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        return findReferenceItemByCode(tx, owner.tenantId, "flaky-widget");
+      });
+      expect(item?.label).toBe("Flaky Widget");
+
+      // A THIRD pass (simulating yet another tick / an explicit retry
+      // request) must be a pure no-op -- the row is already committed, so
+      // it is never re-selected (commit_status = 'pending' only).
+      const pass3 = await runDataExchangeWorkerPassForTenant(
+        sql,
+        owner.tenantId
+      );
+      expect(pass3.committed).toBe(0);
+      expect(realApplyCount).toBe(1);
+    });
+
+    test("a non-retryable commit failure marks the batch partially_committed, and retry resumes remaining rows", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      const csv =
+        "code,label\n" +
+        "widget-ok,Widget OK\n" +
+        "widget-missing,Should Fail\n";
+      const stage = await stageCsv(owner, csv, "partial-stage-key");
+      const batchId = stage.body.data.batch.id;
+
+      await runDataExchangeWorkerPassForTenant(sql, owner.tenantId);
+
+      // Force "widget-missing" to fail non-retryably: mark its staged row
+      // proposedAction "update" (pointing at a target that will never
+      // exist) by rewriting the row directly -- simulates a source record
+      // deleted between preview and commit.
+      await getAdminSql()`
+        UPDATE awcms_mini_data_exchange_staged_rows
+        SET proposed_action = 'update'
+        WHERE tenant_id = ${owner.tenantId} AND import_batch_id = ${batchId} AND natural_key = 'widget-missing'
+      `;
+
+      const commit = await invoke(commitImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+        params: { id: batchId },
+        headers: authHeaders(owner, "partial-commit-key")
+      });
+      expect(commit.status).toBe(200);
+
+      await drainWorker(sql, owner.tenantId);
+
+      const afterCommit = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(afterCommit.body.data.batch.status).toBe("partially_committed");
+      expect(afterCommit.body.data.batch.failedCount).toBe(1);
+
+      const okItem = await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        return findReferenceItemByCode(tx, owner.tenantId, "widget-ok");
+      });
+      expect(okItem).not.toBeNull();
+
+      // Retry: the already-failed row stays failed (not re-selected --
+      // commit_status is no longer 'pending'), batch resolves back to
+      // partially_committed (never re-processes the terminal row).
+      const retry = await invoke<{ data: { batch: any } }>(retryImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/retry`,
+        params: { id: batchId },
+        headers: authHeaders(owner, "retry-key-1")
+      });
+      expect(retry.status).toBe(200);
+      expect(retry.body.data.batch.status).toBe("committing");
+
+      await drainWorker(sql, owner.tenantId);
+
+      const afterRetry = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(afterRetry.body.data.batch.status).toBe("partially_committed");
+      expect(afterRetry.body.data.batch.failedCount).toBe(1);
+    });
+  });
+
+  describe("export + manifest/checksum + reconciliation", () => {
+    test("export produces a manifest, checksum, and a downloadable file", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        await tx`
+          INSERT INTO awcms_mini_data_exchange_reference_items (tenant_id, code, label, value, status)
+          VALUES (${owner.tenantId}, 'widget-x', 'Widget X', 42, 'active')
+        `;
+      });
+
+      const create = await invoke<{ data: { job: any } }>(createExportRoute, {
+        method: "POST",
+        path: "/api/v1/data-exchange/exports",
+        headers: authHeaders(owner, "export-key-1"),
+        body: { exportKey: REFERENCE_ITEMS_KEY, format: "csv" }
+      });
+      expect(create.status).toBe(200);
+      const jobId = create.body.data.job.id;
+
+      await drainWorker(sql, owner.tenantId);
+
+      const job = await invoke<{ data: { job: any } }>(getExportJobRoute, {
+        method: "GET",
+        path: `/api/v1/data-exchange/exports/${jobId}`,
+        params: { id: jobId },
+        headers: authHeaders(owner)
+      });
+      expect(job.body.data.job.status).toBe("completed");
+      expect(job.body.data.job.rowCount).toBe(1);
+      expect(job.body.data.job.checksumSha256).toBeTruthy();
+      expect(job.body.data.job.manifest.rowCount).toBe(1);
+
+      const download = await invokeRaw(downloadExportRoute, {
+        method: "GET",
+        path: `/api/v1/data-exchange/exports/${jobId}/download`,
+        params: { id: jobId },
+        headers: authHeaders(owner)
+      });
+      expect(download.status).toBe(200);
+      expect(download.response.headers.get("content-type")).toContain(
+        "text/csv"
+      );
+      expect(download.text).toContain("widget-x");
+      expect(download.text).toContain("Widget X");
+
+      const reconciliation = await invoke<{ data: { reports: any[] } }>(
+        getReconciliation,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/reconciliation/export/${jobId}`,
+          params: { subjectType: "export", subjectId: jobId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(reconciliation.body.data.reports[0].mismatch).toBe(false);
+    });
+
+    test("a deliberate source/processed count mismatch is detected by reconciliation", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        await tx`
+          INSERT INTO awcms_mini_data_exchange_reference_items (tenant_id, code, label, value, status)
+          VALUES (${owner.tenantId}, 'widget-y', 'Widget Y', 1, 'active')
+        `;
+      });
+
+      // Fault-injecting export adapter: claims a DIFFERENT (larger) source
+      // count than what fetchRowsPage actually yields -- a deliberate,
+      // deterministic mismatch.
+      registerExchangeAdapterForTests({
+        registryKey: "reference_items",
+        exportAdapter: {
+          exportKey: REFERENCE_ITEMS_KEY,
+          schemaVersion: "1.0",
+          async countRows() {
+            return 5; // Lies: claims 5 when only 1 row actually exists.
+          },
+          async fetchRowsPage(tx, tenantId, filterScope, afterCursor, limit) {
+            return {
+              rows: [
+                {
+                  code: "widget-y",
+                  label: "Widget Y",
+                  value: 1,
+                  status: "active"
+                }
+              ],
+              nextCursor: null
+            };
+          }
+        }
+      });
+
+      const create = await invoke<{ data: { job: any } }>(createExportRoute, {
+        method: "POST",
+        path: "/api/v1/data-exchange/exports",
+        headers: authHeaders(owner, "export-mismatch-key"),
+        body: { exportKey: REFERENCE_ITEMS_KEY, format: "csv" }
+      });
+      const jobId = create.body.data.job.id;
+
+      await drainWorker(sql, owner.tenantId);
+
+      const reconciliation = await invoke<{ data: { reports: any[] } }>(
+        getReconciliation,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/reconciliation/export/${jobId}`,
+          params: { subjectType: "export", subjectId: jobId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(reconciliation.body.data.reports.length).toBe(1);
+      expect(reconciliation.body.data.reports[0].mismatch).toBe(true);
+      expect(reconciliation.body.data.reports[0].sourceCount).toBe(5);
+      expect(reconciliation.body.data.reports[0].processedCount).toBe(1);
+    });
+  });
+
+  describe("formula injection (CSV injection) round-trips safely end-to-end", () => {
+    test("=1+1 and @SUM(...) never reach export un-neutralized", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      const csv = 'code,label\nevil-a,"=1+1"\nevil-b,"@SUM(A1:A10)"\n';
+      const stage = await stageCsv(owner, csv, "formula-stage-key");
+      const batchId = stage.body.data.batch.id;
+
+      await drainWorker(sql, owner.tenantId);
+
+      const preview = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(owner)
+      });
+      const labels = preview.body.data.rows.map((r: any) => r.fields.label);
+      // Neutralized BEFORE storage -- never a raw leading `=`/`@`.
+      expect(labels).toContain("'=1+1");
+      expect(labels).toContain("'@SUM(A1:A10)");
+      for (const label of labels) {
+        expect(/^[=+\-@\t\r]/.test(label)).toBe(false);
+      }
+
+      const commit = await invoke(commitImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+        params: { id: batchId },
+        headers: authHeaders(owner, "formula-commit-key")
+      });
+      expect(commit.status).toBe(200);
+      await drainWorker(sql, owner.tenantId);
+
+      const create = await invoke<{ data: { job: any } }>(createExportRoute, {
+        method: "POST",
+        path: "/api/v1/data-exchange/exports",
+        headers: authHeaders(owner, "formula-export-key"),
+        body: { exportKey: REFERENCE_ITEMS_KEY, format: "csv" }
+      });
+      const jobId = create.body.data.job.id;
+      await drainWorker(sql, owner.tenantId);
+
+      const download = await invokeRaw(downloadExportRoute, {
+        method: "GET",
+        path: `/api/v1/data-exchange/exports/${jobId}/download`,
+        params: { id: jobId },
+        headers: authHeaders(owner)
+      });
+      const text = download.text;
+
+      // The raw dangerous shape must NEVER appear un-neutralized anywhere
+      // in the exported artifact.
+      expect(text).not.toContain(",=1+1");
+      expect(text).not.toContain(",@SUM(A1:A10)");
+      expect(text).toContain("'=1+1");
+      expect(text).toContain("'@SUM(A1:A10)");
+    });
+  });
+
+  describe("unbounded parsing is rejected", () => {
+    test("a row count exceeding the descriptor's maxRowCount fails the batch instead of hanging", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      // reference_items descriptor limits.maxRowCount = 5000 -- 5001 tiny
+      // rows exceeds it while staying well under the 5 MiB HTTP cap.
+      const rows = Array.from({ length: 5001 }, (_, i) => `w${i},L${i}`).join(
+        "\n"
+      );
+      const csv = `code,label\n${rows}\n`;
+
+      const stage = await stageCsv(owner, csv, "oversized-rows-key");
+      expect(stage.status).toBe(200);
+      const batchId = stage.body.data.batch.id;
+
+      await drainWorker(sql, owner.tenantId);
+
+      const batch = await invoke<{ data: { batch: any } }>(
+        getImportBatchRoute,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+      expect(batch.body.data.batch.status).toBe("failed");
+      expect(batch.body.data.batch.errorSummary).toContain("maxRowCount");
+    });
+
+    test("a file exceeding the HTTP body-size tier is rejected with 413 before any parsing", async () => {
+      const owner = await bootstrap();
+
+      const oversizedContent = "a".repeat(6 * 1024 * 1024); // > 5 MiB "large" tier.
+      const formData = new FormData();
+      formData.set("importKey", REFERENCE_ITEMS_KEY);
+      formData.set("format", "csv");
+      formData.set(
+        "file",
+        new File([oversizedContent], "huge.csv", { type: "text/csv" })
+      );
+
+      const result = await invokeMultipart(stageImport, {
+        path: "/api/v1/data-exchange/imports",
+        headers: {
+          "x-awcms-mini-tenant-id": owner.tenantId,
+          authorization: `Bearer ${owner.token}`,
+          "idempotency-key": "oversized-http-key"
+        },
+        formData
+      });
+
+      expect(result.status).toBe(413);
+      expect((result.body as any).error.code).toBe("PAYLOAD_TOO_LARGE");
+    });
+  });
+
+  describe("cross-tenant isolation and ABAC default-deny", () => {
+    test("tenant B cannot read, preview, or cancel tenant A's import batch (RLS)", async () => {
+      const ownerA = await bootstrap("tenant-a", "Tenant A");
+      const ownerB = await bootstrapSecondTenant("tenant-b", "Tenant B");
+
+      const stage = await stageCsv(
+        ownerA,
+        "code,label\nwidget-a,Widget A\n",
+        "cross-tenant-key"
+      );
+      const batchId = stage.body.data.batch.id;
+
+      const getAsB = await invoke(getImportBatchRoute, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}`,
+        params: { id: batchId },
+        headers: authHeaders(ownerB)
+      });
+      expect(getAsB.status).toBe(404);
+
+      const previewAsB = await invoke(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(ownerB)
+      });
+      expect(previewAsB.status).toBe(404);
+
+      const cancelAsB = await invoke(cancelImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/cancel`,
+        params: { id: batchId },
+        headers: authHeaders(ownerB, "cross-tenant-cancel-key"),
+        body: { reason: "should not work" }
+      });
+      expect(cancelAsB.status).toBe(404);
+
+      // Tenant B's own list is empty -- tenant A's batch never leaks in.
+      const listAsB = await invoke<{ data: { batches: any[] } }>(listImports, {
+        method: "GET",
+        path: "/api/v1/data-exchange/imports",
+        headers: authHeaders(ownerB)
+      });
+      expect(listAsB.body.data.batches).toEqual([]);
+    });
+
+    test("a subject with no permissions is denied (default deny)", async () => {
+      const owner = await bootstrap();
+      const noAccess = await bootstrapNoAccessUser(owner);
+
+      const result = await invoke(listImports, {
+        method: "GET",
+        path: "/api/v1/data-exchange/imports",
+        headers: authHeaders(noAccess)
+      });
+
+      expect(result.status).toBe(403);
+      expect((result.body as any).error.code).toBe("ACCESS_DENIED");
+    });
+  });
+});

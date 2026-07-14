@@ -210,7 +210,15 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "retire",
   "reassign",
   "force_decide",
-  "merge"
+  "merge",
+  // Issue #752 (data_exchange): `imports.post` — executing the asynchronous
+  // idempotent commit of a staged import batch, the FIRST real consumer of
+  // the pre-existing `"post"` action (reserved since the initial union for
+  // exactly this "finalize a staged transaction" shape). High-risk: commit
+  // is the sole point where staged rows are actually applied to an owning
+  // module's real tables — same "irreversible-by-default, broad blast
+  // radius" reasoning as `merge`'s own comment above.
+  "post"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

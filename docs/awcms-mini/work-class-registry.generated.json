@@ -316,6 +316,76 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/data-exchange/descriptors/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/exports/[id]/cancel.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/exports/[id]/download.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/exports/[id]/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/exports/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/imports/[id]/cancel.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/imports/[id]/commit.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/imports/[id]/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/imports/[id]/pause.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/imports/[id]/preview.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/imports/[id]/resume.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/imports/[id]/retry.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/imports/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/data-exchange/reconciliation/[subjectType]/[subjectId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/data-lifecycle/dry-run.ts",
       "workClass": "interactive",
       "source": "default"
@@ -1063,6 +1133,12 @@
       "workClass": "background_sync",
       "source": "registry",
       "rationale": "Scheduled-publish dispatcher (blog:publish:scheduled) — recurring, not latency-sensitive, but more time-relevant than a maintenance purge."
+    },
+    {
+      "path": "scripts/data-exchange-worker.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Recurring worker (data-exchange:worker, Issue #752), recommended every 1-2 minutes — parses/validates/commits staged import batches and executes queued export jobs, driving user-visible batch/job status operators watch in the admin UI; same recurring dispatcher profile as domain-events-dispatch/workflow-escalations-dispatch, not a tolerant-of-delay maintenance sweep. Its own withTenant call (runDataExchangeWorkerPassForTenant) already passes workClass: \"background_sync\" explicitly."
     },
     {
       "path": "scripts/data-lifecycle-archive-purge.ts",

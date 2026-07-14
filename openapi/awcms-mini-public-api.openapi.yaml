@@ -81,6 +81,8 @@ tags:
     description: "Transactional, versioned domain-event outbox and dispatcher admin API (epic `platform-evolution` #738 Wave 1, Issue #742) — read-only inspection of outbox events and per-consumer deliveries (redacted payload projections only, including dead-letter/DLQ status), permission-gated/reason-required/idempotent/audited replay of a dead-lettered delivery, and per-tenant pause/resume of a registered consumer. The actual claim/execute/finalize dispatch happens entirely outside any HTTP request, via a separate internal worker (`bun run domain-events:dispatch`, built on the shared worker runner), not exposed over HTTP. Consumers themselves are a static, reviewed-source-code registry — not configurable via this API."
   - name: Organization Structure
     description: "Optional, tenant-scoped organization-structure foundation (epic `platform-evolution` #738 Wave 2, Issue #749, ADR-0016) — legal entities (generic opaque registration identifier pair, never government-specific fields), tenant-configurable organization-unit types, effective-dated organization units, a versioned/effective-dated parent-child hierarchy (reparent rejects self-parent/cycle, requires Idempotency-Key, audited critical), operational locations (optional lat/lng), an explicit location-to-unit many-to-many relationship, and effective-dated party/unit assignments referencing `identity_access`'s existing tenant users. Tenant and legal entity/organization unit remain distinct concepts — RLS predicate is always and only `tenant_id`."
+  - name: Data Exchange
+    description: "Provider-neutral staged CSV/JSON import/export framework (epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0017) — module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner (`bun run data-exchange:worker`, never inline with an HTTP request), export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port (`DataExchangeAdapterPort`); this module never writes to another module's tables directly. Ships one self-contained reference fixture (`reference_items`) to prove the mechanism end-to-end."
 paths:
   /api/v1/access/assignments:
     post:
@@ -4207,6 +4209,937 @@ paths:
           $ref: "#/components/responses/NotFound"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/descriptors:
+    get:
+      tags:
+        - Data Exchange
+      summary: List module-contributed exchange descriptors
+      operationId: dataExchangeDescriptorsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Registered exchange descriptors (code-declared metadata only).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - descriptors
+                        properties:
+                          descriptors:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DataExchangeDescriptor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/exports:
+    get:
+      tags:
+        - Data Exchange
+      summary: List export jobs
+      operationId: dataExchangeExportsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: exportKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/DataExchangeExportJobStatus"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Export jobs for this tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - jobs
+                        properties:
+                          jobs:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DataExchangeExportJob"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Data Exchange
+      summary: Queue a new export job
+      description: High-risk mutation -- requires Idempotency-Key. Never blocks on the actual export work.
+      operationId: dataExchangeExportsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DataExchangeCreateExportRequest"
+      responses:
+        "200":
+          description: Export job queued.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - job
+                        properties:
+                          job:
+                            $ref: "#/components/schemas/DataExchangeExportJob"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/exports/{id}:
+    get:
+      tags:
+        - Data Exchange
+      summary: Get an export job by id
+      operationId: dataExchangeExportsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The export job (file content is never included; see .../download).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - job
+                        properties:
+                          job:
+                            $ref: "#/components/schemas/DataExchangeExportJob"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/exports/{id}/cancel:
+    post:
+      tags:
+        - Data Exchange
+      summary: Cancel a queued or running export job
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: dataExchangeExportsCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Export job cancelled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - job
+                        properties:
+                          job:
+                            $ref: "#/components/schemas/DataExchangeExportJob"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Job cannot be cancelled from its current status, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/exports/{id}/download:
+    get:
+      tags:
+        - Data Exchange
+      summary: Download a completed export job's file content
+      description: Distinct, more sensitive permission from exports.read (data_exchange.export_downloads.read). Returns the raw text/csv or application/json body, not the standard ApiSuccess envelope.
+      operationId: dataExchangeExportsDownload
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Export file content.
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Export job is not completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/imports:
+    get:
+      tags:
+        - Data Exchange
+      summary: List staged import batches
+      operationId: dataExchangeImportsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: importKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/DataExchangeImportBatchStatus"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Import batches for this tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - batches
+                        properties:
+                          batches:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DataExchangeImportBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Data Exchange
+      summary: Stage a new import batch
+      description: High-risk mutation -- requires Idempotency-Key. `multipart/form-data` body capped at 5 MiB before any parsing; performs NO row-level parsing (asynchronous, on the shared worker, `bun run data-exchange:worker`).
+      operationId: dataExchangeImportsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - importKey
+                - format
+                - file
+              properties:
+                importKey:
+                  type: string
+                format:
+                  type: string
+                  enum:
+                    - csv
+                    - json
+                file:
+                  type: string
+                  format: binary
+                checksumSha256:
+                  type: string
+                  description: Optional client-declared SHA-256 hex digest, compared against the server-computed checksum.
+      responses:
+        "200":
+          description: Import batch staged.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - batch
+                        properties:
+                          batch:
+                            $ref: "#/components/schemas/DataExchangeImportBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request, or checksum mismatch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/imports/{id}:
+    get:
+      tags:
+        - Data Exchange
+      summary: Get an import batch by id
+      operationId: dataExchangeImportsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The import batch.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - batch
+                        properties:
+                          batch:
+                            $ref: "#/components/schemas/DataExchangeImportBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/imports/{id}/cancel:
+    post:
+      tags:
+        - Data Exchange
+      summary: Cancel a staged import batch before commit begins
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: dataExchangeImportsCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              additionalProperties: false
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Import batch cancelled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - batch
+                        properties:
+                          batch:
+                            $ref: "#/components/schemas/DataExchangeImportBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Batch cannot be cancelled from its current status, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/imports/{id}/commit:
+    post:
+      tags:
+        - Data Exchange
+      summary: Trigger the asynchronous idempotent commit of a previewed batch
+      description: High-risk mutation -- requires Idempotency-Key. Never blocks on the actual per-row work.
+      operationId: dataExchangeImportsCommit
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Commit triggered.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - batch
+                        properties:
+                          batch:
+                            $ref: "#/components/schemas/DataExchangeImportBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Batch is not in previewed status, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/imports/{id}/pause:
+    post:
+      tags:
+        - Data Exchange
+      summary: Pause an in-progress commit
+      description: Requires Idempotency-Key. The worker skips a paused batch entirely.
+      operationId: dataExchangeImportsPause
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Import batch paused.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - batch
+                        properties:
+                          batch:
+                            $ref: "#/components/schemas/DataExchangeImportBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Batch is not currently committing, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/imports/{id}/preview:
+    get:
+      tags:
+        - Data Exchange
+      summary: Paginated preview of a batch's staged rows
+      description: Zero domain mutation. Sensitive fields are masked unless the caller also holds data_exchange.preview_errors.read.
+      operationId: dataExchangeImportsPreview
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: proposedAction
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - create
+              - update
+              - skip
+              - conflict
+              - invalid
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Preview page.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - rows
+                          - total
+                          - offset
+                          - limit
+                          - totals
+                        properties:
+                          rows:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DataExchangeStagedRow"
+                          total:
+                            type: integer
+                          offset:
+                            type: integer
+                          limit:
+                            type: integer
+                          totals:
+                            type: object
+                            additionalProperties: false
+                            required:
+                              - created
+                              - updated
+                              - skipped
+                              - conflict
+                              - invalid
+                              - failed
+                            properties:
+                              created:
+                                type: integer
+                              updated:
+                                type: integer
+                              skipped:
+                                type: integer
+                              conflict:
+                                type: integer
+                              invalid:
+                                type: integer
+                              failed:
+                                type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/imports/{id}/resume:
+    post:
+      tags:
+        - Data Exchange
+      summary: Resume a paused commit
+      description: Requires Idempotency-Key. The worker resumes committing on its next scheduled pass.
+      operationId: dataExchangeImportsResume
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Import batch resumed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - batch
+                        properties:
+                          batch:
+                            $ref: "#/components/schemas/DataExchangeImportBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Batch is not currently paused, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/imports/{id}/retry:
+    post:
+      tags:
+        - Data Exchange
+      summary: Retry/resume a partially-committed or failed import batch
+      description: High-risk mutation -- requires Idempotency-Key. Resumes from the batch's saved commit cursor; never re-applies an already-committed row.
+      operationId: dataExchangeImportsRetry
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Retry/resume triggered.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - batch
+                        properties:
+                          batch:
+                            $ref: "#/components/schemas/DataExchangeImportBatch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Batch is not retryable from its current status, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/data-exchange/reconciliation/{subjectType}/{subjectId}:
+    get:
+      tags:
+        - Data Exchange
+      summary: Read reconciliation reports for an import or export subject
+      operationId: dataExchangeReconciliationList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: subjectType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - import
+              - export
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Reconciliation reports, newest first.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - reports
+                        properties:
+                          reports:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/DataExchangeReconciliationReport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/data-lifecycle/dry-run:
@@ -17577,6 +18510,398 @@ components:
         generatedAt:
           type: string
           format: date-time
+    DataExchangeCreateExportRequest:
+      type: object
+      required:
+        - exportKey
+        - format
+      additionalProperties: false
+      properties:
+        exportKey:
+          type: string
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+        filterScope:
+          type: object
+          description: Opaque, owning-module-defined filter object.
+    DataExchangeDescriptor:
+      type: object
+      required:
+        - key
+        - ownerModuleKey
+        - direction
+        - formats
+        - schemaVersion
+        - limits
+        - adapterRegistryKey
+        - description
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+        ownerModuleKey:
+          type: string
+        direction:
+          type: string
+          enum:
+            - import
+            - export
+            - both
+        formats:
+          type: array
+          items:
+            type: string
+            enum:
+              - csv
+              - json
+        schemaVersion:
+          type: string
+        limits:
+          type: object
+          additionalProperties: false
+          required:
+            - maxFileBytes
+            - maxRowCount
+            - maxFieldsPerRow
+          properties:
+            maxFileBytes:
+              type: integer
+            maxRowCount:
+              type: integer
+            maxFieldsPerRow:
+              type: integer
+        adapterRegistryKey:
+          type: string
+        requiredPermission:
+          type: string
+        sensitiveFields:
+          type: object
+          additionalProperties: false
+          required:
+            - fieldNames
+          properties:
+            fieldNames:
+              type: array
+              items:
+                type: string
+            rawValuePermission:
+              type: string
+        description:
+          type: string
+    DataExchangeExportJob:
+      type: object
+      required:
+        - id
+        - tenantId
+        - exportKey
+        - format
+        - status
+        - filterScope
+        - schemaVersion
+        - rowCount
+        - checksumSha256
+        - manifest
+        - errorSummary
+        - createdBy
+        - createdAt
+        - completedAt
+        - cancelledAt
+        - expiresAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        exportKey:
+          type: string
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+        status:
+          $ref: "#/components/schemas/DataExchangeExportJobStatus"
+        filterScope:
+          type: object
+        schemaVersion:
+          type: string
+          nullable: true
+        rowCount:
+          type: integer
+          nullable: true
+        checksumSha256:
+          type: string
+          nullable: true
+        manifest:
+          type: object
+          nullable: true
+          description: Schema/version, filters/scope, row count, checksum, and creation metadata -- present once the job completes.
+        errorSummary:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+    DataExchangeExportJobStatus:
+      type: string
+      enum:
+        - queued
+        - running
+        - completed
+        - failed
+        - cancelled
+    DataExchangeImportBatch:
+      type: object
+      required:
+        - id
+        - tenantId
+        - importKey
+        - format
+        - status
+        - originalFilename
+        - byteSize
+        - rowCount
+        - checksumSha256
+        - schemaVersion
+        - commitCursor
+        - createdCount
+        - updatedCount
+        - skippedCount
+        - conflictCount
+        - invalidCount
+        - failedCount
+        - errorSummary
+        - pausedAt
+        - createdBy
+        - createdAt
+        - updatedAt
+        - validatedAt
+        - committedAt
+        - cancelledAt
+        - expiresAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        importKey:
+          type: string
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+        status:
+          $ref: "#/components/schemas/DataExchangeImportBatchStatus"
+        originalFilename:
+          type: string
+          nullable: true
+        byteSize:
+          type: integer
+        rowCount:
+          type: integer
+          nullable: true
+        checksumSha256:
+          type: string
+        schemaVersion:
+          type: string
+          nullable: true
+        commitCursor:
+          type: integer
+        createdCount:
+          type: integer
+        updatedCount:
+          type: integer
+        skippedCount:
+          type: integer
+        conflictCount:
+          type: integer
+        invalidCount:
+          type: integer
+        failedCount:
+          type: integer
+        errorSummary:
+          type: string
+          nullable: true
+        pausedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        validatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        committedAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+    DataExchangeImportBatchStatus:
+      type: string
+      enum:
+        - staged
+        - validating
+        - previewed
+        - committing
+        - committed
+        - partially_committed
+        - failed
+        - cancelled
+    DataExchangeReconciliationReport:
+      type: object
+      required:
+        - id
+        - tenantId
+        - subjectType
+        - subjectId
+        - sourceCount
+        - processedCount
+        - mismatch
+        - details
+        - createdAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        subjectType:
+          type: string
+          enum:
+            - import
+            - export
+        subjectId:
+          type: string
+          format: uuid
+        sourceCount:
+          type: integer
+        processedCount:
+          type: integer
+        mismatch:
+          type: boolean
+        details:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    DataExchangeStagedRow:
+      type: object
+      required:
+        - id
+        - importBatchId
+        - rowNumber
+        - fields
+        - naturalKey
+        - proposedAction
+        - validationErrors
+        - validationWarnings
+        - commitStatus
+        - commitResourceId
+        - commitError
+        - committedAt
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        importBatchId:
+          type: string
+          format: uuid
+        rowNumber:
+          type: integer
+        fields:
+          type: object
+          description: Parsed row field map, already formula-injection-neutralized. Sensitive field values are masked (["REDACTED"]) unless the caller holds data_exchange.preview_errors.read.
+        naturalKey:
+          type: string
+          nullable: true
+        proposedAction:
+          type: string
+          enum:
+            - create
+            - update
+            - skip
+            - conflict
+            - invalid
+          nullable: true
+        validationErrors:
+          type: array
+          nullable: true
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        validationWarnings:
+          type: array
+          nullable: true
+          items:
+            type: string
+        commitStatus:
+          type: string
+          enum:
+            - pending
+            - committed
+            - failed
+            - skipped
+        commitResourceId:
+          type: string
+          nullable: true
+        commitError:
+          type: string
+          nullable: true
+        committedAt:
+          type: string
+          format: date-time
+          nullable: true
     DataLifecycleCreateLegalHoldRequest:
       type: object
       required:

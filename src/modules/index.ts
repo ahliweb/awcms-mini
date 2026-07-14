@@ -2,6 +2,7 @@ import type { ModuleDescriptor } from "./_shared/module-contract";
 import { applicationModuleRegistry } from "./application-registry";
 import { mergeModuleRegistries } from "./module-management/domain/module-composition";
 import { blogContentModule } from "./blog-content/module";
+import { dataExchangeModule } from "./data-exchange/module";
 import { dataLifecycleModule } from "./data-lifecycle/module";
 import { domainEventRuntimeModule } from "./domain-event-runtime/module";
 import { emailModule } from "./email/module";
@@ -54,7 +55,13 @@ const baseModules: ModuleDescriptor[] = [
   // top-level module (unlike its Wave-2 siblings #746/#747/#748, which
   // extended existing modules) — appended at the end, same convention as
   // the Wave-1 entries immediately above.
-  organizationStructureModule
+  organizationStructureModule,
+  // Issue #752 (epic #738 platform-evolution Wave 3, ADR-0017) — brand new
+  // top-level module, appended at the end, same convention as the Wave-1/
+  // Wave-2 entries immediately above (minimal, easily-resolved merge
+  // conflict against parallel Wave-3 siblings registering their own new
+  // module).
+  dataExchangeModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

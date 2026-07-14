@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 19,
+  "baseModuleCount": 20,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 19,
+  "totalModuleCount": 20,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -37,6 +37,28 @@
       ],
       "permissionCount": 39,
       "navigationCount": 1,
+      "jobCount": 1,
+      "hasHealthCheck": false,
+      "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "data_exchange",
+      "name": "Data Exchange",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "domain",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "logging",
+        "domain_event_runtime"
+      ],
+      "capabilitiesProvided": ["data_exchange_staging"],
+      "capabilitiesConsumed": [],
+      "permissionCount": 13,
+      "navigationCount": 2,
       "jobCount": 1,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,

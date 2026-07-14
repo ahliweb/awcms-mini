@@ -45,6 +45,12 @@ flowchart LR
 | `organization_structure`        | `locations`                   | read, create, update, delete, restore (Issue #749)         |
 | `organization_structure`        | `location_unit_relationships` | read, create, revoke (Issue #749)                          |
 | `organization_structure`        | `assignments`                 | read, create, revoke (Issue #749)                          |
+| `data_exchange`                 | `descriptors`                 | read (Issue #752)                                          |
+| `data_exchange`                 | `imports`                     | read, create, post, cancel, retry, manage (Issue #752)     |
+| `data_exchange`                 | `preview_errors`              | read (Issue #752)                                          |
+| `data_exchange`                 | `exports`                     | read, create, cancel (Issue #752)                          |
+| `data_exchange`                 | `export_downloads`            | read (Issue #752)                                          |
+| `data_exchange`                 | `reconciliation`              | read (Issue #752)                                          |
 | `profile_identity`              | `profile_management`          | read, create, update, delete, restore                      |
 | `profile_identity`              | `profile_merge`               | read, approve                                              |
 | `catalog_inventory`             | `product_management`          | read, create, update, delete, restore                      |
