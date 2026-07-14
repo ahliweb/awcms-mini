@@ -431,6 +431,8 @@ export type ListOrganizationUnitsFilter = {
   legalEntityId?: string;
   status?: "active" | "inactive";
   cursor?: string;
+  /** `true` only from the admin SSR page's own direct call, itself gated on the caller holding the `restore` permission (`admin/organization-structure/units.astro`, so the restore action has something to target) — the public `GET .../units` API route never sets this. */
+  includeDeleted?: boolean;
 };
 
 export type ListOrganizationUnitsResult = {
@@ -459,7 +461,7 @@ export async function listOrganizationUnits(
       effective_from, effective_to, created_at, updated_at, deleted_at
     FROM awcms_mini_organization_units
     WHERE tenant_id = ${tenantId}
-      AND deleted_at IS NULL
+      AND (${filter.includeDeleted ?? false} OR deleted_at IS NULL)
       AND (${filter.status ?? null}::text IS NULL OR status = ${filter.status ?? null})
       AND (${filter.legalEntityId ?? null}::uuid IS NULL OR legal_entity_id = ${filter.legalEntityId ?? null})
       AND (

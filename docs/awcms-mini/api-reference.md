@@ -7077,10 +7077,13 @@ Optional, tenant-scoped organization-structure foundation (epic `platform-evolut
 - **operationId**: `organizationStructureAssignmentsCreate`
 - **Security**: bearerAuth + tenantHeader
 
+High-risk mutation -- requires Idempotency-Key; rejects a duplicate open assignment for the same organization unit and tenant user.
+
 **Parameters**
 
 | Name               | In     | Required | Type   | Description                                 |
 | ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
 | `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
 
@@ -7088,15 +7091,16 @@ Optional, tenant-scoped organization-structure foundation (epic `platform-evolut
 
 **Responses**
 
-| Status | Description                                                       | Schema                                                   |
-| ------ | ----------------------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Assignment created.                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                                      | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                               | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                    | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy.               | [`ApiError`](#standard-error-envelope)                   |
-| 422    | tenantUserId does not reference an existing user for this tenant. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.                        | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                                                      | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Assignment created.                                                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | This tenant user already has an active assignment to this organization unit, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 422    | tenantUserId does not reference an existing user for this tenant.                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                       | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/organization-structure/assignments/{id}/end` — End an active organization-unit assignment
 

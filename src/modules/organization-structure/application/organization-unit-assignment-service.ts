@@ -30,6 +30,7 @@ import {
 } from "../domain/organization-unit-assignment";
 
 const MODULE_KEY = "organization_structure";
+const POSTGRES_UNIQUE_VIOLATION = "23505";
 
 export type OrganizationUnitAssignmentRow = {
   id: string;
@@ -91,7 +92,8 @@ export type CreateOrganizationUnitAssignmentResult =
       errors: OrganizationUnitAssignmentValidationError[];
     }
   | { ok: false; reason: "unit_not_found" }
-  | { ok: false; reason: "tenant_user_not_found" };
+  | { ok: false; reason: "tenant_user_not_found" }
+  | { ok: false; reason: "already_assigned" };
 
 export async function createOrganizationUnitAssignment(
   tx: Bun.SQL,
@@ -121,17 +123,48 @@ export async function createOrganizationUnitAssignment(
     return { ok: false, reason: "tenant_user_not_found" };
   }
 
-  const rows = (await tx`
-    INSERT INTO awcms_mini_organization_unit_assignments
-      (tenant_id, organization_unit_id, tenant_user_id, position_label, effective_from,
-       effective_to, reason, assigned_by_tenant_user_id)
-    VALUES (
-      ${tenantId}, ${input.organizationUnitId}, ${input.tenantUserId}, ${input.positionLabel},
-      ${input.effectiveFrom}, ${input.effectiveTo}, ${input.reason}, ${actorTenantUserId}
-    )
-    RETURNING id, tenant_id, organization_unit_id, tenant_user_id, position_label,
-      effective_from, effective_to, status, reason, ended_at, end_reason, created_at, updated_at
-  `) as OrganizationUnitAssignmentDbRow[];
+  // App-level pre-check for a clean error — `sql/065`'s partial unique
+  // index `awcms_mini_organization_unit_assignments_current_key` is the
+  // real backstop (same "pre-check + unique-partial-index" pattern
+  // `location-unit-relationship-service.ts`'s `createLocationUnitRelationship`
+  // establishes for its own "already_related" case); this read alone
+  // cannot close a concurrent-create race, only the index can.
+  const existingRows = (await tx`
+    SELECT id FROM awcms_mini_organization_unit_assignments
+    WHERE tenant_id = ${tenantId} AND organization_unit_id = ${input.organizationUnitId}
+      AND tenant_user_id = ${input.tenantUserId} AND status = 'active'
+  `) as { id: string }[];
+  if (existingRows[0]) {
+    return { ok: false, reason: "already_assigned" };
+  }
+
+  let rows: OrganizationUnitAssignmentDbRow[];
+  try {
+    rows = (await tx`
+      INSERT INTO awcms_mini_organization_unit_assignments
+        (tenant_id, organization_unit_id, tenant_user_id, position_label, effective_from,
+         effective_to, reason, assigned_by_tenant_user_id)
+      VALUES (
+        ${tenantId}, ${input.organizationUnitId}, ${input.tenantUserId}, ${input.positionLabel},
+        ${input.effectiveFrom}, ${input.effectiveTo}, ${input.reason}, ${actorTenantUserId}
+      )
+      RETURNING id, tenant_id, organization_unit_id, tenant_user_id, position_label,
+        effective_from, effective_to, status, reason, ended_at, end_reason, created_at, updated_at
+    `) as OrganizationUnitAssignmentDbRow[];
+  } catch (error) {
+    // Lost a race against a concurrent create for the SAME (unit, subject)
+    // pair — `sql/065`'s partial unique index rejects the second INSERT
+    // (Postgres unique_violation, 23505) between our pre-check above and
+    // this write. Same detection convention `identifier-directory.ts`'s
+    // `createIdentifier` establishes for its own equivalent race.
+    if (
+      error instanceof Bun.SQL.PostgresError &&
+      String(error.errno) === POSTGRES_UNIQUE_VIOLATION
+    ) {
+      return { ok: false, reason: "already_assigned" };
+    }
+    throw error;
+  }
 
   const assignment = toRow(rows[0]!);
 

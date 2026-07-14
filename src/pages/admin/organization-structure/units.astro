@@ -58,7 +58,9 @@ let loadError = false;
 if (CAN_READ) {
   try {
     await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
-      const result = await listOrganizationUnits(tx, context.tenantId, {});
+      const result = await listOrganizationUnits(tx, context.tenantId, {
+        includeDeleted: CAN_RESTORE
+      });
       units = result.units;
       legalEntities = await listLegalEntities(tx, context.tenantId);
       unitTypes = await listOrganizationUnitTypes(tx, context.tenantId);
@@ -310,6 +312,7 @@ if (CAN_READ) {
 <script>
   import {
     lockElement,
+    newIdempotencyKey,
     readClientStrings,
     reloadAfterDelay,
     showBanner,
@@ -375,7 +378,8 @@ if (CAN_READ) {
             `${BASE_URL}/${button.dataset.id}`,
             "DELETE",
             {},
-            strings
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
           );
           if (result.ok) {
             showBanner("action-banner", strings.deactivateSuccess, "success");
@@ -400,7 +404,8 @@ if (CAN_READ) {
             `${BASE_URL}/${button.dataset.id}/restore`,
             "POST",
             {},
-            strings
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
           );
           if (result.ok) {
             showBanner("action-banner", strings.restoreSuccess, "success");

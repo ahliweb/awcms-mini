@@ -31,15 +31,27 @@ import {
 } from "../../src/pages/api/v1/organization-structure/legal-entities/index";
 import { DELETE as deactivateLegalEntity } from "../../src/pages/api/v1/organization-structure/legal-entities/[id]";
 import { POST as restoreLegalEntity } from "../../src/pages/api/v1/organization-structure/legal-entities/[id]/restore";
-import { POST as createUnitType } from "../../src/pages/api/v1/organization-structure/unit-types/index";
+import {
+  GET as listUnitTypes,
+  POST as createUnitType
+} from "../../src/pages/api/v1/organization-structure/unit-types/index";
+import { DELETE as deleteUnitType } from "../../src/pages/api/v1/organization-structure/unit-types/[id]";
+import { POST as restoreUnitType } from "../../src/pages/api/v1/organization-structure/unit-types/[id]/restore";
 import {
   GET as getUnit,
   POST as createUnit
 } from "../../src/pages/api/v1/organization-structure/units/index";
+import { DELETE as deactivateUnit } from "../../src/pages/api/v1/organization-structure/units/[id]";
+import { POST as restoreUnit } from "../../src/pages/api/v1/organization-structure/units/[id]/restore";
 import { POST as reparent } from "../../src/pages/api/v1/organization-structure/hierarchy/reparent";
 import { GET as getHierarchyUnit } from "../../src/pages/api/v1/organization-structure/hierarchy/units/[id]";
 import { GET as getTree } from "../../src/pages/api/v1/organization-structure/hierarchy/tree";
-import { POST as createLocation } from "../../src/pages/api/v1/organization-structure/locations/index";
+import {
+  GET as listLocations,
+  POST as createLocation
+} from "../../src/pages/api/v1/organization-structure/locations/index";
+import { DELETE as deleteLocation } from "../../src/pages/api/v1/organization-structure/locations/[id]";
+import { POST as restoreLocation } from "../../src/pages/api/v1/organization-structure/locations/[id]/restore";
 import { POST as createLocationUnitRelationship } from "../../src/pages/api/v1/organization-structure/location-unit-relationships/index";
 import { POST as endLocationUnitRelationship } from "../../src/pages/api/v1/organization-structure/location-unit-relationships/[id]/end";
 import {
@@ -381,7 +393,7 @@ suite("organization_structure integration", () => {
     }>(createAssignment, {
       method: "POST",
       path: "/api/v1/organization-structure/assignments",
-      headers: authHeaders(owner),
+      headers: authHeaders(owner, "assignment-create-key"),
       body: {
         organizationUnitId: unitId,
         tenantUserId: owner.tenantUserId,
@@ -410,6 +422,288 @@ suite("organization_structure integration", () => {
       (a) => a.id === assignment.body.data.assignment.id
     );
     expect(ours?.status).toBe("ended");
+  });
+
+  test("unit type: create, delete (soft-delete), restore round-trip, requires Idempotency-Key", async () => {
+    const owner = await bootstrap();
+
+    const create = await invoke<{ data: { unitType: { id: string } } }>(
+      createUnitType,
+      {
+        method: "POST",
+        path: "/api/v1/organization-structure/unit-types",
+        headers: authHeaders(owner),
+        body: { code: "cost-center", name: "Cost Center" }
+      }
+    );
+    expect(create.status).toBe(200);
+    const unitTypeId = create.body.data.unitType.id;
+
+    const missingKey = await invoke(deleteUnitType, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/unit-types/${unitTypeId}`,
+      headers: authHeaders(owner),
+      params: { id: unitTypeId }
+    });
+    expect(missingKey.status).toBe(400);
+
+    const deleted = await invoke(deleteUnitType, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/unit-types/${unitTypeId}`,
+      headers: authHeaders(owner, "unit-type-delete-key"),
+      params: { id: unitTypeId }
+    });
+    expect(deleted.status).toBe(200);
+
+    // Replay with the same key: same response, no side effect.
+    const replayDelete = await invoke(deleteUnitType, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/unit-types/${unitTypeId}`,
+      headers: authHeaders(owner, "unit-type-delete-key"),
+      params: { id: unitTypeId }
+    });
+    expect(replayDelete.status).toBe(200);
+
+    const listAfterDelete = await invoke<{
+      data: { unitTypes: { id: string }[] };
+    }>(listUnitTypes, {
+      method: "GET",
+      path: "/api/v1/organization-structure/unit-types",
+      headers: authHeaders(owner)
+    });
+    expect(
+      listAfterDelete.body.data.unitTypes.find((ut) => ut.id === unitTypeId)
+    ).toBeUndefined();
+
+    const restoreMissingKey = await invoke(restoreUnitType, {
+      method: "POST",
+      path: `/api/v1/organization-structure/unit-types/${unitTypeId}/restore`,
+      headers: authHeaders(owner),
+      params: { id: unitTypeId }
+    });
+    expect(restoreMissingKey.status).toBe(400);
+
+    const restore = await invoke(restoreUnitType, {
+      method: "POST",
+      path: `/api/v1/organization-structure/unit-types/${unitTypeId}/restore`,
+      headers: authHeaders(owner, "unit-type-restore-key"),
+      params: { id: unitTypeId }
+    });
+    expect(restore.status).toBe(200);
+
+    const listAfterRestore = await invoke<{
+      data: { unitTypes: { id: string }[] };
+    }>(listUnitTypes, {
+      method: "GET",
+      path: "/api/v1/organization-structure/unit-types",
+      headers: authHeaders(owner)
+    });
+    expect(
+      listAfterRestore.body.data.unitTypes.some((ut) => ut.id === unitTypeId)
+    ).toBe(true);
+  });
+
+  test("organization unit: create, deactivate (soft-delete), restore round-trip, requires Idempotency-Key", async () => {
+    const owner = await bootstrap();
+    const unitId = await createUnitFixture(owner, "warehouse-1");
+
+    const missingKey = await invoke(deactivateUnit, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/units/${unitId}`,
+      headers: authHeaders(owner),
+      params: { id: unitId }
+    });
+    expect(missingKey.status).toBe(400);
+
+    const deactivate = await invoke(deactivateUnit, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/units/${unitId}`,
+      headers: authHeaders(owner, "unit-deactivate-key"),
+      params: { id: unitId }
+    });
+    expect(deactivate.status).toBe(200);
+
+    const replayDeactivate = await invoke(deactivateUnit, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/units/${unitId}`,
+      headers: authHeaders(owner, "unit-deactivate-key"),
+      params: { id: unitId }
+    });
+    expect(replayDeactivate.status).toBe(200);
+
+    const afterDeactivate = await invoke<{
+      data: { unit: { id: string; deletedAt: string | null } };
+    }>(getUnit, {
+      method: "GET",
+      path: `/api/v1/organization-structure/units/${unitId}`,
+      headers: authHeaders(owner),
+      params: { id: unitId }
+    });
+    expect(afterDeactivate.body.data.unit.deletedAt).not.toBeNull();
+
+    const restoreMissingKey = await invoke(restoreUnit, {
+      method: "POST",
+      path: `/api/v1/organization-structure/units/${unitId}/restore`,
+      headers: authHeaders(owner),
+      params: { id: unitId }
+    });
+    expect(restoreMissingKey.status).toBe(400);
+
+    const restore = await invoke(restoreUnit, {
+      method: "POST",
+      path: `/api/v1/organization-structure/units/${unitId}/restore`,
+      headers: authHeaders(owner, "unit-restore-key"),
+      params: { id: unitId }
+    });
+    expect(restore.status).toBe(200);
+
+    const afterRestore = await invoke<{
+      data: { unit: { id: string; deletedAt: string | null } };
+    }>(getUnit, {
+      method: "GET",
+      path: `/api/v1/organization-structure/units/${unitId}`,
+      headers: authHeaders(owner),
+      params: { id: unitId }
+    });
+    expect(afterRestore.body.data.unit.deletedAt).toBeNull();
+  });
+
+  test("operational location: create, delete (soft-delete), restore round-trip, requires Idempotency-Key", async () => {
+    const owner = await bootstrap();
+
+    const create = await invoke<{ data: { location: { id: string } } }>(
+      createLocation,
+      {
+        method: "POST",
+        path: "/api/v1/organization-structure/locations",
+        headers: authHeaders(owner),
+        body: { name: "Surabaya Office", city: "Surabaya" }
+      }
+    );
+    expect(create.status).toBe(200);
+    const locationId = create.body.data.location.id;
+
+    const missingKey = await invoke(deleteLocation, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/locations/${locationId}`,
+      headers: authHeaders(owner),
+      params: { id: locationId }
+    });
+    expect(missingKey.status).toBe(400);
+
+    const deleted = await invoke(deleteLocation, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/locations/${locationId}`,
+      headers: authHeaders(owner, "location-delete-key"),
+      params: { id: locationId }
+    });
+    expect(deleted.status).toBe(200);
+
+    const replayDelete = await invoke(deleteLocation, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/locations/${locationId}`,
+      headers: authHeaders(owner, "location-delete-key"),
+      params: { id: locationId }
+    });
+    expect(replayDelete.status).toBe(200);
+
+    const listAfterDelete = await invoke<{
+      data: { locations: { id: string }[] };
+    }>(listLocations, {
+      method: "GET",
+      path: "/api/v1/organization-structure/locations",
+      headers: authHeaders(owner)
+    });
+    expect(
+      listAfterDelete.body.data.locations.find((l) => l.id === locationId)
+    ).toBeUndefined();
+
+    const restoreMissingKey = await invoke(restoreLocation, {
+      method: "POST",
+      path: `/api/v1/organization-structure/locations/${locationId}/restore`,
+      headers: authHeaders(owner),
+      params: { id: locationId }
+    });
+    expect(restoreMissingKey.status).toBe(400);
+
+    const restore = await invoke(restoreLocation, {
+      method: "POST",
+      path: `/api/v1/organization-structure/locations/${locationId}/restore`,
+      headers: authHeaders(owner, "location-restore-key"),
+      params: { id: locationId }
+    });
+    expect(restore.status).toBe(200);
+
+    const listAfterRestore = await invoke<{
+      data: { locations: { id: string }[] };
+    }>(listLocations, {
+      method: "GET",
+      path: "/api/v1/organization-structure/locations",
+      headers: authHeaders(owner)
+    });
+    expect(
+      listAfterRestore.body.data.locations.some((l) => l.id === locationId)
+    ).toBe(true);
+  });
+
+  test("assignment create: requires Idempotency-Key, rejects a duplicate active assignment for the same unit+subject, replays on retry", async () => {
+    const owner = await bootstrap();
+    const unitId = await createUnitFixture(owner, "duplicate-assignment-unit");
+
+    const missingKey = await invoke(createAssignment, {
+      method: "POST",
+      path: "/api/v1/organization-structure/assignments",
+      headers: authHeaders(owner),
+      body: { organizationUnitId: unitId, tenantUserId: owner.tenantUserId }
+    });
+    expect(missingKey.status).toBe(400);
+
+    const first = await invoke<{ data: { assignment: { id: string } } }>(
+      createAssignment,
+      {
+        method: "POST",
+        path: "/api/v1/organization-structure/assignments",
+        headers: authHeaders(owner, "assignment-dup-key"),
+        body: { organizationUnitId: unitId, tenantUserId: owner.tenantUserId }
+      }
+    );
+    expect(first.status).toBe(200);
+
+    // Same key + same payload: replays the same response, no new row.
+    const replay = await invoke<{ data: { assignment: { id: string } } }>(
+      createAssignment,
+      {
+        method: "POST",
+        path: "/api/v1/organization-structure/assignments",
+        headers: authHeaders(owner, "assignment-dup-key"),
+        body: { organizationUnitId: unitId, tenantUserId: owner.tenantUserId }
+      }
+    );
+    expect(replay.status).toBe(200);
+    expect(replay.body.data.assignment.id).toBe(first.body.data.assignment.id);
+
+    // Different key, same (unit, subject) pair while the first assignment
+    // is still active: rejected by the app-level pre-check / partial
+    // unique index backstop (sql/065), not silently duplicated.
+    const duplicate = await invoke<{ error: { code: string } }>(
+      createAssignment,
+      {
+        method: "POST",
+        path: "/api/v1/organization-structure/assignments",
+        headers: authHeaders(owner, "assignment-dup-key-2"),
+        body: { organizationUnitId: unitId, tenantUserId: owner.tenantUserId }
+      }
+    );
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.error.code).toBe("ALREADY_ASSIGNED");
+
+    const admin = getAdminSql();
+    const rows = (await admin`
+      SELECT count(*)::int AS count FROM awcms_mini_organization_unit_assignments
+      WHERE tenant_id = ${owner.tenantId} AND organization_unit_id = ${unitId}
+        AND tenant_user_id = ${owner.tenantUserId} AND status = 'active'
+    `) as { count: number }[];
+    expect(rows[0]!.count).toBe(1);
   });
 
   test("hierarchy reparent: creates the first edge, tree/ancestor reflect it", async () => {
@@ -761,7 +1055,7 @@ suite("organization_structure integration", () => {
       {
         method: "POST",
         path: "/api/v1/organization-structure/assignments",
-        headers: authHeaders(ownerB),
+        headers: authHeaders(ownerB, "cross-tenant-assignment-key"),
         body: { organizationUnitId: unitB, tenantUserId: ownerA.tenantUserId }
       }
     );

@@ -612,6 +612,11 @@ composite index:
   (EKSPLISIT BUKAN hierarki HR/payroll). `status` (`active`/`ended`)
   TIDAK PERNAH soft-delete — mengakhiri assignment adalah state
   terminal yang sama dengan pola `revoke` `business_scope_assignments`.
+  Partial unique index (`065_awcms_mini_organization_structure_assignment_
+unique_index.sql`, security-review follow-up PR #779) memastikan
+  maksimal satu assignment `active` per pasangan (unit, tenant user) —
+  sama pola `awcms_mini_location_unit_relationships_current_key` di atas;
+  `POST .../assignments` (create) wajib `Idempotency-Key`.
 
 Permission seed: 28 permission (`064_awcms_mini_organization_structure_
 permissions.sql`) — `legal_entities.{read,create,update,delete,restore}`,

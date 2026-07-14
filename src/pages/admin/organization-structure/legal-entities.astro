@@ -63,7 +63,7 @@ if (CAN_READ) {
   try {
     await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
       legalEntities = await listLegalEntities(tx, context.tenantId, {
-        includeDeleted: true
+        includeDeleted: CAN_RESTORE
       });
     });
   } catch (error) {
@@ -322,6 +322,7 @@ if (CAN_READ) {
 <script>
   import {
     lockElement,
+    newIdempotencyKey,
     readClientStrings,
     reloadAfterDelay,
     showBanner,
@@ -392,7 +393,8 @@ if (CAN_READ) {
             `${BASE_URL}/${button.dataset.id}`,
             "DELETE",
             { deleteReason: reason },
-            strings
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
           );
 
           if (result.ok) {
@@ -419,7 +421,8 @@ if (CAN_READ) {
             `${BASE_URL}/${button.dataset.id}/restore`,
             "POST",
             {},
-            strings
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
           );
 
           if (result.ok) {
