@@ -59,6 +59,7 @@ import { POST as retryImport } from "../../src/pages/api/v1/data-exchange/import
 import { POST as createExportRoute } from "../../src/pages/api/v1/data-exchange/exports/index";
 import { GET as getExportJobRoute } from "../../src/pages/api/v1/data-exchange/exports/[id]/index";
 import { GET as downloadExportRoute } from "../../src/pages/api/v1/data-exchange/exports/[id]/download";
+import { dataExchangeModule } from "../../src/modules/data-exchange/module";
 import { GET as getReconciliation } from "../../src/pages/api/v1/data-exchange/reconciliation/[subjectType]/[subjectId]";
 
 import { hashPassword } from "../../src/lib/auth/password";
@@ -1351,6 +1352,88 @@ suite("data_exchange integration", () => {
       expect(result.allowed).toBe(false);
       if (!result.allowed) {
         expect(result.denied.status).toBe(500);
+      }
+    });
+
+    test("exports/{id}/download enforces the resolved descriptor's requiredPermission end-to-end (security-auditor finding on PR #782 follow-up: download.ts was the one call site that resolved a descriptor without checking it)", async () => {
+      const owner = await bootstrap();
+      const sql = getWorkerTestSql();
+
+      await sql.begin(async (tx) => {
+        await tx.unsafe(
+          `SET LOCAL app.current_tenant_id = '${owner.tenantId}'`
+        );
+        await tx`
+          INSERT INTO awcms_mini_data_exchange_reference_items (tenant_id, code, label, value, status)
+          VALUES (${owner.tenantId}, 'widget-download-guard', 'Widget Download Guard', 1, 'active')
+        `;
+      });
+
+      const create = await invoke<{ data: { job: any } }>(createExportRoute, {
+        method: "POST",
+        path: "/api/v1/data-exchange/exports",
+        headers: authHeaders(owner, "download-guard-export-key"),
+        body: { exportKey: REFERENCE_ITEMS_KEY, format: "csv" }
+      });
+      const jobId = create.body.data.job.id;
+      await drainWorker(sql, owner.tenantId);
+
+      // Holds the generic `data_exchange.export_downloads.read` guard
+      // download.ts's own top-level check requires, but nothing else --
+      // the exact "plausible broad ops/support downloads exports role"
+      // shape the security-auditor finding described.
+      const limited = await bootstrapLimitedUser(owner, [
+        {
+          moduleKey: "data_exchange",
+          activityCode: "export_downloads",
+          action: "read"
+        }
+      ]);
+
+      // `reference_items` ships with no `requiredPermission` today (this
+      // module's README explains why -- no real owning-module adapter has
+      // registered one yet). Proving `download.ts` genuinely calls
+      // `authorizeExchangeDescriptorPermission` (not just that the
+      // function itself works, already covered above) requires a
+      // descriptor that DOES declare one -- so this temporarily overrides
+      // the REAL, shared, process-global descriptor object for this
+      // test's duration only, the same "mutate real shared registry state,
+      // restore afterward" shape `registerExchangeAdapterForTests`/
+      // `resetExchangeAdaptersForTests` already establish for adapters.
+      const descriptor = dataExchangeModule.dataExchange?.find(
+        (candidate) => candidate.key === REFERENCE_ITEMS_KEY
+      );
+      if (!descriptor) {
+        throw new Error(
+          "reference_items descriptor not found on dataExchangeModule -- test setup assumption broken."
+        );
+      }
+      const originalRequiredPermission = descriptor.requiredPermission;
+      descriptor.requiredPermission = "identity_access.user_management.read";
+
+      try {
+        const denied = await invokeRaw(downloadExportRoute, {
+          method: "GET",
+          path: `/api/v1/data-exchange/exports/${jobId}/download`,
+          params: { id: jobId },
+          headers: authHeaders(limited)
+        });
+        expect(denied.status).toBe(403);
+
+        // The fully-permissioned owner (setup wizard grants every
+        // permission to the owner role, including
+        // identity_access.user_management.read) still succeeds -- proves
+        // this is a real, targeted missing-permission denial, not a
+        // blanket regression that would break every download.
+        const allowed = await invokeRaw(downloadExportRoute, {
+          method: "GET",
+          path: `/api/v1/data-exchange/exports/${jobId}/download`,
+          params: { id: jobId },
+          headers: authHeaders(owner)
+        });
+        expect(allowed.status).toBe(200);
+      } finally {
+        descriptor.requiredPermission = originalRequiredPermission;
       }
     });
   });

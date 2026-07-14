@@ -11,8 +11,10 @@ import { hashSessionToken } from "../../../../../../lib/auth/session-token";
 import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 import {
   getExportJobById,
-  getExportJobFileContent
+  getExportJobFileContent,
+  resolveExportDescriptor
 } from "../../../../../../modules/data-exchange/application/export-job-directory";
+import { authorizeExchangeDescriptorPermission } from "../../../../../../modules/data-exchange/application/descriptor-authorization";
 
 const MODULE_KEY = "data_exchange";
 
@@ -62,6 +64,26 @@ export const GET: APIRoute = async ({ request, cookies, params, locals }) => {
 
     const job = await getExportJobById(tx, tenantId, jobId);
     if (!job) return fail(404, "NOT_FOUND", "Export job not found.");
+
+    // Security-auditor finding on PR #782 (High): every OTHER route that
+    // resolves an `ExchangeDescriptor` (stage, preview, commit, retry,
+    // export-create) already calls `authorizeExchangeDescriptorPermission`
+    // — this route, which serves the raw materialized export FILE CONTENT
+    // (more sensitive than the job metadata `exports.read` already covers),
+    // was the one call site that never did. A caller holding only the
+    // generic `data_exchange.export_downloads.read` permission must not be
+    // able to bypass an owning module's own `requiredPermission` gate
+    // (e.g. a future payroll/HR export descriptor) just because this route
+    // forgot to check it.
+    const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      resolveExportDescriptor(job.exportKey)
+    );
+    if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
+
     if (job.status !== "completed") {
       return fail(
         409,

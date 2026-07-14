@@ -88,13 +88,19 @@ neutralization at serialization) -> `completed` -> `GET /exports/{id}/download`.
   ONE never rolls back an unrelated item processed earlier in the same
   pass (verified by an integration test that deliberately throws mid-pass).
 - **`ExchangeDescriptor.requiredPermission` enforcement**: every route that
-  resolves a descriptor (stage, preview, commit, retry, export-create)
-  checks `application/descriptor-authorization.ts`'s
+  resolves a descriptor (stage, preview, commit, retry, export-create,
+  export-download) checks `application/descriptor-authorization.ts`'s
   `authorizeExchangeDescriptorPermission` — when a descriptor declares an
   extra owning-module permission, the subject must hold it too, default-deny,
   fail-closed on a malformed permission string. `reference_items` itself
   does not set one today; the enforcement point is proven with a
-  synthetic descriptor in the integration suite.
+  synthetic descriptor in the integration suite. (Security-auditor finding
+  on PR #782: `exports/[id]/download.ts` — the route serving the raw
+  materialized export FILE CONTENT, more sensitive than the job metadata
+  `exports.read` already covers — was initially missed; a stale README
+  claim of full coverage is exactly the kind of gap this epic's reviews
+  keep catching, so every call site's coverage here is proven by a test,
+  not just asserted in prose.)
 - **Idempotency-Key** required on every mutating endpoint: stage-upload,
   commit, cancel, retry, pause, resume (imports); create, cancel
   (exports).
