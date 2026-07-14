@@ -137,7 +137,12 @@ export const eventActivityProjectorConsumer: DomainEventConsumerDefinition = {
       ctx.tenantId,
       EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME,
       event.id,
-      () => applyEventActivityProjectionIncrement(tx, ctx.tenantId)
+      () =>
+        applyEventActivityProjectionIncrement(
+          tx,
+          ctx.tenantId,
+          event.occurredAt
+        )
     );
   }
 };

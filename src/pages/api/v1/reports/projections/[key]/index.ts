@@ -39,13 +39,26 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
       return auth.denied;
     }
 
-    const result = await getProjectionSummaryForTenant(tx, tenantId, key, now);
+    const result = await getProjectionSummaryForTenant(
+      tx,
+      tenantId,
+      key,
+      auth.grantedPermissionKeys,
+      now
+    );
 
-    if (!result) {
+    if (result.outcome === "not_found") {
       return fail(
         404,
         "NOT_FOUND",
         `No registered projection with key "${key}".`
+      );
+    }
+    if (result.outcome === "forbidden") {
+      return fail(
+        403,
+        "ACCESS_DENIED",
+        `Missing the required permission to read projection "${key}".`
       );
     }
 

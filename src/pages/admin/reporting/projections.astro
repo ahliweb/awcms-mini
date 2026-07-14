@@ -94,7 +94,8 @@ try {
     if (CAN_READ) {
       projections = await listProjectionSummariesForTenant(
         tx,
-        context.tenantId
+        context.tenantId,
+        context.permissions
       );
     }
     if (CAN_EXPORTS_READ) {

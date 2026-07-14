@@ -8,7 +8,11 @@ import {
   resolveAuthInputs
 } from "../../../../../../../modules/identity-access/application/access-guard";
 import { getExportRun } from "../../../../../../../modules/reporting/application/export-run-store";
-import { readLocalExportArtifact } from "../../../../../../../modules/reporting/infrastructure/local-export-adapter";
+import {
+  computeExportArtifactChecksum,
+  readLocalExportArtifact
+} from "../../../../../../../modules/reporting/infrastructure/local-export-adapter";
+import { log } from "../../../../../../../lib/logging/logger";
 
 /**
  * `GET /api/v1/reports/exports/runs/{id}/download` (Issue #753) — secure,
@@ -84,6 +88,30 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
 
   try {
     const content = await readLocalExportArtifact(outcome.run.storagePath!);
+
+    // Reverify the checksum from the ACTUAL bytes just read, rather than
+    // trusting the manifest's stored value blindly (security-auditor
+    // finding, PR #781 — same "verified checksums" posture
+    // `data_lifecycle`'s own `ArchivePort.verify` already established).
+    // A mismatch means the file on disk no longer matches what was
+    // generated — never serve it silently.
+    const recomputedChecksum = computeExportArtifactChecksum(content);
+    if (
+      outcome.run.checksumSha256 &&
+      recomputedChecksum !== outcome.run.checksumSha256
+    ) {
+      log("error", "reporting.export.checksum_mismatch", {
+        moduleKey: "reporting",
+        tenantId,
+        exportRunId: id
+      });
+      return fail(
+        500,
+        "EXPORT_CHECKSUM_MISMATCH",
+        "The export artifact on disk no longer matches its recorded checksum."
+      );
+    }
+
     const contentType =
       outcome.run.format === "json" ? "application/json" : "text/csv";
     const fileName = `${outcome.run.projectionKey}.${outcome.run.format}`;
@@ -93,7 +121,7 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
       headers: {
         "content-type": `${contentType}; charset=utf-8`,
         "content-disposition": `attachment; filename="${fileName}"`,
-        "x-checksum-sha256": outcome.run.checksumSha256 ?? ""
+        "x-checksum-sha256": recomputedChecksum
       }
     });
   } catch {

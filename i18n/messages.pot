@@ -2283,7 +2283,7 @@ msgid "admin.layout.nav_profile_identity_parties"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/reporting/module.ts:64
+#: src/modules/reporting/module.ts:65
 msgid "admin.layout.nav_reporting_projections"
 msgstr ""
 
@@ -3514,71 +3514,71 @@ msgstr ""
 msgid "admin.profile_identity.parties.title"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:143
+#: src/pages/admin/reporting/projections.astro:144
 msgid "admin.reporting_projections.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:142
+#: src/pages/admin/reporting/projections.astro:143
 msgid "admin.reporting_projections.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:231
+#: src/pages/admin/reporting/projections.astro:232
 msgid "admin.reporting_projections.cancel_rebuild_button"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:175
+#: src/pages/admin/reporting/projections.astro:176
 msgid "admin.reporting_projections.col_actions"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:172
+#: src/pages/admin/reporting/projections.astro:173
 msgid "admin.reporting_projections.col_drill_down"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:380
+#: src/pages/admin/reporting/projections.astro:381
 msgid "admin.reporting_projections.col_expires_at"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:276
+#: src/pages/admin/reporting/projections.astro:277
 msgid "admin.reporting_projections.col_format"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:166
+#: src/pages/admin/reporting/projections.astro:167
 msgid "admin.reporting_projections.col_freshness"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:278
+#: src/pages/admin/reporting/projections.astro:279
 msgid "admin.reporting_projections.col_interval"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:161
+#: src/pages/admin/reporting/projections.astro:162
 msgid "admin.reporting_projections.col_key"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:169
+#: src/pages/admin/reporting/projections.astro:170
 msgid "admin.reporting_projections.col_last_success"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:163
+#: src/pages/admin/reporting/projections.astro:164
 msgid "admin.reporting_projections.col_metrics"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:377
+#: src/pages/admin/reporting/projections.astro:378
 msgid "admin.reporting_projections.col_row_count"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:280
+#: src/pages/admin/reporting/projections.astro:281
 msgid "admin.reporting_projections.col_status"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:360
+#: src/pages/admin/reporting/projections.astro:361
 msgid "admin.reporting_projections.create_schedule_button"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:318
+#: src/pages/admin/reporting/projections.astro:319
 msgid "admin.reporting_projections.create_schedule_heading"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:308
+#: src/pages/admin/reporting/projections.astro:309
 msgid "admin.reporting_projections.disable_button"
 msgstr ""
 
@@ -3586,19 +3586,19 @@ msgstr ""
 msgid "admin.reporting_projections.disable_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:401
+#: src/pages/admin/reporting/projections.astro:402
 msgid "admin.reporting_projections.download_link"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:249
+#: src/pages/admin/reporting/projections.astro:250
 msgid "admin.reporting_projections.export_button"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:370
+#: src/pages/admin/reporting/projections.astro:371
 msgid "admin.reporting_projections.export_runs_empty"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:365
+#: src/pages/admin/reporting/projections.astro:366
 msgid "admin.reporting_projections.export_runs_heading"
 msgstr ""
 
@@ -3606,52 +3606,52 @@ msgstr ""
 msgid "admin.reporting_projections.export_triggered"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:346
+#: src/pages/admin/reporting/projections.astro:347
 msgid "admin.reporting_projections.field_interval_minutes"
 msgstr ""
 
 #. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/reporting/projections.astro:200
+#: src/pages/admin/reporting/projections.astro:201
 msgid "admin.reporting_projections.freshness_current"
 msgstr ""
 
 #. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/reporting/projections.astro:200
+#: src/pages/admin/reporting/projections.astro:201
 msgid "admin.reporting_projections.freshness_delayed"
 msgstr ""
 
 #. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/reporting/projections.astro:200
+#: src/pages/admin/reporting/projections.astro:201
 msgid "admin.reporting_projections.freshness_failed"
 msgstr ""
 
 #. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/reporting/projections.astro:200
+#: src/pages/admin/reporting/projections.astro:201
 msgid "admin.reporting_projections.freshness_rebuilding"
 msgstr ""
 
 #. dynamic key family "admin.reporting_projections.freshness_" — concrete suffix from src/modules/reporting/domain/freshness.ts ProjectionFreshnessStatus (see DYNAMIC_KEY_FAMILIES, scripts/i18n-extract.ts)
-#: src/pages/admin/reporting/projections.astro:200
+#: src/pages/admin/reporting/projections.astro:201
 msgid "admin.reporting_projections.freshness_stale"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:122
+#: src/pages/admin/reporting/projections.astro:123
 msgid "admin.reporting_projections.page_description"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:120
+#: src/pages/admin/reporting/projections.astro:121
 msgid "admin.reporting_projections.page_title"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:157
+#: src/pages/admin/reporting/projections.astro:158
 msgid "admin.reporting_projections.projections_empty"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:151
+#: src/pages/admin/reporting/projections.astro:152
 msgid "admin.reporting_projections.projections_heading"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:221
+#: src/pages/admin/reporting/projections.astro:222
 msgid "admin.reporting_projections.rebuild_button"
 msgstr ""
 
@@ -3671,7 +3671,7 @@ msgstr ""
 msgid "admin.reporting_projections.rebuild_triggered"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:240
+#: src/pages/admin/reporting/projections.astro:241
 msgid "admin.reporting_projections.reconcile_button"
 msgstr ""
 
@@ -3691,23 +3691,23 @@ msgstr ""
 msgid "admin.reporting_projections.schedule_disabled"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:269
+#: src/pages/admin/reporting/projections.astro:270
 msgid "admin.reporting_projections.scheduled_exports_empty"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:263
+#: src/pages/admin/reporting/projections.astro:264
 msgid "admin.reporting_projections.scheduled_exports_heading"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:296
+#: src/pages/admin/reporting/projections.astro:297
 msgid "admin.reporting_projections.status_disabled"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:295
+#: src/pages/admin/reporting/projections.astro:296
 msgid "admin.reporting_projections.status_enabled"
 msgstr ""
 
-#: src/pages/admin/reporting/projections.astro:210
+#: src/pages/admin/reporting/projections.astro:211
 msgid "admin.reporting_projections.view_source_link"
 msgstr ""
 

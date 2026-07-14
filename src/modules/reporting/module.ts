@@ -4,6 +4,7 @@ import {
   ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,
   EVENT_ACTIVITY_METRIC_KEYS,
   EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME,
+  EVENT_ACTIVITY_REBUILD_STREAM_KEY,
   EVENT_ACTIVITY_SUMMARY_PROJECTION_KEY,
   MODULE_ACTIVITY_METRIC_KEYS,
   MODULE_ACTIVITY_SUMMARY_PROJECTION_KEY
@@ -312,7 +313,7 @@ export const reportingModule = defineModule({
       rebuildSource: {
         streams: [
           {
-            streamKey: "domain_events_sample_recorded",
+            streamKey: EVENT_ACTIVITY_REBUILD_STREAM_KEY,
             tableName: "awcms_mini_domain_events",
             cursorColumn: "occurred_at",
             metrics: [

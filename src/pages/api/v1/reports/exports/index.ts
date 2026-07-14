@@ -117,6 +117,22 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   if (!format) {
     return fail(400, "VALIDATION_ERROR", 'format must be "csv" or "json".');
   }
+  if (Object.keys(filter).length > 0) {
+    // `filter` is accepted/persisted/documented in OpenAPI (a deliberately
+    // generic, unspecified shape a future issue would define), but
+    // `generateProjectionExport` does not yet consult it at all — every
+    // export always contains the full metric snapshot regardless of what
+    // was submitted here. Rejecting a non-empty filter (rather than
+    // silently accepting and ignoring it) avoids a false sense of
+    // scoping — reviewer + security-auditor finding, PR #781. Remove this
+    // guard, and wire `filter` into `generateProjectionExport`, together
+    // in the same follow-up issue that defines the filter schema.
+    return fail(
+      400,
+      "NOT_IMPLEMENTED",
+      "filter is not yet applied to generated exports — omit it (or pass an empty object) until this is implemented."
+    );
+  }
   if (
     !Number.isInteger(scheduleIntervalMinutes) ||
     scheduleIntervalMinutes < MIN_INTERVAL_MINUTES ||

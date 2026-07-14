@@ -8,6 +8,7 @@ import {
   resolveAuthInputs
 } from "../../../../../../modules/identity-access/application/access-guard";
 import { findProjectionDescriptor } from "../../../../../../modules/reporting/application/projection-directory";
+import { isProjectionPermitted } from "../../../../../../modules/reporting/domain/projection-permission-filter";
 import { reconcileProjection } from "../../../../../../modules/reporting/application/projection-reconciliation";
 
 /**
@@ -57,6 +58,21 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
 
     if (!auth.allowed) {
       return auth.denied;
+    }
+
+    // `ProjectionDescriptor.requiredPermission` gates reading this
+    // projection's snapshot/freshness/RECONCILIATION (see that field's
+    // own doc comment, `_shared/module-contract.ts`) — the coarse
+    // `reporting.projections.analyze` check above is necessary but not
+    // sufficient; a caller must ALSO hold this specific descriptor's own
+    // permission (reviewer finding, PR #781 — same fix as the two GET
+    // routes).
+    if (!isProjectionPermitted(descriptor, auth.grantedPermissionKeys)) {
+      return fail(
+        403,
+        "ACCESS_DENIED",
+        `Missing the required permission to reconcile projection "${key}".`
+      );
     }
 
     const result = await reconcileProjection(

@@ -113,3 +113,8 @@ export async function readLocalExportArtifact(
   }
   return file.text();
 }
+
+/** SHA-256 of `content` — same algorithm `writeLocalExportArtifact` used to compute the manifest's stored checksum, exposed for the download route to REVERIFY against the manifest value rather than trusting it blindly (defense-in-depth against on-disk tampering, security-auditor finding PR #781 — same "verified checksums" posture `data_lifecycle`'s own `ArchivePort.verify` already established). */
+export function computeExportArtifactChecksum(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}

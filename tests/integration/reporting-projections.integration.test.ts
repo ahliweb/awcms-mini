@@ -23,6 +23,7 @@ import {
   getWorkerTestSql,
   integrationEnabled,
   invoke,
+  invokeRaw,
   provisionAppRole,
   provisionWorkerRole,
   resetDatabase
@@ -33,11 +34,23 @@ import { withTenant } from "../../src/lib/database/tenant-context";
 import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize";
 import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
 
+import { GET as listProjectionsRoute } from "../../src/pages/api/v1/reports/projections/index";
+import { GET as getProjectionRoute } from "../../src/pages/api/v1/reports/projections/[key]/index";
+import { POST as triggerRebuildRoute } from "../../src/pages/api/v1/reports/projections/[key]/rebuild/index";
+import {
+  GET as listScheduledExportsRoute,
+  POST as createScheduledExportRoute
+} from "../../src/pages/api/v1/reports/exports/index";
+import { POST as triggerExportRoute } from "../../src/pages/api/v1/reports/exports/trigger";
+import { GET as downloadExportRoute } from "../../src/pages/api/v1/reports/exports/runs/[id]/download";
+import { hashPassword } from "../../src/lib/auth/password";
+
 import type { ProjectionDescriptor } from "../../src/modules/_shared/module-contract";
 import { findProjectionDescriptor } from "../../src/modules/reporting/application/projection-directory";
 import {
   ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,
   EVENT_ACTIVITY_METRIC_KEYS,
+  EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME,
   EVENT_ACTIVITY_SUMMARY_PROJECTION_KEY,
   MODULE_ACTIVITY_METRIC_KEYS,
   MODULE_ACTIVITY_SUMMARY_PROJECTION_KEY
@@ -46,7 +59,8 @@ import { getProjectionMetrics } from "../../src/modules/reporting/application/pr
 import { getProjectionState } from "../../src/modules/reporting/application/projection-state-store";
 import {
   findRunningRebuild,
-  getRebuildRunById
+  getRebuildRunById,
+  requestRebuildCancellation
 } from "../../src/modules/reporting/application/rebuild-run-store";
 import { runIncrementalUpdateForTenant } from "../../src/modules/reporting/application/projection-incremental-worker";
 import {
@@ -106,6 +120,92 @@ async function bootstrap(
     tenantCode,
     token: login.body.data.token
   };
+}
+
+function authHeaders(
+  owner: Bootstrap,
+  idempotencyKey?: string
+): Record<string, string> {
+  return {
+    "content-type": "application/json",
+    "x-awcms-mini-tenant-id": owner.tenantId,
+    authorization: `Bearer ${owner.token}`,
+    ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {})
+  };
+}
+
+const RESTRICTED_USER_PASSWORD = "integration-test-restricted-user-password";
+
+/**
+ * Creates a role granting EXACTLY the given `module.activity.action`
+ * permission keys, a second tenant user holding ONLY that role (within
+ * the SAME tenant, never the setup wizard's always-full-permission
+ * "owner"), and logs in as them through the real `POST /auth/login`
+ * endpoint — the least-privilege actor every 403-without-permission test
+ * below needs. Same pattern `business-scope-assignments.integration.
+ * test.ts`'s own `createRoleWithPermissions`/`createSecondTenantUser`
+ * already establish.
+ */
+async function createRestrictedUser(
+  tenantId: string,
+  loginIdentifier: string,
+  permissionKeys: string[]
+): Promise<{ token: string }> {
+  const admin = getAdminSql();
+
+  const roleRows = (await admin`
+    INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name)
+    VALUES (${tenantId}, ${`restricted_${loginIdentifier}`}, 'Restricted Test Role')
+    RETURNING id
+  `) as { id: string }[];
+  const roleId = roleRows[0]!.id;
+
+  for (const key of permissionKeys) {
+    const [moduleKey, activityCode, action] = key.split(".");
+    await admin`
+      INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+      SELECT ${tenantId}, ${roleId}, id FROM awcms_mini_permissions
+      WHERE module_key = ${moduleKey} AND activity_code = ${activityCode} AND action = ${action}
+    `;
+  }
+
+  const profileRows = (await admin`
+    INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+    VALUES (${tenantId}, 'person', 'Restricted User')
+    RETURNING id
+  `) as { id: string }[];
+
+  const passwordHash = await hashPassword(RESTRICTED_USER_PASSWORD);
+  const identityRows = (await admin`
+    INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+    VALUES (${tenantId}, ${profileRows[0]!.id}, ${loginIdentifier}, ${passwordHash})
+    RETURNING id
+  `) as { id: string }[];
+
+  const tenantUserRows = (await admin`
+    INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+    VALUES (${tenantId}, ${identityRows[0]!.id})
+    RETURNING id
+  `) as { id: string }[];
+
+  await admin`
+    INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+    VALUES (${tenantId}, ${tenantUserRows[0]!.id}, ${roleId})
+  `;
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password: RESTRICTED_USER_PASSWORD },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return { token: login.body.data.token };
 }
 
 /** Seeds `count` ABAC decision-log rows for `tenantId`, sequential inserts (each gets a distinct `now()`), `decision` alternating allow/deny so total_count/allow_count/deny_count are all independently verifiable. */
@@ -216,6 +316,87 @@ async function createBareSecondTenant(tenantCode: string): Promise<string> {
   `;
 
   return tenantId;
+}
+
+/**
+ * A second, fully-independent tenant with a REAL logged-in session and
+ * full `reporting` module permissions (raw-SQL tenant/profile/identity/
+ * role/login, never a second `bootstrap()` call — `/setup/initialize` is
+ * a one-time-only singleton per database, see `createBareSecondTenant`'s
+ * own comment history / `domain-event-runtime.integration.test.ts`'s own
+ * `seedSecondTenantWithDomainEventRuntimeAccess`, the exact same pattern
+ * mirrored here). Used for cross-tenant HTTP-layer RLS tests where a bare
+ * ABAC-deny (403 missing permission) would be a false positive — this
+ * caller genuinely HOLDS the permission, so a 404 on another tenant's
+ * resource can only come from real tenant-scoped RLS, not a coarse
+ * permission gate.
+ */
+async function createSecondTenantWithReportingAccess(
+  tenantCode: string
+): Promise<Bootstrap> {
+  const tenantId = crypto.randomUUID();
+  const loginIdentifier = `${tenantCode}-${OWNER_LOGIN}`;
+  const password = "integration-test-tenant-b-reporting-password";
+  const admin = getAdminSql();
+
+  await admin`
+    INSERT INTO awcms_mini_tenants
+      (id, tenant_code, tenant_name, legal_name, status, default_locale, default_theme)
+    VALUES (${tenantId}, ${tenantCode}, ${tenantCode}, ${tenantCode}, 'active', 'en', 'light')
+  `;
+
+  const passwordHash = await hashPassword(password);
+
+  await admin.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+
+    const profile = (await tx`
+      INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+      VALUES (${tenantId}, 'person', 'Tenant B Reporting User') RETURNING id
+    `) as { id: string }[];
+    const identity = (await tx`
+      INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+      VALUES (${tenantId}, ${profile[0]!.id}, ${loginIdentifier}, ${passwordHash})
+      RETURNING id
+    `) as { id: string }[];
+    const tenantUser = (await tx`
+      INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+      VALUES (${tenantId}, ${identity[0]!.id}) RETURNING id
+    `) as { id: string }[];
+    const role = (await tx`
+      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name)
+      VALUES (${tenantId}, 'reporting_full_access', 'Reporting Full Access') RETURNING id
+    `) as { id: string }[];
+    const permissions = (await tx`
+      SELECT id FROM awcms_mini_permissions WHERE module_key = 'reporting'
+    `) as { id: string }[];
+
+    for (const permission of permissions) {
+      await tx`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        VALUES (${tenantId}, ${role[0]!.id}, ${permission.id})
+      `;
+    }
+
+    await tx`
+      INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+      VALUES (${tenantId}, ${tenantUser[0]!.id}, ${role[0]!.id})
+    `;
+  });
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+
+  return { tenantId, tenantCode, token: login.body.data.token };
 }
 
 const suite = integrationEnabled ? describe : describe.skip;
@@ -600,8 +781,8 @@ suite("reporting-projections (Issue #753)", () => {
     });
   });
 
-  describe("event-driven projection — mutual exclusion with rebuild", () => {
-    test("a live event delivery is skipped (no-op, not an error) while a rebuild owns this projection", async () => {
+  describe("event-driven projection — mutual exclusion with rebuild (security-auditor finding, PR #781)", () => {
+    test("a live event delivery during an in-progress rebuild is RETRIED (never silently marked delivered, never writes its idempotency marker), and succeeds once the rebuild is no longer running", async () => {
       const owner = await bootstrap();
       const sql = getAdminSql();
       const descriptor = eventActivityDescriptor();
@@ -614,7 +795,7 @@ suite("reporting-projections (Issue #753)", () => {
       );
       expect(run.status).toBe("running");
 
-      await withTenant(sql, owner.tenantId, (tx) =>
+      const appended = await withTenant(sql, owner.tenantId, (tx) =>
         appendDomainEvent(tx, owner.tenantId, {
           aggregateType: "test",
           aggregateId: crypto.randomUUID(),
@@ -629,11 +810,15 @@ suite("reporting-projections (Issue #753)", () => {
         sql,
         owner.tenantId
       );
-      // The consumer handler itself no-ops (mutual exclusion), but the
-      // DELIVERY still succeeds (applyConsumerEffectOnce's marker is
-      // written regardless — see event-activity-projection.ts) — this is
-      // NOT a failure/dead-letter, just an intentional skip.
-      expect(dispatchResult.delivered).toBeGreaterThanOrEqual(1);
+      // The OTHER two reference consumers (audit projector + activity
+      // rollup) don't care about reporting's rebuild state and deliver
+      // normally; ONLY the reporting event-activity-projector's delivery
+      // must defer (retry), because `applyEventActivityProjectionIncrement`
+      // now THROWS instead of silently no-opping (see that file's own
+      // header comment for why silently no-opping was a real permanent-
+      // data-loss bug).
+      expect(dispatchResult.delivered).toBe(2);
+      expect(dispatchResult.retried).toBe(1);
 
       const metrics = await withTenant(sql, owner.tenantId, (tx) =>
         getProjectionMetrics(tx, owner.tenantId, descriptor.key)
@@ -641,6 +826,140 @@ suite("reporting-projections (Issue #753)", () => {
       expect(metrics[EVENT_ACTIVITY_METRIC_KEYS.sampleRecordedCount] ?? 0).toBe(
         0
       );
+
+      // CRITICAL: the idempotency marker must NOT exist — the throw rolled
+      // back the WHOLE transaction, including `applyConsumerEffectOnce`'s
+      // marker INSERT that ran moments earlier in the same transaction.
+      // If this marker existed, the redelivery below would be a silent
+      // no-op forever (the exact bug this fix closes).
+      const markerRowsWhileRebuilding = await withTenant(
+        sql,
+        owner.tenantId,
+        (tx) =>
+          tx`SELECT id FROM awcms_mini_domain_event_consumer_effects
+             WHERE tenant_id = ${owner.tenantId} AND consumer_name = ${EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME}
+               AND event_id = ${appended.eventId}`
+      );
+      expect((markerRowsWhileRebuilding as unknown[]).length).toBe(0);
+
+      // The rebuild finishes normally (not cancelled) — the retried
+      // delivery should now succeed on the next dispatch tick, once past
+      // the backoff window.
+      await continueRebuildPasses(sql, owner.tenantId, descriptor, run.id, 10);
+      const finishedRun = await withTenant(sql, owner.tenantId, (tx) =>
+        getRebuildRunById(tx, owner.tenantId, run.id)
+      );
+      expect(finishedRun?.status).toBe("completed");
+
+      const future = new Date(Date.now() + 10 * 60 * 1000);
+      const secondDispatch = await dispatchDomainEventsForTenant(
+        sql,
+        owner.tenantId,
+        { now: future }
+      );
+      expect(secondDispatch.delivered).toBeGreaterThanOrEqual(1);
+
+      const metricsAfterRetry = await withTenant(sql, owner.tenantId, (tx) =>
+        getProjectionMetrics(tx, owner.tenantId, descriptor.key)
+      );
+      // Counted exactly once by the retried live delivery — the
+      // completed rebuild's own re-scan of awcms_mini_domain_events (via
+      // its rebuildSource streams) ALSO covers this same event (it was
+      // already durably in the source table before the rebuild finished),
+      // so this also proves the two paths don't double-count when both
+      // legitimately observe the same underlying event.
+      expect(
+        metricsAfterRetry[EVENT_ACTIVITY_METRIC_KEYS.sampleRecordedCount]
+      ).toBe(1);
+    });
+
+    test("ADVERSARIAL: cancelling a rebuild does not permanently lose an event that was concurrently delivered during it — the event is eventually retried and counted, never silently dropped (security-auditor finding, PR #781)", async () => {
+      const owner = await bootstrap();
+      const sql = getAdminSql();
+      const descriptor = eventActivityDescriptor();
+
+      const { run } = await withTenant(sql, owner.tenantId, (tx) =>
+        triggerOrResumeRebuild(tx, owner.tenantId, descriptor, {
+          requestedBy: null,
+          reason: "adversarial rebuild-cancel + concurrent-delivery test"
+        })
+      );
+      expect(run.status).toBe("running");
+
+      // A new domain event arrives WHILE the rebuild is running.
+      await withTenant(sql, owner.tenantId, (tx) =>
+        appendDomainEvent(tx, owner.tenantId, {
+          aggregateType: "test",
+          aggregateId: crypto.randomUUID(),
+          eventType: SAMPLE_RECORDED_EVENT_TYPE,
+          eventVersion: SAMPLE_RECORDED_EVENT_VERSION,
+          producerModule: "reporting_test",
+          payload: {}
+        })
+      );
+
+      // The dispatcher tries to deliver it — must defer (retry), not
+      // silently mark it delivered.
+      const duringRebuild = await dispatchDomainEventsForTenant(
+        sql,
+        owner.tenantId
+      );
+      expect(duringRebuild.retried).toBe(1);
+
+      const metricsDuringRebuild = await withTenant(sql, owner.tenantId, (tx) =>
+        getProjectionMetrics(tx, owner.tenantId, descriptor.key)
+      );
+      expect(
+        metricsDuringRebuild[EVENT_ACTIVITY_METRIC_KEYS.sampleRecordedCount] ??
+          0
+      ).toBe(0);
+
+      // Operator CANCELS the rebuild before its own bounded re-scan ever
+      // reaches this event's row (we never call continueRebuildPasses
+      // again after triggering, so the rebuild's own cursor never
+      // advances past this event at all).
+      await withTenant(sql, owner.tenantId, (tx) =>
+        requestRebuildCancellation(tx, owner.tenantId, run.id)
+      );
+      // One bounded-pass invocation observes cancel_requested and marks
+      // the run 'cancelled' (same mechanism `projection-rebuild.ts`'s own
+      // cancellation tests already exercise).
+      const cancelOutcome = await continueRebuildPasses(
+        sql,
+        owner.tenantId,
+        descriptor,
+        run.id,
+        1
+      );
+      expect(cancelOutcome.status).toBe("cancelled");
+
+      const cancelledRun = await withTenant(sql, owner.tenantId, (tx) =>
+        getRebuildRunById(tx, owner.tenantId, run.id)
+      );
+      expect(cancelledRun?.status).toBe("cancelled");
+
+      // Mutual exclusion is now lifted (no 'running' rebuild for this
+      // projection) — the deferred delivery must be retried successfully
+      // on the next dispatch tick, past the backoff window. Before this
+      // fix, the event would be PERMANENTLY uncounted here: its
+      // idempotency marker would already exist from the first (silently
+      // no-opped) attempt, so this redelivery would be skipped as
+      // "already applied" despite never having actually incremented
+      // anything, and the cancelled rebuild never reached it either.
+      const future = new Date(Date.now() + 10 * 60 * 1000);
+      const afterCancel = await dispatchDomainEventsForTenant(
+        sql,
+        owner.tenantId,
+        { now: future }
+      );
+      expect(afterCancel.delivered).toBeGreaterThanOrEqual(1);
+
+      const metricsAfterCancel = await withTenant(sql, owner.tenantId, (tx) =>
+        getProjectionMetrics(tx, owner.tenantId, descriptor.key)
+      );
+      expect(
+        metricsAfterCancel[EVENT_ACTIVITY_METRIC_KEYS.sampleRecordedCount]
+      ).toBe(1);
     });
   });
 
@@ -681,6 +1000,260 @@ suite("reporting-projections (Issue #753)", () => {
         new Date()
       );
       expect(rebuildingFreshness.status).toBe("rebuilding");
+    });
+  });
+
+  describe("HTTP layer (invoke() against the real route handlers) — auth/idempotency/cross-tenant wiring (Medium finding, PR #781 security-auditor review)", () => {
+    test("GET /reports/projections and GET /reports/projections/{key}: 403 without reporting.projections.read, 200 with it", async () => {
+      const owner = await bootstrap();
+      const restricted = await createRestrictedUser(
+        owner.tenantId,
+        "restricted-projections-reader@example.com",
+        [] // no permissions at all
+      );
+      const restrictedHeaders = {
+        "content-type": "application/json",
+        "x-awcms-mini-tenant-id": owner.tenantId,
+        authorization: `Bearer ${restricted.token}`
+      };
+
+      const deniedList = await invoke(listProjectionsRoute, {
+        method: "GET",
+        path: "/api/v1/reports/projections",
+        headers: restrictedHeaders
+      });
+      expect(deniedList.status).toBe(403);
+
+      const deniedGet = await invoke(getProjectionRoute, {
+        method: "GET",
+        path: `/api/v1/reports/projections/${ACCESS_AUDIT_SUMMARY_PROJECTION_KEY}`,
+        headers: restrictedHeaders,
+        params: { key: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY }
+      });
+      expect(deniedGet.status).toBe(403);
+
+      const allowedList = await invoke<{
+        data: { projections: { key: string }[] };
+      }>(listProjectionsRoute, {
+        method: "GET",
+        path: "/api/v1/reports/projections",
+        headers: authHeaders(owner)
+      });
+      expect(allowedList.status).toBe(200);
+      expect(allowedList.body.data.projections.length).toBe(3);
+
+      const allowedGet = await invoke<{
+        data: { projection: { key: string } };
+      }>(getProjectionRoute, {
+        method: "GET",
+        path: `/api/v1/reports/projections/${ACCESS_AUDIT_SUMMARY_PROJECTION_KEY}`,
+        headers: authHeaders(owner),
+        params: { key: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY }
+      });
+      expect(allowedGet.status).toBe(200);
+      expect(allowedGet.body.data.projection.key).toBe(
+        ACCESS_AUDIT_SUMMARY_PROJECTION_KEY
+      );
+    });
+
+    test("POST rebuild: 403 without reporting.projections.rebuild, 409 on Idempotency-Key reuse with a different body, 200 success + exact replay on retry", async () => {
+      const owner = await bootstrap();
+      const restricted = await createRestrictedUser(
+        owner.tenantId,
+        "restricted-rebuild@example.com",
+        ["reporting.projections.read"] // read, but NOT rebuild
+      );
+      const restrictedHeaders = {
+        "content-type": "application/json",
+        "x-awcms-mini-tenant-id": owner.tenantId,
+        authorization: `Bearer ${restricted.token}`,
+        "idempotency-key": "restricted-rebuild-attempt"
+      };
+
+      const denied = await invoke(triggerRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${ACCESS_AUDIT_SUMMARY_PROJECTION_KEY}/rebuild`,
+        headers: restrictedHeaders,
+        params: { key: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY },
+        body: { reason: "should be denied" }
+      });
+      expect(denied.status).toBe(403);
+
+      const idempotencyKey = "owner-rebuild-key-1";
+      const first = await invoke<{
+        data: { rebuild: { id: string }; resumed: boolean };
+      }>(triggerRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${ACCESS_AUDIT_SUMMARY_PROJECTION_KEY}/rebuild`,
+        headers: authHeaders(owner, idempotencyKey),
+        params: { key: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY },
+        body: { reason: "first attempt" }
+      });
+      expect(first.status).toBe(200);
+      expect(first.body.data.resumed).toBe(false);
+
+      const conflicting = await invoke(triggerRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${ACCESS_AUDIT_SUMMARY_PROJECTION_KEY}/rebuild`,
+        headers: authHeaders(owner, idempotencyKey),
+        params: { key: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY },
+        body: { reason: "a DIFFERENT reason — same key must conflict" }
+      });
+      expect(conflicting.status).toBe(409);
+
+      const replay = await invoke<{
+        data: { rebuild: { id: string }; resumed: boolean };
+      }>(triggerRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${ACCESS_AUDIT_SUMMARY_PROJECTION_KEY}/rebuild`,
+        headers: authHeaders(owner, idempotencyKey),
+        params: { key: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY },
+        body: { reason: "first attempt" }
+      });
+      expect(replay.status).toBe(200);
+      expect(replay.body.data.rebuild.id).toBe(first.body.data.rebuild.id);
+    });
+
+    test("POST /reports/exports (create scheduled export): 403 without reporting.exports.configure, 409 on Idempotency-Key reuse with a different body, 200 success", async () => {
+      const owner = await bootstrap();
+      const restricted = await createRestrictedUser(
+        owner.tenantId,
+        "restricted-exports-configure@example.com",
+        ["reporting.exports.read"] // read, but NOT configure
+      );
+      const restrictedHeaders = {
+        "content-type": "application/json",
+        "x-awcms-mini-tenant-id": owner.tenantId,
+        authorization: `Bearer ${restricted.token}`,
+        "idempotency-key": "restricted-export-config-attempt"
+      };
+
+      const denied = await invoke(createScheduledExportRoute, {
+        method: "POST",
+        path: "/api/v1/reports/exports",
+        headers: restrictedHeaders,
+        body: {
+          projectionKey: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,
+          format: "csv",
+          scheduleIntervalMinutes: 60
+        }
+      });
+      expect(denied.status).toBe(403);
+
+      const idempotencyKey = "owner-export-config-key-1";
+      const first = await invoke<{ data: { scheduledExport: { id: string } } }>(
+        createScheduledExportRoute,
+        {
+          method: "POST",
+          path: "/api/v1/reports/exports",
+          headers: authHeaders(owner, idempotencyKey),
+          body: {
+            projectionKey: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,
+            format: "csv",
+            scheduleIntervalMinutes: 60
+          }
+        }
+      );
+      expect(first.status).toBe(200);
+
+      const conflicting = await invoke(createScheduledExportRoute, {
+        method: "POST",
+        path: "/api/v1/reports/exports",
+        headers: authHeaders(owner, idempotencyKey),
+        body: {
+          projectionKey: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,
+          format: "csv",
+          scheduleIntervalMinutes: 120 // different body, same key
+        }
+      });
+      expect(conflicting.status).toBe(409);
+
+      const list = await invoke<{
+        data: { scheduledExports: { id: string }[] };
+      }>(listScheduledExportsRoute, {
+        method: "GET",
+        path: "/api/v1/reports/exports",
+        headers: authHeaders(owner)
+      });
+      expect(list.status).toBe(200);
+      expect(list.body.data.scheduledExports.map((e) => e.id)).toEqual([
+        first.body.data.scheduledExport.id
+      ]);
+    });
+
+    test("POST /reports/exports/trigger: 403 without reporting.exports.export, then 200 success; GET download: cross-tenant caller gets 404, owning tenant succeeds", async () => {
+      const owner = await bootstrap();
+      const restricted = await createRestrictedUser(
+        owner.tenantId,
+        "restricted-exports-trigger@example.com",
+        ["reporting.exports.read"] // read, but NOT export
+      );
+      const restrictedHeaders = {
+        "content-type": "application/json",
+        "x-awcms-mini-tenant-id": owner.tenantId,
+        authorization: `Bearer ${restricted.token}`,
+        "idempotency-key": "restricted-export-trigger-attempt"
+      };
+
+      const denied = await invoke(triggerExportRoute, {
+        method: "POST",
+        path: "/api/v1/reports/exports/trigger",
+        headers: restrictedHeaders,
+        body: {
+          projectionKey: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,
+          format: "csv"
+        }
+      });
+      expect(denied.status).toBe(403);
+
+      const triggered = await invoke<{
+        data: { export: { id: string; status: string } };
+      }>(triggerExportRoute, {
+        method: "POST",
+        path: "/api/v1/reports/exports/trigger",
+        headers: authHeaders(owner, "owner-export-trigger-key-1"),
+        body: {
+          projectionKey: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,
+          format: "csv"
+        }
+      });
+      expect(triggered.status).toBe(200);
+      expect(triggered.body.data.export.status).toBe("completed");
+      const exportRunId = triggered.body.data.export.id;
+
+      const ownTenantDownload = await invokeRaw(downloadExportRoute, {
+        method: "GET",
+        path: `/api/v1/reports/exports/runs/${exportRunId}/download`,
+        headers: authHeaders(owner),
+        params: { id: exportRunId }
+      });
+      expect(ownTenantDownload.status).toBe(200);
+      expect(ownTenantDownload.response.headers.get("content-type")).toContain(
+        "text/csv"
+      );
+      expect(
+        ownTenantDownload.response.headers.get("x-checksum-sha256")
+      ).toBeTruthy();
+      expect(ownTenantDownload.text.length).toBeGreaterThan(0);
+
+      // A completely different tenant, whose session genuinely HOLDS
+      // reporting.exports.read (so a 404 here can only come from real
+      // tenant-scoped RLS, never a coarse permission gate — a bare
+      // ABAC-deny would be a false positive for this specific test), must
+      // NOT be able to see tenant A's export run at all — RLS scopes
+      // `getExportRun` by tenant_id, so this is a genuine "does not exist
+      // for you" 404, never disclosing that a resource ID is valid for
+      // SOME other tenant.
+      const otherTenant = await createSecondTenantWithReportingAccess(
+        "tenant-b-export-download"
+      );
+      const crossTenantDownload = await invokeRaw(downloadExportRoute, {
+        method: "GET",
+        path: `/api/v1/reports/exports/runs/${exportRunId}/download`,
+        headers: authHeaders(otherTenant),
+        params: { id: exportRunId }
+      });
+      expect(crossTenantDownload.status).toBe(404);
     });
   });
 });

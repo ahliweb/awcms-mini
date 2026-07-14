@@ -8,9 +8,31 @@
  * (every route in `src/pages/api/v1/reports/projections*.ts` does, via the
  * same `authorizeInTransaction` guard every other endpoint in this repo
  * uses).
+ *
+ * TWO LAYERS of permission enforcement, deliberately:
+ * 1. The route's own `authorizeInTransaction` call gates the coarse
+ *    `reporting.projections.read` (or `.analyze`) permission — same as
+ *    every other endpoint in this repo.
+ * 2. `grantedPermissionKeys` is ALSO threaded into every function below,
+ *    which additionally filters/rejects by each individual descriptor's
+ *    OWN `requiredPermission` (`ProjectionDescriptor.requiredPermission`,
+ *    `_shared/module-contract.ts`) — same "filter by the candidate's own
+ *    declared permission, not just the coarse endpoint gate" pattern
+ *    `module-management/domain/navigation-registry.ts`'s
+ *    `filterVisibleNavigationEntries` already establishes for admin nav.
+ *    All three descriptors registered in this PR happen to share the
+ *    SAME `requiredPermission` value, so layer 1 alone was not
+ *    exploitable today — but the moment a future module registers a
+ *    projection with a narrower permission, layer 2 is what actually
+ *    stops a caller holding only the coarse gate from seeing it anyway
+ *    (reviewer finding, PR #781).
  */
 import { computeProjectionFreshness } from "../domain/freshness";
 import { collectProjectionDescriptors } from "../domain/projection-registry";
+import {
+  filterPermittedProjectionDescriptors,
+  isProjectionPermitted
+} from "../domain/projection-permission-filter";
 import { listModules } from "../../index";
 import type { ProjectionDescriptor } from "../../_shared/module-contract";
 import { getProjectionMetrics } from "./projection-metric-store";
@@ -93,9 +115,13 @@ async function buildSummaryView(
 export async function listProjectionSummariesForTenant(
   tx: Bun.SQL,
   tenantId: string,
+  grantedPermissionKeys: ReadonlySet<string>,
   now: Date = new Date()
 ): Promise<ProjectionSummaryView[]> {
-  const descriptors = listRegisteredProjectionDescriptors();
+  const descriptors = filterPermittedProjectionDescriptors(
+    listRegisteredProjectionDescriptors(),
+    grantedPermissionKeys
+  );
   const views: ProjectionSummaryView[] = [];
 
   for (const descriptor of descriptors) {
@@ -114,18 +140,33 @@ export async function listProjectionSummariesForTenant(
   return views;
 }
 
+export type ProjectionSummaryLookupResult =
+  | { outcome: "not_found" }
+  | { outcome: "forbidden" }
+  | {
+      outcome: "found";
+      summary: ProjectionSummaryView;
+      recentReconciliations: Awaited<ReturnType<typeof listReconciliationRuns>>;
+    };
+
 export async function getProjectionSummaryForTenant(
   tx: Bun.SQL,
   tenantId: string,
   key: string,
+  grantedPermissionKeys: ReadonlySet<string>,
   now: Date = new Date()
-): Promise<{
-  summary: ProjectionSummaryView;
-  recentReconciliations: Awaited<ReturnType<typeof listReconciliationRuns>>;
-} | null> {
+): Promise<ProjectionSummaryLookupResult> {
   const descriptor = findProjectionDescriptor(key);
   if (!descriptor || descriptor.scope !== "tenant") {
-    return null;
+    return { outcome: "not_found" };
+  }
+  if (!isProjectionPermitted(descriptor, grantedPermissionKeys)) {
+    // A SINGLE-item lookup for a descriptor that genuinely exists but the
+    // caller lacks THIS descriptor's own permission for — 403, not 404,
+    // matching this repo's existing convention of never disguising a
+    // permission denial as a generic "not found" (see every
+    // `authorizeInTransaction`-gated route's own `403 ACCESS_DENIED`).
+    return { outcome: "forbidden" };
   }
 
   // Sequential — same same-connection reasoning as `buildSummaryView`'s
@@ -133,5 +174,5 @@ export async function getProjectionSummaryForTenant(
   const summary = await buildSummaryView(tx, tenantId, descriptor, now);
   const recentReconciliations = await listReconciliationRuns(tx, tenantId, key);
 
-  return { summary, recentReconciliations };
+  return { outcome: "found", summary, recentReconciliations };
 }

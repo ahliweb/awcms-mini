@@ -45,6 +45,7 @@ export const GET: APIRoute = async ({ request, cookies }) => {
     const projections = await listProjectionSummariesForTenant(
       tx,
       tenantId,
+      auth.grantedPermissionKeys,
       now
     );
 

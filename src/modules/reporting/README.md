@@ -106,10 +106,20 @@ reference; summary:
    `reporting:projections:refresh` tick, or a re-triggered rebuild that
    finds one already `'running'`) picks up exactly there — never
    double-counts, never skips.
-3. While a rebuild owns a (tenant, projection), BOTH the `cursor_table`
-   steady-state worker AND the `domain_event` live consumer SKIP it
-   entirely (no-op, not an error) — the rebuild's own full re-scan is
-   guaranteed to already cover any row written during its window.
+3. While a rebuild owns a (tenant, projection), the `cursor_table`
+   steady-state worker SKIPS it entirely (no-op, not an error) — the
+   rebuild's own full re-scan shares the SAME cursor, so it is guaranteed
+   to already cover any row written during its window. The `domain_event`
+   live consumer instead THROWS (deferring via the normal retry/backoff
+   path) and, on retry, compares the event's own `occurredAt` against the
+   rebuild-source stream's cursor WATERMARK to tell "already counted by a
+   rebuild that has since completed/cancelled/failed" apart from "never
+   counted by anything" — a plain skip-with-blind-retry would either
+   permanently lose an event (if the blocking rebuild was cancelled
+   before reaching it) or double-count it (if the rebuild went on to
+   complete normally); see `application/event-activity-projection.ts`'s
+   own header comment for the full analysis (security-auditor finding,
+   PR #781).
 
 Adversarial test (bounded pass -> simulated crash -> resumed
 continuation -> exact correct total, never double/under-counted) and a
@@ -155,7 +165,20 @@ same generation function for every enabled, due
 `awcms_mini_reporting_scheduled_exports` config. Download
 (`GET /api/v1/reports/exports/runs/{id}/download`) re-checks RBAC/ABAC
 and tenant scope at DOWNLOAD time and refuses an expired artifact with
-`410 Gone`.
+`410 Gone`. The returned `X-Checksum-Sha256` header is the manifest's
+stored value, not recomputed from the bytes actually read at download
+time (a minor defense-in-depth gap — on-disk tampering detection, not
+the primary access control, which stays ABAC+RLS — noted here rather
+than silently assumed, security-auditor finding PR #781).
+
+**`filter` is accepted/persisted but not yet applied** — `POST
+/api/v1/reports/exports`'s `filter` field is stored on the scheduled
+export config and returned by every read, but `generateProjectionExport`
+never consults it: every export always contains the full metric
+snapshot. Rather than silently ignore a submitted filter (a false sense
+of scoping), the create endpoint rejects a non-empty `filter` with `400
+NOT_IMPLEMENTED` until a follow-up issue defines its schema and wires it
+into generation (reviewer + security-auditor finding, PR #781).
 
 ### API
 
@@ -177,6 +200,22 @@ unchanged): `reporting.projections.{read,rebuild,analyze}`,
 `reporting.exports.{read,configure,export}` (migration 067,
 `domain/projection-permissions.ts`'s `REPORTING_PROJECTION_PERMISSIONS`
 single source of truth).
+
+**Two enforcement layers for reading a projection** (list/get-detail/
+reconcile): the route's own coarse `authorizeInTransaction` gate
+(`reporting.projections.read`/`.analyze`) is necessary but NOT
+sufficient — every descriptor also declares its OWN
+`ProjectionDescriptor.requiredPermission`, additionally enforced by
+`domain/projection-permission-filter.ts` (filters the list, 403s a
+single-key lookup) — same pattern
+`module-management/domain/navigation-registry.ts`'s
+`filterVisibleNavigationEntries` already established for admin nav. All
+three descriptors registered in this PR happen to share the same
+`requiredPermission`, so this second layer is not yet distinguishable
+from the first for any REAL descriptor today — but it is what stops a
+caller holding only the coarse permission from seeing a FUTURE
+narrower-permissioned projection a derived module registers (reviewer
+finding, PR #781).
 
 ### Admin UI
 

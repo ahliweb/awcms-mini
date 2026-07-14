@@ -11322,6 +11322,7 @@ paths:
                 filter:
                   type: object
                   additionalProperties: true
+                  description: Not yet applied to generated exports (known limitation) -- omit or pass an empty object; a non-empty filter is rejected with 400 NOT_IMPLEMENTED until a follow-up issue defines the filter schema and wires it into export generation.
       responses:
         "200":
           description: Scheduled export config created.
