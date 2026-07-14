@@ -139,6 +139,30 @@ itu resolve ke "tidak berlaku" untuk suatu tenant — bukan berarti kode
 bisa jalan tanpa modul lain ter-compile (ini monolith, semua source
 selalu ikut ter-bundle).
 
+**Dua varian composition-root sudah ada di repo ini — pilih sesuai
+taruhan keamanan fitur, bukan template tunggal.** Varian #1
+(`blog_content` konsumsi `NewsMediaPort` dari `news_portal`, Issue #681):
+route handler SELALU inject adapter konkret, TANPA cek enable/disable
+tenant di call site — port itu sendiri yang didesain fail-closed/no-op
+aman untuk setiap kasus "tidak berlaku". Varian #2 (`identity_access`
+konsumsi `BusinessScopeHierarchyPort` dari `organization_structure`,
+Issue #746/#749/#786): composition root (`POST /api/v1/identity/
+business-scope/assignments`'s `buildHierarchyPort`) SECARA EKSPLISIT
+memanggil `resolveModuleEnabled(tx, tenantId, "organization_structure")`
+lebih dulu — hanya mencoba adapter nyata modul itu saat aktif untuk
+tenant tsb, jatuh ke adapter default modul pengonsumsi kalau tidak. Pilih
+varian #2 (gate eksplisit) ketika kapabilitas yang dikonsumsi menentukan
+keputusan otorisasi/keamanan (di sini: apakah sebuah scope reference
+valid sebelum SoD dievaluasi) — men-degradasi "aman" secara implisit
+lewat port semata (varian #1) berisiko diam-diam mengonsultasikan data
+milik modul yang justru sudah dinonaktifkan tenant. Kedua varian tetap
+sama-sama TIDAK PERNAH meng-import `application`/`domain` modul lain
+langsung dari modul pengonsumsi — hanya lewat port + composition root,
+lihat `identity-access/README.md` dan `organization-structure/README.md`
+§`BusinessScopeHierarchyPort` untuk detail varian #2, dan
+`tests/integration/business-scope-organization-structure-wiring.
+integration.test.ts` untuk buktinya end-to-end.
+
 ## Baca status tenant-enabled: plural vs singular
 
 `fetchTenantModuleEntries(tx, tenantId)` (semua modul terdaftar) vs

@@ -162,7 +162,13 @@
       "source": "base",
       "dependencies": ["tenant_admin", "profile_identity"],
       "capabilitiesProvided": [],
-      "capabilitiesConsumed": [],
+      "capabilitiesConsumed": [
+        {
+          "capability": "organization_hierarchy_resolution",
+          "providedBy": "organization_structure",
+          "optional": true
+        }
+      ],
       "permissionCount": 0,
       "navigationCount": 2,
       "jobCount": 1,
