@@ -281,8 +281,9 @@ remediasi R3 di bawah.
 | `social_publishing`       | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `organization_structure`  | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 
-Total: 3 Core + 9 System + 5 Official Optional Module = 17 dari 18 modul
+Total: 3 Core + 9 System + 6 Official Optional Module = 18 dari 21 modul
 terdaftar diklasifikasikan di tabel ini, cocok dengan `src/modules/
 index.ts`. `organization_structure` (Issue #749, epic #738
 `platform-evolution` Wave 2) ditambahkan lewat admission decision
@@ -297,10 +298,18 @@ admission decision `docs/adr/0017-document-infrastructure-module-admission.md`
 evidence, generic resource relations (capability port, bukan FK/table
 write lintas modul), dan numbering sequence concurrency-safe (reservation/
 commit/cancel, atomik lewat `SELECT ... FOR UPDATE`, tidak pernah reuse
-nomor). Tidak ada modul kategori Derived Application atau External
-Integration top-level di registry ini hari ini (sesuai definisi §2 —
-integration hidup sebagai sub-komponen, lihat kolom "provider eksternal"
-di bawah).
+nomor).
+RLS predicate tabelnya selalu dan hanya `tenant_id`. `data_exchange`
+(Issue #752, epic #738 `platform-evolution` Wave 3) ditambahkan lewat
+admission decision `docs/adr/0018-data-exchange-module-admission.md` —
+mesin generik staged import/export CSV/JSON (staging, validasi, preview/
+diff, commit asinkron idempoten, export manifest/checksum, rekonsiliasi)
+dikonsumsi modul pemilik lewat capability port (`DataExchangeAdapterPort`)
+dan deskriptor statis (`ModuleDescriptor.dataExchange`); modul ini tidak
+pernah menulis langsung ke tabel modul lain. Tidak ada modul kategori
+Derived Application atau External Integration top-level di registry ini
+hari ini (sesuai definisi §2 — integration hidup sebagai sub-komponen,
+lihat kolom "provider eksternal" di bawah).
 
 **Satu modul terdaftar, `idn_admin_regions`, sengaja tidak dimasukkan ke tabel di
 atas.** Descriptor-nya (`src/modules/idn-admin-regions/module.ts`) men-set

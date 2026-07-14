@@ -8751,6 +8751,438 @@ Effective-dated (SCD Type 2) -- closes the current definition and opens a new on
 | 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
+## Data Exchange
+
+Provider-neutral staged CSV/JSON import/export framework (epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0018) — module-contributed exchange descriptors, staged intake (checksum + safe filename, size/row/field-bounded parsing with formula-injection neutralization), preview with zero domain mutation, asynchronous idempotent resumable commit via the shared worker runner (`bun run data-exchange:worker`, never inline with an HTTP request), export jobs with manifest/checksum, and reconciliation. Each owning module supplies its own schema/validation/mapping/commit adapter through a capability port (`DataExchangeAdapterPort`); this module never writes to another module's tables directly. Ships one self-contained reference fixture (`reference_items`) to prove the mechanism end-to-end.
+
+### `GET /api/v1/data-exchange/descriptors` — List module-contributed exchange descriptors
+
+- **operationId**: `dataExchangeDescriptorsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                    | Schema                                                   |
+| ------ | -------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Registered exchange descriptors (code-declared metadata only). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                 | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-exchange/exports` — List export jobs
+
+- **operationId**: `dataExchangeExportsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                                 | Description                                 |
+| ------------------ | ------ | -------- | -------------------------------------------------------------------- | ------------------------------------------- |
+| `exportKey`        | query  | no       | string                                                               |                                             |
+| `status`           | query  | no       | [`DataExchangeExportJobStatus`](#schema-dataexchangeexportjobstatus) |                                             |
+| `X-Correlation-ID` | header | no       | string                                                               | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                                               | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Export jobs for this tenant.                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-exchange/exports` — Queue a new export job
+
+- **operationId**: `dataExchangeExportsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key. Never blocks on the actual export work.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`DataExchangeCreateExportRequest`](#schema-dataexchangecreateexportrequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Export job queued.                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-exchange/exports/{id}` — Get an export job by id
+
+- **operationId**: `dataExchangeExportsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                        | Schema                                                   |
+| ------ | ------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | The export job (file content is never included; see .../download). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                     | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                         | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-exchange/exports/{id}/cancel` — Cancel a queued or running export job
+
+- **operationId**: `dataExchangeExportsCancel`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Export job cancelled.                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Job cannot be cancelled from its current status, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-exchange/exports/{id}/download` — Download a completed export job's file content
+
+- **operationId**: `dataExchangeExportsDownload`
+- **Security**: bearerAuth + tenantHeader
+
+Distinct, more sensitive permission from exports.read (data_exchange.export_downloads.read). Returns the raw text/csv or application/json body, not the standard ApiSuccess envelope.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                 |
+| ------ | --------------------------------------------------- | -------------------------------------- |
+| 200    | Export file content.                                | string                                 |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope) |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope) |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope) |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope) |
+| 409    | Export job is not completed.                        | [`ApiError`](#standard-error-envelope) |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope) |
+
+### `GET /api/v1/data-exchange/imports` — List staged import batches
+
+- **operationId**: `dataExchangeImportsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                                     | Description                                 |
+| ------------------ | ------ | -------- | ------------------------------------------------------------------------ | ------------------------------------------- |
+| `importKey`        | query  | no       | string                                                                   |                                             |
+| `status`           | query  | no       | [`DataExchangeImportBatchStatus`](#schema-dataexchangeimportbatchstatus) |                                             |
+| `X-Correlation-ID` | header | no       | string                                                                   | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                                                   | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Import batches for this tenant.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-exchange/imports` — Stage a new import batch
+
+- **operationId**: `dataExchangeImportsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key. `multipart/form-data` body capped at 5 MiB before any parsing; performs NO row-level parsing (asynchronous, on the shared worker, `bun run data-exchange:worker`). Enforces checksum (server-computed SHA-256), media type (allow-list per format, 415 if not allowed), file size, and safe filename handling at intake.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Import batch staged.                                                                                                                                                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request, or checksum mismatch.                                                                                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 415    | The uploaded file's media type is not on the allow-list for the declared format.                                                                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-exchange/imports/{id}` — Get an import batch by id
+
+- **operationId**: `dataExchangeImportsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The import batch.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-exchange/imports/{id}/cancel` — Cancel a staged import batch before commit begins
+
+- **operationId**: `dataExchangeImportsCancel`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                            | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Import batch cancelled.                                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Batch cannot be cancelled from its current status, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                             | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-exchange/imports/{id}/commit` — Trigger the asynchronous idempotent commit of a previewed batch
+
+- **operationId**: `dataExchangeImportsCommit`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key. Never blocks on the actual per-row work.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                           | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Commit triggered.                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                        | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                   | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Batch is not in previewed status, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                            | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-exchange/imports/{id}/pause` — Pause an in-progress commit
+
+- **operationId**: `dataExchangeImportsPause`
+- **Security**: bearerAuth + tenantHeader
+
+Requires Idempotency-Key. The worker skips a paused batch entirely.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                            | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Import batch paused.                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                         | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                    | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Batch is not currently committing, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                             | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-exchange/imports/{id}/preview` — Paginated preview of a batch's staged rows
+
+- **operationId**: `dataExchangeImportsPreview`
+- **Security**: bearerAuth + tenantHeader
+
+Zero domain mutation. Sensitive fields are masked unless the caller also holds data_exchange.preview_errors.read.
+
+**Parameters**
+
+| Name               | In     | Required | Type                                                    | Description                                 |
+| ------------------ | ------ | -------- | ------------------------------------------------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid)                                           |                                             |
+| `proposedAction`   | query  | no       | enum(`create`, `update`, `skip`, `conflict`, `invalid`) |                                             |
+| `offset`           | query  | no       | integer                                                 |                                             |
+| `limit`            | query  | no       | integer                                                 |                                             |
+| `X-Correlation-ID` | header | no       | string                                                  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                                  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Preview page.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-exchange/imports/{id}/resume` — Resume a paused commit
+
+- **operationId**: `dataExchangeImportsResume`
+- **Security**: bearerAuth + tenantHeader
+
+Requires Idempotency-Key. The worker resumes committing on its next scheduled pass.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                        | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Import batch resumed.                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                     | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Batch is not currently paused, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                         | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/data-exchange/imports/{id}/retry` — Retry/resume a partially-committed or failed import batch
+
+- **operationId**: `dataExchangeImportsRetry`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key. Resumes from the batch's saved commit cursor; never re-applies an already-committed row.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                         | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Retry/resume triggered.                                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Batch is not retryable from its current status, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/data-exchange/reconciliation/{subjectType}/{subjectId}` — Read reconciliation reports for an import or export subject
+
+- **operationId**: `dataExchangeReconciliationList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                     | Description                                 |
+| ------------------ | ------ | -------- | ------------------------ | ------------------------------------------- |
+| `subjectType`      | path   | yes      | enum(`import`, `export`) |                                             |
+| `subjectId`        | path   | yes      | string (uuid)            |                                             |
+| `X-Correlation-ID` | header | no       | string                   | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                   | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reconciliation reports, newest first.          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
 ## Reporting Projections
 
 Module-contributed read-model projection extension to Management Reporting (epic `platform-evolution` #738 Wave 3, Issue #753) — list registered projection descriptors with live snapshot/freshness status, trigger/resume/cancel an idempotent full rebuild, trigger an on-demand reconciliation against a source control total, and manage/trigger/download scheduled exports of a projection's current snapshot (manifest/checksum/expiry, secure tenant-scoped download). A projection is a DERIVED read model, never an authorization source of truth — every operation here independently re-checks RBAC/ABAC. Real incremental updates (`bun run reporting:projections:refresh`, `bun run reporting:exports:dispatch`) are internal scheduled jobs, not exposed over HTTP.
@@ -11029,6 +11461,44 @@ Issue #743 — this PROCESS's own capacity configuration only (never an aggregat
   },
   "generatedAt": "2026-01-01T00:00:00.000Z"
 }
+```
+
+### Schema: DataExchangeCreateExportRequest
+
+| Field         | Type                | Required | Nullable | Description                                  |
+| ------------- | ------------------- | -------- | -------- | -------------------------------------------- |
+| `exportKey`   | string              | yes      | no       |                                              |
+| `format`      | enum(`csv`, `json`) | yes      | no       |                                              |
+| `filterScope` | object              | no       | no       | Opaque, owning-module-defined filter object. |
+
+**Example**
+
+```json
+{
+  "exportKey": "string",
+  "format": "csv",
+  "filterScope": "(operation-specific payload)"
+}
+```
+
+### Schema: DataExchangeExportJobStatus
+
+Enum values: `queued`, `running`, `completed`, `failed`, `cancelled`.
+
+**Example**
+
+```json
+"queued"
+```
+
+### Schema: DataExchangeImportBatchStatus
+
+Enum values: `staged`, `validating`, `previewed`, `committing`, `committed`, `partially_committed`, `failed`, `cancelled`.
+
+**Example**
+
+```json
+"staged"
 ```
 
 ### Schema: DataLifecycleCreateLegalHoldRequest
@@ -15788,7 +16258,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (79)
+### Channels (85)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -15817,6 +16287,12 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.blog-content.widget.created` — A widget was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/widgets/index.ts`'s `POST` handler (`blog-content.widget.created` log line).
 - `awcms-mini.blog-content.widget.deleted` — A widget was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/widgets/[id].ts`'s `DELETE` handler (`blog-content.widget.deleted` log line).
 - `awcms-mini.blog-content.widget.updated` — A widget was updated (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/widgets/[id].ts`'s `PATCH` handler (`blog-content.widget.updated` log line).
+- `awcms-mini.data-exchange.export.completed` — An export job finished writing its manifest/checksum (Issue #752). Producer: `data-exchange/application/export-execute-job.ts`'s `runExportJob`.
+- `awcms-mini.data-exchange.import.committed` — A staged import batch's asynchronous commit pass finished (fully or partially, Issue #752). Producer: `data-exchange/application/import- commit-job.ts`'s `runImportCommitPass`.
+- `awcms-mini.data-exchange.import.failed` — A staged import batch's validate or commit pass failed outright (Issue #752). Producer: `data-exchange/application/import-parse- validate-job.ts`/`import-commit-job.ts`.
+- `awcms-mini.data-exchange.import.previewed` — A staged import batch's asynchronous parse/validate pass completed (Issue #752). Producer: `data-exchange/application/import-parse- validate-job.ts`'s `runImportValidatePass`.
+- `awcms-mini.data-exchange.import.staged` — A staged import batch was created (Issue #752, epic `platform-evolution` #738 Wave 3). Producer: `data-exchange/ application/import-batch-directory.ts`'s `stageImportBatch`.
+- `awcms-mini.data-exchange.reconciliation.mismatch` — A reconciliation report detected a source/processed count or checksum mismatch (Issue #752). Producer: `data-exchange/ application/reconciliation-service.ts`'s `recordReconciliation`.
 - `awcms-mini.database.pool.rejected` — Emitted when a work-class concurrency gate's bounded FIFO queue is already full and a caller is rejected IMMEDIATELY, without ever waiting (Issue #743, epic #738 platform-evolution — distinct from `database.pool.saturated` above, which is a caller that waited and THEN timed out; doc 16 §Connection pooling dan backpressure, doc 05 "DB Connectivity" category). Documented contract only, same convention as `database.pool.saturated` — the concrete producer is the structured JSON logger (`src/lib/logging/logger.ts`) invoked from `withTenant` (`src/lib/database/tenant-context.ts`) on a `WorkClassQueueFullError`.
 - `awcms-mini.database.pool.saturated` — Emitted when a work-class concurrency gate times out a queued caller (Issue 10.2, doc 16 §Connection pooling dan backpressure, doc 05 "DB Connectivity" category). Documented contract only — this repo has no live pub/sub dispatcher for any domain event yet; the concrete producer is the structured JSON logger (`src/lib/logging/logger.ts`) invoked from `withTenant` (`src/lib/database/tenant-context.ts`), consistent with how AsyncAPI events have been documented since Issue 0.3 without requiring a live producer.
 - `awcms-mini.document-infrastructure.document.created` — A document registry entry was created (Issue #751, epic `platform-evolution` #738 Wave 3). Producer: `document-infrastructure/ application/document-directory.ts`'s `createDocument`.

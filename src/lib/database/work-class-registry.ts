@@ -124,6 +124,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       "Read-only per-tenant metrics snapshot (organization-structure:metrics-snapshot, Issue #749), recommended every 15-60 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; it never mutates a row, purely samples gauges."
   },
+  "scripts/data-exchange-worker.ts": {
+    workClass: "background_sync",
+    rationale:
+      'Recurring worker (data-exchange:worker, Issue #752), recommended every 1-2 minutes — parses/validates/commits staged import batches and executes queued export jobs, driving user-visible batch/job status operators watch in the admin UI; same recurring dispatcher profile as domain-events-dispatch/workflow-escalations-dispatch, not a tolerant-of-delay maintenance sweep. Its own withTenant call (runDataExchangeWorkerPassForTenant) already passes workClass: "background_sync" explicitly.'
+  },
   "scripts/reporting-projections-refresh.ts": {
     workClass: "maintenance",
     rationale:

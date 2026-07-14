@@ -548,3 +548,61 @@ export async function seedPerformanceFixtures(
     durationMs: performance.now() - startedAt
   };
 }
+
+/**
+ * Clears every row this seeder writes for a tenant — scoped ONLY to
+ * synthetic performance-fixture tenants (`awcms_mini_tenants.tenant_code
+ * LIKE 'perf-%'`, this file's own `perf-${profile.id}-${seedFingerprint}-
+ * ${indexLabel}` format from `fixture-generator.ts` — never a real tenant),
+ * regardless of which script or seed originally created them.
+ *
+ * Issue #782 (data-exchange, epic #738) surfaced a determinism bug: in CI,
+ * `performance-query-plan-check.ts` runs in the same job/database right
+ * after `performance-suite.ts` (which seeds its OWN independent "safe"-scale
+ * fixture tenants, a different seed, so no id collision) and after `bun
+ * test` (whose integration tests write/reset real `awcms_mini_audit_events`
+ * rows throughout). With no isolation between any of these,
+ * `awcms_mini_audit_events` had accumulated to roughly DOUBLE the row count
+ * (and distinct tenant_id count) `query-plan-budgets.ts`'s
+ * `audit-events-tenant-activity-reporting` budget's approved `maxTotalCost`
+ * was calibrated against — reproduced empirically: the SAME accumulated
+ * data costs ~11 immediately after seeding (stale, pre-accumulation planner
+ * statistics) but ~1088 once PostgreSQL's autovacuum catches up and
+ * re-ANALYZEs — a pure timing race against autovacuum's background cycle,
+ * not a deterministic evaluation, and not something introduced by any
+ * particular PR's own code.
+ *
+ * Calling this immediately before seeding restores a clean, single-seed
+ * baseline every time, independent of whatever any earlier script/test left
+ * behind. Uses `DELETE` — the highest privilege the least-privilege
+ * `awcms_mini_app` role is actually granted (`TRUNCATE` and `ANALYZE` both
+ * require table ownership this role deliberately doesn't have; verified
+ * empirically that both fail with a permission error under this role) —
+ * scoped inside `withTenant` per matched tenant so RLS's `tenant_id =
+ * current_setting(...)` genuinely allows each delete, the same chokepoint
+ * every real mutation goes through (never a privileged bypass).
+ */
+export async function resetPerformanceFixtureRows(sql: Bun.SQL): Promise<void> {
+  const perfTenants = (await sql`
+    SELECT id FROM awcms_mini_tenants WHERE tenant_code LIKE 'perf-%'
+  `) as { id: string }[];
+
+  for (const { id: tenantId } of perfTenants) {
+    await withTenant(
+      sql,
+      tenantId,
+      async (tx) => {
+        await tx`DELETE FROM awcms_mini_audit_events WHERE tenant_id = ${tenantId}`;
+        await tx`DELETE FROM awcms_mini_abac_decision_logs WHERE tenant_id = ${tenantId}`;
+        await tx`DELETE FROM awcms_mini_visitor_sessions WHERE tenant_id = ${tenantId}`;
+        await tx`DELETE FROM awcms_mini_sync_outbox WHERE tenant_id = ${tenantId}`;
+        await tx`DELETE FROM awcms_mini_object_sync_queue WHERE tenant_id = ${tenantId}`;
+        await tx`DELETE FROM awcms_mini_idempotency_keys WHERE tenant_id = ${tenantId}`;
+        await tx`DELETE FROM awcms_mini_blog_posts WHERE tenant_id = ${tenantId}`;
+      },
+      // "maintenance" — same class `seedPerformanceFixtures` above uses for
+      // this exact kind of administrative batch operation.
+      { workClass: "maintenance", queueTimeoutMs: 30_000 }
+    );
+  }
+}

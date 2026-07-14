@@ -2088,6 +2088,256 @@ msgstr ""
 msgid "admin.dashboard.total_decision_log_label"
 msgstr ""
 
+#: src/pages/admin/data-exchange/exports.astro:99
+msgid "admin.data_exchange.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:98
+msgid "admin.data_exchange.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:175
+msgid "admin.data_exchange.exports.cancel_button"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:45
+msgid "admin.data_exchange.exports.cancel_success"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:141
+msgid "admin.data_exchange.exports.col_actions"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:131
+msgid "admin.data_exchange.exports.col_export_key"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:138
+msgid "admin.data_exchange.exports.col_reconciliation"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:136
+msgid "admin.data_exchange.exports.col_rows"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:134
+msgid "admin.data_exchange.exports.col_status"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:211
+msgid "admin.data_exchange.exports.create_submit"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:44
+msgid "admin.data_exchange.exports.create_success"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:187
+msgid "admin.data_exchange.exports.create_summary"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:165
+msgid "admin.data_exchange.exports.download_link"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:190
+msgid "admin.data_exchange.exports.field_export_key"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:204
+msgid "admin.data_exchange.exports.field_format"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:125
+msgid "admin.data_exchange.exports.no_rows"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:154
+msgid "admin.data_exchange.exports.reconciliation_mismatch"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:157
+msgid "admin.data_exchange.exports.reconciliation_ok"
+msgstr ""
+
+#: src/pages/admin/data-exchange/exports.astro:93
+msgid "admin.data_exchange.exports.title"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:58
+msgid "admin.data_exchange.imports.action_success"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:202
+msgid "admin.data_exchange.imports.cancel_button"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:59
+msgid "admin.data_exchange.imports.cancel_reason_prompt"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:45
+msgid "admin.data_exchange.imports.cancel_success"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:128
+msgid "admin.data_exchange.imports.col_actions"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:222
+msgid "admin.data_exchange.imports.col_commit_status"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:125
+msgid "admin.data_exchange.imports.col_created_at"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:225
+msgid "admin.data_exchange.imports.col_errors"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:154
+msgid "admin.data_exchange.imports.col_import_key"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:216
+msgid "admin.data_exchange.imports.col_natural_key"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:219
+msgid "admin.data_exchange.imports.col_proposed_action"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:123
+msgid "admin.data_exchange.imports.col_rows"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:156
+msgid "admin.data_exchange.imports.col_status"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:178
+msgid "admin.data_exchange.imports.commit_button"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:113
+msgid "admin.data_exchange.imports.detail_title"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:188
+msgid "admin.data_exchange.imports.field_file"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:181
+msgid "admin.data_exchange.imports.field_format"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:167
+msgid "admin.data_exchange.imports.field_import_key"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:268
+msgid "admin.data_exchange.imports.matched"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:267
+msgid "admin.data_exchange.imports.mismatch"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:209
+msgid "admin.data_exchange.imports.no_rows"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:189
+msgid "admin.data_exchange.imports.pause_button"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:207
+msgid "admin.data_exchange.imports.preview_heading"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:264
+msgid "admin.data_exchange.imports.processed_count"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:257
+msgid "admin.data_exchange.imports.reconciliation_heading"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:194
+msgid "admin.data_exchange.imports.resume_button"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:184
+msgid "admin.data_exchange.imports.retry_button"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:249
+msgid "admin.data_exchange.imports.showing_rows"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:262
+msgid "admin.data_exchange.imports.source_count"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:197
+msgid "admin.data_exchange.imports.stage_submit"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:44
+msgid "admin.data_exchange.imports.stage_success"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:164
+msgid "admin.data_exchange.imports.stage_summary"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:166
+msgid "admin.data_exchange.imports.summary_conflict"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:160
+msgid "admin.data_exchange.imports.summary_created"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:170
+msgid "admin.data_exchange.imports.summary_failed"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:168
+msgid "admin.data_exchange.imports.summary_invalid"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:164
+msgid "admin.data_exchange.imports.summary_skipped"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:158
+msgid "admin.data_exchange.imports.summary_totals"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:162
+msgid "admin.data_exchange.imports.summary_updated"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:80
+msgid "admin.data_exchange.imports.title"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports.astro:141
+msgid "admin.data_exchange.imports.view_link"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/data-exchange/module.ts:73
+msgid "admin.data_exchange.nav.exports"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/data-exchange/module.ts:65
+msgid "admin.data_exchange.nav.imports"
+msgstr ""
+
 #: src/pages/admin/document-infrastructure/classifications.astro:86
 msgid "admin.document_infrastructure.access_denied_body"
 msgstr ""
@@ -5414,6 +5664,14 @@ msgstr ""
 msgid "common.no"
 msgstr ""
 
+#: src/pages/admin/data-exchange/imports/[id].astro:139
+msgid "common.not_found_body"
+msgstr ""
+
+#: src/pages/admin/data-exchange/imports/[id].astro:138
+msgid "common.not_found_title"
+msgstr ""
+
 #: src/pages/admin/access-users.astro:87
 msgid "common.please_wait"
 msgstr ""
@@ -5469,6 +5727,11 @@ msgstr ""
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
 #: src/lib/i18n/error-messages.ts:89
 msgid "error.break_glass_required"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:107
+msgid "error.checksum_mismatch"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
@@ -5557,6 +5820,11 @@ msgid "error.internal_error"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:106
+msgid "error.invalid_state"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
 #: src/lib/i18n/error-messages.ts:56
 msgid "error.invalid_status_transition"
 msgstr ""
@@ -5609,6 +5877,11 @@ msgstr ""
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
 #: src/lib/i18n/error-messages.ts:90
 msgid "error.password_login_disabled"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:105
+msgid "error.payload_too_large"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
@@ -5739,6 +6012,11 @@ msgstr ""
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
 #: src/lib/i18n/error-messages.ts:58
 msgid "error.turnstile_required"
+msgstr ""
+
+#. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
+#: src/lib/i18n/error-messages.ts:111
+msgid "error.unsupported_media_type"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)

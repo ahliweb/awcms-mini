@@ -4269,3 +4269,210 @@ msgstr "Documents"
 
 msgid "admin.layout.nav_document_infrastructure_sequences"
 msgstr "Number Sequences"
+
+#. error (data_exchange additions, Issue #752)
+msgid "error.unsupported_media_type"
+msgstr "The uploaded file's type is not supported for this import."
+
+msgid "error.payload_too_large"
+msgstr "The uploaded file is too large."
+
+msgid "error.invalid_state"
+msgstr "This action is not valid for the resource's current status."
+
+msgid "error.checksum_mismatch"
+msgstr "The uploaded file's checksum did not match."
+
+#. common (data_exchange additions, Issue #752)
+msgid "common.not_found_title"
+msgstr "Not found"
+
+msgid "common.not_found_body"
+msgstr "The requested resource could not be found."
+
+#. admin.data_exchange
+msgid "admin.data_exchange.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.data_exchange.access_denied_body"
+msgstr "You do not have permission to view this data-exchange screen."
+
+msgid "admin.data_exchange.nav.imports"
+msgstr "Data Imports"
+
+msgid "admin.data_exchange.nav.exports"
+msgstr "Data Exports"
+
+msgid "admin.data_exchange.imports.title"
+msgstr "Import Batches"
+
+msgid "admin.data_exchange.imports.detail_title"
+msgstr "Import Batch Detail"
+
+msgid "admin.data_exchange.imports.no_rows"
+msgstr "No import batches yet."
+
+msgid "admin.data_exchange.imports.col_import_key"
+msgstr "Import Key"
+
+msgid "admin.data_exchange.imports.col_status"
+msgstr "Status"
+
+msgid "admin.data_exchange.imports.col_rows"
+msgstr "Rows"
+
+msgid "admin.data_exchange.imports.col_created_at"
+msgstr "Staged At"
+
+msgid "admin.data_exchange.imports.col_actions"
+msgstr "Actions"
+
+msgid "admin.data_exchange.imports.col_natural_key"
+msgstr "Key"
+
+msgid "admin.data_exchange.imports.col_proposed_action"
+msgstr "Proposed Action"
+
+msgid "admin.data_exchange.imports.col_commit_status"
+msgstr "Commit Status"
+
+msgid "admin.data_exchange.imports.col_errors"
+msgstr "Errors"
+
+msgid "admin.data_exchange.imports.view_link"
+msgstr "View"
+
+msgid "admin.data_exchange.imports.stage_summary"
+msgstr "Stage a new import"
+
+msgid "admin.data_exchange.imports.field_import_key"
+msgstr "Import key"
+
+msgid "admin.data_exchange.imports.field_format"
+msgstr "Format"
+
+msgid "admin.data_exchange.imports.field_file"
+msgstr "File"
+
+msgid "admin.data_exchange.imports.stage_submit"
+msgstr "Stage import"
+
+msgid "admin.data_exchange.imports.stage_success"
+msgstr "Import batch staged."
+
+msgid "admin.data_exchange.imports.cancel_button"
+msgstr "Cancel"
+
+msgid "admin.data_exchange.imports.cancel_reason_prompt"
+msgstr "Enter a reason for cancelling this import batch:"
+
+msgid "admin.data_exchange.imports.cancel_success"
+msgstr "Import batch cancelled."
+
+msgid "admin.data_exchange.imports.commit_button"
+msgstr "Commit"
+
+msgid "admin.data_exchange.imports.retry_button"
+msgstr "Retry / Resume"
+
+msgid "admin.data_exchange.imports.pause_button"
+msgstr "Pause"
+
+msgid "admin.data_exchange.imports.resume_button"
+msgstr "Resume"
+
+msgid "admin.data_exchange.imports.action_success"
+msgstr "Action completed."
+
+msgid "admin.data_exchange.imports.preview_heading"
+msgstr "Preview"
+
+msgid "admin.data_exchange.imports.showing_rows"
+msgstr "Showing {count} of {total} rows."
+
+msgid "admin.data_exchange.imports.summary_totals"
+msgstr "Totals"
+
+msgid "admin.data_exchange.imports.summary_created"
+msgstr "Created"
+
+msgid "admin.data_exchange.imports.summary_updated"
+msgstr "Updated"
+
+msgid "admin.data_exchange.imports.summary_skipped"
+msgstr "Skipped"
+
+msgid "admin.data_exchange.imports.summary_conflict"
+msgstr "Conflict"
+
+msgid "admin.data_exchange.imports.summary_invalid"
+msgstr "Invalid"
+
+msgid "admin.data_exchange.imports.summary_failed"
+msgstr "Failed"
+
+msgid "admin.data_exchange.imports.reconciliation_heading"
+msgstr "Reconciliation"
+
+msgid "admin.data_exchange.imports.source_count"
+msgstr "Source count"
+
+msgid "admin.data_exchange.imports.processed_count"
+msgstr "Processed count"
+
+msgid "admin.data_exchange.imports.mismatch"
+msgstr "Mismatch"
+
+msgid "admin.data_exchange.imports.matched"
+msgstr "Matched"
+
+msgid "admin.data_exchange.exports.title"
+msgstr "Export Jobs"
+
+msgid "admin.data_exchange.exports.no_rows"
+msgstr "No export jobs yet."
+
+msgid "admin.data_exchange.exports.col_export_key"
+msgstr "Export Key"
+
+msgid "admin.data_exchange.exports.col_status"
+msgstr "Status"
+
+msgid "admin.data_exchange.exports.col_rows"
+msgstr "Rows"
+
+msgid "admin.data_exchange.exports.col_reconciliation"
+msgstr "Reconciliation"
+
+msgid "admin.data_exchange.exports.col_actions"
+msgstr "Actions"
+
+msgid "admin.data_exchange.exports.download_link"
+msgstr "Download"
+
+msgid "admin.data_exchange.exports.cancel_button"
+msgstr "Cancel"
+
+msgid "admin.data_exchange.exports.cancel_success"
+msgstr "Export job cancelled."
+
+msgid "admin.data_exchange.exports.reconciliation_ok"
+msgstr "OK"
+
+msgid "admin.data_exchange.exports.reconciliation_mismatch"
+msgstr "Mismatch"
+
+msgid "admin.data_exchange.exports.create_summary"
+msgstr "Trigger a new export"
+
+msgid "admin.data_exchange.exports.field_export_key"
+msgstr "Export key"
+
+msgid "admin.data_exchange.exports.field_format"
+msgstr "Format"
+
+msgid "admin.data_exchange.exports.create_submit"
+msgstr "Queue export"
+
+msgid "admin.data_exchange.exports.create_success"
+msgstr "Export job queued."

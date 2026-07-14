@@ -1,0 +1,383 @@
+---
+/**
+ * Import batches admin screen (Issue #752, epic #738 platform-evolution
+ * Wave 3). Same "SSR list load, client-side create/action via fetch"
+ * pattern `admin/organization-structure/legal-entities.astro` establishes.
+ * The stage-upload form uses `multipart/form-data` (a real file field) —
+ * the one admin form in this repo that cannot reuse `submitJson` (which
+ * always JSON-encodes its body), so its submit handler does a plain
+ * `fetch` with a `FormData` body instead.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listImportBatches } from "../../../modules/data-exchange/application/import-batch-directory";
+import { listModules } from "../../../modules";
+import { collectExchangeDescriptors } from "../../../modules/data-exchange/domain/exchange-registry";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/data-exchange/imports.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("data_exchange", "imports", "read")
+);
+const CAN_CREATE = context.permissions.has(
+  permissionKey("data_exchange", "imports", "create")
+);
+const CAN_CANCEL = context.permissions.has(
+  permissionKey("data_exchange", "imports", "cancel")
+);
+
+const clientStrings = {
+  stageSuccess: t("admin.data_exchange.imports.stage_success"),
+  cancelSuccess: t("admin.data_exchange.imports.cancel_success"),
+  cancelReasonPrompt: t("admin.data_exchange.imports.cancel_reason_prompt"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let batches: Awaited<ReturnType<typeof listImportBatches>> = [];
+let importDescriptorKeys: string[] = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      batches = await listImportBatches(tx, context.tenantId);
+    });
+    importDescriptorKeys = collectExchangeDescriptors(listModules())
+      .filter(
+        (descriptor) =>
+          descriptor.direction === "import" || descriptor.direction === "both"
+      )
+      .map((descriptor) => descriptor.key);
+  } catch (error) {
+    logAdminPageError(
+      "admin/data-exchange/imports.astro: failed to load import batches",
+      error,
+      {
+        correlationId: Astro.locals.correlationId
+      }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.data_exchange.imports.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.data_exchange.access_denied_title")}
+        body={t("admin.data_exchange.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="config-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {batches.length === 0 ? (
+          <p class="empty-state">{t("admin.data_exchange.imports.no_rows")}</p>
+        ) : (
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col">
+                  {t("admin.data_exchange.imports.col_import_key")}
+                </th>
+                <th scope="col">
+                  {t("admin.data_exchange.imports.col_status")}
+                </th>
+                <th scope="col">{t("admin.data_exchange.imports.col_rows")}</th>
+                <th scope="col">
+                  {t("admin.data_exchange.imports.col_created_at")}
+                </th>
+                <th scope="col">
+                  {t("admin.data_exchange.imports.col_actions")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {batches.map((batch) => (
+                <tr data-id={batch.id}>
+                  <td>{batch.importKey}</td>
+                  <td>{batch.status}</td>
+                  <td>{batch.rowCount ?? "—"}</td>
+                  <td>{batch.createdAt.toISOString()}</td>
+                  <td>
+                    <a href={`/admin/data-exchange/imports/${batch.id}`}>
+                      {t("admin.data_exchange.imports.view_link")}
+                    </a>{" "}
+                    {CAN_CANCEL &&
+                      ["staged", "validating", "previewed", "failed"].includes(
+                        batch.status
+                      ) && (
+                        <button
+                          type="button"
+                          class="cancel-button"
+                          data-id={batch.id}
+                        >
+                          {t("admin.data_exchange.imports.cancel_button")}
+                        </button>
+                      )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {CAN_CREATE && (
+          <details class="create-config">
+            <summary>{t("admin.data_exchange.imports.stage_summary")}</summary>
+            <form id="stage-form" class="create-config-form">
+              <label>
+                {t("admin.data_exchange.imports.field_import_key")}
+                <input
+                  type="text"
+                  name="importKey"
+                  required
+                  list="import-descriptor-keys"
+                />
+                <datalist id="import-descriptor-keys">
+                  {importDescriptorKeys.map((key) => (
+                    <option value={key} />
+                  ))}
+                </datalist>
+              </label>
+              <label>
+                {t("admin.data_exchange.imports.field_format")}
+                <select name="format" required>
+                  <option value="csv">CSV</option>
+                  <option value="json">JSON</option>
+                </select>
+              </label>
+              <label>
+                {t("admin.data_exchange.imports.field_file")}
+                <input
+                  type="file"
+                  name="file"
+                  required
+                  accept=".csv,.json,text/csv,application/json"
+                />
+              </label>
+              <button type="submit">
+                {t("admin.data_exchange.imports.stage_submit")}
+              </button>
+            </form>
+          </details>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-surface, #e6f4ea);
+    color: var(--color-success-strong, #1e7e34);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-surface, #fdecea);
+    color: var(--color-danger-strong);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .data-table th,
+  .data-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .cancel-button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger-strong);
+    color: var(--color-danger-strong);
+  }
+  .create-config {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+  .create-config summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .create-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 480px;
+    margin-top: var(--sp-2);
+  }
+  .create-config-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+  .create-config-form input,
+  .create-config-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .create-config-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    stageSuccess: string;
+    cancelSuccess: string;
+    cancelReasonPrompt: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const BASE_URL = "/api/v1/data-exchange/imports";
+
+  document
+    .getElementById("stage-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const formData = new FormData(form);
+        const response = await fetch(BASE_URL, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Idempotency-Key": newIdempotencyKey() },
+          body: formData
+        });
+        const json = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          const code = json?.error?.code as string | undefined;
+          const message =
+            (code && strings.errorMessages?.[code]) ??
+            json?.error?.message ??
+            `Request failed (${response.status}).`;
+          showBanner("action-banner", message, "error");
+          return;
+        }
+
+        showBanner("action-banner", strings.stageSuccess, "success");
+        reloadAfterDelay();
+      } catch {
+        showBanner("action-banner", strings.networkError, "error");
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".cancel-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const reason = window.prompt(strings.cancelReasonPrompt);
+        if (!reason) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+
+        try {
+          const result = await submitJson(
+            `${BASE_URL}/${button.dataset.id}/cancel`,
+            "POST",
+            { reason },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+
+          if (result.ok) {
+            showBanner("action-banner", strings.cancelSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+</script>

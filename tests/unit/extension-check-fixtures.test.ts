@@ -155,6 +155,9 @@ describe.each([
 
 describe("extension:check CLI — every incompatible fixture fails for a genuinely DIFFERENT primary issue type (Issue #741)", () => {
   test("the eight fixtures produce eight distinct issue-type sets via --report=, not the same check five times", async () => {
+    // Spawns 8 sequential extension:check CLI subprocesses against the full
+    // module registry — already ~4.4s on main and growing with every module
+    // this epic adds, so bun's 5000ms default per-test timeout is too tight.
     const caseNames = [
       "base-version-range",
       "module-contract-version",
@@ -193,5 +196,5 @@ describe("extension:check CLI — every incompatible fixture fails for a genuine
     // same check five times".
     const serialized = primaryIssueTypesPerCase.map((types) => types.join(","));
     expect(new Set(serialized).size).toBe(caseNames.length);
-  });
+  }, 20000);
 });
