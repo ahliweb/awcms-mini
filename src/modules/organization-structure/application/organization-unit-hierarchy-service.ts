@@ -6,14 +6,14 @@
  * TRACEABILITY (issue #749 explicit warning — "validator built but never
  * wired to the real write path" has recurred across #746/#747 in this
  * epic): `reparentUnit` below is the ONLY function in this module that
- * INSERTs/UPDATEs `awcms_mini_organization_unit_hierarchies`. It is called
- * from THREE real call sites: `createHierarchyEdge` (initial parent
- * assignment for a newly created unit, exported below), the
- * `POST /api/v1/organization-structure/hierarchy/reparent` route
- * (reparent an existing unit), and nowhere else — there is no separate
+ * INSERTs/UPDATEs `awcms_mini_organization_unit_hierarchies`, and the
+ * `POST /api/v1/organization-structure/hierarchy/reparent` route is the
+ * ONLY caller — there is no separate "initial parent on unit create" path
+ * (`createOrganizationUnit` never writes a hierarchy edge; a newly created
+ * unit starts top-level/unparented until an explicit reparent call) and no
  * "bulk import" path in this issue (seed/import hooks are documented as
- * future, optional, `data_exchange`-contract work, issue #749 scope). Every
- * one of those calls `reparentUnit`, which in order:
+ * future, optional, `data_exchange`-contract work, issue #749 scope). This
+ * single call site, in order:
  *   1. Re-validates `unitId`/`candidateParentId` belong to THIS tenant and
  *      are not soft-deleted (cross-tenant/soft-deleted references
  *      rejected).

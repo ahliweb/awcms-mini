@@ -462,29 +462,37 @@ Four tenant-scoped tables (`ENABLE`+`FORCE ROW LEVEL SECURITY`,
 
 ### `BusinessScopeHierarchyPort` (`_shared/ports/business-scope-hierarchy-port.ts`)
 
-Capability port so an optional future organization module (e.g. the
-`organization_structure` candidate ADR-0013 §1 names for Wave 2) can
-resolve a scope's validity/ancestors/descendants **without
-identity-access ever importing its tables** — the acceptance criterion
-"Identity-access has no direct import/table write to an optional
+Capability port so an optional organization module (`organization_structure`,
+Issue #749, ADR-0016) can resolve a scope's validity/ancestors/descendants
+**without identity-access ever importing its tables** — the acceptance
+criterion "Identity-access has no direct import/table write to an optional
 organization module". `resolveScope(tx, tenantId, scopeType, scopeId)`
-returns `{ resolved, ancestorScopeIds, descendantScopeIds }`;
-`resolved: false` (unknown scope type, missing row, or cross-tenant row)
-is a distinct outcome from "resolved but flat" and callers must
-default-deny high-risk actions on it.
+returns `{ resolved, ancestorScopes, descendantScopes }`, where each entry is
+a `{ scopeType, scopeId }` reference rather than a bare id — an ancestor/
+descendant chain can legitimately cross scope types (e.g. an organization
+unit's ancestor chain terminating at a legal entity), so entries are never
+assumed to share the queried scope's own `scopeType` (breaking change from
+the original #746 shape, `{ ancestorScopeIds, descendantScopeIds }: string[]`
+— see the port's own header for the full rationale). `resolved: false`
+(unknown scope type, missing row, or cross-tenant row) is a distinct outcome
+from "resolved but flat" and callers must default-deny high-risk actions
+on it.
 
-No organization module exists in this repo yet, so identity-access
-itself supplies the only implementation today:
-`application/business-scope-hierarchy-port-adapter.ts`'s
+TWO adapters implement this port today. Identity-access itself supplies a
+FLAT default: `application/business-scope-hierarchy-port-adapter.ts`'s
 `defaultBusinessScopeHierarchyPortAdapter` — validates exactly
 `scopeType: "office"` against `awcms_mini_offices` (a direct, precedented
 read of a `tenant_admin`-owned table — see that adapter's own header for
 why this specific read does not need a new port, unlike hierarchy
 resolution for a module identity-access has no lifecycle dependency on
-at all) and returns `resolved: false` for every other scope type. A
-future `organization_structure` adapter supersedes this one for the scope
-types it owns; the composition root (route handlers, the expiry job
-script) decides which adapter to inject.
+at all) and returns `resolved: false` for every other scope type. Since
+Issue #749, `organization_structure`'s own adapter
+(`organization-structure/application/organization-structure-hierarchy-port-
+adapter.ts`) supersedes this one for `scopeType: "legal_entity"`/
+`"organization_unit"`, walking the real effective-dated hierarchy it owns.
+Neither adapter supersedes the other outright — the composition root
+(route handlers, the expiry job script) decides which adapter to inject
+based on which `scopeType`(s) it expects to resolve.
 
 ### ABAC extension (`domain/access-control.ts`)
 
