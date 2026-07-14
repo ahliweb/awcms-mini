@@ -29,7 +29,7 @@
  *
  * Run: `bun run test:e2e tests/e2e/admin-a11y-smoke.e2e.ts`.
  */
-import { test, expect, type Page } from "@playwright/test";
+import { test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 import { seedOwnerTenant } from "./helpers/seed-owner-tenant";

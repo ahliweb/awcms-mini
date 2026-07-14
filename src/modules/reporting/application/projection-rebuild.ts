@@ -78,7 +78,6 @@ import {
   findRunningRebuild,
   getRebuildRunById,
   markRebuildCancelled,
-  requestRebuildCancellation,
   type RebuildRunRow
 } from "./rebuild-run-store";
 

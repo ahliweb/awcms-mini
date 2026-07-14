@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-codeql-triage
-description: Triase dan perbaiki temuan CodeQL code scanning AWCMS-Mini (github.com/ahliweb/awcms-mini/security/code-scanning). Gunakan saat diminta "analisis code scanning"/"perbaiki CodeQL", saat sebuah PR gagal check CodeQL, atau saat menemukan alert baru. Mendokumentasikan empat false-positive nyata yang sudah ditemukan (name-heuristic password, incompatible-types typeof/null, URL substring-sanitization di test mock, dan dua kasus dismiss resmi tanpa reformulasi kode) supaya tidak diinvestigasi ulang dari nol.
+description: Triase dan perbaiki temuan CodeQL code scanning AWCMS-Mini (github.com/ahliweb/awcms-mini/security/code-scanning). Gunakan saat diminta "analisis code scanning"/"perbaiki CodeQL", saat sebuah PR gagal check CodeQL, atau saat menemukan alert baru. Mendokumentasikan enam false-positive nyata yang sudah ditemukan (name-heuristic password, incompatible-types typeof/null, URL substring-sanitization di test mock, dua kasus dismiss resmi tanpa reformulasi kode, Bun.SQL tagged-template null-cast, dan build-time extension seam trivial-conditional) plus pola "unused-local-variable di test kadang menandai coverage gap" — supaya tidak diinvestigasi ulang dari nol.
 ---
 
 # AWCMS-Mini — Triase CodeQL Code Scanning
@@ -153,6 +153,106 @@ harus persis `"false positive"`/`"won't fix"`/`"used in tests"` dengan spasi,
 BUKAN `false_positive` dengan underscore — API menolak keduanya kalau
 salah format; `dismissed_comment` dibatasi 280 karakter, taruh alasan
 lengkap di skill ini, bukan di comment).
+
+### 5. `js/implicit-operand-conversion` — Bun.SQL tagged template dengan argumen yang provably-always-`null`
+
+Ditemukan 2026-07-14 (alert #48, #49), Issue #788: dua instance pada baris
+yang sama, `business-scope-facts.ts:59`
+(`AND (${excludeAssignmentId}::uuid IS NULL OR id <> ${excludeAssignmentId})`
+di dalam `` tx`...` ``, sebuah Bun.SQL tagged template). CodeQL menganggap
+`${excludeAssignmentId}` di-stringify seperti template literal biasa
+(`` `${null}` `` → `"null"`), padahal **tagged template TIDAK melakukan
+implicit toString** — nilai substitusi diteruskan mentah ke fungsi tag
+(`tx`), yang mem-bind-nya sebagai parameter SQL asli (`NULL` sungguhan,
+bukan string `"null"`). CodeQL hanya menandai baris ini karena satu-satunya
+call site `fetchActiveAssignmentRows` (fungsi privat, satu caller) selalu
+memanggilnya dengan literal `null` — dataflow-nya "provably always null" di
+sini, tapi konversi implisit yang dituduh tetap tidak pernah terjadi
+(bukan soal apakah nilainya null, tapi bukan JS's implicit-toString sama
+sekali karena tagged template). Bukti definitif false positive: pola
+identik persis (`${excludeAssignmentId}::uuid IS NULL OR bsa.id <>
+${excludeAssignmentId}`) ada di baris 186 file yang SAMA (fungsi
+`resolveSoDAssignmentFacts`, dipanggil dari 2 caller eksternal — juga
+selalu dengan literal `null` di kedua caller saat ini) dan 12+ file lain
+di repo memakai pola `${x ?? null}::uuid IS NULL OR ...` yang sama —
+semuanya tidak di-flag CodeQL. Ini murni artefak heuristik per-call-site,
+bukan sinyal bug sistematis.
+
+**Fix**: dismiss resmi (bukan reformulasi) — reformulasi kode (mis. cabang
+if/else terpisah untuk null vs non-null) hanya menambah kompleksitas nyata
+untuk kode yang sudah benar dan konsisten dengan 12+ file lain di repo.
+
+**Pencegahan**: kalau CodeQL menandai `js/implicit-operand-conversion` pada
+sebuah `` tx`...${x}...` `` (Bun.SQL/postgres.js tagged template), cek dulu
+apakah ekspresi itu benar-benar di dalam tagged template (bukan
+concatenation string biasa) — kalau ya, implicit-toString tidak pernah
+terjadi secara runtime, dan alert ini adalah false positive berbasis
+pola string-interpolation generik yang tidak paham parameter binding SQL
+client library. Cari pola identik di file lain sebagai bukti sebelum
+dismiss.
+
+### 6. `js/trivial-conditional` — nilai build-time extension seam yang sengaja selalu satu cabang di base repo
+
+Ditemukan 2026-07-14 (alert #44), Issue #788:
+`scripts/validate-module-composition.ts:41`,
+`applicationModuleRegistry ? ... : ...` — CodeQL benar bahwa
+`applicationModuleRegistry` (diimpor dari
+`src/modules/application-registry.ts`) SELALU `undefined` di repo dasar
+ini, sesuai desain (Issue #740, epic #738 `platform-evolution`): file itu
+adalah _build-time extension seam_ yang sebuah aplikasi turunan REPLACE
+seluruhnya dengan `ApplicationModuleRegistry` sungguhan. CodeQL cuma
+melihat kode yang ter-checked-in di REPO INI, jadi kondisinya memang
+trivial DI SINI — tapi genuinely conditional begitu file itu diganti oleh
+repo turunan. Bukti pembeda: 5 file lain
+(`src/modules/index.ts`, `module-composition-inventory-generate.ts`,
+`extension-check.ts`, `modules-sync.ts`) juga meng-import
+`applicationModuleRegistry` tapi HANYA meneruskannya sebagai _value_ ke
+fungsi lain (never in a truthy/boolean context) — tidak ada satu pun yang
+di-flag; hanya `validate-module-composition.ts` yang memakainya dalam
+ekspresi ternary boolean-context, satu-satunya tempat trivial-conditional
+bisa terdeteksi.
+
+**Fix**: dismiss (won't-fix) — bukan bug, dan reformulasi apa pun (mis.
+`!= null` alih-alih truthy check) tidak menghilangkan kesimpulan CodeQL
+karena akar masalahnya adalah NILAI-nya provably-constant di repo ini,
+bukan operator pembandingnya.
+
+**Pencegahan**: pola "build-time extension point/seam yang sengaja
+`undefined`/no-op di base repo, real value di repo turunan" akan selalu
+memicu `js/trivial-conditional` di base repo begitu nilainya dipakai dalam
+boolean context — ini SEHAT (bukan alasan untuk menghapus fitur
+ekstensibilitasnya), dismiss dengan menjelaskan desain seam-nya, jangan
+coba "memperbaiki" trivialitasnya.
+
+### Pola tambahan: `js/unused-local-variable` di test kadang menandai coverage gap, bukan sekadar dead code
+
+Dari 11 alert `js/unused-local-variable` di Issue #788 (semua di file
+test), 8 memang leftover import/variable murni (aman dihapus). Tapi 3
+adalah TEST HELPER YANG DITULIS DENGAN BENAR tapi tidak pernah dipanggil
+— masing-masing menunjuk ke satu jalur test yang seharusnya ada tapi
+hilang:
+
+- `createCategoryTerm` (`news-portal-homepage-sections.integration.test.ts`)
+  — hanya ada test REJECT untuk `category_grid` (categorySlug tidak ada),
+  tidak ada test ACCEPT (categorySlug valid) — helper-nya sudah ditulis
+  lengkap, cuma tidak pernah dipanggil dari sebuah test.
+- Destructured `has` di test "stale orphaned ... gets its R2 object
+  deleted" (`news-media-r2-reconciliation-job.integration.test.ts`) — judul
+  test menjanjikan verifikasi penghapusan objek R2 tapi body hanya mengecek
+  counter (`result.staleOrphaned.deleted`) dan status DB, tidak pernah
+  memanggil `has(key)` untuk membuktikan objeknya benar-benar hilang dari
+  R2 (dan tidak pernah `put()` objeknya lebih dulu).
+- `resolveLinkedInApiVersion` (`linkedin-provider-config.test.ts`) — semua
+  fungsi lain yang diexport modul itu punya `describe` block sendiri,
+  hanya fungsi ini yang diimpor tapi tidak pernah diuji langsung.
+
+**Aturan triase**: sebelum menghapus binding `js/unused-local-variable` di
+file test, cek APAKAH nama binding itu match sebuah kapabilitas/skenario
+yang disebut di judul test lain, docstring file, atau nama fungsi lain di
+modul yang sama — kalau ya, kemungkinan besar itu coverage gap (helper
+ditulis untuk test yang lalu terlupa/terpotong), bukan dead code murni.
+Wire ke assertion baru yang sesuai (menutup gap SEKALIGUS menghilangkan
+alert) alih-alih sekadar menghapus.
 
 ## Verifikasi
 
