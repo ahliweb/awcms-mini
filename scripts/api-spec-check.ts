@@ -35,7 +35,14 @@ export const ALLOWED_PUBLIC_OPERATIONS: readonly `${string} ${string}`[] = [
   "GET /api/v1/health",
   "GET /api/v1/database/pool/health",
   "GET /api/v1/setup/status",
-  "POST /api/v1/setup/initialize"
+  "POST /api/v1/setup/initialize",
+  // Issue #754 (integration_hub): the inbound webhook receiver has no
+  // AWCMS-Mini tenant session to authenticate with (an external provider
+  // calls it) — authenticated instead by an opaque endpointToken path
+  // segment plus the registered adapter's own signature scheme. See
+  // `src/pages/api/v1/integration-hub/inbound/[endpointToken].ts`'s own
+  // doc comment.
+  "POST /api/v1/integration-hub/inbound/{endpointToken}"
 ];
 
 // Issue #695 (epic #679): a reviewed, explicit list of route files under

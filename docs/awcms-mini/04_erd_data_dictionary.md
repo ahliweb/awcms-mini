@@ -859,6 +859,88 @@ didaftarkan di `module.ts` modul ini sendiri — `executionMode: "generic"`,
 `retentionClass: "operational_queue"`, legal hold `overrides_retention`.
 `staged_rows` TIDAK didaftarkan terpisah (cascade mengikuti induknya).
 
+### Integration Hub (Issue #754, epic `platform-evolution` #738 Wave 3, ADR-0019, `sql/073`–`074`)
+
+Modul System baru `integration_hub` — batas integrasi generik
+provider-netral: endpoint webhook inbound bertanda tangan (HMAC
+timing-safe, replay protection lewat DB constraint sungguhan), langganan
+event outbound (SSRF-guarded), dan kesehatan adapter. Lihat
+`src/modules/integration-hub/README.md` untuk rasional desain lengkap.
+Enam tabel, semua tenant-scoped `ENABLE`+`FORCE ROW LEVEL SECURITY`,
+`tenant_id`-first pada setiap composite index:
+
+- **`awcms_mini_integration_endpoints`** — identitas endpoint webhook
+  inbound: `endpoint_token` opaque server-generated UNIK global (segmen
+  URL yang di-POST provider — BUKAN batas keamanan itu sendiri, hanya
+  identitas), `secret_reference` (pointer `env:VAR_NAME`, TIDAK PERNAH
+  nilai secret mentah) + `secret_reference_previous`/
+  `previous_secret_expires_at` untuk key rotation dengan overlap window.
+  Soft-deletable (resource konfigurasi).
+- **`awcms_mini_integration_inbound_deliveries`** — inbox provider,
+  disimpan SEBELUM normalisasi. `UNIQUE (tenant_id, endpoint_id,
+replay_key)` adalah mekanisme REPLAY PROTECTION sungguhan (DB
+  constraint, bukan sekadar cek in-memory yang tidak survive
+  restart/multi-instance). `raw_body_snippet` (dibatasi 2000 karakter,
+  di-redact pola secret) HANYA diisi untuk delivery yang signature-nya
+  VALID — minimisasi data. Append-only (tidak soft-delete — kategori
+  audit/operational log yang sama dengan
+  `awcms_mini_email_delivery_attempts`).
+- **`awcms_mini_integration_subscriptions`** — registry langganan event
+  outbound: `subscribed_event_type`, `target_url` (SSRF-divalidasi saat
+  tulis DAN saat dispatch), `filter` jsonb (declarative bounded, maks 10
+  key, kedalaman path maks 4). Soft-deletable.
+- **`awcms_mini_integration_outbound_deliveries`** — status
+  delivery/retry/dead-letter per (subscription, source event), dibuat
+  oleh consumer `domain_event_runtime` milik modul ini sendiri
+  (`integrationHubOutboundFanoutConsumer`, DB-only, di transaksi YANG
+  SAMA dengan commit event sumber) — panggilan HTTP nyata terjadi
+  belakangan, di luar transaksi, lewat `bun run
+integration-hub:outbound:dispatch`. Partial unique index
+  `(tenant_id, subscription_id, source_event_id) WHERE replay_of_
+delivery_id IS NULL` mencegah duplikasi fan-out (sama pola
+  `awcms_mini_domain_event_deliveries`).
+- **`awcms_mini_integration_delivery_attempts`** — riwayat percobaan
+  outbound, append-only (sama pola `awcms_mini_email_delivery_attempts`).
+- **`awcms_mini_integration_adapter_health`** — status up/degraded/down
+  per (tenant, adapter, direction).
+
+Permission seed: 15 permission
+(`074_awcms_mini_integration_hub_permissions.sql`) —
+`endpoints.{read,create,delete,configure,enable,disable}`,
+`subscriptions.{read,create,delete,enable,disable}`,
+`deliveries.{read,replay}`, `health.read`, `adapters.read`.
+
+Capability port: modul ini mendefinisikan `IntegrationAdapterPort`
+(`_shared/ports/integration-adapter-port.ts`) untuk pendaftaran adapter
+provider masa depan — modul ini sendiri hanya mengirim dua skema
+signature FIXTURE self-contained (`fixture_hmac_sha256`,
+`fixture_shared_secret_nonce`) dan satu adapter outbound generik
+(`generic_http_webhook`), TIDAK ADA integrasi bisnis nyata (mengikuti
+preseden foundation issue #643/#742).
+
+SECURITY DEFINER bootstrap: `awcms_mini_resolve_integration_endpoint_
+lookup(p_endpoint_token text)` — resolusi tenant dari `endpoint_token`
+SEBELUM tenant context ada (webhook receiver publik, tidak ada JWT),
+mekanisme sama persis `awcms_mini_resolve_tenant_domain_lookup`
+(migration 033).
+
+`awcms_mini_worker` diberi: SELECT+DELETE pada `_inbound_deliveries`
+(dibaca/dipurge oleh engine generik `data_lifecycle`, LIHAT CATATAN DI
+BAWAH — bukan oleh jalur intake webhook itu sendiri, yang tetap
+`awcms_mini_app`), SELECT pada `_subscriptions`, SELECT+INSERT+UPDATE
+pada `_outbound_deliveries`, INSERT pada `_delivery_attempts`,
+SELECT+INSERT+UPDATE pada `_adapter_health`. `_endpoints` TIDAK diberi
+grant worker sama sekali (jalur intake selalu `awcms_mini_app`).
+
+**Integrasi data_lifecycle (Issue #745)**: `awcms_mini_integration_
+inbound_deliveries` didaftarkan sebagai descriptor `"generic"`
+(`retentionClass: "communication_log"`, default 90 hari) —
+`data_lifecycle`'s bounded archive/purge engine memiliki eksekusi nyata
+terhadap tabel ini. `_outbound_deliveries`/`_delivery_attempts` SENGAJA
+BELUM didaftarkan (FK non-CASCADE + self-reference replay membuat
+purge lintas-descriptor tanpa ordering berisiko FK violation — lihat
+README modul §Known limitations).
+
 ### Reporting Projections (Issue #753, epic `platform-evolution` #738 Wave 3, `sql/069`–`070`)
 
 Perluasan modul `reporting` (bukan modul baru) — proyeksi read-model
