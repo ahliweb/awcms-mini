@@ -546,7 +546,8 @@ describe("database migration runner helpers", () => {
       "061_awcms_mini_business_scope_assignments_schema.sql",
       "062_awcms_mini_business_scope_permissions.sql",
       "063_awcms_mini_organization_structure_schema.sql",
-      "064_awcms_mini_organization_structure_permissions.sql"
+      "064_awcms_mini_organization_structure_permissions.sql",
+      "065_awcms_mini_organization_structure_assignment_unique_index.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

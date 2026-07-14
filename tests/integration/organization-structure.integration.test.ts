@@ -37,11 +37,11 @@ import {
 } from "../../src/pages/api/v1/organization-structure/unit-types/index";
 import { DELETE as deleteUnitType } from "../../src/pages/api/v1/organization-structure/unit-types/[id]";
 import { POST as restoreUnitType } from "../../src/pages/api/v1/organization-structure/unit-types/[id]/restore";
+import { POST as createUnit } from "../../src/pages/api/v1/organization-structure/units/index";
 import {
-  GET as getUnit,
-  POST as createUnit
-} from "../../src/pages/api/v1/organization-structure/units/index";
-import { DELETE as deactivateUnit } from "../../src/pages/api/v1/organization-structure/units/[id]";
+  GET as getUnitById,
+  DELETE as deactivateUnit
+} from "../../src/pages/api/v1/organization-structure/units/[id]";
 import { POST as restoreUnit } from "../../src/pages/api/v1/organization-structure/units/[id]/restore";
 import { POST as reparent } from "../../src/pages/api/v1/organization-structure/hierarchy/reparent";
 import { GET as getHierarchyUnit } from "../../src/pages/api/v1/organization-structure/hierarchy/units/[id]";
@@ -433,7 +433,7 @@ suite("organization_structure integration", () => {
         method: "POST",
         path: "/api/v1/organization-structure/unit-types",
         headers: authHeaders(owner),
-        body: { code: "cost-center", name: "Cost Center" }
+        body: { code: "cost_center", name: "Cost Center" }
       }
     );
     expect(create.status).toBe(200);
@@ -533,7 +533,7 @@ suite("organization_structure integration", () => {
 
     const afterDeactivate = await invoke<{
       data: { unit: { id: string; deletedAt: string | null } };
-    }>(getUnit, {
+    }>(getUnitById, {
       method: "GET",
       path: `/api/v1/organization-structure/units/${unitId}`,
       headers: authHeaders(owner),
@@ -559,7 +559,7 @@ suite("organization_structure integration", () => {
 
     const afterRestore = await invoke<{
       data: { unit: { id: string; deletedAt: string | null } };
-    }>(getUnit, {
+    }>(getUnitById, {
       method: "GET",
       path: `/api/v1/organization-structure/units/${unitId}`,
       headers: authHeaders(owner),
