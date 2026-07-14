@@ -7042,6 +7042,845 @@ Redacted payload projection only.
 | 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
+## Organization Structure
+
+Optional, tenant-scoped organization-structure foundation (epic `platform-evolution` #738 Wave 2, Issue #749, ADR-0016) — legal entities (generic opaque registration identifier pair, never government-specific fields), tenant-configurable organization-unit types, effective-dated organization units, a versioned/effective-dated parent-child hierarchy (reparent rejects self-parent/cycle, requires Idempotency-Key, audited critical), operational locations (optional lat/lng), an explicit location-to-unit many-to-many relationship, and effective-dated party/unit assignments referencing `identity_access`'s existing tenant users. Tenant and legal entity/organization unit remain distinct concepts — RLS predicate is always and only `tenant_id`.
+
+### `GET /api/v1/organization-structure/assignments` — List organization-unit assignments
+
+- **operationId**: `organizationStructureAssignmentsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name                 | In     | Required | Type                    | Description                                 |
+| -------------------- | ------ | -------- | ----------------------- | ------------------------------------------- |
+| `organizationUnitId` | query  | no       | string (uuid)           |                                             |
+| `tenantUserId`       | query  | no       | string (uuid)           |                                             |
+| `status`             | query  | no       | enum(`active`, `ended`) |                                             |
+| `asOf`               | query  | no       | string (date-time)      |                                             |
+| `X-Correlation-ID`   | header | no       | string                  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`       | header | no       | string                  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                        | Schema                                                   |
+| ------ | -------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization-unit assignments matching the filter. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.     | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.         | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/assignments` — Create an organization-unit assignment
+
+- **operationId**: `organizationStructureAssignmentsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureCreateAssignmentRequest`](#schema-organizationstructurecreateassignmentrequest)
+
+**Responses**
+
+| Status | Description                                                       | Schema                                                   |
+| ------ | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Assignment created.                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                      | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                               | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                    | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.               | [`ApiError`](#standard-error-envelope)                   |
+| 422    | tenantUserId does not reference an existing user for this tenant. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                        | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/assignments/{id}/end` — End an active organization-unit assignment
+
+- **operationId**: `organizationStructureAssignmentsEnd`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Assignment ended.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Assignment has already ended.                       | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/hierarchy/reparent` — Create or change an organization unit's current parent edge
+
+- **operationId**: `organizationStructureHierarchyReparent`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-parent/cycle/cross-tenant references.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                         | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Hierarchy edge created/changed.                                                                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.                                                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 422    | Reparent rejected -- self-parent, cycle, invalid effective period, or parentOrganizationUnitId does not reference an existing unit for this tenant. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/hierarchy/tree` — Read the organization-unit hierarchy tree (current or as-of)
+
+- **operationId**: `organizationStructureHierarchyTreeGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type               | Description                                 |
+| ------------------ | ------ | -------- | ------------------ | ------------------------------------------- |
+| `rootUnitId`       | query  | no       | string (uuid)      |                                             |
+| `asOf`             | query  | no       | string (date-time) |                                             |
+| `X-Correlation-ID` | header | no       | string             | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string             | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                          | Schema                                                   |
+| ------ | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Nested hierarchy tree (forest, or the subtree rooted at rootUnitId). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                       | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                           | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/hierarchy/units/{id}` — Read a unit's ancestor/descendant chains (current or as-of), optionally with history
+
+- **operationId**: `organizationStructureHierarchyUnitGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type               | Description                                 |
+| ------------------ | ------ | -------- | ------------------ | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid)      |                                             |
+| `asOf`             | query  | no       | string (date-time) |                                             |
+| `history`          | query  | no       | enum(`1`)          |                                             |
+| `X-Correlation-ID` | header | no       | string             | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string             | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                               | Schema                                                   |
+| ------ | ------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Ancestor/descendant unit ids, and effective-dated history when history=1. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                              | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                       | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                            | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/legal-entities` — List legal entities for the caller's tenant
+
+- **operationId**: `organizationStructureLegalEntitiesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                       | Description                                 |
+| ------------------ | ------ | -------- | -------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`active`, `inactive`) |                                             |
+| `X-Correlation-ID` | header | no       | string                     | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                     | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal entities for this tenant.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/legal-entities` — Create a legal entity
+
+- **operationId**: `organizationStructureLegalEntitiesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureCreateLegalEntityRequest`](#schema-organizationstructurecreatelegalentityrequest)
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal entity created.                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/legal-entities/{id}` — Get a legal entity by id
+
+- **operationId**: `organizationStructureLegalEntitiesGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The legal entity.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/organization-structure/legal-entities/{id}` — Update a legal entity's neutral metadata
+
+- **operationId**: `organizationStructureLegalEntitiesUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureCreateLegalEntityRequest`](#schema-organizationstructurecreatelegalentityrequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal entity updated.                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/organization-structure/legal-entities/{id}` — Deactivate (soft-delete) a legal entity
+
+- **operationId**: `organizationStructureLegalEntitiesDeactivate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal entity deactivated.                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Legal entity is already deactivated.                | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/legal-entities/{id}/restore` — Restore a previously deactivated legal entity
+
+- **operationId**: `organizationStructureLegalEntitiesRestore`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Legal entity restored.                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Legal entity is not currently deactivated.          | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/location-unit-relationships` — List location-to-unit relationships
+
+- **operationId**: `organizationStructureLocationUnitRelationshipsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name                    | In     | Required | Type               | Description                                 |
+| ----------------------- | ------ | -------- | ------------------ | ------------------------------------------- |
+| `operationalLocationId` | query  | no       | string (uuid)      |                                             |
+| `organizationUnitId`    | query  | no       | string (uuid)      |                                             |
+| `asOf`                  | query  | no       | string (date-time) |                                             |
+| `X-Correlation-ID`      | header | no       | string             | Optional server-side trace correlation ID.  |
+| `X-Request-ID`          | header | no       | string             | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Location-to-unit relationships matching the filter. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/location-unit-relationships` — Create a location-to-unit relationship
+
+- **operationId**: `organizationStructureLocationUnitRelationshipsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureCreateLocationUnitRelationshipRequest`](#schema-organizationstructurecreatelocationunitrelationshiprequest)
+
+**Responses**
+
+| Status | Description                                                                                  | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Relationship created.                                                                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                               | [`ApiError`](#standard-error-envelope)                   |
+| 409    | This location and unit already have an open relationship.                                    | [`ApiError`](#standard-error-envelope)                   |
+| 422    | operationalLocationId/organizationUnitId does not reference an existing row for this tenant. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                   | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/location-unit-relationships/{id}/end` — End a location-to-unit relationship
+
+- **operationId**: `organizationStructureLocationUnitRelationshipsEnd`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Relationship ended.                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Relationship has already ended.                     | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/locations` — List operational locations
+
+- **operationId**: `organizationStructureLocationsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Operational locations for this tenant.         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/locations` — Create an operational location
+
+- **operationId**: `organizationStructureLocationsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureCreateLocationRequest`](#schema-organizationstructurecreatelocationrequest)
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Operational location created.                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/locations/{id}` — Get an operational location by id
+
+- **operationId**: `organizationStructureLocationsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The operational location.                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/organization-structure/locations/{id}` — Update an operational location
+
+- **operationId**: `organizationStructureLocationsUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureCreateLocationRequest`](#schema-organizationstructurecreatelocationrequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Operational location updated.                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/organization-structure/locations/{id}` — Soft-delete an operational location
+
+- **operationId**: `organizationStructureLocationsDelete`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Operational location soft-deleted.                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Operational location is already soft-deleted.       | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/locations/{id}/restore` — Restore a soft-deleted operational location
+
+- **operationId**: `organizationStructureLocationsRestore`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Operational location restored.                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Operational location is not currently deleted.      | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/unit-types` — List organization-unit types
+
+- **operationId**: `organizationStructureUnitTypesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization-unit types for this tenant.       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/unit-types` — Create an organization-unit type
+
+- **operationId**: `organizationStructureUnitTypesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureCreateUnitTypeRequest`](#schema-organizationstructurecreateunittyperequest)
+
+**Responses**
+
+| Status | Description                                              | Schema                                                   |
+| ------ | -------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization-unit type created.                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                             | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                      | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.           | [`ApiError`](#standard-error-envelope)                   |
+| 409    | An organization-unit type with this code already exists. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.               | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/unit-types/{id}` — Get an organization-unit type by id
+
+- **operationId**: `organizationStructureUnitTypesGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The organization-unit type.                         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/organization-structure/unit-types/{id}` — Update an organization-unit type
+
+- **operationId**: `organizationStructureUnitTypesUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization-unit type updated.                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/organization-structure/unit-types/{id}` — Soft-delete an organization-unit type
+
+- **operationId**: `organizationStructureUnitTypesDelete`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization-unit type soft-deleted.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Organization-unit type is already soft-deleted.     | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/unit-types/{id}/restore` — Restore a soft-deleted organization-unit type
+
+- **operationId**: `organizationStructureUnitTypesRestore`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization-unit type restored.                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Organization-unit type is not currently deleted.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/units` — List/search organization units (keyset-paginated)
+
+- **operationId**: `organizationStructureUnitsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                       | Description                                 |
+| ------------------ | ------ | -------- | -------------------------- | ------------------------------------------- |
+| `search`           | query  | no       | string                     |                                             |
+| `legalEntityId`    | query  | no       | string (uuid)              |                                             |
+| `status`           | query  | no       | enum(`active`, `inactive`) |                                             |
+| `cursor`           | query  | no       | string                     |                                             |
+| `X-Correlation-ID` | header | no       | string                     | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                     | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                               | Schema                                                   |
+| ------ | --------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization units matching the filter, keyset-paginated. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                              | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                       | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.            | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/units` — Create an organization unit
+
+- **operationId**: `organizationStructureUnitsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureCreateUnitRequest`](#schema-organizationstructurecreateunitrequest)
+
+**Responses**
+
+| Status | Description                                                                  | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization unit created.                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                          | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                               | [`ApiError`](#standard-error-envelope)                   |
+| 409    | An organization unit with this code already exists.                          | [`ApiError`](#standard-error-envelope)                   |
+| 422    | legalEntityId/unitTypeId does not reference an existing row for this tenant. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                   | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/organization-structure/units/{id}` — Get an organization unit by id
+
+- **operationId**: `organizationStructureUnitsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The organization unit.                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/organization-structure/units/{id}` — Update an organization unit
+
+- **operationId**: `organizationStructureUnitsUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`OrganizationStructureUpdateUnitRequest`](#schema-organizationstructureupdateunitrequest)
+
+**Responses**
+
+| Status | Description                                                                  | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization unit updated.                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                          | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                               | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                          | [`ApiError`](#standard-error-envelope)                   |
+| 422    | legalEntityId/unitTypeId does not reference an existing row for this tenant. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                   | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/organization-structure/units/{id}` — Soft-delete (deactivate) an organization unit
+
+- **operationId**: `organizationStructureUnitsDeactivate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization unit deactivated.                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Organization unit is already deactivated.           | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/organization-structure/units/{id}/restore` — Restore a deactivated organization unit
+
+- **operationId**: `organizationStructureUnitsRestore`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Organization unit restored.                         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Organization unit is not currently deactivated.     | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
@@ -10819,6 +11658,168 @@ Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
 }
 ```
 
+### Schema: OrganizationStructureCreateAssignmentRequest
+
+| Field                | Type               | Required | Nullable | Description |
+| -------------------- | ------------------ | -------- | -------- | ----------- |
+| `organizationUnitId` | string (uuid)      | yes      | no       |             |
+| `tenantUserId`       | string (uuid)      | yes      | no       |             |
+| `positionLabel`      | string             | no       | yes      |             |
+| `effectiveFrom`      | string (date-time) | no       | no       |             |
+| `effectiveTo`        | string (date-time) | no       | yes      |             |
+| `reason`             | string             | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "organizationUnitId": "00000000-0000-0000-0000-000000000000",
+  "tenantUserId": "00000000-0000-0000-0000-000000000000",
+  "positionLabel": "string",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z",
+  "reason": "string"
+}
+```
+
+### Schema: OrganizationStructureCreateLegalEntityRequest
+
+| Field                         | Type               | Required | Nullable | Description |
+| ----------------------------- | ------------------ | -------- | -------- | ----------- |
+| `name`                        | string             | yes      | no       |             |
+| `registrationIdentifier`      | string             | no       | yes      |             |
+| `registrationIdentifierLabel` | string             | no       | yes      |             |
+| `effectiveFrom`               | string (date-time) | no       | no       |             |
+| `effectiveTo`                 | string (date-time) | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "registrationIdentifier": "string",
+  "registrationIdentifierLabel": "string",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: OrganizationStructureCreateLocationRequest
+
+| Field          | Type   | Required | Nullable | Description |
+| -------------- | ------ | -------- | -------- | ----------- |
+| `name`         | string | yes      | no       |             |
+| `addressLine1` | string | no       | yes      |             |
+| `addressLine2` | string | no       | yes      |             |
+| `city`         | string | no       | yes      |             |
+| `region`       | string | no       | yes      |             |
+| `postalCode`   | string | no       | yes      |             |
+| `countryCode`  | string | no       | yes      |             |
+| `latitude`     | number | no       | yes      |             |
+| `longitude`    | number | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "addressLine1": "string",
+  "addressLine2": "string",
+  "city": "string",
+  "region": "string",
+  "postalCode": "string",
+  "countryCode": "string",
+  "latitude": -90,
+  "longitude": -180
+}
+```
+
+### Schema: OrganizationStructureCreateLocationUnitRelationshipRequest
+
+| Field                   | Type                         | Required | Nullable | Description |
+| ----------------------- | ---------------------------- | -------- | -------- | ----------- |
+| `operationalLocationId` | string (uuid)                | yes      | no       |             |
+| `organizationUnitId`    | string (uuid)                | yes      | no       |             |
+| `relationshipType`      | enum(`primary`, `secondary`) | no       | no       |             |
+| `effectiveFrom`         | string (date-time)           | no       | no       |             |
+| `effectiveTo`           | string (date-time)           | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "operationalLocationId": "00000000-0000-0000-0000-000000000000",
+  "organizationUnitId": "00000000-0000-0000-0000-000000000000",
+  "relationshipType": "primary",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: OrganizationStructureCreateUnitRequest
+
+| Field           | Type               | Required | Nullable | Description |
+| --------------- | ------------------ | -------- | -------- | ----------- |
+| `code`          | string             | yes      | no       |             |
+| `name`          | string             | yes      | no       |             |
+| `legalEntityId` | string (uuid)      | no       | yes      |             |
+| `unitTypeId`    | string (uuid)      | no       | yes      |             |
+| `effectiveFrom` | string (date-time) | no       | no       |             |
+| `effectiveTo`   | string (date-time) | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "code": "string",
+  "name": "string",
+  "legalEntityId": "00000000-0000-0000-0000-000000000000",
+  "unitTypeId": "00000000-0000-0000-0000-000000000000",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: OrganizationStructureCreateUnitTypeRequest
+
+| Field         | Type   | Required | Nullable | Description |
+| ------------- | ------ | -------- | -------- | ----------- |
+| `code`        | string | yes      | no       |             |
+| `name`        | string | yes      | no       |             |
+| `description` | string | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "code": "string",
+  "name": "string",
+  "description": "string"
+}
+```
+
+### Schema: OrganizationStructureUpdateUnitRequest
+
+| Field           | Type               | Required | Nullable | Description |
+| --------------- | ------------------ | -------- | -------- | ----------- |
+| `name`          | string             | yes      | no       |             |
+| `legalEntityId` | string (uuid)      | no       | yes      |             |
+| `unitTypeId`    | string (uuid)      | no       | yes      |             |
+| `effectiveFrom` | string (date-time) | no       | no       |             |
+| `effectiveTo`   | string (date-time) | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "legalEntityId": "00000000-0000-0000-0000-000000000000",
+  "unitTypeId": "00000000-0000-0000-0000-000000000000",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
 ### Schema: PartyCreateRequest
 
 | Field         | Type                           | Required | Nullable | Description |
@@ -13392,7 +14393,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (62)
+### Channels (71)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -13429,6 +14430,15 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.email.message.queued` — An email message was enqueued into `awcms_mini_email_messages` (Issue #494/#497). Documented contract only, same convention as `database.pool.saturated` above — the concrete producer is the structured JSON logger, invoked from `email/application/announcement-directory.ts`'s `enqueueAnnouncement` (`email.message.queued` log line).
 - `awcms-mini.email.message.sent` — The email dispatcher (Issue #495, `bun run email:dispatch`) successfully delivered a message through the configured provider. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.sent` log line).
 - `awcms-mini.email.message.suppressed` — The email dispatcher (Issue #499) found a claimed message's recipient newly present on `awcms_mini_email_suppression_list` (added after enqueue, before dispatch) and skipped the provider call entirely. Documented contract only; producer is the structured JSON logger (`email/application/email-dispatch.ts`'s `email.dispatch.suppressed` log line).
+- `awcms-mini.organization-structure.assignment.created` — An organization-unit assignment was created (Issue #749). Producer: `organization-structure/application/organization-unit-assignment- service.ts`'s `createOrganizationUnitAssignment`.
+- `awcms-mini.organization-structure.assignment.ended` — An organization-unit assignment was ended (Issue #749). Producer: `organization-structure/application/organization-unit-assignment- service.ts`'s `endOrganizationUnitAssignment`.
+- `awcms-mini.organization-structure.hierarchy.changed` — An organization-unit hierarchy edge was created or reparented — the previous open edge (if any) was closed and a new one opened at the current timestamp (Issue #749). Producer: `organization-structure/ application/organization-unit-hierarchy-service.ts`'s `reparentUnit`, the SOLE write path against `awcms_mini_organization_unit_hierarchies`.
+- `awcms-mini.organization-structure.legal-entity.created` — A legal entity was created (Issue #749, epic `platform-evolution` #738 Wave 2). Producer: `organization-structure/application/ legal-entity-directory.ts`'s `createLegalEntity`.
+- `awcms-mini.organization-structure.legal-entity.deactivated` — A legal entity was deactivated (soft-deleted, Issue #749). Producer: `organization-structure/application/legal-entity-directory.ts`'s `deactivateLegalEntity`.
+- `awcms-mini.organization-structure.legal-entity.updated` — A legal entity's neutral metadata was updated (Issue #749). Producer: `organization-structure/application/legal-entity-directory.ts`'s `updateLegalEntity`.
+- `awcms-mini.organization-structure.unit.created` — An organization unit was created (Issue #749). Producer: `organization-structure/application/organization-unit-directory.ts`'s `createOrganizationUnit`.
+- `awcms-mini.organization-structure.unit.deactivated` — An organization unit was deactivated (soft-deleted, Issue #749). Producer: `organization-structure/application/organization-unit- directory.ts`'s `deactivateOrganizationUnit`.
+- `awcms-mini.organization-structure.unit.updated` — An organization unit was updated (Issue #749). Producer: `organization-structure/application/organization-unit-directory.ts`'s `updateOrganizationUnit`.
 - `awcms-mini.profile-identity.profile.merged` — Published when a profile merge request is executed (Issue #748, epic `platform-evolution` #738 Wave 2): the loser profile is soft-deleted (`merged_into_profile_id` set) and its `awcms_mini_profile_entity_links` rows are repointed to the survivor. Payload: `mergeRequestId`, `survivorProfileId`, `loserProfileId`, `entityLinksRepointedCount`. Lets domain modules react to the merge mapping through the outbox instead of importing `profile_identity` tables directly (see `src/modules/_shared/ports/party-directory-port.ts` for the pull-based equivalent). Producer: `profile-identity/application/merge-workflow.ts`'s `executeMergeRequest`.
 - `awcms-mini.social-publishing.account.connected` — A social account was connected or reconnected/reauthorized (Issue #643). Documented contract only, same producer convention as every other event in this file — the structured JSON logger, invoked from `social-publishing/application/social-account-directory.ts`'s `connectSocialAccount` (`social_publishing.account.connected` audit event + log line).
 - `awcms-mini.social-publishing.account.disconnected` — A social account was disconnected (Issue #643) — a status transition, not a delete. Producer: `social-account-directory.ts`'s `disconnectSocialAccount`.

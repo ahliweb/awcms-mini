@@ -555,6 +555,90 @@ yang diharapkan mendeklarasikan kontrak kebijakan retensi per-tabel;
 pemilik modul ini baru mengimplementasikan terhadap kontrak itu begitu ada
 (bukan membangun purge job bespoke sekarang).
 
+### Organization Structure (Issue #749, epic `platform-evolution` #738 Wave 2, ADR-0016, `sql/063`–`064`)
+
+Modul Official Optional Module baru `organization_structure` — legal
+entity, tipe unit organisasi tenant-configurable, unit organisasi
+efektif-tanggal, hierarki parent-child bergaya SCD Type 2, lokasi
+operasional, relasi many-to-many lokasi-ke-unit, dan assignment
+efektif-tanggal pihak/unit. Lihat `src/modules/organization-structure/README.md`
+untuk rasional desain lengkap. Tenant dan legal entity/organization unit
+tetap konsep berbeda (ADR-0013 §2) — RLS predicate SETIAP tabel di bawah
+selalu dan hanya `tenant_id`. Tujuh tabel, semua tenant-scoped
+`ENABLE`+`FORCE ROW LEVEL SECURITY`, `tenant_id`-first pada setiap
+composite index:
+
+- **`awcms_mini_legal_entities`** — badan usaha di dalam satu tenant
+  (BUKAN tenant itu sendiri). `name`, pasangan identifier generik opaque
+  (`registration_identifier`+`registration_identifier_label` — CHECK
+  memastikan pasangan konsisten, TIDAK PERNAH field spesifik pemerintah
+  seperti NPWP/SIUP), `status` (`active`/`inactive`),
+  `effective_from`/`effective_to`, soft-delete/deactivate penuh
+  (`deleted_at`/`deleted_by`/`delete_reason`/`restored_at`/`restored_by`).
+- **`awcms_mini_organization_unit_types`** — vocabulary tipe unit
+  tenant-configurable (`code` snake_case unik per tenant). Contoh seed
+  yang disarankan (`department`/`branch`/`cost_center`/`warehouse`/
+  `program_unit`) didokumentasikan di kode
+  (`domain/organization-unit-type.ts`'s `DEFAULT_UNIT_TYPE_SEEDS`), TIDAK
+  PERNAH baris INSERT migration-time.
+- **`awcms_mini_organization_units`** — unit efektif-tanggal, opsional
+  terhubung ke satu legal entity (TIDAK PERNAH wajib — unit langsung di
+  bawah tenant eksplisit diizinkan) dan opsional bertipe.
+- **`awcms_mini_organization_unit_hierarchies`** — edge parent-child
+  efektif-tanggal bergaya SCD Type 2. Reparenting TIDAK PERNAH mengubah
+  `parent_organization_unit_id` in-place — menutup edge terbuka saat ini
+  (`effective_to = now()`) lalu membuka baris baru. Partial unique index
+  `(tenant_id, organization_unit_id) WHERE effective_to IS NULL` menjamin
+  maksimal SATU edge terbuka per unit di level database — backstop di
+  belakang `pg_advisory_xact_lock` tenant-wide yang diambil aplikasi
+  (`application/organization-unit-hierarchy-service.ts`'s `reparentUnit`,
+  SATU-SATUNYA jalur tulis terhadap tabel ini) untuk menutup race
+  concurrent-reparent lintas baris. Self-parent ditolak via CHECK
+  constraint; cycle (langsung/transitif) TIDAK bisa diekspresikan sebagai
+  CHECK (butuh graph traversal) — divalidasi transaksional di application
+  layer sebelum commit.
+- **`awcms_mini_operational_locations`** — lokasi fisik, address field
+  opsional, lat/lng opsional divalidasi `[-90,90]`/`[-180,180]` via CHECK
+  (pasangan lat/lng harus sama-sama diisi atau sama-sama kosong).
+- **`awcms_mini_location_unit_relationships`** — join many-to-many
+  eksplisit lokasi<->unit, sendiri efektif-tanggal (`relationship_type`
+  `primary`/`secondary`). Partial unique index memastikan maksimal satu
+  relationship TERBUKA per pasangan (lokasi, unit).
+- **`awcms_mini_organization_unit_assignments`** — assignment
+  efektif-tanggal `tenant_user_id` (FK biasa ke `awcms_mini_tenant_users`
+  milik `identity_access`, divalidasi ulang tenant-scoped di application
+  layer — TIDAK PERNAH membuat registry person/party duplikat, ADR-0013
+  §4) ke satu unit, dengan `position_label` string bebas opsional
+  (EKSPLISIT BUKAN hierarki HR/payroll). `status` (`active`/`ended`)
+  TIDAK PERNAH soft-delete — mengakhiri assignment adalah state
+  terminal yang sama dengan pola `revoke` `business_scope_assignments`.
+
+Permission seed: 27 permission (`064_awcms_mini_organization_structure_
+permissions.sql`) — `legal_entities.{read,create,update,delete,restore}`,
+`unit_types.{read,create,update,delete,restore}`,
+`units.{read,create,update,delete,restore}`,
+`hierarchy.{read,assign}` (`assign` = SATU-SATUNYA aksi mutasi reparent,
+mencakup baik create-edge maupun reparent karena keduanya jalur tulis
+yang sama persis),
+`locations.{read,create,update,delete,restore}`,
+`location_unit_relationships.{read,create,revoke}`,
+`assignments.{read,create,revoke}`.
+
+Capability port: modul ini menyediakan implementasi NYATA
+`BusinessScopeHierarchyPort` (`_shared/ports/business-scope-hierarchy-
+port.ts`) untuk `scopeType` `"legal_entity"`/`"organization_unit"`
+(`application/organization-structure-hierarchy-port-adapter.ts`) —
+`identity_access` TIDAK memiliki lifecycle atau capability dependency ke
+modul ini di arah mana pun (Core tidak pernah depend ke Optional,
+ADR-0013 §1); composition root memilih adapter mana yang di-inject.
+`"location"` sengaja TIDAK diekspos lewat port ini (lihat ADR-0016 §10).
+
+`awcms_mini_worker` diberi `SELECT` saja pada ketujuh tabel (job
+`organization-structure:metrics-snapshot`, READ-ONLY — active units,
+hierarchy max depth, expiring-soon assignments) — TIDAK ada grant
+INSERT/UPDATE/DELETE untuk worker role (semua mutasi terjadi di jalur
+request `awcms_mini_app`).
+
 ## Konten multi-bahasa (translatable content)
 
 Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik sudah punya satu contoh nyata (`awcms_mini_email_templates.subject_template`/`text_body_template`/`html_body_template`, `sql/021`, Issue #498 — lihat §Email di atas) — bukan lagi sekadar konvensi belum-terpakai; ini **standar** yang wajib diikuti aplikasi turunan (mis. modul domain seperti `blog_content`, epic #536) saat menambah field konten translatable baru.

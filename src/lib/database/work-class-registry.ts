@@ -118,5 +118,10 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     workClass: "background_sync",
     rationale:
       "Escalation/timeout sweep (workflow:escalations:dispatch, Issue #747), recommended every 1-5 minutes — same recurring dispatcher profile as domain-events/social-publish/object-sync dispatch, not a tolerant-of-delay maintenance sweep since it drives due-date/overdue task state operators rely on."
+  },
+  "scripts/organization-structure-metrics-snapshot.ts": {
+    workClass: "maintenance",
+    rationale:
+      "Read-only per-tenant metrics snapshot (organization-structure:metrics-snapshot, Issue #749), recommended every 15-60 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; it never mutates a row, purely samples gauges."
   }
 };

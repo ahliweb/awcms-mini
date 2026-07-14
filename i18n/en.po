@@ -3453,3 +3453,313 @@ msgstr "Parties"
 
 msgid "admin.layout.nav_profile_identity_merge_requests"
 msgstr "Merge Requests"
+
+msgid "admin.layout.nav_organization_structure_assignments"
+msgstr "Assignments"
+
+msgid "admin.layout.nav_organization_structure_hierarchy"
+msgstr "Hierarchy"
+
+msgid "admin.layout.nav_organization_structure_legal_entities"
+msgstr "Legal Entities"
+
+msgid "admin.layout.nav_organization_structure_locations"
+msgstr "Locations"
+
+msgid "admin.layout.nav_organization_structure_units"
+msgstr "Organization Units"
+
+msgid "admin.layout.nav_organization_structure_unit_types"
+msgstr "Unit Types"
+
+msgid "admin.organization_structure.access_denied_body"
+msgstr "You do not have permission to view this organization-structure screen."
+
+msgid "admin.organization_structure.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.organization_structure.assignments.col_actions"
+msgstr "Actions"
+
+msgid "admin.organization_structure.assignments.col_position"
+msgstr "Position"
+
+msgid "admin.organization_structure.assignments.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.assignments.col_unit"
+msgstr "Organization Unit"
+
+msgid "admin.organization_structure.assignments.create_submit"
+msgstr "Create"
+
+msgid "admin.organization_structure.assignments.create_success"
+msgstr "Assignment created."
+
+msgid "admin.organization_structure.assignments.create_summary"
+msgstr "Create a new assignment"
+
+msgid "admin.organization_structure.assignments.end_button"
+msgstr "End"
+
+msgid "admin.organization_structure.assignments.end_reason_prompt"
+msgstr "Enter a reason for ending this assignment:"
+
+msgid "admin.organization_structure.assignments.end_success"
+msgstr "Assignment ended."
+
+msgid "admin.organization_structure.assignments.field_position"
+msgstr "Position / Responsibility"
+
+msgid "admin.organization_structure.assignments.field_tenant_user"
+msgstr "Tenant User Id"
+
+msgid "admin.organization_structure.assignments.field_unit"
+msgstr "Organization Unit"
+
+msgid "admin.organization_structure.assignments.no_rows"
+msgstr "No assignment records yet."
+
+msgid "admin.organization_structure.assignments.title"
+msgstr "Organization-Unit Assignments"
+
+msgid "admin.organization_structure.hierarchy.col_parent"
+msgstr "Current Parent"
+
+msgid "admin.organization_structure.hierarchy.col_unit"
+msgstr "Organization Unit"
+
+msgid "admin.organization_structure.hierarchy.field_parent"
+msgstr "New Parent"
+
+msgid "admin.organization_structure.hierarchy.field_reason"
+msgstr "Reason (optional)"
+
+msgid "admin.organization_structure.hierarchy.field_unit"
+msgstr "Organization Unit"
+
+msgid "admin.organization_structure.hierarchy.no_rows"
+msgstr "No hierarchy edge records yet."
+
+msgid "admin.organization_structure.hierarchy.reparent_submit"
+msgstr "Save hierarchy change"
+
+msgid "admin.organization_structure.hierarchy.reparent_success"
+msgstr "Organization unit reparented."
+
+msgid "admin.organization_structure.hierarchy.reparent_summary"
+msgstr "Reparent an organization unit"
+
+msgid "admin.organization_structure.hierarchy.title"
+msgstr "Organization Hierarchy"
+
+msgid "admin.organization_structure.hierarchy.top_level"
+msgstr "Top level (directly under tenant)"
+
+msgid "admin.organization_structure.legal_entities.col_actions"
+msgstr "Actions"
+
+msgid "admin.organization_structure.legal_entities.col_identifier"
+msgstr "Registration Identifier"
+
+msgid "admin.organization_structure.legal_entities.col_name"
+msgstr "Name"
+
+msgid "admin.organization_structure.legal_entities.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.legal_entities.create_submit"
+msgstr "Create"
+
+msgid "admin.organization_structure.legal_entities.create_success"
+msgstr "Legal entity created."
+
+msgid "admin.organization_structure.legal_entities.create_summary"
+msgstr "Create a new legal entity"
+
+msgid "admin.organization_structure.legal_entities.deactivate_button"
+msgstr "Deactivate"
+
+msgid "admin.organization_structure.legal_entities.deactivate_reason_prompt"
+msgstr "Enter a reason for deactivating this legal entity:"
+
+msgid "admin.organization_structure.legal_entities.deactivate_success"
+msgstr "Legal entity deactivated."
+
+msgid "admin.organization_structure.legal_entities.field_identifier"
+msgstr "Registration Identifier"
+
+msgid "admin.organization_structure.legal_entities.field_identifier_label"
+msgstr "Registration Identifier Label"
+
+msgid "admin.organization_structure.legal_entities.field_name"
+msgstr "Name"
+
+msgid "admin.organization_structure.legal_entities.no_rows"
+msgstr "No legal entity records yet."
+
+msgid "admin.organization_structure.legal_entities.restore_button"
+msgstr "Restore"
+
+msgid "admin.organization_structure.legal_entities.restore_success"
+msgstr "Legal entity restored."
+
+msgid "admin.organization_structure.legal_entities.title"
+msgstr "Legal Entities"
+
+msgid "admin.organization_structure.locations.col_actions"
+msgstr "Actions"
+
+msgid "admin.organization_structure.locations.col_city"
+msgstr "City"
+
+msgid "admin.organization_structure.locations.col_name"
+msgstr "Name"
+
+msgid "admin.organization_structure.locations.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.locations.create_submit"
+msgstr "Create"
+
+msgid "admin.organization_structure.locations.create_success"
+msgstr "Operational location created."
+
+msgid "admin.organization_structure.locations.create_summary"
+msgstr "Create a new operational location"
+
+msgid "admin.organization_structure.locations.delete_button"
+msgstr "Delete"
+
+msgid "admin.organization_structure.locations.delete_success"
+msgstr "Operational location deleted."
+
+msgid "admin.organization_structure.locations.field_city"
+msgstr "City"
+
+msgid "admin.organization_structure.locations.field_latitude"
+msgstr "Latitude"
+
+msgid "admin.organization_structure.locations.field_longitude"
+msgstr "Longitude"
+
+msgid "admin.organization_structure.locations.field_name"
+msgstr "Name"
+
+msgid "admin.organization_structure.locations.no_rows"
+msgstr "No operational location records yet."
+
+msgid "admin.organization_structure.locations.restore_button"
+msgstr "Restore"
+
+msgid "admin.organization_structure.locations.restore_success"
+msgstr "Operational location restored."
+
+msgid "admin.organization_structure.locations.title"
+msgstr "Operational Locations"
+
+msgid "admin.organization_structure.units.col_actions"
+msgstr "Actions"
+
+msgid "admin.organization_structure.units.col_code"
+msgstr "Code"
+
+msgid "admin.organization_structure.units.col_name"
+msgstr "Name"
+
+msgid "admin.organization_structure.units.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.units.create_submit"
+msgstr "Create"
+
+msgid "admin.organization_structure.units.create_success"
+msgstr "Organization unit created."
+
+msgid "admin.organization_structure.units.create_summary"
+msgstr "Create a new organization unit"
+
+msgid "admin.organization_structure.units.deactivate_button"
+msgstr "Deactivate"
+
+msgid "admin.organization_structure.units.deactivate_success"
+msgstr "Organization unit deactivated."
+
+msgid "admin.organization_structure.units.field_code"
+msgstr "Code"
+
+msgid "admin.organization_structure.units.field_legal_entity"
+msgstr "Legal Entity"
+
+msgid "admin.organization_structure.units.field_name"
+msgstr "Name"
+
+msgid "admin.organization_structure.units.field_unit_type"
+msgstr "Unit Type"
+
+msgid "admin.organization_structure.units.none_option"
+msgstr "None"
+
+msgid "admin.organization_structure.units.no_rows"
+msgstr "No organization unit records yet."
+
+msgid "admin.organization_structure.units.restore_button"
+msgstr "Restore"
+
+msgid "admin.organization_structure.units.restore_success"
+msgstr "Organization unit restored."
+
+msgid "admin.organization_structure.units.title"
+msgstr "Organization Units"
+
+msgid "admin.organization_structure.unit_types.col_actions"
+msgstr "Actions"
+
+msgid "admin.organization_structure.unit_types.col_code"
+msgstr "Code"
+
+msgid "admin.organization_structure.unit_types.col_name"
+msgstr "Name"
+
+msgid "admin.organization_structure.unit_types.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.unit_types.create_submit"
+msgstr "Create"
+
+msgid "admin.organization_structure.unit_types.create_success"
+msgstr "Organization-unit type created."
+
+msgid "admin.organization_structure.unit_types.create_summary"
+msgstr "Create a new organization-unit type"
+
+msgid "admin.organization_structure.unit_types.delete_button"
+msgstr "Delete"
+
+msgid "admin.organization_structure.unit_types.delete_success"
+msgstr "Organization-unit type deleted."
+
+msgid "admin.organization_structure.unit_types.field_code"
+msgstr "Code"
+
+msgid "admin.organization_structure.unit_types.field_description"
+msgstr "Description"
+
+msgid "admin.organization_structure.unit_types.field_name"
+msgstr "Name"
+
+msgid "admin.organization_structure.unit_types.no_rows"
+msgstr "No organization-unit type records yet."
+
+msgid "admin.organization_structure.unit_types.restore_button"
+msgstr "Restore"
+
+msgid "admin.organization_structure.unit_types.restore_success"
+msgstr "Organization-unit type restored."
+
+msgid "admin.organization_structure.unit_types.suggested_codes"
+msgstr "Suggested codes"
+
+msgid "admin.organization_structure.unit_types.title"
+msgstr "Organization-Unit Types"
+

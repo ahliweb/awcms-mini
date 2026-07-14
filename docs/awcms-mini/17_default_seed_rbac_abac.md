@@ -30,47 +30,54 @@ flowchart LR
 
 `module_key.activity_code` mengidentifikasi kemampuan. Contoh utama:
 
-| Module key                      | Activity code                | Action tersedia                                            |
-| ------------------------------- | ---------------------------- | ---------------------------------------------------------- |
-| `tenant_admin`                  | `office_management`          | read, create, update                                       |
-| `identity_access`               | `user_management`            | read, create, update, assign                               |
-| `identity_access`               | `access_control`             | read, assign, configure                                    |
-| `identity_access`               | `business_scope_assignments` | read, create, revoke (Issue #746)                          |
-| `identity_access`               | `business_scope_conflicts`   | read (Issue #746)                                          |
-| `identity_access`               | `business_scope_exceptions`  | read, create, approve, reject, revoke (Issue #746)         |
-| `profile_identity`              | `profile_management`         | read, create, update, delete, restore                      |
-| `profile_identity`              | `profile_merge`              | read, approve                                              |
-| `catalog_inventory`             | `product_management`         | read, create, update, delete, restore                      |
-| `catalog_inventory`             | `price_management`           | read, update                                               |
-| `catalog_inventory`             | `stock_management`           | read, update, adjust                                       |
-| `sales_pos`                     | `checkout`                   | read, create, update                                       |
-| `sales_pos`                     | `transaction_posting`        | post                                                       |
-| `sales_pos`                     | `transaction_cancel`         | cancel, approve                                            |
-| `sales_pos`                     | `discount`                   | update                                                     |
-| `warehouse_management`          | `transfer`                   | read, create, approve, send, receive                       |
-| `warehouse_management`          | `cycle_count`                | read, create, approve                                      |
-| `accounting_tax`                | `tax_profile`                | read, configure                                            |
-| `accounting_tax`                | `vat_invoice`                | read, create                                               |
-| `accounting_tax`                | `coretax_export`             | export, approve                                            |
-| `crm_communication`             | `contact`                    | read, create, update, delete, restore                      |
-| `crm_communication`             | `receipt_delivery`           | read, send                                                 |
-| `sync_storage`                  | `sync`                       | read, configure                                            |
-| `sync_storage`                  | `conflict_resolution`        | read, approve                                              |
-| `ai_analyst`                    | `analysis`                   | analyze                                                    |
-| `management_reporting`          | `reports`                    | read                                                       |
-| `workflow_approval`             | `approval`                   | read, approve                                              |
-| `workflow_approval`             | `definition`                 | read, create, update, publish, retire, delete (Issue #747) |
-| `workflow_approval`             | `recovery`                   | reassign, cancel, force_decide (Issue #747)                |
-| `workflow_approval`             | `delegation`                 | read, create, revoke (Issue #747)                          |
-| `observability_logging`         | `logs`                       | read                                                       |
-| `production_security_readiness` | `go_live`                    | read, approve                                              |
-| `module_management`             | `modules`                    | read, sync                                                 |
-| `module_management`             | `tenant_modules`             | read, enable, disable                                      |
-| `module_management`             | `settings`                   | read, update                                               |
-| `module_management`             | `permissions`                | read                                                       |
-| `module_management`             | `navigation`                 | read                                                       |
-| `module_management`             | `jobs`                       | read                                                       |
-| `module_management`             | `health`                     | read, check                                                |
+| Module key                      | Activity code                 | Action tersedia                                            |
+| ------------------------------- | ----------------------------- | ---------------------------------------------------------- |
+| `tenant_admin`                  | `office_management`           | read, create, update                                       |
+| `identity_access`               | `user_management`             | read, create, update, assign                               |
+| `identity_access`               | `access_control`              | read, assign, configure                                    |
+| `identity_access`               | `business_scope_assignments`  | read, create, revoke (Issue #746)                          |
+| `identity_access`               | `business_scope_conflicts`    | read (Issue #746)                                          |
+| `identity_access`               | `business_scope_exceptions`   | read, create, approve, reject, revoke (Issue #746)         |
+| `organization_structure`        | `legal_entities`              | read, create, update, delete, restore (Issue #749)         |
+| `organization_structure`        | `unit_types`                  | read, create, update, delete, restore (Issue #749)         |
+| `organization_structure`        | `units`                       | read, create, update, delete, restore (Issue #749)         |
+| `organization_structure`        | `hierarchy`                   | read, assign (Issue #749)                                  |
+| `organization_structure`        | `locations`                   | read, create, update, delete, restore (Issue #749)         |
+| `organization_structure`        | `location_unit_relationships` | read, create, revoke (Issue #749)                          |
+| `organization_structure`        | `assignments`                 | read, create, revoke (Issue #749)                          |
+| `profile_identity`              | `profile_management`          | read, create, update, delete, restore                      |
+| `profile_identity`              | `profile_merge`               | read, approve                                              |
+| `catalog_inventory`             | `product_management`          | read, create, update, delete, restore                      |
+| `catalog_inventory`             | `price_management`            | read, update                                               |
+| `catalog_inventory`             | `stock_management`            | read, update, adjust                                       |
+| `sales_pos`                     | `checkout`                    | read, create, update                                       |
+| `sales_pos`                     | `transaction_posting`         | post                                                       |
+| `sales_pos`                     | `transaction_cancel`          | cancel, approve                                            |
+| `sales_pos`                     | `discount`                    | update                                                     |
+| `warehouse_management`          | `transfer`                    | read, create, approve, send, receive                       |
+| `warehouse_management`          | `cycle_count`                 | read, create, approve                                      |
+| `accounting_tax`                | `tax_profile`                 | read, configure                                            |
+| `accounting_tax`                | `vat_invoice`                 | read, create                                               |
+| `accounting_tax`                | `coretax_export`              | export, approve                                            |
+| `crm_communication`             | `contact`                     | read, create, update, delete, restore                      |
+| `crm_communication`             | `receipt_delivery`            | read, send                                                 |
+| `sync_storage`                  | `sync`                        | read, configure                                            |
+| `sync_storage`                  | `conflict_resolution`         | read, approve                                              |
+| `ai_analyst`                    | `analysis`                    | analyze                                                    |
+| `management_reporting`          | `reports`                     | read                                                       |
+| `workflow_approval`             | `approval`                    | read, approve                                              |
+| `workflow_approval`             | `definition`                  | read, create, update, publish, retire, delete (Issue #747) |
+| `workflow_approval`             | `recovery`                    | reassign, cancel, force_decide (Issue #747)                |
+| `workflow_approval`             | `delegation`                  | read, create, revoke (Issue #747)                          |
+| `observability_logging`         | `logs`                        | read                                                       |
+| `production_security_readiness` | `go_live`                     | read, approve                                              |
+| `module_management`             | `modules`                     | read, sync                                                 |
+| `module_management`             | `tenant_modules`              | read, enable, disable                                      |
+| `module_management`             | `settings`                    | read, update                                               |
+| `module_management`             | `permissions`                 | read                                                       |
+| `module_management`             | `navigation`                  | read                                                       |
+| `module_management`             | `jobs`                        | read                                                       |
+| `module_management`             | `health`                      | read, check                                                |
 
 ## Role default
 
