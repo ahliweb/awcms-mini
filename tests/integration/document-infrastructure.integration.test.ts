@@ -1287,4 +1287,461 @@ suite("document_infrastructure integration", () => {
     });
     expect(clearedGetRestricted.status).toBe(200);
   });
+
+  test("confidentiality-tier gating on MUTATION endpoints (Issue #787 fast-follow to #751's Critical finding): void, restore, reclassify, versions.create, relations.assign/revoke each require read clearance for the document's CURRENT confidentiality level; the action-specific permission alone is not enough", async () => {
+    const owner = await bootstrap();
+
+    // --- void / restore (same document, sequential transitions) ---
+    const voidDocId = await createDocumentFixture(owner, {
+      title: "Confidential contract to void",
+      confidentialityLevel: "confidential"
+    });
+
+    const voidStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "void-staff@example.com",
+      ["document_infrastructure.documents.void"]
+    );
+    const deniedVoid = await invoke(voidDocument, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${voidDocId}/void`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        voidStaff.token,
+        "void-deny-1"
+      ),
+      params: { id: voidDocId },
+      body: { voidReason: "Superseded." }
+    });
+    // Identical to "not found" -- never confirms the confidential
+    // document's existence to a caller who cannot read it.
+    expect(deniedVoid.status).toBe(404);
+
+    const voidStaffCleared = await provisionScopedTenantUser(
+      owner.tenantId,
+      "void-staff-cleared@example.com",
+      [
+        "document_infrastructure.documents.void",
+        "document_infrastructure.documents_confidential.read"
+      ]
+    );
+    const allowedVoid = await invoke(voidDocument, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${voidDocId}/void`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        voidStaffCleared.token,
+        "void-allow-1"
+      ),
+      params: { id: voidDocId },
+      body: { voidReason: "Superseded." }
+    });
+    expect(allowedVoid.status).toBe(200);
+
+    const restoreStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "restore-staff@example.com",
+      ["document_infrastructure.documents.restore"]
+    );
+    const deniedRestore = await invoke(restoreDocument, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${voidDocId}/restore`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        restoreStaff.token,
+        "restore-deny-1"
+      ),
+      params: { id: voidDocId }
+    });
+    expect(deniedRestore.status).toBe(404);
+
+    const restoreStaffCleared = await provisionScopedTenantUser(
+      owner.tenantId,
+      "restore-staff-cleared@example.com",
+      [
+        "document_infrastructure.documents.restore",
+        "document_infrastructure.documents_confidential.read"
+      ]
+    );
+    const allowedRestore = await invoke(restoreDocument, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${voidDocId}/restore`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        restoreStaffCleared.token,
+        "restore-allow-1"
+      ),
+      params: { id: voidDocId }
+    });
+    expect(allowedRestore.status).toBe(200);
+
+    // --- reclassify (restricted tier this time -- proves the two tiers
+    // are independently enforced, not just the confidential one above) ---
+    const reclassifyDocId = await createDocumentFixture(owner, {
+      title: "Restricted salary letter",
+      confidentialityLevel: "restricted"
+    });
+    const reclassifyStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "reclassify-staff@example.com",
+      ["document_infrastructure.documents.reclassify"]
+    );
+    const deniedReclassify = await invoke(reclassifyDocument, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${reclassifyDocId}/reclassify`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        reclassifyStaff.token,
+        "reclassify-deny-1"
+      ),
+      params: { id: reclassifyDocId },
+      body: {
+        classificationId: null,
+        confidentialityLevel: "internal",
+        reason: "Downgrading."
+      }
+    });
+    expect(deniedReclassify.status).toBe(404);
+
+    const reclassifyStaffCleared = await provisionScopedTenantUser(
+      owner.tenantId,
+      "reclassify-staff-cleared@example.com",
+      [
+        "document_infrastructure.documents.reclassify",
+        "document_infrastructure.documents_restricted.read"
+      ]
+    );
+    const allowedReclassify = await invoke(reclassifyDocument, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${reclassifyDocId}/reclassify`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        reclassifyStaffCleared.token,
+        "reclassify-allow-1"
+      ),
+      params: { id: reclassifyDocId },
+      body: {
+        classificationId: null,
+        confidentialityLevel: "internal",
+        reason: "Downgrading."
+      }
+    });
+    expect(allowedReclassify.status).toBe(200);
+
+    // --- versions.create ---
+    const versionDocId = await createDocumentFixture(owner, {
+      title: "Confidential evidence bundle",
+      confidentialityLevel: "confidential"
+    });
+    const versionStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "version-staff@example.com",
+      ["document_infrastructure.versions.create"]
+    );
+    const deniedVersion = await invoke(createVersion, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${versionDocId}/versions`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        versionStaff.token,
+        "version-deny-1"
+      ),
+      params: { id: versionDocId },
+      body: {
+        contentReference: "sync-objects/tenant/confidential-v1.pdf",
+        contentReferenceKind: "object_storage_reference",
+        mediaType: "application/pdf",
+        sizeBytes: 512,
+        checksumSha256: VALID_CHECKSUM,
+        source: "upload"
+      }
+    });
+    expect(deniedVersion.status).toBe(404);
+
+    const versionStaffCleared = await provisionScopedTenantUser(
+      owner.tenantId,
+      "version-staff-cleared@example.com",
+      [
+        "document_infrastructure.versions.create",
+        "document_infrastructure.documents_confidential.read"
+      ]
+    );
+    const allowedVersion = await invoke(createVersion, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${versionDocId}/versions`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        versionStaffCleared.token,
+        "version-allow-1"
+      ),
+      params: { id: versionDocId },
+      body: {
+        contentReference: "sync-objects/tenant/confidential-v1.pdf",
+        contentReferenceKind: "object_storage_reference",
+        mediaType: "application/pdf",
+        sizeBytes: 512,
+        checksumSha256: VALID_CHECKSUM,
+        source: "upload"
+      }
+    });
+    expect(allowedVersion.status).toBe(200);
+
+    // --- relations.assign / relations.revoke ---
+    const relationDocId = await createDocumentFixture(owner, {
+      title: "Restricted disposal evidence",
+      confidentialityLevel: "restricted"
+    });
+    const assignStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "assign-staff@example.com",
+      ["document_infrastructure.relations.assign"]
+    );
+    const deniedAssign = await invoke(linkRelation, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${relationDocId}/relations`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        assignStaff.token,
+        "assign-deny-1"
+      ),
+      params: { id: relationDocId },
+      body: {
+        ownerModuleKey: "profile_identity",
+        resourceType: "profile",
+        resourceId: "33333333-3333-3333-3333-333333333333",
+        relationType: "evidence_for"
+      }
+    });
+    expect(deniedAssign.status).toBe(404);
+
+    const assignStaffCleared = await provisionScopedTenantUser(
+      owner.tenantId,
+      "assign-staff-cleared@example.com",
+      [
+        "document_infrastructure.relations.assign",
+        "document_infrastructure.documents_restricted.read"
+      ]
+    );
+    const allowedAssign = await invoke<{ data: { relation: { id: string } } }>(
+      linkRelation,
+      {
+        method: "POST",
+        path: `/api/v1/document-infrastructure/documents/${relationDocId}/relations`,
+        headers: scopedAuthHeaders(
+          owner.tenantId,
+          assignStaffCleared.token,
+          "assign-allow-1"
+        ),
+        params: { id: relationDocId },
+        body: {
+          ownerModuleKey: "profile_identity",
+          resourceType: "profile",
+          resourceId: "33333333-3333-3333-3333-333333333333",
+          relationType: "evidence_for"
+        }
+      }
+    );
+    expect(allowedAssign.status).toBe(200);
+    const relationId = allowedAssign.body.data.relation.id;
+
+    const revokeStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "revoke-staff@example.com",
+      ["document_infrastructure.relations.revoke"]
+    );
+    const deniedRevoke = await invoke(unlinkRelation, {
+      method: "DELETE",
+      path: `/api/v1/document-infrastructure/documents/${relationDocId}/relations/${relationId}`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        revokeStaff.token,
+        "revoke-deny-1"
+      ),
+      params: { id: relationDocId, relationId },
+      body: { reason: "No longer needed." }
+    });
+    expect(deniedRevoke.status).toBe(404);
+
+    const revokeStaffCleared = await provisionScopedTenantUser(
+      owner.tenantId,
+      "revoke-staff-cleared@example.com",
+      [
+        "document_infrastructure.relations.revoke",
+        "document_infrastructure.documents_restricted.read"
+      ]
+    );
+    const allowedRevoke = await invoke(unlinkRelation, {
+      method: "DELETE",
+      path: `/api/v1/document-infrastructure/documents/${relationDocId}/relations/${relationId}`,
+      headers: scopedAuthHeaders(
+        owner.tenantId,
+        revokeStaffCleared.token,
+        "revoke-allow-1"
+      ),
+      params: { id: relationDocId, relationId },
+      body: { reason: "No longer needed." }
+    });
+    expect(allowedRevoke.status).toBe(200);
+  });
+
+  test("confidentiality-tier gating on GET .../evidence and GET .../reservations (Issue #787 fast-follow): rows tied to a confidential document are omitted for a caller without the tier permission, and restored once granted; rows with no document link (not yet committed) always pass through", async () => {
+    const owner = await bootstrap();
+
+    const confidentialDocId = await createDocumentFixture(owner, {
+      title: "Confidential audit evidence",
+      confidentialityLevel: "confidential"
+    });
+
+    await invoke(defineSequence, {
+      method: "POST",
+      path: "/api/v1/document-infrastructure/sequences",
+      headers: authHeaders(owner, "define-key-787"),
+      body: {
+        scopeType: "tenant",
+        sequenceKey: "confidential_evidence_test",
+        formatTemplate: "{SEQ:4}",
+        resetPolicy: "never"
+      }
+    });
+
+    // Reservation #1 stays uncommitted (no document_id) -- has no
+    // confidentiality dimension, so it must always pass through.
+    const reserveUncommitted = await invoke<{
+      data: { reservation: { id: string } };
+    }>(reserveNumber, {
+      method: "POST",
+      path: "/api/v1/document-infrastructure/reservations/reserve",
+      headers: authHeaders(owner, "reserve-787-uncommitted"),
+      body: { scopeType: "tenant", sequenceKey: "confidential_evidence_test" }
+    });
+    expect(reserveUncommitted.status).toBe(200);
+    const uncommittedReservationId =
+      reserveUncommitted.body.data.reservation.id;
+
+    // Reservation #2 gets committed to the CONFIDENTIAL document -- both
+    // the reservation row and its `number_committed` evidence row now
+    // carry that document's id.
+    const reserveCommitted = await invoke<{
+      data: { reservation: { id: string } };
+    }>(reserveNumber, {
+      method: "POST",
+      path: "/api/v1/document-infrastructure/reservations/reserve",
+      headers: authHeaders(owner, "reserve-787-committed"),
+      body: { scopeType: "tenant", sequenceKey: "confidential_evidence_test" }
+    });
+    expect(reserveCommitted.status).toBe(200);
+    const committedReservationId = reserveCommitted.body.data.reservation.id;
+
+    const commit = await invoke(commitReservation, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/reservations/${committedReservationId}/commit`,
+      headers: authHeaders(owner, "commit-787"),
+      params: { id: committedReservationId },
+      body: { documentId: confidentialDocId }
+    });
+    expect(commit.status).toBe(200);
+
+    // --- GET .../evidence ---
+    const evidenceStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "evidence-staff@example.com",
+      ["document_infrastructure.evidence.read"]
+    );
+    const evidenceHeaders = scopedAuthHeaders(
+      owner.tenantId,
+      evidenceStaff.token
+    );
+
+    const evidenceDenied = await invoke<{
+      data: { evidence: { evidenceType: string; documentId: string | null }[] };
+    }>(listEvidence, {
+      method: "GET",
+      path: "/api/v1/document-infrastructure/evidence",
+      headers: evidenceHeaders
+    });
+    expect(evidenceDenied.status).toBe(200);
+    const deniedTypes = evidenceDenied.body.data.evidence.map(
+      (e) => e.evidenceType
+    );
+    // The uncommitted reservation's evidence (no document link) always
+    // passes through.
+    expect(deniedTypes).toContain("number_reserved");
+    // The evidence row tied to the CONFIDENTIAL document is omitted.
+    expect(
+      evidenceDenied.body.data.evidence.some(
+        (e) =>
+          e.evidenceType === "number_committed" &&
+          e.documentId === confidentialDocId
+      )
+    ).toBe(false);
+
+    const evidenceStaffCleared = await provisionScopedTenantUser(
+      owner.tenantId,
+      "evidence-staff-cleared@example.com",
+      [
+        "document_infrastructure.evidence.read",
+        "document_infrastructure.documents_confidential.read"
+      ]
+    );
+    const evidenceAllowed = await invoke<{
+      data: { evidence: { evidenceType: string; documentId: string | null }[] };
+    }>(listEvidence, {
+      method: "GET",
+      path: "/api/v1/document-infrastructure/evidence",
+      headers: scopedAuthHeaders(owner.tenantId, evidenceStaffCleared.token)
+    });
+    expect(evidenceAllowed.status).toBe(200);
+    expect(
+      evidenceAllowed.body.data.evidence.some(
+        (e) =>
+          e.evidenceType === "number_committed" &&
+          e.documentId === confidentialDocId
+      )
+    ).toBe(true);
+
+    // --- GET .../reservations ---
+    const reservationStaff = await provisionScopedTenantUser(
+      owner.tenantId,
+      "reservation-staff@example.com",
+      ["document_infrastructure.reservations.read"]
+    );
+    const reservationDenied = await invoke<{
+      data: { reservations: { id: string; documentId: string | null }[] };
+    }>(listReservations, {
+      method: "GET",
+      path: "/api/v1/document-infrastructure/reservations",
+      headers: scopedAuthHeaders(owner.tenantId, reservationStaff.token)
+    });
+    expect(reservationDenied.status).toBe(200);
+    const deniedReservationIds = reservationDenied.body.data.reservations.map(
+      (r) => r.id
+    );
+    // The still-uncommitted reservation (no document link) always passes
+    // through.
+    expect(deniedReservationIds).toContain(uncommittedReservationId);
+    // The reservation committed to the CONFIDENTIAL document is omitted.
+    expect(deniedReservationIds).not.toContain(committedReservationId);
+
+    const reservationStaffCleared = await provisionScopedTenantUser(
+      owner.tenantId,
+      "reservation-staff-cleared@example.com",
+      [
+        "document_infrastructure.reservations.read",
+        "document_infrastructure.documents_confidential.read"
+      ]
+    );
+    const reservationAllowed = await invoke<{
+      data: { reservations: { id: string; documentId: string | null }[] };
+    }>(listReservations, {
+      method: "GET",
+      path: "/api/v1/document-infrastructure/reservations",
+      headers: scopedAuthHeaders(owner.tenantId, reservationStaffCleared.token)
+    });
+    expect(reservationAllowed.status).toBe(200);
+    const allowedReservationIds = reservationAllowed.body.data.reservations.map(
+      (r) => r.id
+    );
+    expect(allowedReservationIds).toContain(uncommittedReservationId);
+    expect(allowedReservationIds).toContain(committedReservationId);
+  });
 });

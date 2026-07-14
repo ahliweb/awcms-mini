@@ -22,6 +22,10 @@ import {
   saveIdempotencyRecord
 } from "../../../../../../../modules/_shared/idempotency";
 import { unlinkDocumentFromResource } from "../../../../../../../modules/document-infrastructure/application/document-resource-relation-port";
+import {
+  CONFIDENTIAL_READ_PERMISSION_KEY,
+  RESTRICTED_READ_PERMISSION_KEY
+} from "../../../../../../../modules/document-infrastructure/domain/document";
 
 const IDEMPOTENCY_SCOPE = "document_infrastructure_relation_unlink";
 
@@ -77,6 +81,19 @@ export const DELETE: APIRoute = async ({
     );
     if (!auth.allowed) return auth.denied;
 
+    // Confidentiality-tier clearance on the PARENT document (Issue #787
+    // fast-follow) — resolved inside `unlinkDocumentFromResource` itself
+    // (only a bare `relationId` reaches this route), see that function's
+    // doc comment.
+    const access = {
+      canReadConfidential: auth.grantedPermissionKeys.has(
+        CONFIDENTIAL_READ_PERMISSION_KEY
+      ),
+      canReadRestricted: auth.grantedPermissionKeys.has(
+        RESTRICTED_READ_PERMISSION_KEY
+      )
+    };
+
     const existingIdempotency = await findIdempotencyRecord(
       tx,
       tenantId,
@@ -103,6 +120,7 @@ export const DELETE: APIRoute = async ({
       auth.context.tenantUserId,
       relationId,
       reason,
+      access,
       correlationId
     );
 

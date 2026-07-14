@@ -24,6 +24,10 @@ import {
   validateCreateDocumentVersionInput,
   type CreateDocumentVersionInput
 } from "../domain/document-version";
+import {
+  isConfidentialityLevelReadable,
+  type ConfidentialityReadAccess
+} from "../domain/document";
 import type { DocumentValidationError } from "../domain/errors";
 
 const MODULE_KEY = "document_infrastructure";
@@ -86,12 +90,23 @@ export type CreateDocumentVersionResult =
   | { ok: false; reason: "validation"; errors: DocumentValidationError[] }
   | { ok: false; reason: "document_not_found" };
 
+/**
+ * `access` is REQUIRED (Issue #787 fast-follow) — a caller holding only
+ * the base `versions.create` action permission must not be able to
+ * append a new version to a `confidential`/`restricted` document they
+ * lack read clearance for (this would let them confirm the parent
+ * document's existence, and attach new content to a document whose
+ * existing content they cannot themselves see). Returns
+ * `document_not_found` (identical to genuinely-not-found/soft-deleted),
+ * same anti-enumeration reasoning the read paths use.
+ */
 export async function createDocumentVersion(
   tx: Bun.SQL,
   tenantId: string,
   actorTenantUserId: string,
   documentId: string,
   input: CreateDocumentVersionInput,
+  access: ConfidentialityReadAccess,
   correlationId?: string
 ): Promise<CreateDocumentVersionResult> {
   const errors = validateCreateDocumentVersionInput(input);
@@ -108,7 +123,7 @@ export async function createDocumentVersion(
   // belt-and-suspenders: even if the lock were somehow bypassed, the
   // unique index would reject a duplicate version_number outright.
   const documentRows = (await tx`
-    SELECT id, current_version_number, deleted_at
+    SELECT id, current_version_number, deleted_at, confidentiality_level
     FROM awcms_mini_documents
     WHERE tenant_id = ${tenantId} AND id = ${documentId}
     FOR UPDATE
@@ -116,10 +131,14 @@ export async function createDocumentVersion(
     id: string;
     current_version_number: number;
     deleted_at: Date | null;
+    confidentiality_level: string;
   }[];
 
   const document = documentRows[0];
   if (!document || document.deleted_at !== null) {
+    return { ok: false, reason: "document_not_found" };
+  }
+  if (!isConfidentialityLevelReadable(document.confidentiality_level, access)) {
     return { ok: false, reason: "document_not_found" };
   }
 

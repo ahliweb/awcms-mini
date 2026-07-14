@@ -9,6 +9,10 @@ import {
 } from "../../../../../modules/identity-access/application/access-guard";
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
 import { listReservations } from "../../../../../modules/document-infrastructure/application/document-number-reservation-service";
+import {
+  CONFIDENTIAL_READ_PERMISSION_KEY,
+  RESTRICTED_READ_PERMISSION_KEY
+} from "../../../../../modules/document-infrastructure/domain/document";
 
 const READ_GUARD = {
   moduleKey: "document_infrastructure",
@@ -16,7 +20,13 @@ const READ_GUARD = {
   action: "read" as const
 };
 
-/** `GET /api/v1/document-infrastructure/reservations?sequenceId=&status=` (Issue #751). */
+/**
+ * `GET /api/v1/document-infrastructure/reservations?sequenceId=&status=`
+ * (Issue #751). Reservations already committed to a
+ * `confidential`/`restricted` document are filtered by confidentiality-
+ * tier clearance (Issue #787 fast-follow) — see `document-number-
+ * reservation-service.ts`'s `listReservations` doc comment.
+ */
 export const GET: APIRoute = async ({ request, cookies, url }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
   if (!tenantId)
@@ -47,7 +57,16 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
     );
     if (!auth.allowed) return auth.denied;
 
-    const reservations = await listReservations(tx, tenantId, {
+    const access = {
+      canReadConfidential: auth.grantedPermissionKeys.has(
+        CONFIDENTIAL_READ_PERMISSION_KEY
+      ),
+      canReadRestricted: auth.grantedPermissionKeys.has(
+        RESTRICTED_READ_PERMISSION_KEY
+      )
+    };
+
+    const reservations = await listReservations(tx, tenantId, access, {
       sequenceId: url.searchParams.get("sequenceId") ?? undefined,
       status: statusParam as "reserved" | "committed" | "canceled" | undefined
     });

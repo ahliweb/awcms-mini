@@ -258,12 +258,24 @@ export type VoidDocumentResult =
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "not_voidable" };
 
+/**
+ * `access` is REQUIRED (Issue #787 fast-follow — see `fetchDocumentById`'s
+ * own comment for why this convention is compile-time-forced everywhere
+ * in this module). A caller who can perform the `documents.void` action
+ * but lacks confidentiality-tier clearance for THIS document's CURRENT
+ * `confidentiality_level` must not be able to void it — the mutation
+ * would otherwise let a caller confirm a `confidential`/`restricted`
+ * document's existence and mutate its state without ever being cleared
+ * to read it. Returns `not_found` (identical to genuinely-not-found),
+ * same anti-enumeration reasoning the read paths already use.
+ */
 export async function voidDocument(
   tx: Bun.SQL,
   tenantId: string,
   actorTenantUserId: string,
   documentId: string,
   input: VoidDocumentInput,
+  access: ConfidentialityReadAccess,
   correlationId?: string
 ): Promise<VoidDocumentResult> {
   const errors = validateVoidDocumentInput(input);
@@ -272,13 +284,20 @@ export async function voidDocument(
   }
 
   const existingRows = (await tx`
-    SELECT status, deleted_at FROM awcms_mini_documents
+    SELECT status, deleted_at, confidentiality_level FROM awcms_mini_documents
     WHERE tenant_id = ${tenantId} AND id = ${documentId}
     FOR UPDATE
-  `) as { status: DocumentStatus; deleted_at: Date | null }[];
+  `) as {
+    status: DocumentStatus;
+    deleted_at: Date | null;
+    confidentiality_level: string;
+  }[];
 
   const existing = existingRows[0];
   if (!existing) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (!isConfidentialityLevelReadable(existing.confidentiality_level, access)) {
     return { ok: false, reason: "not_found" };
   }
   if (
@@ -414,22 +433,37 @@ export type RestoreDocumentResult =
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "not_restorable" };
 
-/** Restores a soft-deleted document, OR un-voids a voided document — see file header. */
+/**
+ * Restores a soft-deleted document, OR un-voids a voided document — see
+ * file header. `access` is REQUIRED (Issue #787 fast-follow) — same
+ * confidentiality-tier precondition `voidDocument` enforces above; a
+ * caller without clearance for this document's current
+ * `confidentiality_level` gets `not_found`, identical to genuinely-not-
+ * found.
+ */
 export async function restoreDocument(
   tx: Bun.SQL,
   tenantId: string,
   actorTenantUserId: string,
   documentId: string,
+  access: ConfidentialityReadAccess,
   correlationId?: string
 ): Promise<RestoreDocumentResult> {
   const existingRows = (await tx`
-    SELECT status, deleted_at FROM awcms_mini_documents
+    SELECT status, deleted_at, confidentiality_level FROM awcms_mini_documents
     WHERE tenant_id = ${tenantId} AND id = ${documentId}
     FOR UPDATE
-  `) as { status: DocumentStatus; deleted_at: Date | null }[];
+  `) as {
+    status: DocumentStatus;
+    deleted_at: Date | null;
+    confidentiality_level: string;
+  }[];
 
   const existing = existingRows[0];
   if (!existing) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (!isConfidentialityLevelReadable(existing.confidentiality_level, access)) {
     return { ok: false, reason: "not_found" };
   }
 
@@ -534,12 +568,26 @@ export type ReclassifyDocumentResult =
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "classification_not_found" };
 
+/**
+ * `access` is REQUIRED (Issue #787 fast-follow) — checked against the
+ * document's CURRENT `confidentiality_level` BEFORE the change is
+ * applied. Without this, a caller holding only the base
+ * `documents.reclassify` action permission could reclassify (including
+ * widen the readability of) a `confidential`/`restricted` document they
+ * are not themselves cleared to read — this module's own `reclassify.ts`
+ * route comment already warns reclassify "can widen who is allowed to
+ * read the document"; this precondition ensures only a caller who could
+ * already read the CURRENT level is allowed to change it. Returns
+ * `not_found` (identical to genuinely-not-found) when clearance is
+ * missing, same anti-enumeration reasoning the read paths use.
+ */
 export async function reclassifyDocument(
   tx: Bun.SQL,
   tenantId: string,
   actorTenantUserId: string,
   documentId: string,
   input: ReclassifyDocumentInput,
+  access: ConfidentialityReadAccess,
   correlationId?: string
 ): Promise<ReclassifyDocumentResult> {
   const errors = validateReclassifyDocumentInput(input);
@@ -555,6 +603,19 @@ export async function reclassifyDocument(
     if (!classificationRows[0]) {
       return { ok: false, reason: "classification_not_found" };
     }
+  }
+
+  const currentRows = (await tx`
+    SELECT confidentiality_level FROM awcms_mini_documents
+    WHERE tenant_id = ${tenantId} AND id = ${documentId} AND deleted_at IS NULL
+    FOR UPDATE
+  `) as { confidentiality_level: string }[];
+  const current = currentRows[0];
+  if (!current) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (!isConfidentialityLevelReadable(current.confidentiality_level, access)) {
+    return { ok: false, reason: "not_found" };
   }
 
   const rows = (await tx`

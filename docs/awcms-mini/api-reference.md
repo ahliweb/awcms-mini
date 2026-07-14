@@ -8224,7 +8224,7 @@ High-risk mutation -- requires Idempotency-Key. Distinct from void (see the void
 - **operationId**: `documentInfrastructureDocumentsReclassify`
 - **Security**: bearerAuth + tenantHeader
 
-High-risk mutation -- requires Idempotency-Key.
+High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's CURRENT confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
 
 **Parameters**
 
@@ -8281,7 +8281,7 @@ High-risk mutation -- requires Idempotency-Key.
 - **operationId**: `documentInfrastructureRelationsLink`
 - **Security**: bearerAuth + tenantHeader
 
-High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -- callers pass an opaque ownerModuleKey/resourceType/resourceId they have already validated belongs to their own tenant-scoped data.
+High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -- callers pass an opaque ownerModuleKey/resourceType/resourceId they have already validated belongs to their own tenant-scoped data. 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
 
 **Parameters**
 
@@ -8311,7 +8311,7 @@ High-risk mutation (assign) -- requires Idempotency-Key. Capability-port write -
 - **operationId**: `documentInfrastructureRelationsUnlink`
 - **Security**: bearerAuth + tenantHeader
 
-High-risk mutation (revoke) -- requires Idempotency-Key.
+High-risk mutation (revoke) -- requires Idempotency-Key. 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
 
 **Parameters**
 
@@ -8342,7 +8342,7 @@ High-risk mutation (revoke) -- requires Idempotency-Key.
 - **operationId**: `documentInfrastructureDocumentsRestore`
 - **Security**: bearerAuth + tenantHeader
 
-High-risk mutation -- requires Idempotency-Key.
+High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
 
 **Parameters**
 
@@ -8396,7 +8396,7 @@ High-risk mutation -- requires Idempotency-Key.
 - **operationId**: `documentInfrastructureVersionsCreate`
 - **Security**: bearerAuth + tenantHeader
 
-High-risk mutation -- requires Idempotency-Key (a retry must never create two versions).
+High-risk mutation -- requires Idempotency-Key (a retry must never create two versions). 404s (identical to "does not exist") if the parent document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
 
 **Parameters**
 
@@ -8426,7 +8426,7 @@ High-risk mutation -- requires Idempotency-Key (a retry must never create two ve
 - **operationId**: `documentInfrastructureDocumentsVoid`
 - **Security**: bearerAuth + tenantHeader
 
-Irreversible-by-default business-state transition, kept visible as evidence. High-risk mutation -- requires Idempotency-Key.
+Irreversible-by-default business-state transition, kept visible as evidence. High-risk mutation -- requires Idempotency-Key. 404s (identical to "does not exist") if the document's confidentiality_level is confidential/restricted and the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
 
 **Parameters**
 
@@ -8456,6 +8456,8 @@ Irreversible-by-default business-state transition, kept visible as evidence. Hig
 - **operationId**: `documentInfrastructureEvidenceList`
 - **Security**: bearerAuth + tenantHeader
 
+Evidence rows tied to a document (document.voided/restored/reclassified, version.created, number.committed) omit rows whose document's confidentiality_level is confidential/restricted if the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
+
 **Parameters**
 
 | Name               | In     | Required | Type          | Description                                 |
@@ -8479,6 +8481,8 @@ Irreversible-by-default business-state transition, kept visible as evidence. Hig
 
 - **operationId**: `documentInfrastructureReservationsList`
 - **Security**: bearerAuth + tenantHeader
+
+Reservations already committed to a document omit rows whose document's confidentiality_level is confidential/restricted if the caller lacks the matching documents_confidential.read/documents_restricted.read permission (Issue
 
 **Parameters**
 

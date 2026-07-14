@@ -101,9 +101,12 @@ if (CAN_READ && documentId) {
           context.tenantId,
           documentId
         );
-        evidence = await listDocumentEvidence(tx, context.tenantId, {
-          documentId
-        });
+        evidence = await listDocumentEvidence(
+          tx,
+          context.tenantId,
+          DOCUMENT_ACCESS,
+          { documentId }
+        );
         classifications = await listClassifications(tx, context.tenantId, {
           status: "active"
         });
