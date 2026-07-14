@@ -27,6 +27,9 @@ storage/
 *.dump
 *.sql.gz
 
+# Local runtime artifacts (e.g. REPORTING_EXPORT_ROOT_PATH default output)
+/var/
+
 # Logs & OS
 *.log
 .DS_Store

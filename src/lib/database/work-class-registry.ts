@@ -123,5 +123,15 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     workClass: "maintenance",
     rationale:
       "Read-only per-tenant metrics snapshot (organization-structure:metrics-snapshot, Issue #749), recommended every 15-60 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; it never mutates a row, purely samples gauges."
+  },
+  "scripts/reporting-projections-refresh.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Incremental cursor_table projection updates + rebuild-continuation sweep (reporting:projections:refresh, Issue #753), recommended every 2 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; every withTenant call inside projection-incremental-worker.ts/projection-rebuild.ts already passes workClass: "maintenance" explicitly.'
+  },
+  "scripts/reporting-exports-dispatch.ts": {
+    workClass: "maintenance",
+    rationale:
+      "Scheduled projection export generation (reporting:exports:dispatch, Issue #753), recommended every 15 minutes — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; a delayed export run has no operational urgency."
   }
 };

@@ -1962,6 +1962,32 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     default: "./var/data-lifecycle-archive",
     description:
       "Filesystem root the local/offline archive adapter (src/modules/data-lifecycle/infrastructure/local-archive-adapter.ts) writes archive artifacts under, one subdirectory per (tenantId, ownerModuleKey, tableShortName). The only new env var this issue adds — retention days/batch limits are already owned by each HighVolumeTableDescriptor in code (or, for a delegated adopter, by that module's own existing retention env var), never re-declared here."
+  },
+  // ---------------------------------------------------------------------
+  // Reporting projections/scheduled exports (Issue #753, epic #738
+  // platform-evolution)
+  // ---------------------------------------------------------------------
+  {
+    name: "REPORTING_EXPORT_ROOT_PATH",
+    type: "path",
+    required: "optional",
+    ownerModule: "reporting",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "./var/reporting-exports",
+    description:
+      "Filesystem root the local/offline export adapter (src/modules/reporting/infrastructure/local-export-adapter.ts) writes scheduled/manual projection export artifacts under, one subdirectory per (tenantId, projectionKey). Same local-first posture as DATA_LIFECYCLE_ARCHIVE_ROOT_PATH — no external object storage dependency."
+  },
+  {
+    name: "REPORTING_EXPORT_RETENTION_DAYS",
+    type: "integer",
+    required: "optional",
+    ownerModule: "reporting",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "7",
+    description:
+      "How many days a generated export artifact (and its awcms_mini_reporting_export_runs manifest row's expires_at) remains downloadable before GET /api/v1/reports/exports/{id}/download starts refusing it with 410 Gone."
   }
 ];
 

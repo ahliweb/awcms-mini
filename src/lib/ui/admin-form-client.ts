@@ -38,12 +38,23 @@
  * frontmatter (deliberate for that page — see its own doc comment: the
  * dashboard must only ever call the already-guarded HTTP API, never touch
  * the database directly from UI code).
+ *
+ * `SubmitResult<TData>`/`submitJson<TData>` (Issue #753,
+ * `admin/reporting/projections.astro`) — additive generic + `data` field:
+ * every EXISTING call site (34 files) omits the type parameter and never
+ * reads `.data`, so this is backward compatible (defaults to
+ * `SubmitResult<unknown>`, `data: null` on any failure path, same shape
+ * `fetchJson`'s own `FetchJsonResult` already established for the GET
+ * case) — needed for a mutation whose caller wants to branch on the
+ * response body (e.g. "rebuild resumed vs newly triggered", "reconcile
+ * found a mismatch or not") without a second round-trip.
  */
 
-export interface SubmitResult {
+export interface SubmitResult<TData = unknown> {
   ok: boolean;
   code?: string;
   message: string;
+  data: TData | null;
 }
 
 export interface ClientErrorStrings {
@@ -71,13 +82,13 @@ export function readClientStrings<T = Record<string, unknown>>(
 /** POST/PATCH/DELETE JSON to `url`, mapping a failure response's error code
  * through the pre-translated `errorMessages` map (falls back to the API's
  * raw message, then a generic string). */
-export async function submitJson(
+export async function submitJson<TData = unknown>(
   url: string,
   method: string,
   body: unknown,
   strings: ClientErrorStrings,
   extraHeaders?: Record<string, string>
-): Promise<SubmitResult> {
+): Promise<SubmitResult<TData>> {
   try {
     const res = await fetch(url, {
       method,
@@ -93,12 +104,16 @@ export async function submitJson(
         (code && strings.errorMessages?.[code]) ??
         json?.error?.message ??
         `Request failed (${res.status}).`;
-      return { ok: false, code, message };
+      return { ok: false, code, message, data: null };
     }
 
-    return { ok: true, message: "" };
+    return {
+      ok: true,
+      message: "",
+      data: (json?.data ?? null) as TData | null
+    };
   } catch {
-    return { ok: false, message: strings.networkError };
+    return { ok: false, message: strings.networkError, data: null };
   }
 }
 

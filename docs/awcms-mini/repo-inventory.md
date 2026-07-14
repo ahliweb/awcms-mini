@@ -8,32 +8,32 @@
 
 20 modules registered in `src/modules/index.ts` `listModules()`.
 
-| Key                       | Version | Status         | Type     | Dependencies                                               |
-| ------------------------- | ------- | -------------- | -------- | ---------------------------------------------------------- |
-| `blog_content`            | `0.9.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                          |
-| `data_lifecycle`          | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`               |
-| `document_infrastructure` | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`  |
-| `domain_event_runtime`    | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`               |
-| `email`                   | `0.5.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`, `identity_access`      |
-| `form_drafts`             | `1.0.0` | `active`       | `-`      | `identity_access`                                          |
-| `identity_access`         | `1.0.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`                         |
-| `idn_admin_regions`       | `0.1.0` | `experimental` | `base`   | `identity_access`, `logging`, `module_management`          |
-| `logging`                 | `1.0.0` | `active`       | `-`      | `tenant_admin`                                             |
-| `module_management`       | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                          |
-| `news_portal`             | `0.4.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                          |
-| `organization_structure`  | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`  |
-| `profile_identity`        | `1.1.0` | `active`       | `-`      | `tenant_admin`                                             |
-| `reporting`               | `1.1.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email` |
-| `social_publishing`       | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                          |
-| `sync_storage`            | `1.0.0` | `active`       | `-`      | `tenant_admin`                                             |
-| `tenant_admin`            | `1.0.0` | `active`       | `-`      | -                                                          |
-| `tenant_domain`           | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                          |
-| `visitor_analytics`       | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`, `reporting`  |
-| `workflow`                | `2.0.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `domain_event_runtime`  |
+| Key                       | Version | Status         | Type     | Dependencies                                                                       |
+| ------------------------- | ------- | -------------- | -------- | ---------------------------------------------------------------------------------- |
+| `blog_content`            | `0.9.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                                  |
+| `data_lifecycle`          | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`                                       |
+| `document_infrastructure` | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`                          |
+| `domain_event_runtime`    | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`                                       |
+| `email`                   | `0.5.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`, `identity_access`                              |
+| `form_drafts`             | `1.0.0` | `active`       | `-`      | `identity_access`                                                                  |
+| `identity_access`         | `1.0.0` | `active`       | `-`      | `tenant_admin`, `profile_identity`                                                 |
+| `idn_admin_regions`       | `0.1.0` | `experimental` | `base`   | `identity_access`, `logging`, `module_management`                                  |
+| `logging`                 | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                                     |
+| `module_management`       | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                                                  |
+| `news_portal`             | `0.4.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                                  |
+| `organization_structure`  | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`                          |
+| `profile_identity`        | `1.1.0` | `active`       | `-`      | `tenant_admin`                                                                     |
+| `reporting`               | `1.2.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email`, `domain_event_runtime` |
+| `social_publishing`       | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`                                                  |
+| `sync_storage`            | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                                     |
+| `tenant_admin`            | `1.0.0` | `active`       | `-`      | -                                                                                  |
+| `tenant_domain`           | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                                                  |
+| `visitor_analytics`       | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`, `logging`, `reporting`                          |
+| `workflow`                | `2.0.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `domain_event_runtime`                          |
 
 ## Migrations
 
-68 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `068_awcms_mini_document_infrastructure_confidentiality_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
+70 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `070_awcms_mini_reporting_projections_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -105,10 +105,12 @@
 | 066 | `066_awcms_mini_document_infrastructure_schema.sql`                      |
 | 067 | `067_awcms_mini_document_infrastructure_permissions.sql`                 |
 | 068 | `068_awcms_mini_document_infrastructure_confidentiality_permissions.sql` |
+| 069 | `069_awcms_mini_reporting_projections_schema.sql`                        |
+| 070 | `070_awcms_mini_reporting_projections_permissions.sql`                   |
 
 ## Tables & Row-Level Security
 
-120 tables created across all migrations; 110 carry a `tenant_id` column; 109 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
+127 tables created across all migrations; 117 carry a `tenant_id` column; 116 have an `ENABLE ROW LEVEL SECURITY` statement; 11 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
@@ -130,19 +132,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-296 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+300 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 46         |
 | `e2e`         | 9          |
-| `integration` | 91         |
+| `integration` | 92         |
 | `modules`     | 5          |
-| `unit`        | 145        |
+| `unit`        | 148        |
 
 ## Routes / Operations (summary)
 
-236 OpenAPI paths, 326 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+246 OpenAPI paths, 337 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

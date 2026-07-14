@@ -117,7 +117,7 @@ suite("tenant module preset application service", () => {
     await resetDatabase();
   });
 
-  test("applying online_website enables its listed modules (all default-enabled already, so no changes), disables the safely-disableable non-listed modules, and skips one blocked by a transitive dependency", async () => {
+  test("applying online_website enables its listed modules (all default-enabled already, so no changes), disables the safely-disableable non-listed modules, and skips modules blocked by a (possibly transitive) reverse dependency", async () => {
     const owner = await bootstrap();
     const sql = getDatabaseClient();
 
@@ -142,31 +142,26 @@ suite("tenant module preset application service", () => {
     for (const key of ["tenant_domain", "blog_content", "email", "reporting"]) {
       expect(changeByKey.has(key)).toBe(false);
     }
-    // logging/workflow/form_drafts/visitor_analytics/news_portal/
-    // idn_admin_regions aren't listed and nothing (that stays enabled)
-    // depends on them, so they're safely disabled to actually produce the
-    // profile. visitor_analytics itself depends on logging/reporting, but
-    // nothing depends on visitor_analytics — a pure leaf — so it disables
-    // cleanly and, once it's gone, unblocks logging the same way.
+    // workflow/form_drafts/visitor_analytics/news_portal/idn_admin_regions
+    // aren't listed and nothing (that stays enabled) depends on them, so
+    // they're safely disabled to actually produce the profile.
     // news_portal (Issue #632) deliberately declares no hard dependency on
     // blog_content/tenant_domain/visitor_analytics (see its own module.ts
-    // comment), so it is likewise a pure leaf here. idn_admin_regions
-    // (Issue #655) depends on identity_access/logging/module_management,
-    // all of which stay enabled, but nothing depends on idn_admin_regions
-    // itself — also a pure leaf. domain_event_runtime (Issue #742) depends
-    // on tenant_admin/identity_access/logging, all of which stay enabled
-    // (logging disables in this SAME preset application, but leaves-first
-    // ordering disables domain_event_runtime first, same as it does for
-    // visitor_analytics before logging) — nothing depends on
-    // domain_event_runtime itself, also a pure leaf. organization_structure
-    // (Issue #749) and document_infrastructure (Issue #751) both depend on
+    // comment), so it is a pure leaf here. idn_admin_regions (Issue #655)
+    // depends on identity_access/logging/module_management, all of which
+    // stay enabled, but nothing depends on idn_admin_regions itself —
+    // also a pure leaf. organization_structure (Issue #749) and
+    // document_infrastructure (Issue #751) both depend on
     // tenant_admin/identity_access/domain_event_runtime, all of which stay
-    // enabled or disable in this same pass — nothing depends on either of
-    // them, also pure leaves, and both disable BEFORE domain_event_runtime
-    // (leaves-first ordering: a module that still depends on
-    // domain_event_runtime must be disabled first).
+    // enabled — nothing depends on either of them, also pure leaves
+    // (depending on a module that stays enabled does not itself block a
+    // module's OWN disable; only being DEPENDED ON by something that
+    // stays enabled does). Unlike on `main` before Issue #753,
+    // domain_event_runtime itself is NOT a pure leaf here and does NOT
+    // disable — `reporting` (listed, stays enabled) now also depends on
+    // it (see the `sync_storage`/`domain_event_runtime`/`logging` skip
+    // block below), which transitively keeps `logging` enabled too.
     for (const key of [
-      "logging",
       "workflow",
       "form_drafts",
       "visitor_analytics",
@@ -175,27 +170,41 @@ suite("tenant module preset application service", () => {
       "social_publishing",
       "data_lifecycle",
       "organization_structure",
-      "document_infrastructure",
-      "domain_event_runtime"
+      "document_infrastructure"
     ]) {
       expect(changeByKey.get(key)?.outcome).toBe("applied");
       expect(changeByKey.get(key)?.action).toBe("disabled");
     }
-    // sync_storage is also not listed, but `reporting` (which IS listed,
-    // so stays enabled) depends on it — so it must be skipped, not
-    // force-disabled, per the reverse-dependency protection design.
-    expect(changeByKey.has("sync_storage")).toBe(false);
-    expect(result.skipped).toContainEqual({
-      moduleKey: "sync_storage",
-      action: "disabled",
-      reason: "reverse_dependency_active",
-      message: expect.stringContaining("sync_storage")
-    });
+    // sync_storage, domain_event_runtime, AND (transitively) logging are
+    // also not listed, but must all stay enabled:
+    // - `reporting` (listed, stays enabled) depends on sync_storage AND
+    //   (Issue #753) on domain_event_runtime — the event-driven
+    //   `event_activity_summary` projection genuinely needs that module's
+    //   dispatcher active.
+    // - domain_event_runtime itself (now forced to stay enabled) depends
+    //   on `logging` — so logging is blocked TOO, purely as a transitive
+    //   consequence of domain_event_runtime being blocked. Before Issue
+    //   #753 added the reporting -> domain_event_runtime edge, logging
+    //   had no active dependent left once visitor_analytics/
+    //   domain_event_runtime disabled and was itself safely disabled;
+    //   now it never becomes disableable in this preset.
+    // All three are skipped, never force-disabled, per the
+    // reverse-dependency protection design.
+    for (const key of ["sync_storage", "domain_event_runtime", "logging"]) {
+      expect(changeByKey.has(key)).toBe(false);
+      expect(result.skipped).toContainEqual({
+        moduleKey: key,
+        action: "disabled",
+        reason: "reverse_dependency_active",
+        message: expect.stringContaining(key)
+      });
+    }
 
     const state = await fetchTenantModuleState(owner.tenantId);
     expect(state.get("tenant_domain")).not.toBe(false);
     expect(state.get("sync_storage")).not.toBe(false);
-    expect(state.get("logging")).toBe(false);
+    expect(state.get("domain_event_runtime")).not.toBe(false);
+    expect(state.get("logging")).not.toBe(false);
     expect(state.get("workflow")).toBe(false);
     expect(state.get("form_drafts")).toBe(false);
     expect(state.get("visitor_analytics")).toBe(false);
@@ -205,7 +214,6 @@ suite("tenant module preset application service", () => {
     expect(state.get("data_lifecycle")).toBe(false);
     expect(state.get("organization_structure")).toBe(false);
     expect(state.get("document_infrastructure")).toBe(false);
-    expect(state.get("domain_event_runtime")).toBe(false);
 
     const auditRows = await fetchAuditActions(owner.tenantId);
     const disabledResourceIds = auditRows
@@ -215,7 +223,6 @@ suite("tenant module preset application service", () => {
     expect(disabledResourceIds).toEqual(
       [
         "form_drafts",
-        "logging",
         "workflow",
         "visitor_analytics",
         "news_portal",
@@ -223,8 +230,7 @@ suite("tenant module preset application service", () => {
         "social_publishing",
         "data_lifecycle",
         "organization_structure",
-        "document_infrastructure",
-        "domain_event_runtime"
+        "document_infrastructure"
       ].sort()
     );
     // No audit event for modules that were already in the target state.
