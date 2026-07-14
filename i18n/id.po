@@ -3452,3 +3452,313 @@ msgstr "Pihak (Party)"
 
 msgid "admin.layout.nav_profile_identity_merge_requests"
 msgstr "Permintaan Merge"
+
+msgid "admin.layout.nav_organization_structure_assignments"
+msgstr "Penugasan"
+
+msgid "admin.layout.nav_organization_structure_hierarchy"
+msgstr "Hierarki"
+
+msgid "admin.layout.nav_organization_structure_legal_entities"
+msgstr "Badan Usaha"
+
+msgid "admin.layout.nav_organization_structure_locations"
+msgstr "Lokasi"
+
+msgid "admin.layout.nav_organization_structure_units"
+msgstr "Unit Organisasi"
+
+msgid "admin.layout.nav_organization_structure_unit_types"
+msgstr "Tipe Unit"
+
+msgid "admin.organization_structure.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat layar struktur organisasi ini."
+
+msgid "admin.organization_structure.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.organization_structure.assignments.col_actions"
+msgstr "Aksi"
+
+msgid "admin.organization_structure.assignments.col_position"
+msgstr "Posisi"
+
+msgid "admin.organization_structure.assignments.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.assignments.col_unit"
+msgstr "Unit Organisasi"
+
+msgid "admin.organization_structure.assignments.create_submit"
+msgstr "Buat"
+
+msgid "admin.organization_structure.assignments.create_success"
+msgstr "Penugasan berhasil dibuat."
+
+msgid "admin.organization_structure.assignments.create_summary"
+msgstr "Buat penugasan baru"
+
+msgid "admin.organization_structure.assignments.end_button"
+msgstr "Akhiri"
+
+msgid "admin.organization_structure.assignments.end_reason_prompt"
+msgstr "Masukkan alasan mengakhiri penugasan ini:"
+
+msgid "admin.organization_structure.assignments.end_success"
+msgstr "Penugasan berhasil diakhiri."
+
+msgid "admin.organization_structure.assignments.field_position"
+msgstr "Posisi / Tanggung Jawab"
+
+msgid "admin.organization_structure.assignments.field_tenant_user"
+msgstr "Id Pengguna Tenant"
+
+msgid "admin.organization_structure.assignments.field_unit"
+msgstr "Unit Organisasi"
+
+msgid "admin.organization_structure.assignments.no_rows"
+msgstr "Belum ada data penugasan."
+
+msgid "admin.organization_structure.assignments.title"
+msgstr "Penugasan Unit Organisasi"
+
+msgid "admin.organization_structure.hierarchy.col_parent"
+msgstr "Induk Saat Ini"
+
+msgid "admin.organization_structure.hierarchy.col_unit"
+msgstr "Unit Organisasi"
+
+msgid "admin.organization_structure.hierarchy.field_parent"
+msgstr "Induk Baru"
+
+msgid "admin.organization_structure.hierarchy.field_reason"
+msgstr "Alasan (opsional)"
+
+msgid "admin.organization_structure.hierarchy.field_unit"
+msgstr "Unit Organisasi"
+
+msgid "admin.organization_structure.hierarchy.no_rows"
+msgstr "Belum ada data edge hierarki."
+
+msgid "admin.organization_structure.hierarchy.reparent_submit"
+msgstr "Simpan perubahan hierarki"
+
+msgid "admin.organization_structure.hierarchy.reparent_success"
+msgstr "Induk unit organisasi berhasil diubah."
+
+msgid "admin.organization_structure.hierarchy.reparent_summary"
+msgstr "Pindahkan induk unit organisasi"
+
+msgid "admin.organization_structure.hierarchy.title"
+msgstr "Hierarki Organisasi"
+
+msgid "admin.organization_structure.hierarchy.top_level"
+msgstr "Tingkat atas (langsung di bawah tenant)"
+
+msgid "admin.organization_structure.legal_entities.col_actions"
+msgstr "Aksi"
+
+msgid "admin.organization_structure.legal_entities.col_identifier"
+msgstr "Identifier Registrasi"
+
+msgid "admin.organization_structure.legal_entities.col_name"
+msgstr "Nama"
+
+msgid "admin.organization_structure.legal_entities.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.legal_entities.create_submit"
+msgstr "Buat"
+
+msgid "admin.organization_structure.legal_entities.create_success"
+msgstr "Badan usaha berhasil dibuat."
+
+msgid "admin.organization_structure.legal_entities.create_summary"
+msgstr "Buat badan usaha baru"
+
+msgid "admin.organization_structure.legal_entities.deactivate_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.organization_structure.legal_entities.deactivate_reason_prompt"
+msgstr "Masukkan alasan menonaktifkan badan usaha ini:"
+
+msgid "admin.organization_structure.legal_entities.deactivate_success"
+msgstr "Badan usaha berhasil dinonaktifkan."
+
+msgid "admin.organization_structure.legal_entities.field_identifier"
+msgstr "Identifier Registrasi"
+
+msgid "admin.organization_structure.legal_entities.field_identifier_label"
+msgstr "Label Identifier Registrasi"
+
+msgid "admin.organization_structure.legal_entities.field_name"
+msgstr "Nama"
+
+msgid "admin.organization_structure.legal_entities.no_rows"
+msgstr "Belum ada data badan usaha."
+
+msgid "admin.organization_structure.legal_entities.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.organization_structure.legal_entities.restore_success"
+msgstr "Badan usaha berhasil dipulihkan."
+
+msgid "admin.organization_structure.legal_entities.title"
+msgstr "Badan Usaha"
+
+msgid "admin.organization_structure.locations.col_actions"
+msgstr "Aksi"
+
+msgid "admin.organization_structure.locations.col_city"
+msgstr "Kota"
+
+msgid "admin.organization_structure.locations.col_name"
+msgstr "Nama"
+
+msgid "admin.organization_structure.locations.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.locations.create_submit"
+msgstr "Buat"
+
+msgid "admin.organization_structure.locations.create_success"
+msgstr "Lokasi operasional berhasil dibuat."
+
+msgid "admin.organization_structure.locations.create_summary"
+msgstr "Buat lokasi operasional baru"
+
+msgid "admin.organization_structure.locations.delete_button"
+msgstr "Hapus"
+
+msgid "admin.organization_structure.locations.delete_success"
+msgstr "Lokasi operasional berhasil dihapus."
+
+msgid "admin.organization_structure.locations.field_city"
+msgstr "Kota"
+
+msgid "admin.organization_structure.locations.field_latitude"
+msgstr "Lintang"
+
+msgid "admin.organization_structure.locations.field_longitude"
+msgstr "Bujur"
+
+msgid "admin.organization_structure.locations.field_name"
+msgstr "Nama"
+
+msgid "admin.organization_structure.locations.no_rows"
+msgstr "Belum ada data lokasi operasional."
+
+msgid "admin.organization_structure.locations.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.organization_structure.locations.restore_success"
+msgstr "Lokasi operasional berhasil dipulihkan."
+
+msgid "admin.organization_structure.locations.title"
+msgstr "Lokasi Operasional"
+
+msgid "admin.organization_structure.units.col_actions"
+msgstr "Aksi"
+
+msgid "admin.organization_structure.units.col_code"
+msgstr "Kode"
+
+msgid "admin.organization_structure.units.col_name"
+msgstr "Nama"
+
+msgid "admin.organization_structure.units.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.units.create_submit"
+msgstr "Buat"
+
+msgid "admin.organization_structure.units.create_success"
+msgstr "Unit organisasi berhasil dibuat."
+
+msgid "admin.organization_structure.units.create_summary"
+msgstr "Buat unit organisasi baru"
+
+msgid "admin.organization_structure.units.deactivate_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.organization_structure.units.deactivate_success"
+msgstr "Unit organisasi berhasil dinonaktifkan."
+
+msgid "admin.organization_structure.units.field_code"
+msgstr "Kode"
+
+msgid "admin.organization_structure.units.field_legal_entity"
+msgstr "Badan Usaha"
+
+msgid "admin.organization_structure.units.field_name"
+msgstr "Nama"
+
+msgid "admin.organization_structure.units.field_unit_type"
+msgstr "Tipe Unit"
+
+msgid "admin.organization_structure.units.none_option"
+msgstr "Tidak ada"
+
+msgid "admin.organization_structure.units.no_rows"
+msgstr "Belum ada data unit organisasi."
+
+msgid "admin.organization_structure.units.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.organization_structure.units.restore_success"
+msgstr "Unit organisasi berhasil dipulihkan."
+
+msgid "admin.organization_structure.units.title"
+msgstr "Unit Organisasi"
+
+msgid "admin.organization_structure.unit_types.col_actions"
+msgstr "Aksi"
+
+msgid "admin.organization_structure.unit_types.col_code"
+msgstr "Kode"
+
+msgid "admin.organization_structure.unit_types.col_name"
+msgstr "Nama"
+
+msgid "admin.organization_structure.unit_types.col_status"
+msgstr "Status"
+
+msgid "admin.organization_structure.unit_types.create_submit"
+msgstr "Buat"
+
+msgid "admin.organization_structure.unit_types.create_success"
+msgstr "Tipe unit organisasi berhasil dibuat."
+
+msgid "admin.organization_structure.unit_types.create_summary"
+msgstr "Buat tipe unit organisasi baru"
+
+msgid "admin.organization_structure.unit_types.delete_button"
+msgstr "Hapus"
+
+msgid "admin.organization_structure.unit_types.delete_success"
+msgstr "Tipe unit organisasi berhasil dihapus."
+
+msgid "admin.organization_structure.unit_types.field_code"
+msgstr "Kode"
+
+msgid "admin.organization_structure.unit_types.field_description"
+msgstr "Deskripsi"
+
+msgid "admin.organization_structure.unit_types.field_name"
+msgstr "Nama"
+
+msgid "admin.organization_structure.unit_types.no_rows"
+msgstr "Belum ada data tipe unit organisasi."
+
+msgid "admin.organization_structure.unit_types.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.organization_structure.unit_types.restore_success"
+msgstr "Tipe unit organisasi berhasil dipulihkan."
+
+msgid "admin.organization_structure.unit_types.suggested_codes"
+msgstr "Kode yang disarankan"
+
+msgid "admin.organization_structure.unit_types.title"
+msgstr "Tipe Unit Organisasi"
+

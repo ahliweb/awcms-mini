@@ -409,6 +409,48 @@ export const METRIC_DEFINITIONS = {
     allowedLabelKeys: ["outcome"],
     approxCardinality: "Exactly 5 — the fixed outcome enum.",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  // Issue #749 (epic #738 platform-evolution Wave 2) — organization_
+  // structure active-units/hierarchy-depth/invalid-attempt/expiring-
+  // assignment observability. Every label is a small, fixed, code-defined
+  // enum — never a tenant id, unit id, or legal entity id.
+  organization_structure_active_units_total: {
+    name: "organization_structure_active_units_total",
+    type: "gauge",
+    description:
+      "Current count of active (not soft-deleted, status=active, within effective dates) organization units for a tenant, sampled by the metrics-snapshot job's own pass.",
+    allowedLabelKeys: [],
+    approxCardinality:
+      "Exactly 1 — unlabeled (one value per emitting process per tenant iteration, not itself a label).",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  organization_structure_hierarchy_max_depth: {
+    name: "organization_structure_hierarchy_max_depth",
+    type: "gauge",
+    description:
+      "Deepest current organization-unit hierarchy chain for a tenant (root = depth 0), sampled by the metrics-snapshot job's own pass.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  organization_structure_hierarchy_invalid_attempts_total: {
+    name: "organization_structure_hierarchy_invalid_attempts_total",
+    type: "counter",
+    description:
+      "Count of rejected organization-unit hierarchy write attempts, by reason (self_parent, cycle, invalid_period, cross_tenant, max_depth_exceeded) — incremented on EVERY validator rejection, not just accepted writes.",
+    allowedLabelKeys: ["reason"],
+    approxCardinality:
+      "Exactly 5 — the fixed HierarchyValidationError reason enum.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  organization_structure_assignments_expiring_total: {
+    name: "organization_structure_assignments_expiring_total",
+    type: "gauge",
+    description:
+      "Current count of active organization-unit assignments whose effectiveTo falls within the near-term expiring-soon window, sampled by the metrics-snapshot job's own pass.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   }
 } as const satisfies Record<string, MetricDefinition>;
 

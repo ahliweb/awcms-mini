@@ -679,6 +679,89 @@ channels:
       pull-based equivalent). Producer:
       `profile-identity/application/merge-workflow.ts`'s
       `executeMergeRequest`.
+  awcms-mini.organization-structure.legal-entity.created:
+    address: awcms-mini.organization-structure.legal-entity.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A legal entity was created (Issue #749, epic `platform-evolution`
+      #738 Wave 2). Producer: `organization-structure/application/
+      legal-entity-directory.ts`'s `createLegalEntity`.
+  awcms-mini.organization-structure.legal-entity.updated:
+    address: awcms-mini.organization-structure.legal-entity.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A legal entity's neutral metadata was updated (Issue #749). Producer:
+      `organization-structure/application/legal-entity-directory.ts`'s
+      `updateLegalEntity`.
+  awcms-mini.organization-structure.legal-entity.deactivated:
+    address: awcms-mini.organization-structure.legal-entity.deactivated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A legal entity was deactivated (soft-deleted, Issue #749). Producer:
+      `organization-structure/application/legal-entity-directory.ts`'s
+      `deactivateLegalEntity`.
+  awcms-mini.organization-structure.unit.created:
+    address: awcms-mini.organization-structure.unit.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An organization unit was created (Issue #749). Producer:
+      `organization-structure/application/organization-unit-directory.ts`'s
+      `createOrganizationUnit`.
+  awcms-mini.organization-structure.unit.updated:
+    address: awcms-mini.organization-structure.unit.updated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An organization unit was updated (Issue #749). Producer:
+      `organization-structure/application/organization-unit-directory.ts`'s
+      `updateOrganizationUnit`.
+  awcms-mini.organization-structure.unit.deactivated:
+    address: awcms-mini.organization-structure.unit.deactivated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An organization unit was deactivated (soft-deleted, Issue #749).
+      Producer: `organization-structure/application/organization-unit-
+      directory.ts`'s `deactivateOrganizationUnit`.
+  awcms-mini.organization-structure.hierarchy.changed:
+    address: awcms-mini.organization-structure.hierarchy.changed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An organization-unit hierarchy edge was created or reparented — the
+      previous open edge (if any) was closed and a new one opened at the
+      current timestamp (Issue #749). Producer: `organization-structure/
+      application/organization-unit-hierarchy-service.ts`'s `reparentUnit`,
+      the SOLE write path against `awcms_mini_organization_unit_hierarchies`.
+  awcms-mini.organization-structure.assignment.created:
+    address: awcms-mini.organization-structure.assignment.created
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An organization-unit assignment was created (Issue #749). Producer:
+      `organization-structure/application/organization-unit-assignment-
+      service.ts`'s `createOrganizationUnitAssignment`.
+  awcms-mini.organization-structure.assignment.ended:
+    address: awcms-mini.organization-structure.assignment.ended
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An organization-unit assignment was ended (Issue #749). Producer:
+      `organization-structure/application/organization-unit-assignment-
+      service.ts`'s `endOrganizationUnitAssignment`.
 operations:
   publishSyncPushRequested:
     action: send
@@ -1058,6 +1141,60 @@ operations:
       $ref: "#/channels/awcms-mini.profile-identity.profile.merged"
     messages:
       - $ref: "#/channels/awcms-mini.profile-identity.profile.merged/messages/DomainEvent"
+  publishOrganizationStructureLegalEntityCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.legal-entity.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.legal-entity.created/messages/DomainEvent"
+  publishOrganizationStructureLegalEntityUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.legal-entity.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.legal-entity.updated/messages/DomainEvent"
+  publishOrganizationStructureLegalEntityDeactivated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.legal-entity.deactivated"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.legal-entity.deactivated/messages/DomainEvent"
+  publishOrganizationStructureUnitCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.unit.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.unit.created/messages/DomainEvent"
+  publishOrganizationStructureUnitUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.unit.updated"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.unit.updated/messages/DomainEvent"
+  publishOrganizationStructureUnitDeactivated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.unit.deactivated"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.unit.deactivated/messages/DomainEvent"
+  publishOrganizationStructureHierarchyChanged:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.hierarchy.changed"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.hierarchy.changed/messages/DomainEvent"
+  publishOrganizationStructureAssignmentCreated:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.assignment.created"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.assignment.created/messages/DomainEvent"
+  publishOrganizationStructureAssignmentEnded:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.organization-structure.assignment.ended"
+    messages:
+      - $ref: "#/channels/awcms-mini.organization-structure.assignment.ended/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

@@ -70,6 +70,37 @@ export const WORKFLOW_DELEGATION_CREATED_EVENT_TYPE =
 export const WORKFLOW_DELEGATION_REVOKED_EVENT_TYPE =
   "awcms-mini.workflow.delegation.revoked";
 
+/**
+ * `organization_structure`'s producer registration (Issue #749, epic
+ * `platform-evolution` #738, Wave 2) — same real-producer pattern as
+ * `workflow_approval` above (Optional → System is an allowed DAG
+ * direction, ADR-0013 §1), unlike `profile_identity`'s Core-constrained
+ * literal-string approach below. `organization-structure/application/
+ * legal-entity-directory.ts`, `organization-unit-directory.ts`,
+ * `organization-unit-hierarchy-service.ts`, and `organization-unit-
+ * assignment-service.ts` all call `appendDomainEvent` with these inside
+ * the SAME transaction as the state change they describe.
+ */
+export const ORGANIZATION_STRUCTURE_EVENT_VERSION = "1.0";
+export const ORGANIZATION_STRUCTURE_LEGAL_ENTITY_CREATED_EVENT_TYPE =
+  "awcms-mini.organization-structure.legal-entity.created";
+export const ORGANIZATION_STRUCTURE_LEGAL_ENTITY_UPDATED_EVENT_TYPE =
+  "awcms-mini.organization-structure.legal-entity.updated";
+export const ORGANIZATION_STRUCTURE_LEGAL_ENTITY_DEACTIVATED_EVENT_TYPE =
+  "awcms-mini.organization-structure.legal-entity.deactivated";
+export const ORGANIZATION_STRUCTURE_UNIT_CREATED_EVENT_TYPE =
+  "awcms-mini.organization-structure.unit.created";
+export const ORGANIZATION_STRUCTURE_UNIT_UPDATED_EVENT_TYPE =
+  "awcms-mini.organization-structure.unit.updated";
+export const ORGANIZATION_STRUCTURE_UNIT_DEACTIVATED_EVENT_TYPE =
+  "awcms-mini.organization-structure.unit.deactivated";
+export const ORGANIZATION_STRUCTURE_HIERARCHY_CHANGED_EVENT_TYPE =
+  "awcms-mini.organization-structure.hierarchy.changed";
+export const ORGANIZATION_STRUCTURE_ASSIGNMENT_CREATED_EVENT_TYPE =
+  "awcms-mini.organization-structure.assignment.created";
+export const ORGANIZATION_STRUCTURE_ASSIGNMENT_ENDED_EVENT_TYPE =
+  "awcms-mini.organization-structure.assignment.ended";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -137,6 +168,53 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: "1.0",
       description:
         "Published when a profile merge request is executed: the loser profile is soft-deleted (merged_into_profile_id set) and its awcms_mini_profile_entity_links rows are repointed to the survivor. Lets domain modules react to the merge mapping without importing profile-identity tables directly (see _shared/ports/party-directory-port.ts for the pull-based equivalent)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_LEGAL_ENTITY_CREATED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description: "A legal entity was created (Issue #749)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_LEGAL_ENTITY_UPDATED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description: "A legal entity's neutral metadata was updated (Issue #749)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_LEGAL_ENTITY_DEACTIVATED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description: "A legal entity was deactivated (soft-deleted, Issue #749)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_UNIT_CREATED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description: "An organization unit was created (Issue #749)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_UNIT_UPDATED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description: "An organization unit was updated (Issue #749)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_UNIT_DEACTIVATED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description:
+        "An organization unit was deactivated (soft-deleted, Issue #749)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_HIERARCHY_CHANGED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description:
+        "An organization-unit hierarchy edge was created or reparented — the previous open edge (if any) was closed and a new one opened at the current timestamp (Issue #749)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_ASSIGNMENT_CREATED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description: "An organization-unit assignment was created (Issue #749)."
+    },
+    {
+      eventType: ORGANIZATION_STRUCTURE_ASSIGNMENT_ENDED_EVENT_TYPE,
+      eventVersion: ORGANIZATION_STRUCTURE_EVENT_VERSION,
+      description: "An organization-unit assignment was ended (Issue #749)."
     }
   ];
 

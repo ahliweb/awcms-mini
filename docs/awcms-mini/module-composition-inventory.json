@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 18,
+  "baseModuleCount": 19,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 18,
+  "totalModuleCount": 19,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -196,6 +196,27 @@
       ],
       "permissionCount": 13,
       "navigationCount": 2,
+      "jobCount": 1,
+      "hasHealthCheck": false,
+      "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "organization_structure",
+      "name": "Organization Structure",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "domain",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime"
+      ],
+      "capabilitiesProvided": ["organization_hierarchy_resolution"],
+      "capabilitiesConsumed": [],
+      "permissionCount": 28,
+      "navigationCount": 6,
       "jobCount": 1,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,

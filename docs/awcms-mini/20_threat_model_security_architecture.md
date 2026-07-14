@@ -1027,11 +1027,15 @@ default-deny, audit) yang sudah berlaku sama di sini.
 
 ### Batasan yang dicatat, bukan diabaikan (business-scope & SoD)
 
-- **Hanya `scopeType: "office"` yang benar-benar resolve hari ini** —
-  `defaultBusinessScopeHierarchyPortAdapter` adalah adapter FLAT
-  (tanpa ancestor/descendant propagation); modul `organization_structure`
-  (kandidat Wave 2 ADR-0013 §1, Issue #749) yang akan menyediakan
-  resolusi hierarki nyata untuk scope type lain.
+- **`defaultBusinessScopeHierarchyPortAdapter` tetap FLAT untuk
+  `scopeType: "office"`** — modul `organization_structure` (Issue #749,
+  ADR-0016) kini menyediakan resolusi hierarki NYATA untuk
+  `scopeType: "legal_entity"`/`"organization_unit"` lewat adapternya
+  sendiri (`organizationStructureHierarchyPortAdapter`), tapi
+  `identity_access` tidak secara otomatis memakainya untuk `"office"` —
+  kedua adapter hidup berdampingan, composition root memilih per
+  `scopeType` mana yang di-inject (lihat detail lengkap di bagian
+  organization_structure di bawah).
 - **Tiga rule fixture SoD** (bukan katalog domain lengkap) — dua dimiliki
   `identity_access` sendiri (maker/checker atas mekanisme exception itu
   sendiri, dan atas assignment create/revoke pada scope yang sama), satu
@@ -1134,3 +1138,40 @@ secara manual lewat `awcms_mini_profile_merge_history` + jejak repoint
 on-demand per-profile (bukan job terjadwal tenant-wide) — kompleksitas
 scan berskala besar/batch sengaja di luar cakupan issue ini. Endpoint
 reveal identifier mentah belum ada (lihat di atas).
+
+## Standar tambahan dipicu epic platform-evolution (Issue #749, epic #738 Wave 2)
+
+Modul Official Optional Module baru `organization_structure` — legal
+entity, hierarki unit organisasi efektif-tanggal, lokasi operasional,
+dan assignment pihak/unit. Detail lengkap di
+`src/modules/organization-structure/README.md` — bagian ini merangkum
+model ancaman inti, tidak mengulang kontrol generik (RLS, ABAC
+default-deny, audit) yang sudah berlaku sama di sini.
+
+| Kategori risiko                                                                               | Mitigasi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Legal entity/organization unit dipakai sebagai batas isolasi tenant (ADR-0013 §2)**         | Setiap tabel modul ini `ENABLE`+`FORCE ROW LEVEL SECURITY` dengan predicate SELALU DAN HANYA `tenant_id` — `legal_entity_id`/`unit_type_id`/`parent_organization_unit_id` adalah FK biasa, tidak pernah predicate RLS kedua. Diuji eksplisit (`legal entity is demonstrably distinct from tenant`, integration test).                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Cross-tenant reference (legal entity/unit/lokasi/assignment) dari request tanpa validasi**  | Setiap FK-like reference (`legalEntityId`, `unitTypeId`, `parentOrganizationUnitId`, `operationalLocationId`, `organizationUnitId`, `tenantUserId`) divalidasi ulang `WHERE tenant_id = ... AND id = ...` di application layer sebelum baris ditulis — tidak pernah dipercaya dari request body/FK saja. Diuji lewat 3 skenario cross-tenant integration test (unit->legal entity, reparent->parent unit, assignment->tenant user), plus RLS-direct-read-blocked assertion.                                                                                                                                                                                                                                                        |
+| **Cycle/self-parent pada hierarki menciptakan loop tak terhingga atau data tidak konsisten**  | `reparentUnit` (SATU-SATUNYA jalur tulis) memvalidasi self-parent + cycle (walk ancestor bounded 500 langkah) SEBELUM commit, di dalam transaksi yang sama, dengan `pg_advisory_xact_lock` tenant-wide + `SELECT ... FOR UPDATE` pada edge unit yang diubah — menutup race dua reparent konkuren pada unit BERBEDA yang bersama-sama akan membentuk cycle (row-level lock saja tidak cukup karena menyentuh baris berbeda). Diuji lewat adversarial test PER jalur tulis nyata (create-edge, reparent, dan test race konkuren betulan lewat `Promise.all`), bukan hanya unit test fungsi murni — pola ini secara eksplisit menutup kelemahan "validator dibangun tapi tidak pernah di-wire" yang berulang di epic ini (#746/#747). |
+| **Invalid-period backdating menciptakan overlap historis**                                    | Hierarchy/relationship edges SELALU `effective_from = now()` server-side (tidak pernah timestamp klien) — partial unique index `WHERE effective_to IS NULL` menjamin maksimal SATU edge/relationship terbuka per unit/pasangan di level database, membuat overlap struktural tidak mungkin terjadi, bukan sekadar dicegah aplikasi.                                                                                                                                                                                                                                                                                                                                                                                                |
+| **Reorganisasi menimpa riwayat assignment/hierarki yang sudah lewat**                         | Reparent TIDAK PERNAH `UPDATE ... SET parent_organization_unit_id` in-place — selalu tutup baris terbuka (`effective_to = now()`) lalu INSERT baris baru. Mengakhiri assignment TIDAK PERNAH menghapus baris, hanya transisi `status = 'ended'`. Diuji eksplisit (`reparenting an existing edge closes the old period and opens a new one`).                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Capability port bocor data lintas-tenant lewat `BusinessScopeHierarchyPort`**               | `organizationStructureHierarchyPortAdapter.resolveScope` menerima `tenantId` eksplisit dan tenant-scoped (`tx` sudah `withTenant`); scope tidak dikenal/lintas-tenant SELALU `resolved: false` dengan ancestor/descendant kosong — sama seperti kontrak port yang sudah ada (Issue #746), diuji lewat test adapter nyata di integration suite.                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Reparent (high-risk) diulang tanpa sengaja (double-submit) menghasilkan audit/event ganda** | `POST .../hierarchy/reparent` wajib `Idempotency-Key`; request kedua dengan key sama dan body sama me-replay response tersimpan tanpa menulis baris kedua (diuji `admin/hierarchy/reparent`'s idempotency replay test); body berbeda dengan key sama ditolak `409 IDEMPOTENCY_CONFLICT`.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+
+### Batasan yang dicatat, bukan diabaikan (organization_structure)
+
+- **Tidak ada picker/widget tree visual di admin UI** — layar hierarki
+  admin (`admin/organization-structure/hierarchy.astro`) menampilkan
+  daftar unit datar + form reparent (unit + parent dropdown), bukan
+  komponen tree interaktif drag-and-drop; widget visual adalah follow-up
+  terdokumentasi.
+- **Tidak ada UI edit penuh untuk legal entity/unit** — layar admin
+  mendukung create + deactivate/restore penuh, tapi form edit inline
+  (PATCH) belum diekspos di UI (endpoint API-nya sudah ada dan diuji).
+- **Import seed hook lewat kontrak `data_exchange` (#750/#752) belum
+  ada** — sengaja tidak dibangun di issue ini (hard dependency runtime
+  ke modul yang belum admitted dilarang); endpoint CRUD modul ini sendiri
+  cukup untuk seeding manual/scripted sampai `data_exchange` ada.
+- **`"location"` tidak diekspos lewat `BusinessScopeHierarchyPort`** —
+  keputusan desain (ADR-0016 §10), bukan gap: port ini tentang otorisasi
+  scope bisnis, bukan lookup lokasi fisik.

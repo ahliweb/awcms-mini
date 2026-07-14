@@ -1,0 +1,407 @@
+---
+/**
+ * Operational locations admin screen (Issue #749, epic #738
+ * platform-evolution Wave 2). Same compact pattern as `unit-types.astro`.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listOperationalLocations } from "../../../modules/organization-structure/application/operational-location-directory";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/organization-structure/locations.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("organization_structure", "locations", "read")
+);
+const CAN_CREATE = context.permissions.has(
+  permissionKey("organization_structure", "locations", "create")
+);
+const CAN_DELETE = context.permissions.has(
+  permissionKey("organization_structure", "locations", "delete")
+);
+const CAN_RESTORE = context.permissions.has(
+  permissionKey("organization_structure", "locations", "restore")
+);
+
+const clientStrings = {
+  createSuccess: t("admin.organization_structure.locations.create_success"),
+  deleteSuccess: t("admin.organization_structure.locations.delete_success"),
+  restoreSuccess: t("admin.organization_structure.locations.restore_success"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let locations: Awaited<ReturnType<typeof listOperationalLocations>> = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      locations = await listOperationalLocations(
+        tx,
+        context.tenantId,
+        CAN_RESTORE
+      );
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/organization-structure/locations.astro: failed to load locations",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.organization_structure.locations.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.organization_structure.access_denied_title")}
+        body={t("admin.organization_structure.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="config-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {locations.length === 0 ? (
+          <p class="empty-state">
+            {t("admin.organization_structure.locations.no_rows")}
+          </p>
+        ) : (
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col">
+                  {t("admin.organization_structure.locations.col_name")}
+                </th>
+                <th scope="col">
+                  {t("admin.organization_structure.locations.col_city")}
+                </th>
+                <th scope="col">
+                  {t("admin.organization_structure.locations.col_status")}
+                </th>
+                <th scope="col">
+                  {t("admin.organization_structure.locations.col_actions")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {locations.map((location) => (
+                <tr data-id={location.id}>
+                  <td>{location.name}</td>
+                  <td>{location.city ?? "—"}</td>
+                  <td>{location.deletedAt ? "deleted" : location.status}</td>
+                  <td>
+                    {CAN_DELETE && !location.deletedAt && (
+                      <button
+                        type="button"
+                        class="delete-button"
+                        data-id={location.id}
+                      >
+                        {t(
+                          "admin.organization_structure.locations.delete_button"
+                        )}
+                      </button>
+                    )}
+                    {CAN_RESTORE && location.deletedAt && (
+                      <button
+                        type="button"
+                        class="restore-button"
+                        data-id={location.id}
+                      >
+                        {t(
+                          "admin.organization_structure.locations.restore_button"
+                        )}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {CAN_CREATE && (
+          <details class="create-config">
+            <summary>
+              {t("admin.organization_structure.locations.create_summary")}
+            </summary>
+            <form id="create-form" class="create-config-form">
+              <label>
+                {t("admin.organization_structure.locations.field_name")}
+                <input type="text" name="name" required maxlength="200" />
+              </label>
+              <label>
+                {t("admin.organization_structure.locations.field_city")}
+                <input type="text" name="city" maxlength="300" />
+              </label>
+              <label>
+                {t("admin.organization_structure.locations.field_latitude")}
+                <input
+                  type="number"
+                  name="latitude"
+                  step="0.000001"
+                  min="-90"
+                  max="90"
+                />
+              </label>
+              <label>
+                {t("admin.organization_structure.locations.field_longitude")}
+                <input
+                  type="number"
+                  name="longitude"
+                  step="0.000001"
+                  min="-180"
+                  max="180"
+                />
+              </label>
+              <button type="submit">
+                {t("admin.organization_structure.locations.create_submit")}
+              </button>
+            </form>
+          </details>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-surface, #e6f4ea);
+    color: var(--color-success-strong, #1e7e34);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-surface, #fdecea);
+    color: var(--color-danger-strong);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .data-table th,
+  .data-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .delete-button,
+  .restore-button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .delete-button {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger-strong);
+    color: var(--color-danger-strong);
+  }
+  .restore-button {
+    background: var(--color-primary-strong);
+    border: none;
+    color: var(--color-primary-contrast);
+  }
+  .create-config {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+  .create-config summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .create-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 480px;
+    margin-top: var(--sp-2);
+  }
+  .create-config-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+  .create-config-form input {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .create-config-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  input:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    createSuccess: string;
+    deleteSuccess: string;
+    restoreSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const BASE_URL = "/api/v1/organization-structure/locations";
+
+  document
+    .getElementById("create-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const formData = new FormData(form);
+        const latitude = formData.get("latitude");
+        const longitude = formData.get("longitude");
+        const result = await submitJson(
+          BASE_URL,
+          "POST",
+          {
+            name: formData.get("name"),
+            city: formData.get("city") || null,
+            latitude: latitude ? Number(latitude) : null,
+            longitude: longitude ? Number(longitude) : null
+          },
+          strings
+        );
+
+        if (result.ok) {
+          showBanner("action-banner", strings.createSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".delete-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const result = await submitJson(
+            `${BASE_URL}/${button.dataset.id}`,
+            "DELETE",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          if (result.ok) {
+            showBanner("action-banner", strings.deleteSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".restore-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const result = await submitJson(
+            `${BASE_URL}/${button.dataset.id}/restore`,
+            "POST",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          if (result.ok) {
+            showBanner("action-banner", strings.restoreSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+</script>

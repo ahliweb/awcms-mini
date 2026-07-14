@@ -11,6 +11,7 @@ import { idnAdminRegionsModule } from "./idn-admin-regions/module";
 import { loggingModule } from "./logging/module";
 import { moduleManagementModule } from "./module-management/module";
 import { newsPortalModule } from "./news-portal/module";
+import { organizationStructureModule } from "./organization-structure/module";
 import { profileIdentityModule } from "./profile-identity/module";
 import { reportingModule } from "./reporting/module";
 import { socialPublishingModule } from "./social-publishing/module";
@@ -48,7 +49,12 @@ const baseModules: ModuleDescriptor[] = [
   // independently with a minimal, easily-resolved merge conflict (keep
   // BOTH new entries, never pick one side — resolved exactly that way).
   dataLifecycleModule,
-  domainEventRuntimeModule
+  domainEventRuntimeModule,
+  // Issue #749 (epic #738 platform-evolution Wave 2, ADR-0016) — brand new
+  // top-level module (unlike its Wave-2 siblings #746/#747/#748, which
+  // extended existing modules) — appended at the end, same convention as
+  // the Wave-1 entries immediately above.
+  organizationStructureModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

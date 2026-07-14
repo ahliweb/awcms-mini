@@ -1,21 +1,23 @@
 /**
  * Default/flat `BusinessScopeHierarchyPort` adapter (Issue #746, epic #738
  * platform-evolution Wave 2). See `_shared/ports/business-scope-hierarchy-
- * port.ts` for the full rationale — no optional organization module
- * (`organization_structure`, ADR-0013 §1 Wave 2 candidate) exists in this
- * repo yet, so identity-access supplies the only implementation today.
+ * port.ts` for the full rationale.
  *
  * Validates exactly ONE `scopeType`: `"office"`, against
  * `awcms_mini_offices` (owned by `tenant_admin`) — a FLAT resolution (no
  * ancestors/descendants; `awcms_mini_offices.parent_office_id` exists in
- * the schema but this default adapter deliberately does not walk it,
- * leaving hierarchy-aware office trees to a future `organization_
- * structure` adapter that supersedes this one for that scope type; see the
- * port's own header for how a composition root swaps adapters). Every
- * OTHER `scopeType` resolves to `resolved: false` with empty ancestor/
- * descendant lists — the safe default this port's contract requires (no
- * crash, no silent hierarchy propagation), until a real owning module
- * registers its own adapter for that scope type.
+ * the schema but this default adapter deliberately does not walk it).
+ * `organization_structure` (Issue #749, ADR-0016) now ships its own real
+ * adapter (`organization-structure/application/organization-structure-
+ * hierarchy-port-adapter.ts`) for `"legal_entity"`/`"organization_unit"` —
+ * that adapter does NOT supersede this one; a composition root chooses
+ * per-`scopeType` which adapter to call (or tries this one first and falls
+ * back, if it ever needs to resolve office AND organization-structure
+ * scope types side by side — no call site does that today). Every OTHER
+ * `scopeType` this adapter doesn't recognize resolves to `resolved: false`
+ * with empty ancestor/descendant lists — the safe default this port's
+ * contract requires (no crash, no silent hierarchy propagation), until a
+ * real owning module registers its own adapter for that scope type.
  *
  * Reading `awcms_mini_offices` directly here (a `tenant_admin`-owned
  * table) rather than through a NEW capability port is a deliberate,
@@ -46,8 +48,8 @@ import type {
 
 const UNRESOLVED: BusinessScopeResolution = {
   resolved: false,
-  ancestorScopeIds: [],
-  descendantScopeIds: []
+  ancestorScopes: [],
+  descendantScopes: []
 };
 
 export const defaultBusinessScopeHierarchyPortAdapter: BusinessScopeHierarchyPort =
@@ -69,8 +71,8 @@ export const defaultBusinessScopeHierarchyPortAdapter: BusinessScopeHierarchyPor
 
       return {
         resolved: true,
-        ancestorScopeIds: [],
-        descendantScopeIds: []
+        ancestorScopes: [],
+        descendantScopes: []
       };
     }
   };

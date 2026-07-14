@@ -79,6 +79,8 @@ tags:
     description: "Module-contributed high-volume table registry and lifecycle engine (Issue #745, epic #738 platform-evolution) — read the code-declared descriptor registry, create/release legal holds (which override ordinary retention/purge and cannot be bypassed by tenant policy), trigger an on-demand read-only dry-run plan, and read run history. Real archive/purge execution is an internal scheduled job (`bun run data-lifecycle:archive-purge`), not exposed over HTTP — same administrative-operation posture as `bun run logs:audit:purge`."
   - name: Domain Events
     description: "Transactional, versioned domain-event outbox and dispatcher admin API (epic `platform-evolution` #738 Wave 1, Issue #742) — read-only inspection of outbox events and per-consumer deliveries (redacted payload projections only, including dead-letter/DLQ status), permission-gated/reason-required/idempotent/audited replay of a dead-lettered delivery, and per-tenant pause/resume of a registered consumer. The actual claim/execute/finalize dispatch happens entirely outside any HTTP request, via a separate internal worker (`bun run domain-events:dispatch`, built on the shared worker runner), not exposed over HTTP. Consumers themselves are a static, reviewed-source-code registry — not configurable via this API."
+  - name: Organization Structure
+    description: "Optional, tenant-scoped organization-structure foundation (epic `platform-evolution` #738 Wave 2, Issue #749, ADR-0016) — legal entities (generic opaque registration identifier pair, never government-specific fields), tenant-configurable organization-unit types, effective-dated organization units, a versioned/effective-dated parent-child hierarchy (reparent rejects self-parent/cycle, requires Idempotency-Key, audited critical), operational locations (optional lat/lng), an explicit location-to-unit many-to-many relationship, and effective-dated party/unit assignments referencing `identity_access`'s existing tenant users. Tenant and legal entity/organization unit remain distinct concepts — RLS predicate is always and only `tenant_id`."
 paths:
   /api/v1/access/assignments:
     post:
@@ -7819,6 +7821,1904 @@ paths:
           $ref: "#/components/responses/NotFound"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/assignments:
+    get:
+      tags:
+        - Organization Structure
+      summary: List organization-unit assignments
+      operationId: organizationStructureAssignmentsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: organizationUnitId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: tenantUserId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - ended
+        - name: asOf
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Organization-unit assignments matching the filter.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - assignments
+                        properties:
+                          assignments:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganizationStructureAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Organization Structure
+      summary: Create an organization-unit assignment
+      description: High-risk mutation -- requires Idempotency-Key; rejects a duplicate open assignment for the same organization unit and tenant user.
+      operationId: organizationStructureAssignmentsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureCreateAssignmentRequest"
+      responses:
+        "200":
+          description: Assignment created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - assignment
+                        properties:
+                          assignment:
+                            $ref: "#/components/schemas/OrganizationStructureAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: This tenant user already has an active assignment to this organization unit, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: tenantUserId does not reference an existing user for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/assignments/{id}/end:
+    post:
+      tags:
+        - Organization Structure
+      summary: End an active organization-unit assignment
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureAssignmentsEnd
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - endReason
+              additionalProperties: false
+              properties:
+                endReason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Assignment ended.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - assignment
+                        properties:
+                          assignment:
+                            $ref: "#/components/schemas/OrganizationStructureAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Assignment has already ended, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/hierarchy/reparent:
+    post:
+      tags:
+        - Organization Structure
+      summary: Create or change an organization unit's current parent edge
+      description: High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-parent/cycle/cross-tenant references.
+      operationId: organizationStructureHierarchyReparent
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - organizationUnitId
+              additionalProperties: false
+              properties:
+                organizationUnitId:
+                  type: string
+                  format: uuid
+                parentOrganizationUnitId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: null moves the unit to top-level (directly under the tenant).
+                reason:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Hierarchy edge created/changed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - edge
+                        properties:
+                          edge:
+                            $ref: "#/components/schemas/OrganizationStructureHierarchyEdge"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Reparent rejected -- self-parent, cycle, invalid effective period, or parentOrganizationUnitId does not reference an existing unit for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/hierarchy/tree:
+    get:
+      tags:
+        - Organization Structure
+      summary: Read the organization-unit hierarchy tree (current or as-of)
+      operationId: organizationStructureHierarchyTreeGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: rootUnitId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: asOf
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Nested hierarchy tree (forest, or the subtree rooted at rootUnitId).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - tree
+                        properties:
+                          tree:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganizationStructureTreeNode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/hierarchy/units/{id}:
+    get:
+      tags:
+        - Organization Structure
+      summary: Read a unit's ancestor/descendant chains (current or as-of), optionally with history
+      operationId: organizationStructureHierarchyUnitGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: asOf
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: history
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - "1"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Ancestor/descendant unit ids, and effective-dated history when history=1.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - organizationUnitId
+                          - ancestorUnitIds
+                          - descendantUnitIds
+                        properties:
+                          organizationUnitId:
+                            type: string
+                            format: uuid
+                          ancestorUnitIds:
+                            type: array
+                            items:
+                              type: string
+                              format: uuid
+                          descendantUnitIds:
+                            type: array
+                            items:
+                              type: string
+                              format: uuid
+                          history:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganizationStructureHierarchyEdge"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/legal-entities:
+    get:
+      tags:
+        - Organization Structure
+      summary: List legal entities for the caller's tenant
+      operationId: organizationStructureLegalEntitiesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Legal entities for this tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalEntities
+                        properties:
+                          legalEntities:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganizationStructureLegalEntity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Organization Structure
+      summary: Create a legal entity
+      operationId: organizationStructureLegalEntitiesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureCreateLegalEntityRequest"
+      responses:
+        "200":
+          description: Legal entity created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalEntity
+                        properties:
+                          legalEntity:
+                            $ref: "#/components/schemas/OrganizationStructureLegalEntity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/legal-entities/{id}:
+    get:
+      tags:
+        - Organization Structure
+      summary: Get a legal entity by id
+      operationId: organizationStructureLegalEntitiesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The legal entity.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalEntity
+                        properties:
+                          legalEntity:
+                            $ref: "#/components/schemas/OrganizationStructureLegalEntity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Organization Structure
+      summary: Update a legal entity's neutral metadata
+      operationId: organizationStructureLegalEntitiesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureCreateLegalEntityRequest"
+      responses:
+        "200":
+          description: Legal entity updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalEntity
+                        properties:
+                          legalEntity:
+                            $ref: "#/components/schemas/OrganizationStructureLegalEntity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Organization Structure
+      summary: Deactivate (soft-delete) a legal entity
+      description: High-risk mutation -- requires Idempotency-Key, audited critical.
+      operationId: organizationStructureLegalEntitiesDeactivate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - deleteReason
+              additionalProperties: false
+              properties:
+                deleteReason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Legal entity deactivated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalEntity
+                        properties:
+                          legalEntity:
+                            $ref: "#/components/schemas/OrganizationStructureLegalEntity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Legal entity is already deactivated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/legal-entities/{id}/restore:
+    post:
+      tags:
+        - Organization Structure
+      summary: Restore a previously deactivated legal entity
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureLegalEntitiesRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Legal entity restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - legalEntity
+                        properties:
+                          legalEntity:
+                            $ref: "#/components/schemas/OrganizationStructureLegalEntity"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Legal entity is not currently deactivated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/location-unit-relationships:
+    get:
+      tags:
+        - Organization Structure
+      summary: List location-to-unit relationships
+      operationId: organizationStructureLocationUnitRelationshipsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: operationalLocationId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: organizationUnitId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: asOf
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Location-to-unit relationships matching the filter.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - relationships
+                        properties:
+                          relationships:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganizationStructureLocationUnitRelationship"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Organization Structure
+      summary: Create a location-to-unit relationship
+      operationId: organizationStructureLocationUnitRelationshipsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureCreateLocationUnitRelationshipRequest"
+      responses:
+        "200":
+          description: Relationship created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - relationship
+                        properties:
+                          relationship:
+                            $ref: "#/components/schemas/OrganizationStructureLocationUnitRelationship"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: This location and unit already have an open relationship.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: operationalLocationId/organizationUnitId does not reference an existing row for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/location-unit-relationships/{id}/end:
+    post:
+      tags:
+        - Organization Structure
+      summary: End a location-to-unit relationship
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureLocationUnitRelationshipsEnd
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Relationship ended.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - relationship
+                        properties:
+                          relationship:
+                            $ref: "#/components/schemas/OrganizationStructureLocationUnitRelationship"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Relationship has already ended, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/locations:
+    get:
+      tags:
+        - Organization Structure
+      summary: List operational locations
+      operationId: organizationStructureLocationsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Operational locations for this tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - locations
+                        properties:
+                          locations:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganizationStructureLocation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Organization Structure
+      summary: Create an operational location
+      operationId: organizationStructureLocationsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureCreateLocationRequest"
+      responses:
+        "200":
+          description: Operational location created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - location
+                        properties:
+                          location:
+                            $ref: "#/components/schemas/OrganizationStructureLocation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/locations/{id}:
+    get:
+      tags:
+        - Organization Structure
+      summary: Get an operational location by id
+      operationId: organizationStructureLocationsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The operational location.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - location
+                        properties:
+                          location:
+                            $ref: "#/components/schemas/OrganizationStructureLocation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Organization Structure
+      summary: Update an operational location
+      operationId: organizationStructureLocationsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureCreateLocationRequest"
+      responses:
+        "200":
+          description: Operational location updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - location
+                        properties:
+                          location:
+                            $ref: "#/components/schemas/OrganizationStructureLocation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Organization Structure
+      summary: Soft-delete an operational location
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureLocationsDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                deleteReason:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Operational location soft-deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - location
+                        properties:
+                          location:
+                            $ref: "#/components/schemas/OrganizationStructureLocation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Operational location is already soft-deleted, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/locations/{id}/restore:
+    post:
+      tags:
+        - Organization Structure
+      summary: Restore a soft-deleted operational location
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureLocationsRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Operational location restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - location
+                        properties:
+                          location:
+                            $ref: "#/components/schemas/OrganizationStructureLocation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Operational location is not currently deleted, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/unit-types:
+    get:
+      tags:
+        - Organization Structure
+      summary: List organization-unit types
+      operationId: organizationStructureUnitTypesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Organization-unit types for this tenant.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unitTypes
+                        properties:
+                          unitTypes:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganizationStructureUnitType"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Organization Structure
+      summary: Create an organization-unit type
+      operationId: organizationStructureUnitTypesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureCreateUnitTypeRequest"
+      responses:
+        "200":
+          description: Organization-unit type created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unitType
+                        properties:
+                          unitType:
+                            $ref: "#/components/schemas/OrganizationStructureUnitType"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: An organization-unit type with this code already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/unit-types/{id}:
+    get:
+      tags:
+        - Organization Structure
+      summary: Get an organization-unit type by id
+      operationId: organizationStructureUnitTypesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The organization-unit type.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unitType
+                        properties:
+                          unitType:
+                            $ref: "#/components/schemas/OrganizationStructureUnitType"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Organization Structure
+      summary: Update an organization-unit type
+      operationId: organizationStructureUnitTypesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                description:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Organization-unit type updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unitType
+                        properties:
+                          unitType:
+                            $ref: "#/components/schemas/OrganizationStructureUnitType"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Organization Structure
+      summary: Soft-delete an organization-unit type
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureUnitTypesDelete
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                deleteReason:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Organization-unit type soft-deleted.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unitType
+                        properties:
+                          unitType:
+                            $ref: "#/components/schemas/OrganizationStructureUnitType"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Organization-unit type is already soft-deleted, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/unit-types/{id}/restore:
+    post:
+      tags:
+        - Organization Structure
+      summary: Restore a soft-deleted organization-unit type
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureUnitTypesRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Organization-unit type restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unitType
+                        properties:
+                          unitType:
+                            $ref: "#/components/schemas/OrganizationStructureUnitType"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Organization-unit type is not currently deleted, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/units:
+    get:
+      tags:
+        - Organization Structure
+      summary: List/search organization units (keyset-paginated)
+      operationId: organizationStructureUnitsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: legalEntityId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Organization units matching the filter, keyset-paginated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - units
+                          - nextCursor
+                        properties:
+                          units:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/OrganizationStructureUnit"
+                          nextCursor:
+                            type: string
+                            nullable: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Organization Structure
+      summary: Create an organization unit
+      operationId: organizationStructureUnitsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureCreateUnitRequest"
+      responses:
+        "200":
+          description: Organization unit created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unit
+                        properties:
+                          unit:
+                            $ref: "#/components/schemas/OrganizationStructureUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: An organization unit with this code already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: legalEntityId/unitTypeId does not reference an existing row for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/units/{id}:
+    get:
+      tags:
+        - Organization Structure
+      summary: Get an organization unit by id
+      operationId: organizationStructureUnitsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The organization unit.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unit
+                        properties:
+                          unit:
+                            $ref: "#/components/schemas/OrganizationStructureUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Organization Structure
+      summary: Update an organization unit
+      operationId: organizationStructureUnitsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationStructureUpdateUnitRequest"
+      responses:
+        "200":
+          description: Organization unit updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unit
+                        properties:
+                          unit:
+                            $ref: "#/components/schemas/OrganizationStructureUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: legalEntityId/unitTypeId does not reference an existing row for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Organization Structure
+      summary: Soft-delete (deactivate) an organization unit
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureUnitsDeactivate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                deleteReason:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Organization unit deactivated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unit
+                        properties:
+                          unit:
+                            $ref: "#/components/schemas/OrganizationStructureUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Organization unit is already deactivated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/organization-structure/units/{id}/restore:
+    post:
+      tags:
+        - Organization Structure
+      summary: Restore a deactivated organization unit
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: organizationStructureUnitsRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Organization unit restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - unit
+                        properties:
+                          unit:
+                            $ref: "#/components/schemas/OrganizationStructureUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Organization unit is not currently deactivated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/permissions:
@@ -17914,6 +19814,581 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ObjectSyncStatusEntry"
+    OrganizationStructureAssignment:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - organizationUnitId
+        - tenantUserId
+        - positionLabel
+        - effectiveFrom
+        - effectiveTo
+        - status
+        - reason
+        - endedAt
+        - endReason
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        organizationUnitId:
+          type: string
+          format: uuid
+        tenantUserId:
+          type: string
+          format: uuid
+        positionLabel:
+          type: string
+          nullable: true
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum:
+            - active
+            - ended
+        reason:
+          type: string
+          nullable: true
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+        endReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OrganizationStructureCreateAssignmentRequest:
+      type: object
+      required:
+        - organizationUnitId
+        - tenantUserId
+      additionalProperties: false
+      properties:
+        organizationUnitId:
+          type: string
+          format: uuid
+        tenantUserId:
+          type: string
+          format: uuid
+        positionLabel:
+          type: string
+          nullable: true
+          maxLength: 200
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+          maxLength: 2000
+    OrganizationStructureCreateLegalEntityRequest:
+      type: object
+      required:
+        - name
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 300
+        registrationIdentifier:
+          type: string
+          nullable: true
+          maxLength: 200
+        registrationIdentifierLabel:
+          type: string
+          nullable: true
+          maxLength: 120
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+    OrganizationStructureCreateLocationRequest:
+      type: object
+      required:
+        - name
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        addressLine1:
+          type: string
+          nullable: true
+          maxLength: 300
+        addressLine2:
+          type: string
+          nullable: true
+          maxLength: 300
+        city:
+          type: string
+          nullable: true
+          maxLength: 300
+        region:
+          type: string
+          nullable: true
+          maxLength: 300
+        postalCode:
+          type: string
+          nullable: true
+          maxLength: 300
+        countryCode:
+          type: string
+          nullable: true
+          pattern: ^[A-Z]{2}$
+        latitude:
+          type: number
+          nullable: true
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          nullable: true
+          minimum: -180
+          maximum: 180
+    OrganizationStructureCreateLocationUnitRelationshipRequest:
+      type: object
+      required:
+        - operationalLocationId
+        - organizationUnitId
+      additionalProperties: false
+      properties:
+        operationalLocationId:
+          type: string
+          format: uuid
+        organizationUnitId:
+          type: string
+          format: uuid
+        relationshipType:
+          type: string
+          enum:
+            - primary
+            - secondary
+          default: primary
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+    OrganizationStructureCreateUnitRequest:
+      type: object
+      required:
+        - code
+        - name
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9_-]*$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        legalEntityId:
+          type: string
+          format: uuid
+          nullable: true
+        unitTypeId:
+          type: string
+          format: uuid
+          nullable: true
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+    OrganizationStructureCreateUnitTypeRequest:
+      type: object
+      required:
+        - code
+        - name
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+    OrganizationStructureHierarchyEdge:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - organizationUnitId
+        - parentOrganizationUnitId
+        - effectiveFrom
+        - effectiveTo
+        - reason
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        organizationUnitId:
+          type: string
+          format: uuid
+        parentOrganizationUnitId:
+          type: string
+          format: uuid
+          nullable: true
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+    OrganizationStructureLegalEntity:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - name
+        - registrationIdentifier
+        - registrationIdentifierLabel
+        - status
+        - effectiveFrom
+        - effectiveTo
+        - createdAt
+        - updatedAt
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        registrationIdentifier:
+          type: string
+          nullable: true
+        registrationIdentifierLabel:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    OrganizationStructureLocation:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - name
+        - addressLine1
+        - addressLine2
+        - city
+        - region
+        - postalCode
+        - countryCode
+        - latitude
+        - longitude
+        - status
+        - createdAt
+        - updatedAt
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        addressLine1:
+          type: string
+          nullable: true
+        addressLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        latitude:
+          type: number
+          nullable: true
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          nullable: true
+          minimum: -180
+          maximum: 180
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    OrganizationStructureLocationUnitRelationship:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - operationalLocationId
+        - organizationUnitId
+        - relationshipType
+        - effectiveFrom
+        - effectiveTo
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        operationalLocationId:
+          type: string
+          format: uuid
+        organizationUnitId:
+          type: string
+          format: uuid
+        relationshipType:
+          type: string
+          enum:
+            - primary
+            - secondary
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    OrganizationStructureTreeNode:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - organizationUnitId
+        - children
+      properties:
+        organizationUnitId:
+          type: string
+          format: uuid
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrganizationStructureTreeNode"
+    OrganizationStructureUnit:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - legalEntityId
+        - unitTypeId
+        - code
+        - name
+        - status
+        - effectiveFrom
+        - effectiveTo
+        - createdAt
+        - updatedAt
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        legalEntityId:
+          type: string
+          format: uuid
+          nullable: true
+        unitTypeId:
+          type: string
+          format: uuid
+          nullable: true
+        code:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    OrganizationStructureUnitType:
+      type: object
+      description: Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - code
+        - name
+        - description
+        - status
+        - createdAt
+        - updatedAt
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    OrganizationStructureUpdateUnitRequest:
+      type: object
+      required:
+        - name
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        legalEntityId:
+          type: string
+          format: uuid
+          nullable: true
+        unitTypeId:
+          type: string
+          format: uuid
+          nullable: true
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
     PartyCreateRequest:
       type: object
       required:

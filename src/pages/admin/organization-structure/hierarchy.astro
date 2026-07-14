@@ -1,0 +1,310 @@
+---
+/**
+ * Organization-unit hierarchy admin screen (Issue #749, epic #738
+ * platform-evolution Wave 2) — flat unit list with a reparent form
+ * (target unit + new parent, or blank for top-level). The reparent
+ * mutation is high-risk (requires Idempotency-Key, audited critical,
+ * rejects self-parent/cycle) — see `application/organization-unit-
+ * hierarchy-service.ts`'s `reparentUnit`. A nested visual tree widget is a
+ * documented follow-up; this first cut lists units with their current
+ * parent (if any) so an admin can see and change the structure.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { listOrganizationUnits } from "../../../modules/organization-structure/application/organization-unit-directory";
+import { readEdgeMap } from "../../../modules/organization-structure/application/organization-unit-hierarchy-service";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/organization-structure/hierarchy.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("organization_structure", "hierarchy", "read")
+);
+const CAN_ASSIGN = context.permissions.has(
+  permissionKey("organization_structure", "hierarchy", "assign")
+);
+
+const clientStrings = {
+  reparentSuccess: t("admin.organization_structure.hierarchy.reparent_success"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let units: Awaited<ReturnType<typeof listOrganizationUnits>>["units"] = [];
+let edges: Map<string, string | null> = new Map();
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      const result = await listOrganizationUnits(tx, context.tenantId, {});
+      units = result.units;
+      edges = new Map(await readEdgeMap(tx, context.tenantId, null));
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/organization-structure/hierarchy.astro: failed to load hierarchy",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+
+function unitName(unitId: string | null): string {
+  if (unitId === null)
+    return t("admin.organization_structure.hierarchy.top_level");
+  return units.find((unit) => unit.id === unitId)?.name ?? unitId;
+}
+---
+
+<AdminLayout title={t("admin.organization_structure.hierarchy.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.organization_structure.access_denied_title")}
+        body={t("admin.organization_structure.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="config-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {units.length === 0 ? (
+          <p class="empty-state">
+            {t("admin.organization_structure.hierarchy.no_rows")}
+          </p>
+        ) : (
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col">
+                  {t("admin.organization_structure.hierarchy.col_unit")}
+                </th>
+                <th scope="col">
+                  {t("admin.organization_structure.hierarchy.col_parent")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {units.map((unit) => (
+                <tr>
+                  <td>
+                    {unit.name} ({unit.code})
+                  </td>
+                  <td>{unitName(edges.get(unit.id) ?? null)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {CAN_ASSIGN && (
+          <details class="create-config" open>
+            <summary>
+              {t("admin.organization_structure.hierarchy.reparent_summary")}
+            </summary>
+            <form id="reparent-form" class="create-config-form">
+              <label>
+                {t("admin.organization_structure.hierarchy.field_unit")}
+                <select name="organizationUnitId" required>
+                  {units.map((unit) => (
+                    <option value={unit.id}>
+                      {unit.name} ({unit.code})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t("admin.organization_structure.hierarchy.field_parent")}
+                <select name="parentOrganizationUnitId">
+                  <option value="">
+                    {t("admin.organization_structure.hierarchy.top_level")}
+                  </option>
+                  {units.map((unit) => (
+                    <option value={unit.id}>
+                      {unit.name} ({unit.code})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t("admin.organization_structure.hierarchy.field_reason")}
+                <input type="text" name="reason" maxlength="2000" />
+              </label>
+              <button type="submit">
+                {t("admin.organization_structure.hierarchy.reparent_submit")}
+              </button>
+            </form>
+          </details>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-surface, #e6f4ea);
+    color: var(--color-success-strong, #1e7e34);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-surface, #fdecea);
+    color: var(--color-danger-strong);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .data-table th,
+  .data-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .create-config {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+  .create-config summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .create-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 480px;
+    margin-top: var(--sp-2);
+  }
+  .create-config-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+  .create-config-form input,
+  .create-config-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .create-config-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    reparentSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+
+  document
+    .getElementById("reparent-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const formData = new FormData(form);
+        const result = await submitJson(
+          "/api/v1/organization-structure/hierarchy/reparent",
+          "POST",
+          {
+            organizationUnitId: formData.get("organizationUnitId"),
+            parentOrganizationUnitId:
+              formData.get("parentOrganizationUnitId") || null,
+            reason: formData.get("reason") || null
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+
+        if (result.ok) {
+          showBanner("action-banner", strings.reparentSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+</script>
