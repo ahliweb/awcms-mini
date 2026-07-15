@@ -568,6 +568,152 @@ suite("organization_structure integration", () => {
     expect(afterRestore.body.data.unit.deletedAt).toBeNull();
   });
 
+  test("ADVERSARIAL (Issue #795): reusing the same Idempotency-Key across restore of two DIFFERENT deactivated units (identical empty body/no body) must NOT replay unit A's restore onto unit B -- the mismatched hash must yield 409 CONFLICT, and unit B must still actually restore once given its OWN key", async () => {
+    const owner = await bootstrap();
+    const unitAId = await createUnitFixture(owner, "restore-adversarial-a");
+    const unitBId = await createUnitFixture(owner, "restore-adversarial-b");
+
+    await invoke(deactivateUnit, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/units/${unitAId}`,
+      headers: authHeaders(owner, "restore-adversarial-deactivate-a"),
+      params: { id: unitAId }
+    });
+    await invoke(deactivateUnit, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/units/${unitBId}`,
+      headers: authHeaders(owner, "restore-adversarial-deactivate-b"),
+      params: { id: unitBId }
+    });
+
+    const reusedKey = "restore-adversarial-reused-key";
+
+    // Restore A with the reused key -- succeeds normally.
+    const restoreA = await invoke<{ data: { unit: { id: string } } }>(
+      restoreUnit,
+      {
+        method: "POST",
+        path: `/api/v1/organization-structure/units/${unitAId}/restore`,
+        headers: authHeaders(owner, reusedKey),
+        params: { id: unitAId }
+      }
+    );
+    expect(restoreA.status).toBe(200);
+    expect(restoreA.body.data.unit.id).toBe(unitAId);
+
+    // Attempt to restore B (still deactivated) with the SAME key and the
+    // SAME empty body shape. Pre-fix, `computeRequestHash({})` never
+    // included the unit id, so this would silently REPLAY A's cached
+    // response (200, describing A as restored) without ever touching B --
+    // B would appear "restored" to the caller while remaining deactivated.
+    // Post-fix, the hash folds in the unit id, so the mismatch must be
+    // detected and rejected as a conflict, never a false replay.
+    const restoreBReusedKey = await invoke(restoreUnit, {
+      method: "POST",
+      path: `/api/v1/organization-structure/units/${unitBId}/restore`,
+      headers: authHeaders(owner, reusedKey),
+      params: { id: unitBId }
+    });
+    expect(restoreBReusedKey.status).toBe(409);
+    expect(
+      (restoreBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be deactivated -- NOT falsely reported as restored.
+    // Assert real DB state, not just the false-replay attempt's status code.
+    const admin = getAdminSql();
+    const bStillDeactivated = (await admin`
+      SELECT deleted_at FROM awcms_mini_organization_units WHERE id = ${unitBId}
+    `) as { deleted_at: Date | null }[];
+    expect(bStillDeactivated).toHaveLength(1);
+    expect(bStillDeactivated[0]!.deleted_at).not.toBeNull();
+
+    // With its OWN distinct key, B's restore genuinely applies.
+    const restoreBOwnKey = await invoke<{ data: { unit: { id: string } } }>(
+      restoreUnit,
+      {
+        method: "POST",
+        path: `/api/v1/organization-structure/units/${unitBId}/restore`,
+        headers: authHeaders(owner, "restore-adversarial-own-key-b"),
+        params: { id: unitBId }
+      }
+    );
+    expect(restoreBOwnKey.status).toBe(200);
+    expect(restoreBOwnKey.body.data.unit.id).toBe(unitBId);
+
+    const bNowRestored = (await admin`
+      SELECT deleted_at FROM awcms_mini_organization_units WHERE id = ${unitBId}
+    `) as { deleted_at: Date | null }[];
+    expect(bNowRestored[0]!.deleted_at).toBeNull();
+  });
+
+  test("ADVERSARIAL (Issue #795): reusing the same Idempotency-Key across deactivate (DELETE) of two DIFFERENT active units with an identical-shaped body must NOT replay unit A's deactivation onto unit B -- the mismatched hash must yield 409 CONFLICT, and unit B must still actually deactivate once given its OWN key", async () => {
+    const owner = await bootstrap();
+    const unitAId = await createUnitFixture(owner, "deactivate-adversarial-a");
+    const unitBId = await createUnitFixture(owner, "deactivate-adversarial-b");
+
+    const reusedKey = "deactivate-adversarial-reused-key";
+    const sharedBody = { deleteReason: "no longer needed" };
+
+    // Deactivate A with the reused key -- succeeds normally.
+    const deactivateA = await invoke<{ data: { unit: { id: string } } }>(
+      deactivateUnit,
+      {
+        method: "DELETE",
+        path: `/api/v1/organization-structure/units/${unitAId}`,
+        headers: authHeaders(owner, reusedKey),
+        params: { id: unitAId },
+        body: sharedBody
+      }
+    );
+    expect(deactivateA.status).toBe(200);
+    expect(deactivateA.body.data.unit.id).toBe(unitAId);
+
+    // Attempt to deactivate B (still active) with the SAME key and an
+    // IDENTICALLY-shaped body. Pre-fix, `computeRequestHash(body)` never
+    // included the unit id, so this would silently REPLAY A's cached
+    // response (200, describing A as deactivated) without ever touching
+    // B -- B would appear "deactivated" to the caller while remaining
+    // active.
+    const deactivateBReusedKey = await invoke(deactivateUnit, {
+      method: "DELETE",
+      path: `/api/v1/organization-structure/units/${unitBId}`,
+      headers: authHeaders(owner, reusedKey),
+      params: { id: unitBId },
+      body: sharedBody
+    });
+    expect(deactivateBReusedKey.status).toBe(409);
+    expect(
+      (deactivateBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be active -- NOT falsely reported as deactivated.
+    const admin = getAdminSql();
+    const bStillActive = (await admin`
+      SELECT deleted_at FROM awcms_mini_organization_units WHERE id = ${unitBId}
+    `) as { deleted_at: Date | null }[];
+    expect(bStillActive).toHaveLength(1);
+    expect(bStillActive[0]!.deleted_at).toBeNull();
+
+    // With its OWN distinct key, B's deactivation genuinely applies.
+    const deactivateBOwnKey = await invoke<{ data: { unit: { id: string } } }>(
+      deactivateUnit,
+      {
+        method: "DELETE",
+        path: `/api/v1/organization-structure/units/${unitBId}`,
+        headers: authHeaders(owner, "deactivate-adversarial-own-key-b"),
+        params: { id: unitBId },
+        body: sharedBody
+      }
+    );
+    expect(deactivateBOwnKey.status).toBe(200);
+
+    const bNowDeactivated = (await admin`
+      SELECT deleted_at FROM awcms_mini_organization_units WHERE id = ${unitBId}
+    `) as { deleted_at: Date | null }[];
+    expect(bNowDeactivated[0]!.deleted_at).not.toBeNull();
+  });
+
   test("operational location: create, delete (soft-delete), restore round-trip, requires Idempotency-Key", async () => {
     const owner = await bootstrap();
 
@@ -704,6 +850,107 @@ suite("organization_structure integration", () => {
         AND tenant_user_id = ${owner.tenantUserId} AND status = 'active'
     `) as { count: number }[];
     expect(rows[0]!.count).toBe(1);
+  });
+
+  test("ADVERSARIAL (Issue #795): reusing the same Idempotency-Key across end of two DIFFERENT active assignments with an identical-shaped body must NOT replay assignment A's end onto assignment B -- the mismatched hash must yield 409 CONFLICT, and assignment B must still actually end once given its OWN key", async () => {
+    const owner = await bootstrap();
+    const admin = getAdminSql();
+    const unitAId = await createUnitFixture(
+      owner,
+      "assignment-end-adversarial-a"
+    );
+    const unitBId = await createUnitFixture(
+      owner,
+      "assignment-end-adversarial-b"
+    );
+
+    const assignmentA = await invoke<{ data: { assignment: { id: string } } }>(
+      createAssignment,
+      {
+        method: "POST",
+        path: "/api/v1/organization-structure/assignments",
+        headers: authHeaders(owner, "assignment-end-adversarial-create-a"),
+        body: { organizationUnitId: unitAId, tenantUserId: owner.tenantUserId }
+      }
+    );
+    expect(assignmentA.status).toBe(200);
+    const assignmentAId = assignmentA.body.data.assignment.id;
+
+    const assignmentB = await invoke<{ data: { assignment: { id: string } } }>(
+      createAssignment,
+      {
+        method: "POST",
+        path: "/api/v1/organization-structure/assignments",
+        headers: authHeaders(owner, "assignment-end-adversarial-create-b"),
+        body: { organizationUnitId: unitBId, tenantUserId: owner.tenantUserId }
+      }
+    );
+    expect(assignmentB.status).toBe(200);
+    const assignmentBId = assignmentB.body.data.assignment.id;
+
+    const reusedKey = "assignment-end-adversarial-reused-key";
+    const sharedBody = { endReason: "role change" };
+
+    // End assignment A with the reused key -- succeeds normally.
+    const endA = await invoke<{ data: { assignment: { id: string } } }>(
+      endAssignment,
+      {
+        method: "POST",
+        path: `/api/v1/organization-structure/assignments/${assignmentAId}/end`,
+        headers: authHeaders(owner, reusedKey),
+        params: { id: assignmentAId },
+        body: sharedBody
+      }
+    );
+    expect(endA.status).toBe(200);
+    expect(endA.body.data.assignment.id).toBe(assignmentAId);
+
+    // Attempt to end assignment B (still active) with the SAME key and an
+    // IDENTICALLY-shaped body. Pre-fix, `computeRequestHash(body)` never
+    // included the assignment id, so this would silently REPLAY A's
+    // cached response (200, describing A as ended) without ever touching
+    // B -- B would appear "ended" to the caller while remaining active.
+    const endBReusedKey = await invoke(endAssignment, {
+      method: "POST",
+      path: `/api/v1/organization-structure/assignments/${assignmentBId}/end`,
+      headers: authHeaders(owner, reusedKey),
+      params: { id: assignmentBId },
+      body: sharedBody
+    });
+    expect(endBReusedKey.status).toBe(409);
+    expect((endBReusedKey.body as { error: { code: string } }).error.code).toBe(
+      "IDEMPOTENCY_CONFLICT"
+    );
+
+    // B must still be active -- NOT falsely reported as ended. Assert real
+    // DB state, not just the false-replay attempt's status code.
+    const bStillActive = (await admin`
+      SELECT status, ended_at FROM awcms_mini_organization_unit_assignments
+      WHERE id = ${assignmentBId}
+    `) as { status: string; ended_at: Date | null }[];
+    expect(bStillActive).toHaveLength(1);
+    expect(bStillActive[0]!.status).toBe("active");
+    expect(bStillActive[0]!.ended_at).toBeNull();
+
+    // With its OWN distinct key, B's end genuinely applies.
+    const endBOwnKey = await invoke<{ data: { assignment: { id: string } } }>(
+      endAssignment,
+      {
+        method: "POST",
+        path: `/api/v1/organization-structure/assignments/${assignmentBId}/end`,
+        headers: authHeaders(owner, "assignment-end-adversarial-own-key-b"),
+        params: { id: assignmentBId },
+        body: sharedBody
+      }
+    );
+    expect(endBOwnKey.status).toBe(200);
+
+    const bNowEnded = (await admin`
+      SELECT status, ended_at FROM awcms_mini_organization_unit_assignments
+      WHERE id = ${assignmentBId}
+    `) as { status: string; ended_at: Date | null }[];
+    expect(bNowEnded[0]!.status).toBe("ended");
+    expect(bNowEnded[0]!.ended_at).not.toBeNull();
   });
 
   test("hierarchy reparent: creates the first edge, tree/ancestor reflect it", async () => {

@@ -59,7 +59,11 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   const body = bodyRead.value ?? {};
   const endReason = typeof body.endReason === "string" ? body.endReason : "";
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    assignmentId,
+    action: "end"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
