@@ -44,6 +44,10 @@ Skill Claude Code tingkat-proyek untuk AWCMS-Mini. Setiap skill meng-encode stan
 | `awcms-mini-social-publishing`                         | Kerjakan bagian mana pun epic social_publishing auto-posting outbox foundation (Issue #643-#647)                                                                                         | social-publishing/SKILL.md                                   |
 | `awcms-mini-data-lifecycle`                            | Daftarkan tabel bervolume tinggi ke registry retensi/partisi/arsip/legal hold/purge (Issue #745)                                                                                         | data-lifecycle/README.md, data-lifecycle.md                  |
 | `awcms-mini-erp-extension-readiness`                   | Konsumsi/evolusikan kontrak kesiapan ekstensi ERP — business transaction, posting, period-lock, item/currency/UoM, inventory movement, reconciliation, reporting projection (Issue #755) | erp-extension-readiness/SKILL.md, erp-extension-contracts.md |
+| `awcms-mini-document-infrastructure`                   | Kerjakan bagian mana pun modul document_infrastructure — registry dokumen generik, versioning, classification, numbering (Issue #751)                                                    | document-infrastructure/SKILL.md                             |
+| `awcms-mini-integration-hub`                           | Kerjakan bagian mana pun modul integration_hub — inbound webhook, outbound subscription, adapter health, SSRF guard (Issue #754)                                                         | integration-hub/SKILL.md                                     |
+| `awcms-mini-workflow-approval`                         | Kerjakan bagian mana pun modul workflow_approval — graph engine, quorum, delegation, escalation (Issue 11.1, evolved #747)                                                               | workflow-approval/SKILL.md                                   |
+| `awcms-mini-profile-identity`                          | Kerjakan bagian mana pun modul profile_identity — party CRUD, dedup, merge workflow, cross-tenant guard (Issue 2.2, dilengkapi #748)                                                     | profile-identity/SKILL.md                                    |
 
 ## Katalog peningkatan (improvement/hardening)
 
@@ -143,6 +147,31 @@ flowchart TD
   II --> ERPX[awcms-mini-erp-extension-readiness]
   ERPX --> IDEM
   ERPX --> EV
+  II --> DOCI[awcms-mini-document-infrastructure]
+  DOCI --> MIG
+  DOCI --> EP
+  DOCI --> ABAC
+  DOCI --> AUD
+  DOCI --> IDEM
+  II --> IH[awcms-mini-integration-hub]
+  IH --> MIG
+  IH --> EP
+  IH --> ABAC
+  IH --> AUD
+  IH --> INT
+  II --> WF[awcms-mini-workflow-approval]
+  WF --> MIG
+  WF --> EP
+  WF --> ABAC
+  WF --> AUD
+  WF --> IDEM
+  WF --> EV
+  II --> PI[awcms-mini-profile-identity]
+  PI --> MIG
+  PI --> EP
+  PI --> ABAC
+  PI --> AUD
+  PI --> SD
 ```
 
 ## Subagents (`.claude/agents/`)

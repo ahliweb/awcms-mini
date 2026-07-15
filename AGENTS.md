@@ -130,6 +130,10 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Epic social_publishing auto-posting outbox foundation (Issue #643-#647)                                        | `awcms-mini-social-publishing`       |
 | Registry retensi/partisi/arsip/legal hold/purge tabel bervolume tinggi (Issue #745)                            | `awcms-mini-data-lifecycle`          |
 | Kontrak kesiapan ekstensi ERP (business transaction/posting/period-lock/item/reporting-projection, Issue #755) | `awcms-mini-erp-extension-readiness` |
+| Modul document_infrastructure — registry dokumen generik, versioning, numbering (Issue #751)                   | `awcms-mini-document-infrastructure` |
+| Modul integration_hub — inbound webhook, outbound subscription, adapter, SSRF guard (Issue #754)               | `awcms-mini-integration-hub`         |
+| Modul workflow_approval — graph engine, delegation/escalation/quorum (Issue 11.1, evolved #747)                | `awcms-mini-workflow-approval`       |
+| Modul profile_identity — party CRUD, merge workflow, cross-tenant guard (Issue 2.2, dilengkapi #748)           | `awcms-mini-profile-identity`        |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 
@@ -222,6 +226,31 @@ flowchart LR
   II --> ERPX[erp-extension-readiness]
   ERPX --> IDEM
   ERPX --> EV
+  II --> DOCI[document-infrastructure]
+  DOCI --> MIG
+  DOCI --> EP
+  DOCI --> ABAC
+  DOCI --> AUD
+  DOCI --> IDEM
+  II --> IH[integration-hub]
+  IH --> MIG
+  IH --> EP
+  IH --> ABAC
+  IH --> AUD
+  IH --> INT
+  II --> WF[workflow-approval]
+  WF --> MIG
+  WF --> EP
+  WF --> ABAC
+  WF --> AUD
+  WF --> IDEM
+  WF --> EV
+  II --> PI[profile-identity]
+  PI --> MIG
+  PI --> EP
+  PI --> ABAC
+  PI --> AUD
+  PI --> SD
 ```
 
 Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.
@@ -255,7 +284,7 @@ berjalan, bukan target/rencana:
 
 ```bash
 bun install
-bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + modules:compose:check + modules:composition:inventory:check + extension:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + modules:compose:check + modules:composition:inventory:check + extension:check + data-lifecycle:registry:check + reporting:projections:registry:check + identity-access:sod-registry:check + reference-data:contributions:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + db:work-class:check + typecheck + test + build
 bun run dev                      # bun --bun astro dev
 bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
