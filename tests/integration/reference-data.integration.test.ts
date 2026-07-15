@@ -717,6 +717,335 @@ suite("reference_data integration", () => {
     ).toBe(true);
   });
 
+  test("ADVERSARIAL (security-review High): reusing the same Idempotency-Key across ROLLBACK of two DIFFERENT import batches must NOT replay the first batch's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second batch must still actually execute once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(owner, "unit_of_measure", "none");
+    await createValueSetFixture(owner, "fiscal_calendar", "none");
+
+    // Import batch A (unit_of_measure), committed.
+    const dryRunA = await invoke<{
+      data: { import: { id: string; checksum: string } };
+    }>(dryRunImport, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/unit_of_measure/imports",
+      params: { key: "unit_of_measure" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        codes: [{ code: "pcs", labels: [{ locale: "en", label: "Piece" }] }]
+      }
+    });
+    expect(dryRunA.status).toBe(200);
+    const importA = dryRunA.body.data.import.id;
+    const commitA = await invoke(commitImport, {
+      method: "POST",
+      path: `/api/v1/reference-data/value-sets/unit_of_measure/imports/${importA}/commit`,
+      params: { key: "unit_of_measure", importId: importA },
+      headers: authHeaders(owner, idKey()),
+      body: { checksum: dryRunA.body.data.import.checksum }
+    });
+    expect(commitA.status).toBe(200);
+
+    // Import batch B (fiscal_calendar), committed -- a DIFFERENT resource of
+    // the SAME type (a reference-import batch), so it shares the same
+    // request_scope ("reference_data_import_rollback") and tenant_id with A.
+    const dryRunB = await invoke<{
+      data: { import: { id: string; checksum: string } };
+    }>(dryRunImport, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar/imports",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        codes: [
+          {
+            code: "calendar_year",
+            labels: [{ locale: "en", label: "Calendar Year" }]
+          }
+        ]
+      }
+    });
+    expect(dryRunB.status).toBe(200);
+    const importB = dryRunB.body.data.import.id;
+    const commitB = await invoke(commitImport, {
+      method: "POST",
+      path: `/api/v1/reference-data/value-sets/fiscal_calendar/imports/${importB}/commit`,
+      params: { key: "fiscal_calendar", importId: importB },
+      headers: authHeaders(owner, idKey()),
+      body: { checksum: dryRunB.body.data.import.checksum }
+    });
+    expect(commitB.status).toBe(200);
+
+    const reusedKey = idKey();
+
+    // Roll back A with the reused key -- succeeds normally.
+    const rollbackA = await invoke<{ data: { import: { id: string } } }>(
+      rollbackImport,
+      {
+        method: "POST",
+        path: `/api/v1/reference-data/value-sets/unit_of_measure/imports/${importA}/rollback`,
+        params: { key: "unit_of_measure", importId: importA },
+        headers: authHeaders(owner, reusedKey)
+      }
+    );
+    expect(rollbackA.status).toBe(200);
+    expect(rollbackA.body.data.import.id).toBe(importA);
+
+    // Attempt to roll back B with the SAME key. Pre-fix, `computeRequestHash({})`
+    // was identical for both requests, so this would silently REPLAY A's
+    // cached response (200, describing A's import) without ever touching B --
+    // B would appear "rolled back" to the caller while its codes stayed live.
+    // Post-fix, the hash folds in `importId`, so the mismatch must be
+    // detected and rejected as a conflict, never a false replay.
+    const rollbackBReusedKey = await invoke(rollbackImport, {
+      method: "POST",
+      path: `/api/v1/reference-data/value-sets/fiscal_calendar/imports/${importB}/rollback`,
+      params: { key: "fiscal_calendar", importId: importB },
+      headers: authHeaders(owner, reusedKey)
+    });
+    expect(rollbackBReusedKey.status).toBe(409);
+    expect(
+      (rollbackBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be untouched -- NOT falsely reported as rolled back.
+    const stillLiveCodes = await invoke<{ data: { codes: unknown[] } }>(
+      listCodes,
+      {
+        method: "GET",
+        path: "/api/v1/reference-data/value-sets/fiscal_calendar/codes",
+        params: { key: "fiscal_calendar" },
+        headers: authHeaders(owner)
+      }
+    );
+    expect(stillLiveCodes.body.data.codes).toHaveLength(1);
+
+    // With its OWN distinct key, B's rollback genuinely executes.
+    const rollbackBOwnKey = await invoke<{ data: { import: { id: string } } }>(
+      rollbackImport,
+      {
+        method: "POST",
+        path: `/api/v1/reference-data/value-sets/fiscal_calendar/imports/${importB}/rollback`,
+        params: { key: "fiscal_calendar", importId: importB },
+        headers: authHeaders(owner, idKey())
+      }
+    );
+    expect(rollbackBOwnKey.status).toBe(200);
+    expect(rollbackBOwnKey.body.data.import.id).toBe(importB);
+
+    const afterRollbackCodes = await invoke<{ data: { codes: unknown[] } }>(
+      listCodes,
+      {
+        method: "GET",
+        path: "/api/v1/reference-data/value-sets/fiscal_calendar/codes",
+        params: { key: "fiscal_calendar" },
+        headers: authHeaders(owner)
+      }
+    );
+    expect(afterRollbackCodes.body.data.codes).toHaveLength(0);
+  });
+
+  test("ADVERSARIAL (security-review High): reusing the same Idempotency-Key across COMMIT of two DIFFERENT import batches must NOT replay the first batch's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second batch must still actually commit once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(owner, "unit_of_measure", "none");
+    await createValueSetFixture(owner, "fiscal_calendar", "none");
+
+    const dryRunA = await invoke<{
+      data: { import: { id: string; checksum: string } };
+    }>(dryRunImport, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/unit_of_measure/imports",
+      params: { key: "unit_of_measure" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        codes: [{ code: "pcs", labels: [{ locale: "en", label: "Piece" }] }]
+      }
+    });
+    expect(dryRunA.status).toBe(200);
+    const importA = dryRunA.body.data.import.id;
+
+    const dryRunB = await invoke<{
+      data: { import: { id: string; checksum: string } };
+    }>(dryRunImport, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar/imports",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        codes: [
+          {
+            code: "calendar_year",
+            labels: [{ locale: "en", label: "Calendar Year" }]
+          }
+        ]
+      }
+    });
+    expect(dryRunB.status).toBe(200);
+    const importB = dryRunB.body.data.import.id;
+
+    const reusedKey = idKey();
+
+    const commitA = await invoke<{ data: { import: { id: string } } }>(
+      commitImport,
+      {
+        method: "POST",
+        path: `/api/v1/reference-data/value-sets/unit_of_measure/imports/${importA}/commit`,
+        params: { key: "unit_of_measure", importId: importA },
+        headers: authHeaders(owner, reusedKey),
+        body: { checksum: dryRunA.body.data.import.checksum }
+      }
+    );
+    expect(commitA.status).toBe(200);
+    expect(commitA.body.data.import.id).toBe(importA);
+
+    // Same key, different import batch B, and (deliberately) B's OWN correct
+    // checksum in the body -- pre-fix, commit only hashed `{ checksum }`, so
+    // two distinct import batches whose payload happens to diff-hash
+    // identically (or even just by accident of the store key colliding on
+    // idempotency_key alone before this fix folded in importId) could
+    // collide. Confirm the mismatch is now caught as a conflict, not a
+    // silent replay of A's response for B.
+    const commitBReusedKey = await invoke(commitImport, {
+      method: "POST",
+      path: `/api/v1/reference-data/value-sets/fiscal_calendar/imports/${importB}/commit`,
+      params: { key: "fiscal_calendar", importId: importB },
+      headers: authHeaders(owner, reusedKey),
+      body: { checksum: dryRunB.body.data.import.checksum }
+    });
+    expect(commitBReusedKey.status).toBe(409);
+    expect(
+      (commitBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be untouched -- still "validated", never committed.
+    const historyAfterConflict = await invoke<{
+      data: { imports: { id: string; status: string }[] };
+    }>(listImports, {
+      method: "GET",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar/imports",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner)
+    });
+    expect(
+      historyAfterConflict.body.data.imports.find((i) => i.id === importB)!
+        .status
+    ).toBe("validated");
+
+    // With its OWN distinct key, B's commit genuinely executes.
+    const commitBOwnKey = await invoke<{ data: { import: { id: string } } }>(
+      commitImport,
+      {
+        method: "POST",
+        path: `/api/v1/reference-data/value-sets/fiscal_calendar/imports/${importB}/commit`,
+        params: { key: "fiscal_calendar", importId: importB },
+        headers: authHeaders(owner, idKey()),
+        body: { checksum: dryRunB.body.data.import.checksum }
+      }
+    );
+    expect(commitBOwnKey.status).toBe(200);
+    expect(commitBOwnKey.body.data.import.id).toBe(importB);
+
+    const codesAfterCommit = await invoke<{
+      data: { codes: { code: string }[] };
+    }>(listCodes, {
+      method: "GET",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar/codes",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner)
+    });
+    expect(codesAfterCommit.body.data.codes.map((c) => c.code)).toEqual([
+      "calendar_year"
+    ]);
+  });
+
+  test("ADVERSARIAL (security-review High, ownership check): an importId that does NOT belong to the value set named by {key} in the URL is rejected 404, for both commit and rollback", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(owner, "unit_of_measure", "none");
+    await createValueSetFixture(owner, "fiscal_calendar", "none");
+
+    // A validated (not yet committed) import that genuinely belongs to
+    // unit_of_measure.
+    const dryRun = await invoke<{
+      data: { import: { id: string; checksum: string } };
+    }>(dryRunImport, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/unit_of_measure/imports",
+      params: { key: "unit_of_measure" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        codes: [{ code: "pcs", labels: [{ locale: "en", label: "Piece" }] }]
+      }
+    });
+    expect(dryRun.status).toBe(200);
+    const importId = dryRun.body.data.import.id;
+    const checksum = dryRun.body.data.import.checksum;
+
+    // Attempt to commit it via the WRONG value set's URL ({key} =
+    // fiscal_calendar, but importId belongs to unit_of_measure).
+    const commitWrongKey = await invoke(commitImport, {
+      method: "POST",
+      path: `/api/v1/reference-data/value-sets/fiscal_calendar/imports/${importId}/commit`,
+      params: { key: "fiscal_calendar", importId },
+      headers: authHeaders(owner, idKey()),
+      body: { checksum }
+    });
+    expect(commitWrongKey.status).toBe(404);
+    expect(
+      (commitWrongKey.body as { error: { code: string } }).error.code
+    ).toBe("NOT_FOUND");
+
+    // Commit for real via the CORRECT key so there's a committed batch to
+    // attempt a mismatched rollback against.
+    const commitCorrectKey = await invoke<{ data: { import: { id: string } } }>(
+      commitImport,
+      {
+        method: "POST",
+        path: `/api/v1/reference-data/value-sets/unit_of_measure/imports/${importId}/commit`,
+        params: { key: "unit_of_measure", importId },
+        headers: authHeaders(owner, idKey()),
+        body: { checksum }
+      }
+    );
+    expect(commitCorrectKey.status).toBe(200);
+
+    // Attempt to roll it back via the WRONG value set's URL.
+    const rollbackWrongKey = await invoke(rollbackImport, {
+      method: "POST",
+      path: `/api/v1/reference-data/value-sets/fiscal_calendar/imports/${importId}/rollback`,
+      params: { key: "fiscal_calendar", importId },
+      headers: authHeaders(owner, idKey())
+    });
+    expect(rollbackWrongKey.status).toBe(404);
+    expect(
+      (rollbackWrongKey.body as { error: { code: string } }).error.code
+    ).toBe("NOT_FOUND");
+
+    // The import batch is untouched -- still committed, never rolled back
+    // by the mismatched-key attempt.
+    const historyAfterMismatch = await invoke<{
+      data: { imports: { id: string; status: string }[] };
+    }>(listImports, {
+      method: "GET",
+      path: "/api/v1/reference-data/value-sets/unit_of_measure/imports",
+      params: { key: "unit_of_measure" },
+      headers: authHeaders(owner)
+    });
+    expect(
+      historyAfterMismatch.body.data.imports.find((i) => i.id === importId)!
+        .status
+    ).toBe("committed");
+
+    // Rolling back via the CORRECT key succeeds.
+    const rollbackCorrectKey = await invoke<{
+      data: { import: { id: string } };
+    }>(rollbackImport, {
+      method: "POST",
+      path: `/api/v1/reference-data/value-sets/unit_of_measure/imports/${importId}/rollback`,
+      params: { key: "unit_of_measure", importId },
+      headers: authHeaders(owner, idKey())
+    });
+    expect(rollbackCorrectKey.status).toBe(200);
+  });
+
   test("every mutation endpoint requires Idempotency-Key (400 IDEMPOTENCY_REQUIRED when omitted)", async () => {
     const owner = await bootstrap();
     const missingKeyResult = await invoke(createValueSet, {

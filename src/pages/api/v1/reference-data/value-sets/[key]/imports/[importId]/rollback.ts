@@ -18,7 +18,10 @@ import {
   saveIdempotencyRecord
 } from "../../../../../../../../modules/_shared/idempotency";
 import { fetchReferenceValueSetByKey } from "../../../../../../../../modules/reference-data/application/value-set-directory";
-import { rollbackReferenceImport } from "../../../../../../../../modules/reference-data/application/import-service";
+import {
+  fetchReferenceImportById,
+  rollbackReferenceImport
+} from "../../../../../../../../modules/reference-data/application/import-service";
 
 const IDEMPOTENCY_SCOPE = "reference_data_import_rollback";
 
@@ -61,7 +64,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     );
   }
 
-  const requestHash = computeRequestHash({});
+  const requestHash = computeRequestHash({ importId, action: "rollback" });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
@@ -79,6 +82,15 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
 
     const valueSet = await fetchReferenceValueSetByKey(tx, key);
     if (!valueSet) return fail(404, "NOT_FOUND", "Value set not found.");
+
+    // Ownership check: the import batch resolved by {importId} must
+    // actually belong to the value set named by {key} in the URL — never
+    // trust importId alone (security-review finding: two distinct value
+    // sets' import batches must not be confusable via a mismatched key).
+    const importRecord = await fetchReferenceImportById(tx, importId);
+    if (!importRecord || importRecord.valueSetId !== valueSet.id) {
+      return fail(404, "NOT_FOUND", "Import batch not found.");
+    }
 
     const existingIdempotency = await findIdempotencyRecord(
       tx,
