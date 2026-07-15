@@ -126,6 +126,7 @@ flowchart LR
 - **Catatan penting:** dokumen **02–19** memakai domain retail/POS (gaya AWPOS) sebagai **contoh ilustratif** — polanya reusable, entitas/endpoint/layarnya adalah ilustrasi domain yang diganti aplikasi turunan. Lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Reusable vs domain turunan.
 - **Keputusan arsitektural** dicatat di [`docs/adr/`](docs/adr/README.md).
 - **Snapshot GitHub issue** aktual di [`docs/awcms-mini/github/`](docs/awcms-mini/github/README.md).
+- **Tata kelola pemakaian agent lintas keluarga produk** (AWCMS, AWCMS-Mini, AWCMS-Micro, dan software turunannya) ada di [`docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf`](docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf) — AWCMS-Mini (AGENTS.md, README.md, CONTRIBUTING.md, `derived-application-guide.md`, skill proyek) adalah sumber utama pedoman ini.
 
 ## Untuk kontributor
 
@@ -147,14 +148,15 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Tata kelola & komunitas
 
-| Dokumen                                    | Isi                                 |
-| ------------------------------------------ | ----------------------------------- |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md)       | Cara berkontribusi                  |
-| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Standar perilaku komunitas          |
-| [`GOVERNANCE.md`](GOVERNANCE.md)           | Peran, pengambilan keputusan, rilis |
-| [`SUPPORT.md`](SUPPORT.md)                 | Kanal bantuan                       |
-| [`SECURITY.md`](SECURITY.md)               | Kebijakan keamanan                  |
-| [`docs/adr/`](docs/adr/README.md)          | Architecture Decision Records       |
+| Dokumen                                                                                                          | Isi                                                      |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md)                                                                             | Cara berkontribusi                                       |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)                                                                       | Standar perilaku komunitas                               |
+| [`GOVERNANCE.md`](GOVERNANCE.md)                                                                                 | Peran, pengambilan keputusan, rilis                      |
+| [`SUPPORT.md`](SUPPORT.md)                                                                                       | Kanal bantuan                                            |
+| [`SECURITY.md`](SECURITY.md)                                                                                     | Kebijakan keamanan                                       |
+| [`docs/adr/`](docs/adr/README.md)                                                                                | Architecture Decision Records                            |
+| [`docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf`](docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf) | Pedoman penggunaan AI agent lintas keluarga produk AWCMS |
 
 ## Versioning
 
