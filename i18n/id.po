@@ -3471,6 +3471,15 @@ msgstr "Unit Organisasi"
 msgid "admin.layout.nav_organization_structure_unit_types"
 msgstr "Tipe Unit"
 
+msgid "admin.layout.nav_reference_data_value_sets"
+msgstr "Set Nilai Referensi"
+
+msgid "admin.layout.nav_reference_data_codes"
+msgstr "Kode Referensi"
+
+msgid "admin.layout.nav_reference_data_tenant_codes"
+msgstr "Override Referensi"
+
 msgid "admin.organization_structure.access_denied_body"
 msgstr "Anda tidak memiliki izin untuk melihat layar struktur organisasi ini."
 
@@ -3948,6 +3957,228 @@ msgstr "Langganan Event"
 
 msgid "admin.layout.nav_integration_hub_deliveries"
 msgstr "Pengiriman"
+msgid "admin.reference_data.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat layar data referensi ini."
+
+msgid "admin.reference_data.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.reference_data.value_sets.title"
+msgstr "Set Nilai Referensi"
+
+msgid "admin.reference_data.value_sets.col_key"
+msgstr "Kunci"
+
+msgid "admin.reference_data.value_sets.col_name"
+msgstr "Nama"
+
+msgid "admin.reference_data.value_sets.col_scope"
+msgstr "Cakupan"
+
+msgid "admin.reference_data.value_sets.col_status"
+msgstr "Status"
+
+msgid "admin.reference_data.value_sets.col_actions"
+msgstr "Aksi"
+
+msgid "admin.reference_data.value_sets.no_rows"
+msgstr "Belum ada set nilai referensi."
+
+msgid "admin.reference_data.value_sets.create_summary"
+msgstr "Buat set nilai baru"
+
+msgid "admin.reference_data.value_sets.field_key"
+msgstr "Kunci"
+
+msgid "admin.reference_data.value_sets.field_name"
+msgstr "Nama"
+
+msgid "admin.reference_data.value_sets.field_description"
+msgstr "Deskripsi"
+
+msgid "admin.reference_data.value_sets.field_override_policy"
+msgstr "Kebijakan override tenant"
+
+msgid "admin.reference_data.value_sets.create_submit"
+msgstr "Buat"
+
+msgid "admin.reference_data.value_sets.create_success"
+msgstr "Set nilai referensi berhasil dibuat."
+
+msgid "admin.reference_data.value_sets.deprecate_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.reference_data.value_sets.deprecate_reason_prompt"
+msgstr "Masukkan alasan menonaktifkan set nilai ini:"
+
+msgid "admin.reference_data.value_sets.deprecate_success"
+msgstr "Set nilai referensi dinonaktifkan."
+
+msgid "admin.reference_data.value_sets.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.reference_data.value_sets.restore_success"
+msgstr "Set nilai referensi berhasil dipulihkan."
+
+msgid "admin.reference_data.codes.title"
+msgstr "Kode Referensi"
+
+msgid "admin.reference_data.codes.select_value_set_label"
+msgstr "Set nilai"
+
+msgid "admin.reference_data.codes.no_rows"
+msgstr "Belum ada kode untuk set nilai ini."
+
+msgid "admin.reference_data.codes.col_code"
+msgstr "Kode"
+
+msgid "admin.reference_data.codes.col_label"
+msgstr "Label"
+
+msgid "admin.reference_data.codes.col_provenance"
+msgstr "Asal"
+
+msgid "admin.reference_data.codes.col_status"
+msgstr "Status"
+
+msgid "admin.reference_data.codes.col_actions"
+msgstr "Aksi"
+
+msgid "admin.reference_data.codes.create_summary"
+msgstr "Tambah kode secara manual"
+
+msgid "admin.reference_data.codes.field_code"
+msgstr "Kode"
+
+msgid "admin.reference_data.codes.field_label_en"
+msgstr "Label (Inggris)"
+
+msgid "admin.reference_data.codes.field_label_id"
+msgstr "Label (Indonesia)"
+
+msgid "admin.reference_data.codes.create_submit"
+msgstr "Buat"
+
+msgid "admin.reference_data.codes.create_success"
+msgstr "Kode referensi berhasil dibuat."
+
+msgid "admin.reference_data.codes.deprecate_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.reference_data.codes.deprecate_reason_prompt"
+msgstr "Masukkan alasan menonaktifkan kode ini:"
+
+msgid "admin.reference_data.codes.deprecate_success"
+msgstr "Kode referensi dinonaktifkan."
+
+msgid "admin.reference_data.codes.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.reference_data.codes.restore_success"
+msgstr "Kode referensi berhasil dipulihkan."
+
+msgid "admin.reference_data.codes.import_section_title"
+msgstr "Impor tervalidasi"
+
+msgid "admin.reference_data.codes.import_payload_label"
+msgstr "Kode (array JSON)"
+
+msgid "admin.reference_data.codes.import_dry_run_submit"
+msgstr "Pratinjau impor (dry-run)"
+
+msgid "admin.reference_data.codes.import_dry_run_success"
+msgstr "Diff dry-run berhasil dihitung. Tinjau di bawah sebelum melakukan commit."
+
+msgid "admin.reference_data.codes.import_commit_submit"
+msgstr "Commit impor"
+
+msgid "admin.reference_data.codes.import_commit_success"
+msgstr "Impor berhasil di-commit."
+
+msgid "admin.reference_data.codes.import_rollback_button"
+msgstr "Rollback"
+
+msgid "admin.reference_data.codes.import_rollback_success"
+msgstr "Impor berhasil di-rollback."
+
+msgid "admin.reference_data.codes.import_invalid_json"
+msgstr "Bidang kode harus berupa JSON yang valid."
+
+msgid "admin.reference_data.codes.import_history_title"
+msgstr "Riwayat impor"
+
+msgid "admin.reference_data.codes.import_col_status"
+msgstr "Status"
+
+msgid "admin.reference_data.codes.import_col_created"
+msgstr "Dibuat"
+
+msgid "admin.reference_data.codes.import_col_actions"
+msgstr "Aksi"
+
+msgid "admin.reference_data.tenant_codes.title"
+msgstr "Override Kode Referensi"
+
+msgid "admin.reference_data.tenant_codes.select_value_set_label"
+msgstr "Set nilai"
+
+msgid "admin.reference_data.tenant_codes.no_rows"
+msgstr "Belum ada override atau ekstensi tenant untuk set nilai ini."
+
+msgid "admin.reference_data.tenant_codes.col_code"
+msgstr "Kode"
+
+msgid "admin.reference_data.tenant_codes.col_kind"
+msgstr "Jenis"
+
+msgid "admin.reference_data.tenant_codes.col_label"
+msgstr "Label"
+
+msgid "admin.reference_data.tenant_codes.col_status"
+msgstr "Status"
+
+msgid "admin.reference_data.tenant_codes.col_actions"
+msgstr "Aksi"
+
+msgid "admin.reference_data.tenant_codes.create_summary"
+msgstr "Buat override atau ekstensi tenant"
+
+msgid "admin.reference_data.tenant_codes.field_base_code"
+msgstr "Id kode dasar (kosongkan untuk kode baru milik tenant)"
+
+msgid "admin.reference_data.tenant_codes.field_base_code_placeholder"
+msgstr "Opsional -- kosongkan untuk membuat ekstensi"
+
+msgid "admin.reference_data.tenant_codes.field_code"
+msgstr "Kode"
+
+msgid "admin.reference_data.tenant_codes.field_label_en"
+msgstr "Label (Inggris)"
+
+msgid "admin.reference_data.tenant_codes.field_label_id"
+msgstr "Label (Indonesia)"
+
+msgid "admin.reference_data.tenant_codes.create_submit"
+msgstr "Buat"
+
+msgid "admin.reference_data.tenant_codes.create_success"
+msgstr "Kode referensi tenant berhasil dibuat."
+
+msgid "admin.reference_data.tenant_codes.deprecate_button"
+msgstr "Nonaktifkan"
+
+msgid "admin.reference_data.tenant_codes.deprecate_reason_prompt"
+msgstr "Masukkan alasan menonaktifkan kode tenant ini:"
+
+msgid "admin.reference_data.tenant_codes.deprecate_success"
+msgstr "Kode referensi tenant dinonaktifkan."
+
+msgid "admin.reference_data.tenant_codes.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.reference_data.tenant_codes.restore_success"
+msgstr "Kode referensi tenant berhasil dipulihkan."
+
 msgid "admin.layout.nav_reporting_projections"
 msgstr "Proyeksi Reporting"
 

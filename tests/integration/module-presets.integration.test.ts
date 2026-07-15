@@ -229,6 +229,7 @@ suite("tenant module preset application service", () => {
     expect(state.get("document_infrastructure")).toBe(false);
     expect(state.get("data_exchange")).toBe(false);
     expect(state.get("integration_hub")).toBe(false);
+    expect(state.get("reference_data")).toBe(false);
 
     const auditRows = await fetchAuditActions(owner.tenantId);
     const disabledResourceIds = auditRows
@@ -247,7 +248,8 @@ suite("tenant module preset application service", () => {
         "organization_structure",
         "document_infrastructure",
         "data_exchange",
-        "integration_hub"
+        "integration_hub",
+        "reference_data"
       ].sort()
     );
     // No audit event for modules that were already in the target state.

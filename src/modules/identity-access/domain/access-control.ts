@@ -140,23 +140,39 @@ export type AccessAction =
   // granted `profile_merge.approve` is NOT implicitly allowed to also
   // execute the merge itself. Added to `HIGH_RISK_ACTIONS` below.
   | "merge"
-  // Issue #751 (document_infrastructure): four new literals, all added
-  // to `HIGH_RISK_ACTIONS` below. `void` — an irreversible-by-default
-  // business-state transition on a document (kept visible as evidence,
-  // distinct from `delete`/soft-delete of a mistakenly created record —
-  // see `sql/067`'s own header). `reclassify` — change a document's
-  // classification/confidentiality level, security-sensitive since it
-  // can widen or narrow who is allowed to read the document.  `reserve`/
-  // `commit` — the two numbering-integrity operations on a document
-  // number sequence's reservation (`cancel` reuses the existing base
-  // literal below, deliberately NOT added to `HIGH_RISK_ACTIONS` to
+  // Issue #750 (reference_data): `imports.commit`/`imports.rollback` —
+  // applying a validated dry-run import batch to a value set's GLOBAL
+  // baseline codes, and reverting a previously committed batch. Neither
+  // reuses `create`/`restore`: `imports.create` (existing action) covers
+  // the earlier, non-mutating dry-run submission step (computes a diff,
+  // never touches `awcms_mini_reference_codes`), so a role granted
+  // `imports.create` is NOT implicitly allowed to actually apply it — the
+  // same "decision step vs execution step" separation `profile_merge.
+  // approve` vs `.merge` already established above. `rollback` is
+  // deliberately its own action rather than reusing `restore` (which
+  // un-deprecates a SINGLE row) — rollback reverts an entire import
+  // batch's cumulative effect. Both added to `HIGH_RISK_ACTIONS` below.
+  | "commit"
+  | "rollback"
+  // Issue #751 (document_infrastructure): three more new literals (`commit`
+  // above is shared/reused verbatim by this module too — a document number
+  // sequence's reservation commit, a different concrete meaning under a
+  // different `moduleKey`/`activityCode`, same generic action vocabulary,
+  // no conflict), all added to `HIGH_RISK_ACTIONS` below. `void` — an
+  // irreversible-by-default business-state transition on a document (kept
+  // visible as evidence, distinct from `delete`/soft-delete of a
+  // mistakenly created record — see `sql/067`'s own header). `reclassify`
+  // — change a document's classification/confidentiality level,
+  // security-sensitive since it can widen or narrow who is allowed to read
+  // the document. `reserve` — the other numbering-integrity operation on a
+  // document number sequence's reservation (`cancel` reuses the existing
+  // base literal below, deliberately NOT added to `HIGH_RISK_ACTIONS` to
   // avoid reclassifying every OTHER module's already-shipped `cancel`
   // action; this module's own reservation-cancel route still requires
   // `Idempotency-Key` unconditionally at the route layer regardless).
   | "void"
   | "reclassify"
   | "reserve"
-  | "commit"
   // Issue #753 (reporting projections): `reporting.projections.rebuild` —
   // trigger or resume a full projection rebuild (reset + bounded re-scan
   // of the authoritative source table(s)). Distinct from `analyze`
@@ -164,7 +180,11 @@ export type AccessAction =
   // export surface) — a rebuild is a real, resource-costly recomputation
   // with its own permission so a role that can read/reconcile a
   // projection is not implicitly allowed to also force a rebuild of it.
-  // Added to `HIGH_RISK_ACTIONS` below.
+  // Added to `HIGH_RISK_ACTIONS` below. (`commit` is NOT re-declared here
+  // — it's already a union member above, added by issue #750's
+  // reference_data addition; reporting's own commit-shaped action, if it
+  // ever needs one, reuses that same literal, same convention `cancel`
+  // already established for document_infrastructure just above.)
   | "rebuild";
 
 export type AccessRequest = {
@@ -237,20 +257,26 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   "reassign",
   "force_decide",
   "merge",
-  // Issue #751: see `AccessAction`'s own comment above for why `void`/
-  // `reclassify`/`reserve`/`commit` are here but the pre-existing shared
-  // `cancel` literal is deliberately NOT added.
+  // Issue #750 (reference_data) — see the `AccessAction` union's own
+  // comment above for why neither reuses an existing action.
+  "commit",
+  "rollback",
+  // Issue #751 (document_infrastructure): see `AccessAction`'s own comment
+  // above for why `void`/`reclassify`/`reserve` are here (and why `commit`
+  // is already covered by the entry above, shared with reference_data) but
+  // the pre-existing shared `cancel` literal is deliberately NOT added.
   "void",
   "reclassify",
   "reserve",
-  "commit",
   // Issue #752 (data_exchange): `imports.post` — executing the asynchronous
   // idempotent commit of a staged import batch, the FIRST real consumer of
   // the pre-existing `"post"` action (reserved since the initial union for
   // exactly this "finalize a staged transaction" shape). High-risk: commit
   // is the sole point where staged rows are actually applied to an owning
   // module's real tables — same "irreversible-by-default, broad blast
-  // radius" reasoning as `merge`'s own comment above.
+  // radius" reasoning as `merge`'s own comment above. `commit` itself is
+  // already in this set via the entry above, shared with
+  // reference_data/document_infrastructure — not re-added here.
   "post",
   // Issue #753 — see the `AccessAction` union's own comment above.
   "rebuild"

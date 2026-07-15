@@ -109,7 +109,15 @@ export const RLS_EXEMPT_TABLES: Readonly<Record<string, string>> = {
   awcms_mini_idn_region_datasets:
     "Indonesia administrative region dataset metadata (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657).",
   awcms_mini_idn_admin_regions:
-    "Indonesia administrative region records (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657)."
+    "Indonesia administrative region records (cahyadsn/wilayah) — global reference data, identical for every tenant (doc 04 §Master Data — Indonesia Administrative Regions, Issue #657).",
+  awcms_mini_reference_value_sets:
+    "Reference value-set catalog — global baseline, identical for every tenant by design (doc 04 §Reference Data, Issue #750, ADR-0021 §8).",
+  awcms_mini_reference_codes:
+    "Reference code baseline within a value set — global, identical for every tenant (doc 04 §Reference Data, Issue #750, ADR-0021 §8).",
+  awcms_mini_reference_code_translations:
+    "Localized labels for global baseline reference codes (doc 04 §Reference Data, Issue #750, ADR-0021 §8).",
+  awcms_mini_reference_imports:
+    "Reference data import batch history for the global baseline (doc 04 §Reference Data, Issue #750, ADR-0021 §8)."
 };
 
 type TableInfo = {

@@ -254,9 +254,9 @@ eksplisit sesuai permintaan Issue #696):
    semacam ini **ditolak di tahap pohon keputusan §3** (node Q5), tanpa
    pengecualian implementasi apa pun.
 
-## 8. Peta 16 modul saat ini → kategori
+## 8. Peta 23 modul saat ini → kategori
 
-Sumber kebenaran: `src/modules/index.ts` (16 entri) dan setiap `module.ts`-
+Sumber kebenaran: `src/modules/index.ts` (23 entri) dan setiap `module.ts`-
 nya. Kolom **Owner** mengikuti `.github/CODEOWNERS` (satu maintainer,
 `@ahliweb`, untuk seluruh repo hari ini) karena field opsional
 `ModuleDescriptor.maintainers` belum diisi di modul manapun — lihat
@@ -276,17 +276,24 @@ remediasi R3 di bawah.
 | `visitor_analytics`       | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `reporting`               | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
 | `workflow`                | System                   | _(tidak diset)_         | _(tidak diset)_  | `active`         | @ahliweb |
+| `data_lifecycle`          | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `domain_event_runtime`    | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `blog_content`            | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `news_portal`             | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `social_publishing`       | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `organization_structure`  | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `reference_data`          | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `integration_hub`         | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
 
-Total: 3 Core + 10 System + 6 Official Optional Module = 19 dari 21 modul
+Total: 3 Core + 12 System + 7 Official Optional Module = 22 dari 23 modul
 terdaftar diklasifikasikan di tabel ini, cocok dengan `src/modules/
-index.ts`. `organization_structure` (Issue #749, epic #738
+index.ts` (`data_lifecycle`/`domain_event_runtime`, Issue #745/#742 epic
+#738 Wave 1, ditambahkan ke tabel ini sebagai bagian PR Issue #750 — baris
+yang sebelumnya hilang dari tabel karena kedua issue itu mengandalkan
+pre-klasifikasi ADR-0013 tanpa menulis ADR/update doc 21 §8 terpisah,
+lihat ADR-0013 §1 catatan penutup). `organization_structure` (Issue #749, epic #738
 `platform-evolution` Wave 2) ditambahkan lewat admission decision
 `docs/adr/0016-organization-structure-module-admission.md` — legal
 entity, unit organisasi tipe-tenant-configurable, hierarki
@@ -315,10 +322,21 @@ outbound, replay protection, dan kesehatan adapter; hub ini hanya memiliki
 status pengiriman envelope (ADR-0013 §6), tidak pernah data bisnis final,
 dan tidak pernah memanggil API provider bisnis spesifik secara langsung
 (mekanisme generik saja — provider-specific adapter tetap dimiliki modul
-bisnis pemiliknya). Tidak ada modul kategori Derived Application atau
-External Integration top-level di registry ini hari ini (sesuai definisi
-§2 — integration hidup sebagai sub-komponen, lihat kolom "provider
-eksternal" di bawah).
+bisnis pemiliknya). `reference_data` (Issue #750, epic #738
+`platform-evolution` Wave 3) ditambahkan lewat admission decision
+`docs/adr/0021-reference-data-module-admission.md` —
+value set/code efektif-tanggal, terlokalisasi, dengan provenance,
+deprecation/supersession, precedence baseline-global vs tenant-override,
+import tervalidasi, dan module-contributed catalogs; baseline global
+(value set/code/translation/import batch) sengaja TIDAK RLS (reviewed
+RLS-exempt, sama seperti `awcms_mini_permissions`/`awcms_mini_modules`/
+`awcms_mini_idn_admin_regions` — lihat §Peta 23 modul di atas dan
+ADR-0021 §8), sedangkan tabel tenant-override RLS predicate-nya selalu
+dan hanya `tenant_id`. `idn_admin_regions` tetap modul-owned dan tidak
+direklasifikasi/digabung oleh admission ini (ADR-0021 §4). Tidak ada
+modul kategori Derived Application atau External Integration top-level
+di registry ini hari ini (sesuai definisi §2 — integration hidup sebagai
+sub-komponen, lihat kolom "provider eksternal" di bawah).
 
 **Satu modul terdaftar, `idn_admin_regions`, sengaja tidak dimasukkan ke tabel di
 atas.** Descriptor-nya (`src/modules/idn-admin-regions/module.ts`) men-set
@@ -472,3 +490,11 @@ awcms-mini-module-management/SKILL.md` — mekanisme sync/lifecycle
 - `docs/awcms-mini/18_configuration_env_reference.md`,
   `src/lib/config/registry.ts` — sumber kebenaran `profiles`/`*_ENABLED`
   yang mendasari §6 tabel kompatibilitas.
+- `docs/adr/0021-reference-data-module-admission.md` — admission
+  `reference_data` (value set/code efektif-tanggal, baseline-global vs
+  tenant-override, import tervalidasi, module-contributed catalogs) dan
+  hubungannya dengan `idn_admin_regions` — Issue #750, epic #738.
+- `docs/adr/0017-document-infrastructure-module-admission.md` — admission
+  `document_infrastructure` (registry dokumen generik, versi immutable,
+  klasifikasi/confidentiality, evidence, numbering sequence
+  concurrency-safe) — Issue #751, epic #738.

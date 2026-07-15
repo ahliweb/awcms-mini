@@ -16,6 +16,7 @@ import { moduleManagementModule } from "./module-management/module";
 import { newsPortalModule } from "./news-portal/module";
 import { organizationStructureModule } from "./organization-structure/module";
 import { profileIdentityModule } from "./profile-identity/module";
+import { referenceDataModule } from "./reference-data/module";
 import { reportingModule } from "./reporting/module";
 import { socialPublishingModule } from "./social-publishing/module";
 import { syncStorageModule } from "./sync-storage/module";
@@ -59,14 +60,18 @@ const baseModules: ModuleDescriptor[] = [
   // the Wave-1 entries immediately above.
   organizationStructureModule,
   // Issue #751 (epic #738 platform-evolution Wave 3, ADR-0017), Issue #752
-  // (Wave 3, ADR-0018), and Issue #754 (Wave 3, ADR-0019) — all brand new
-  // top-level modules, appended at the end. Several Wave-3 issues register
-  // their OWN new module entries in parallel here — on merge conflict, keep
-  // BOTH sides' new entries, never pick one (established recipe, see
+  // (Wave 3, ADR-0018, data_exchange), Issue #754 (Wave 3, ADR-0019,
+  // integration_hub), and Issue #750 (Wave 3, ADR-0021 — renumbered from
+  // ADR-0018 to resolve a cross-PR ADR numbering collision, see ADR
+  // README index — reference_data) — all brand new top-level modules,
+  // appended at the end. Several Wave-3 issues register their OWN new
+  // module entries in parallel here — on merge conflict, keep BOTH/ALL
+  // sides' new entries, never pick one (established recipe, see
   // #745/#742's own comment above).
   documentInfrastructureModule,
   dataExchangeModule,
-  integrationHubModule
+  integrationHubModule,
+  referenceDataModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

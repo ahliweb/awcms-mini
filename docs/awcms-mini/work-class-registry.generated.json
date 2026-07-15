@@ -1021,6 +1021,71 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/reference-data/tenant-codes/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/tenant-codes/[id]/restore.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/tenant-codes/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key]/codes/[code].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key]/codes/[code]/restore.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key]/codes/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key]/imports/[importId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key]/imports/[importId]/commit.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key]/imports/[importId]/rollback.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key]/imports/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/[key]/restore.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/reference-data/value-sets/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/reports/access-audit.ts",
       "workClass": "reporting",
       "source": "explicit"

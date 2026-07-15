@@ -1,0 +1,717 @@
+---
+/**
+ * Reference codes + validated import admin screen (Issue #750, epic #738
+ * platform-evolution Wave 3). Query param `valueSet` (a value set KEY)
+ * selects which value set's codes/import history to manage — same "SSR
+ * list load, client-side mutate via fetch" pattern
+ * `admin/organization-structure/legal-entities.astro` establishes.
+ * Writes affect the GLOBAL baseline shared by every tenant (ADR-0021 §8).
+ * Import commit/rollback are HIGH RISK — every submit button below sends
+ * `Idempotency-Key`.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import {
+  fetchReferenceValueSetByKey,
+  listReferenceValueSets
+} from "../../../modules/reference-data/application/value-set-directory";
+import { listReferenceCodes } from "../../../modules/reference-data/application/code-directory";
+import { listReferenceImports } from "../../../modules/reference-data/application/import-service";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/reference-data/codes.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("reference_data", "codes", "read")
+);
+const CAN_CREATE = context.permissions.has(
+  permissionKey("reference_data", "codes", "create")
+);
+const CAN_DELETE = context.permissions.has(
+  permissionKey("reference_data", "codes", "delete")
+);
+const CAN_RESTORE = context.permissions.has(
+  permissionKey("reference_data", "codes", "restore")
+);
+const CAN_IMPORT = context.permissions.has(
+  permissionKey("reference_data", "imports", "create")
+);
+const CAN_COMMIT = context.permissions.has(
+  permissionKey("reference_data", "imports", "commit")
+);
+const CAN_ROLLBACK = context.permissions.has(
+  permissionKey("reference_data", "imports", "rollback")
+);
+
+const selectedValueSetKey = Astro.url.searchParams.get("valueSet") ?? "";
+
+const clientStrings = {
+  createSuccess: t("admin.reference_data.codes.create_success"),
+  deprecateSuccess: t("admin.reference_data.codes.deprecate_success"),
+  restoreSuccess: t("admin.reference_data.codes.restore_success"),
+  deprecateReasonPrompt: t(
+    "admin.reference_data.codes.deprecate_reason_prompt"
+  ),
+  importDryRunSuccess: t("admin.reference_data.codes.import_dry_run_success"),
+  importCommitSuccess: t("admin.reference_data.codes.import_commit_success"),
+  importRollbackSuccess: t(
+    "admin.reference_data.codes.import_rollback_success"
+  ),
+  invalidJson: t("admin.reference_data.codes.import_invalid_json"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let valueSetOptions: Awaited<ReturnType<typeof listReferenceValueSets>> = [];
+let codes: Awaited<ReturnType<typeof listReferenceCodes>> = [];
+let imports: Awaited<ReturnType<typeof listReferenceImports>> = [];
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      valueSetOptions = await listReferenceValueSets(tx);
+      if (selectedValueSetKey) {
+        const valueSet = await fetchReferenceValueSetByKey(
+          tx,
+          selectedValueSetKey
+        );
+        if (valueSet) {
+          codes = await listReferenceCodes(tx, valueSet.id, {
+            includeDeprecated: CAN_RESTORE
+          });
+          imports = await listReferenceImports(tx, valueSet.id);
+        }
+      }
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/reference-data/codes.astro: failed to load codes",
+      error,
+      {
+        correlationId: Astro.locals.correlationId
+      }
+    );
+    loadError = true;
+  }
+}
+---
+
+<AdminLayout title={t("admin.reference_data.codes.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.reference_data.access_denied_title")}
+        body={t("admin.reference_data.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="config-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify({
+            ...clientStrings,
+            valueSet: selectedValueSetKey
+          })}
+        />
+
+        <form method="get" class="select-value-set-form">
+          <label>
+            {t("admin.reference_data.codes.select_value_set_label")}
+            <select name="valueSet" onchange="this.form.submit()">
+              <option value="">--</option>
+              {valueSetOptions.map((vs) => (
+                <option
+                  value={vs.key}
+                  selected={vs.key === selectedValueSetKey}
+                >
+                  {vs.key} ({vs.name})
+                </option>
+              ))}
+            </select>
+          </label>
+        </form>
+
+        {selectedValueSetKey && (
+          <>
+            {codes.length === 0 ? (
+              <p class="empty-state">
+                {t("admin.reference_data.codes.no_rows")}
+              </p>
+            ) : (
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">
+                      {t("admin.reference_data.codes.col_code")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.reference_data.codes.col_label")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.reference_data.codes.col_provenance")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.reference_data.codes.col_status")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.reference_data.codes.col_actions")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {codes.map((code) => (
+                    <tr data-code={code.code}>
+                      <td>{code.code}</td>
+                      <td>
+                        {code.labels.find((l) => l.locale === "en")?.label ??
+                          code.code}
+                      </td>
+                      <td>{code.provenance}</td>
+                      <td>{code.deprecatedAt ? "deprecated" : "active"}</td>
+                      <td>
+                        {CAN_DELETE &&
+                          !code.deprecatedAt &&
+                          !code.managedByDescriptor && (
+                            <button
+                              type="button"
+                              class="deprecate-button"
+                              data-code={code.code}
+                            >
+                              {t("admin.reference_data.codes.deprecate_button")}
+                            </button>
+                          )}
+                        {CAN_RESTORE && code.deprecatedAt && (
+                          <button
+                            type="button"
+                            class="restore-button"
+                            data-code={code.code}
+                          >
+                            {t("admin.reference_data.codes.restore_button")}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {CAN_CREATE && (
+              <details class="create-config">
+                <summary>
+                  {t("admin.reference_data.codes.create_summary")}
+                </summary>
+                <form id="create-form" class="create-config-form">
+                  <label>
+                    {t("admin.reference_data.codes.field_code")}
+                    <input type="text" name="code" required maxlength="64" />
+                  </label>
+                  <label>
+                    {t("admin.reference_data.codes.field_label_en")}
+                    <input
+                      type="text"
+                      name="labelEn"
+                      required
+                      maxlength="300"
+                    />
+                  </label>
+                  <label>
+                    {t("admin.reference_data.codes.field_label_id")}
+                    <input type="text" name="labelId" maxlength="300" />
+                  </label>
+                  <button type="submit">
+                    {t("admin.reference_data.codes.create_submit")}
+                  </button>
+                </form>
+              </details>
+            )}
+
+            {CAN_IMPORT && (
+              <details class="create-config" id="import-section">
+                <summary>
+                  {t("admin.reference_data.codes.import_section_title")}
+                </summary>
+                <form id="import-dry-run-form" class="create-config-form">
+                  <label>
+                    {t("admin.reference_data.codes.import_payload_label")}
+                    <textarea
+                      name="codesJson"
+                      rows="8"
+                      required
+                      placeholder={
+                        '[{"code":"XYZ","labels":[{"locale":"en","label":"Example"}]}]'
+                      }
+                    />
+                  </label>
+                  <button type="submit">
+                    {t("admin.reference_data.codes.import_dry_run_submit")}
+                  </button>
+                </form>
+                <div id="import-diff-preview" hidden>
+                  <p id="import-diff-summary" />
+                  {CAN_COMMIT && (
+                    <button type="button" id="import-commit-button">
+                      {t("admin.reference_data.codes.import_commit_submit")}
+                    </button>
+                  )}
+                </div>
+
+                {imports.length > 0 && (
+                  <>
+                    <h3>
+                      {t("admin.reference_data.codes.import_history_title")}
+                    </h3>
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">
+                            {t("admin.reference_data.codes.import_col_status")}
+                          </th>
+                          <th scope="col">
+                            {t("admin.reference_data.codes.import_col_created")}
+                          </th>
+                          <th scope="col">
+                            {t("admin.reference_data.codes.import_col_actions")}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {imports.map((importBatch) => (
+                          <tr data-import-id={importBatch.id}>
+                            <td>{importBatch.status}</td>
+                            <td>{importBatch.createdAt.toISOString()}</td>
+                            <td>
+                              {CAN_ROLLBACK &&
+                                importBatch.status === "committed" && (
+                                  <button
+                                    type="button"
+                                    class="import-rollback-button"
+                                    data-import-id={importBatch.id}
+                                  >
+                                    {t(
+                                      "admin.reference_data.codes.import_rollback_button"
+                                    )}
+                                  </button>
+                                )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </details>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .config-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-surface, #e6f4ea);
+    color: var(--color-success-strong, #1e7e34);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-surface, #fdecea);
+    color: var(--color-danger-strong);
+  }
+  .select-value-set-form select {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .data-table th,
+  .data-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .deprecate-button,
+  .restore-button,
+  #import-commit-button,
+  .import-rollback-button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .deprecate-button,
+  .import-rollback-button {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-danger-strong);
+    color: var(--color-danger-strong);
+  }
+  .restore-button,
+  #import-commit-button {
+    background: var(--color-primary-strong);
+    border: none;
+    color: var(--color-primary-contrast);
+  }
+  .create-config {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+  .create-config summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .create-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 600px;
+    margin-top: var(--sp-2);
+  }
+  .create-config-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+  .create-config-form input,
+  .create-config-form textarea {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+  }
+  .create-config-form button {
+    align-self: flex-start;
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: 44px;
+    cursor: pointer;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    createSuccess: string;
+    deprecateSuccess: string;
+    restoreSuccess: string;
+    deprecateReasonPrompt: string;
+    importDryRunSuccess: string;
+    importCommitSuccess: string;
+    importRollbackSuccess: string;
+    invalidJson: string;
+    networkError: string;
+    pleaseWait: string;
+    valueSet: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const CODES_BASE_URL = `/api/v1/reference-data/value-sets/${encodeURIComponent(strings.valueSet)}/codes`;
+  const IMPORTS_BASE_URL = `/api/v1/reference-data/value-sets/${encodeURIComponent(strings.valueSet)}/imports`;
+
+  document
+    .getElementById("create-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const formData = new FormData(form);
+        const labels = [
+          { locale: "en", label: formData.get("labelEn"), description: null }
+        ];
+        if (formData.get("labelId")) {
+          labels.push({
+            locale: "id",
+            label: formData.get("labelId"),
+            description: null
+          });
+        }
+        const result = await submitJson(
+          CODES_BASE_URL,
+          "POST",
+          { code: formData.get("code"), labels },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+
+        if (result.ok) {
+          showBanner("action-banner", strings.createSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".deprecate-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const reason = window.prompt(strings.deprecateReasonPrompt);
+        if (!reason) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+
+        try {
+          const result = await submitJson(
+            `${CODES_BASE_URL}/${encodeURIComponent(button.dataset.code ?? "")}`,
+            "DELETE",
+            { reason },
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+
+          if (result.ok) {
+            showBanner("action-banner", strings.deprecateSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".restore-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+
+        try {
+          const result = await submitJson(
+            `${CODES_BASE_URL}/${encodeURIComponent(button.dataset.code ?? "")}/restore`,
+            "POST",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+
+          if (result.ok) {
+            showBanner("action-banner", strings.restoreSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  let lastDryRunImportId: string | null = null;
+  let lastDryRunChecksum: string | null = null;
+
+  document
+    .getElementById("import-dry-run-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const formData = new FormData(form);
+        let codes: unknown;
+        try {
+          codes = JSON.parse(String(formData.get("codesJson") ?? "[]"));
+        } catch {
+          showBanner("action-banner", strings.invalidJson, "error");
+          return;
+        }
+
+        // `submitJson` doesn't return the response body (it's write-only by
+        // design) -- this dry-run needs the returned import id/checksum/diff
+        // to drive the commit step, so it calls `fetch` directly here,
+        // matching `submitJson`'s own safe-error-handling contract (never
+        // surface a raw error message, always map through
+        // `strings.errorMessages`).
+        let response: Response;
+        try {
+          response = await fetch(IMPORTS_BASE_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": newIdempotencyKey()
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({ codes })
+          });
+        } catch {
+          showBanner("action-banner", strings.networkError, "error");
+          return;
+        }
+
+        const json = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          const code = json?.error?.code as string | undefined;
+          const message: string =
+            (code && strings.errorMessages?.[code]) ??
+            json?.error?.message ??
+            `Request failed (${response.status}).`;
+          showBanner("action-banner", message, "error");
+          return;
+        }
+
+        const data = json?.data as {
+          import: { id: string; checksum: string; status: string };
+          diff: {
+            toCreate: string[];
+            toUpdate: string[];
+            toDeprecate: string[];
+            blockedReplacements: string[];
+          };
+        };
+        lastDryRunImportId = data.import.id;
+        lastDryRunChecksum = data.import.checksum;
+        const preview = document.getElementById("import-diff-preview");
+        const summary = document.getElementById("import-diff-summary");
+        if (preview && summary) {
+          preview.hidden = false;
+          summary.textContent = `status=${data.import.status} create=${data.diff.toCreate.length} update=${data.diff.toUpdate.length} deprecate=${data.diff.toDeprecate.length} blocked=${data.diff.blockedReplacements.length}`;
+        }
+        showBanner("action-banner", strings.importDryRunSuccess, "success");
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .getElementById("import-commit-button")
+    ?.addEventListener("click", async () => {
+      const button = document.getElementById(
+        "import-commit-button"
+      ) as HTMLButtonElement;
+      if (!lastDryRunImportId || !lastDryRunChecksum || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+
+      try {
+        const result = await submitJson(
+          `${IMPORTS_BASE_URL}/${lastDryRunImportId}/commit`,
+          "POST",
+          { checksum: lastDryRunChecksum },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+
+        if (result.ok) {
+          showBanner("action-banner", strings.importCommitSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  document
+    .querySelectorAll<HTMLButtonElement>(".import-rollback-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const unlock = lockElement(button, strings.pleaseWait);
+
+        try {
+          const result = await submitJson(
+            `${IMPORTS_BASE_URL}/${button.dataset.importId}/rollback`,
+            "POST",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+
+          if (result.ok) {
+            showBanner(
+              "action-banner",
+              strings.importRollbackSuccess,
+              "success"
+            );
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+</script>

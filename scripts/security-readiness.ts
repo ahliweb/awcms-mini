@@ -421,6 +421,16 @@ export function checkLoginLockoutImplemented(): SecurityCheckResult {
  *   tenant), so this is global reference data, not tenant-scoped — same
  *   reasoning as `awcms_mini_permissions` above. See
  *   `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`.
+ * - `awcms_mini_reference_value_sets`, `awcms_mini_reference_codes`,
+ *   `awcms_mini_reference_code_translations`, `awcms_mini_reference_imports`
+ *   (sql/069, Issue #750, epic #738, ADR-0021) — reference value set/code
+ *   baseline and import batches. Identical for every tenant by design
+ *   (the whole point of a shared baseline), same reasoning as
+ *   `awcms_mini_permissions`/`awcms_mini_idn_admin_regions` above. The
+ *   TENANT-scoped override/extension layer
+ *   (`awcms_mini_reference_tenant_codes`, `awcms_mini_reference_tenant_
+ *   code_translations`) is NOT in this list — it IS RLS FORCE'd (migration
+ *   069), predicate always and only `tenant_id`.
  */
 const RLS_FREE_TABLES = new Set([
   "awcms_mini_schema_migrations",
@@ -433,7 +443,11 @@ const RLS_FREE_TABLES = new Set([
   "awcms_mini_module_jobs",
   "awcms_mini_module_health_checks",
   "awcms_mini_idn_region_datasets",
-  "awcms_mini_idn_admin_regions"
+  "awcms_mini_idn_admin_regions",
+  "awcms_mini_reference_value_sets",
+  "awcms_mini_reference_codes",
+  "awcms_mini_reference_code_translations",
+  "awcms_mini_reference_imports"
 ]);
 
 export async function checkRlsEnabled(): Promise<SecurityCheckResult> {
@@ -635,7 +649,26 @@ const ALLOWED_GLOBAL_TABLE_GRANTS: Record<string, Record<string, string[]>> = {
   // it has zero access here. Future issues each add exactly the grant
   // their own new code path needs, in their own migration.
   awcms_mini_idn_region_datasets: {},
-  awcms_mini_idn_admin_regions: {}
+  awcms_mini_idn_admin_regions: {},
+  // Issue #750 (epic #738, ADR-0021) — full DML for awcms_mini_app, same
+  // pattern as the module-registry tables above: genuinely written at
+  // request time by permission-gated `/api/v1/reference-data/*` endpoints
+  // (value-set/code CRUD, import dry-run/commit/rollback), all built in
+  // this same PR (unlike idn_admin_regions's scaffold-only state above).
+  // Zero access for awcms_mini_worker — no background/unattended job
+  // touches these tables.
+  awcms_mini_reference_value_sets: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_reference_codes: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_reference_code_translations: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_reference_imports: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  }
 };
 
 /**

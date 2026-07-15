@@ -1,0 +1,1898 @@
+# Source fragment for the "Reference Data" module/tag (Issue #750,
+# epic #738 platform-evolution Wave 3, ADR-0021). Owns every path tagged
+# "Reference Data" and every schema referenced only by this tag's
+# operations.
+#
+# NOT independently valid OpenAPI -- see openapi/README.md.
+paths:
+  /api/v1/reference-data/value-sets:
+    get:
+      tags:
+        - Reference Data
+      summary: List/search reference value sets
+      operationId: referenceDataValueSetsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - deprecated
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - module_contributed
+              - platform_curated
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Reference value sets (global baseline catalog).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - valueSets
+                        properties:
+                          valueSets:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReferenceValueSet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Reference Data
+      summary: Create a platform-curated reference value set
+      description: Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key.
+      operationId: referenceDataValueSetsCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataCreateValueSetRequest"
+      responses:
+        "200":
+          description: Reference value set created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - valueSet
+                        properties:
+                          valueSet:
+                            $ref: "#/components/schemas/ReferenceValueSet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A value set with this key already exists, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}:
+    get:
+      tags:
+        - Reference Data
+      summary: Get a reference value set by key
+      operationId: referenceDataValueSetsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The reference value set.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - valueSet
+                        properties:
+                          valueSet:
+                            $ref: "#/components/schemas/ReferenceValueSet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Reference Data
+      summary: Update a reference value set's metadata (name/description only)
+      description: Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key.
+      operationId: referenceDataValueSetsUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataUpdateValueSetRequest"
+      responses:
+        "200":
+          description: Reference value set updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - valueSet
+                        properties:
+                          valueSet:
+                            $ref: "#/components/schemas/ReferenceValueSet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Reference Data
+      summary: Deprecate (soft-delete) a reference value set
+      description: High-risk mutation against the GLOBAL baseline shared by every tenant -- requires Idempotency-Key, audited critical.
+      operationId: referenceDataValueSetsDeprecate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataDeprecateRequest"
+      responses:
+        "200":
+          description: Reference value set deprecated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - valueSet
+                        properties:
+                          valueSet:
+                            $ref: "#/components/schemas/ReferenceValueSet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Value set is already deprecated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}/restore:
+    post:
+      tags:
+        - Reference Data
+      summary: Restore a previously deprecated reference value set
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: referenceDataValueSetsRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Reference value set restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - valueSet
+                        properties:
+                          valueSet:
+                            $ref: "#/components/schemas/ReferenceValueSet"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Value set is not currently deprecated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}/codes:
+    get:
+      tags:
+        - Reference Data
+      summary: List/search reference codes for a value set
+      operationId: referenceDataCodesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: includeDeprecated
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Reference codes for this value set (global baseline).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - codes
+                        properties:
+                          codes:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReferenceCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Reference Data
+      summary: Create a reference code manually
+      description: Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key. Never a descriptor-managed code (those are written only by contribution-sync).
+      operationId: referenceDataCodesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataCreateCodeRequest"
+      responses:
+        "200":
+          description: Reference code created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - code
+                        properties:
+                          code:
+                            $ref: "#/components/schemas/ReferenceCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A code with this value already exists in this value set, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}/codes/{code}:
+    get:
+      tags:
+        - Reference Data
+      summary: Get a reference code by its code string
+      operationId: referenceDataCodesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The reference code.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - code
+                        properties:
+                          code:
+                            $ref: "#/components/schemas/ReferenceCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Reference Data
+      summary: Update a reference code's mutable attributes
+      description: Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key. Rejected for descriptor-managed codes.
+      operationId: referenceDataCodesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataUpdateCodeRequest"
+      responses:
+        "200":
+          description: Reference code updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - code
+                        properties:
+                          code:
+                            $ref: "#/components/schemas/ReferenceCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: This code is managed by a module contribution, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Reference Data
+      summary: Deprecate (soft-delete) a reference code
+      description: High-risk mutation against the GLOBAL baseline shared by every tenant -- requires Idempotency-Key, audited critical. Never a hard delete, even for a code already referenced by tenant data.
+      operationId: referenceDataCodesDeprecate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataDeprecateCodeRequest"
+      responses:
+        "200":
+          description: Reference code deprecated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - code
+                        properties:
+                          code:
+                            $ref: "#/components/schemas/ReferenceCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Code is already deprecated, is managed by a module contribution, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}/codes/{code}/restore:
+    post:
+      tags:
+        - Reference Data
+      summary: Restore a previously deprecated reference code
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: referenceDataCodesRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Reference code restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - code
+                        properties:
+                          code:
+                            $ref: "#/components/schemas/ReferenceCode"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Code is not currently deprecated, the code is managed by a module contribution and cannot be restored manually (DESCRIPTOR_MANAGED), or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}/imports:
+    get:
+      tags:
+        - Reference Data
+      summary: List reference data import batches for a value set
+      operationId: referenceDataImportsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Import batch history for this value set.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - imports
+                        properties:
+                          imports:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReferenceImport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Reference Data
+      summary: Submit a non-mutating dry-run import for a value set
+      description: Never touches the global baseline codes table -- only writes an import batch row recording the computed diff. Requires Idempotency-Key.
+      operationId: referenceDataImportsDryRun
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataImportDryRunRequest"
+      responses:
+        "200":
+          description: Dry-run diff computed (non-mutating). status is "validated" (safe to commit) or "rejected" (destructive replacement of a referenced code was requested).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - import
+                          - diff
+                        properties:
+                          import:
+                            $ref: "#/components/schemas/ReferenceImport"
+                          diff:
+                            $ref: "#/components/schemas/ReferenceImportDiffSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}/imports/{importId}:
+    get:
+      tags:
+        - Reference Data
+      summary: Get a reference data import batch's detail/diff/status/checksum
+      operationId: referenceDataImportsGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: importId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The import batch.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - import
+                        properties:
+                          import:
+                            $ref: "#/components/schemas/ReferenceImport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}/imports/{importId}/commit:
+    post:
+      tags:
+        - Reference Data
+      summary: Commit a validated reference data import batch
+      description: HIGH RISK -- applies a validated import to the GLOBAL baseline shared by every tenant. Re-validates checksum and destructive-replace protection inside the same transaction as the write. Requires Idempotency-Key and the exact checksum from the dry-run response.
+      operationId: referenceDataImportsCommit
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: importId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataImportCommitRequest"
+      responses:
+        "200":
+          description: Import batch committed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - import
+                        properties:
+                          import:
+                            $ref: "#/components/schemas/ReferenceImport"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Checksum mismatch, batch not committable, destructive replacement of a referenced code was blocked, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/value-sets/{key}/imports/{importId}/rollback:
+    post:
+      tags:
+        - Reference Data
+      summary: Roll back a committed reference data import batch
+      description: HIGH RISK -- reverts a committed import batch's cumulative effect on the GLOBAL baseline. Refuses to delete a created code that has since been referenced by tenant data. Requires Idempotency-Key.
+      operationId: referenceDataImportsRollback
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: importId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Import batch rolled back.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - import
+                        properties:
+                          import:
+                            $ref: "#/components/schemas/ReferenceImport"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Batch not rollback-eligible, a created code is now referenced by tenant data, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/tenant-codes:
+    get:
+      tags:
+        - Reference Data
+      summary: List the caller's tenant reference code overrides/extensions, raw or resolved
+      operationId: referenceDataTenantCodesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: valueSet
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - raw
+              - resolved
+            default: raw
+        - name: includeDeprecated
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: asOf
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: locale
+          in: query
+          required: false
+          schema:
+            type: string
+            default: en
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant reference codes (mode=raw) or the resolved merged list (mode=resolved) -- always scoped to the caller's own tenant (RLS FORCE).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                          tenantCodes:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReferenceTenantCode"
+                          codes:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ReferenceResolvedCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Reference Data
+      summary: Create a tenant reference code override or extension
+      description: Writes ONLY to the caller's own tenant-scoped table (RLS FORCE) -- never the global baseline. Gated server-side by the value set's overridePolicy. Requires Idempotency-Key.
+      operationId: referenceDataTenantCodesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataCreateTenantCodeRequest"
+      responses:
+        "200":
+          description: Tenant reference code created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - tenantCode
+                        properties:
+                          tenantCode:
+                            $ref: "#/components/schemas/ReferenceTenantCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Duplicate code, override policy forbids this kind, the submitted code does not match the referenced base code's own code (CODE_MISMATCH_WITH_BASE_CODE), the submitted code as an extension already exists in the global baseline (CODE_COLLIDES_WITH_BASELINE), or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/tenant-codes/{id}:
+    get:
+      tags:
+        - Reference Data
+      summary: Get a tenant reference code override/extension by id
+      operationId: referenceDataTenantCodesGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The tenant reference code.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - tenantCode
+                        properties:
+                          tenantCode:
+                            $ref: "#/components/schemas/ReferenceTenantCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Reference Data
+      summary: Update a tenant reference code override/extension
+      description: Requires Idempotency-Key.
+      operationId: referenceDataTenantCodesUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataUpdateTenantCodeRequest"
+      responses:
+        "200":
+          description: Tenant reference code updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - tenantCode
+                        properties:
+                          tenantCode:
+                            $ref: "#/components/schemas/ReferenceTenantCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Reference Data
+      summary: Deprecate (soft-delete) a tenant reference code override/extension
+      description: High-risk mutation -- requires Idempotency-Key and a reason.
+      operationId: referenceDataTenantCodesDeprecate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReferenceDataDeprecateRequest"
+      responses:
+        "200":
+          description: Tenant reference code deprecated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - tenantCode
+                        properties:
+                          tenantCode:
+                            $ref: "#/components/schemas/ReferenceTenantCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Already deprecated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/reference-data/tenant-codes/{id}/restore:
+    post:
+      tags:
+        - Reference Data
+      summary: Restore a previously deprecated tenant reference code override/extension
+      description: High-risk mutation -- requires Idempotency-Key.
+      operationId: referenceDataTenantCodesRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Tenant reference code restored.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - tenantCode
+                        properties:
+                          tenantCode:
+                            $ref: "#/components/schemas/ReferenceTenantCode"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Not currently deprecated, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    ReferenceCodeLabel:
+      type: object
+      description: One localized label/description for a reference code (Issue #750).
+      additionalProperties: false
+      required:
+        - locale
+        - label
+        - description
+      properties:
+        locale:
+          type: string
+          example: en
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+    ReferenceValueSet:
+      type: object
+      description: A reference value set (Issue #750, epic `platform-evolution` #738 Wave 3, ADR-0021) -- GLOBAL, identical for every tenant.
+      additionalProperties: false
+      required:
+        - id
+        - key
+        - ownerModule
+        - name
+        - description
+        - scope
+        - overridePolicy
+        - validationSchema
+        - managedByDescriptor
+        - version
+        - status
+        - createdAt
+        - updatedAt
+        - deprecatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        ownerModule:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        scope:
+          type: string
+          enum:
+            - module_contributed
+            - platform_curated
+        overridePolicy:
+          type: string
+          enum:
+            - none
+            - tenant_extend
+            - tenant_override
+            - tenant_extend_and_override
+        validationSchema:
+          type: object
+          nullable: true
+        managedByDescriptor:
+          type: boolean
+        version:
+          type: integer
+        status:
+          type: string
+          enum:
+            - active
+            - deprecated
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deprecatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    ReferenceCode:
+      type: object
+      description: A reference code within a value set (Issue #750) -- GLOBAL, identical for every tenant. Never hard-deleted once referenced by a tenant override/extension.
+      additionalProperties: false
+      required:
+        - id
+        - valueSetId
+        - code
+        - sortOrder
+        - metadata
+        - validFrom
+        - validTo
+        - deprecatedAt
+        - supersededByCodeId
+        - provenance
+        - managedByDescriptor
+        - importBatchId
+        - createdAt
+        - updatedAt
+        - labels
+      properties:
+        id:
+          type: string
+          format: uuid
+        valueSetId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        sortOrder:
+          type: integer
+        metadata:
+          type: object
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+          nullable: true
+        deprecatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        supersededByCodeId:
+          type: string
+          format: uuid
+          nullable: true
+        provenance:
+          type: string
+          enum:
+            - manual
+            - module
+            - import
+            - seed
+        managedByDescriptor:
+          type: boolean
+        importBatchId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        labels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReferenceCodeLabel"
+    ReferenceResolvedCode:
+      type: object
+      description: The merged, effective code a tenant currently sees -- baseline plus that tenant's own override/extension, deterministic precedence (Issue #750).
+      additionalProperties: false
+      required:
+        - code
+        - isTenantOverride
+        - label
+        - description
+        - sortOrder
+        - metadata
+        - validFrom
+        - validTo
+        - deprecated
+      properties:
+        code:
+          type: string
+        isTenantOverride:
+          type: boolean
+        label:
+          type: string
+        description:
+          type: string
+          nullable: true
+        sortOrder:
+          type: integer
+        metadata:
+          type: object
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+          nullable: true
+        deprecated:
+          type: boolean
+    ReferenceTenantCode:
+      type: object
+      description: A tenant-scoped reference code override (baseCodeId set) or extension (baseCodeId null) -- RLS FORCE, never mutates the global baseline (Issue #750).
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - valueSetId
+        - baseCodeId
+        - code
+        - sortOrder
+        - metadata
+        - validFrom
+        - validTo
+        - deprecatedAt
+        - createdAt
+        - updatedAt
+        - labels
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        valueSetId:
+          type: string
+          format: uuid
+        baseCodeId:
+          type: string
+          format: uuid
+          nullable: true
+        code:
+          type: string
+        sortOrder:
+          type: integer
+        metadata:
+          type: object
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+          nullable: true
+        deprecatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        labels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReferenceCodeLabel"
+    ReferenceImportDiffSummary:
+      type: object
+      description: The computed diff from a dry-run import (Issue #750) -- code strings only, non-mutating.
+      additionalProperties: false
+      required:
+        - toCreate
+        - toUpdate
+        - toDeprecate
+        - blockedReplacements
+      properties:
+        toCreate:
+          type: array
+          items:
+            type: string
+        toUpdate:
+          type: array
+          items:
+            type: string
+        toDeprecate:
+          type: array
+          items:
+            type: string
+        blockedReplacements:
+          type: array
+          items:
+            type: string
+          description: Non-empty only when the import was rejected -- codes for which a destructive replacement of an already-referenced code was requested.
+    ReferenceImport:
+      type: object
+      description: A reference data import batch (Issue #750) -- GLOBAL. status transitions validated -> committed -> rolled_back, or validated -> rejected.
+      additionalProperties: false
+      required:
+        - id
+        - valueSetId
+        - status
+        - sourceProvenance
+        - checksum
+        - diffSummary
+        - rejectionReason
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        valueSetId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - validated
+            - rejected
+            - committed
+            - rolled_back
+        sourceProvenance:
+          type: string
+          nullable: true
+        checksum:
+          type: string
+        diffSummary:
+          type: object
+        rejectionReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    ReferenceDataCreateValueSetRequest:
+      type: object
+      required:
+        - key
+        - name
+        - overridePolicy
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+          maxLength: 100
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        overridePolicy:
+          type: string
+          enum:
+            - none
+            - tenant_extend
+            - tenant_override
+            - tenant_extend_and_override
+        validationSchema:
+          type: object
+          nullable: true
+    ReferenceDataUpdateValueSetRequest:
+      type: object
+      required:
+        - name
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+    ReferenceDataDeprecateRequest:
+      type: object
+      required:
+        - reason
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    ReferenceDataDeprecateCodeRequest:
+      type: object
+      required:
+        - reason
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        supersededByCodeId:
+          type: string
+          format: uuid
+          nullable: true
+    ReferenceDataCreateCodeRequest:
+      type: object
+      required:
+        - code
+        - labels
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        labels:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReferenceCodeLabel"
+        sortOrder:
+          type: integer
+          default: 0
+        metadata:
+          type: object
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+          nullable: true
+    ReferenceDataUpdateCodeRequest:
+      type: object
+      required:
+        - labels
+      additionalProperties: false
+      properties:
+        labels:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReferenceCodeLabel"
+        sortOrder:
+          type: integer
+          default: 0
+        metadata:
+          type: object
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+          nullable: true
+    ReferenceDataCreateTenantCodeRequest:
+      type: object
+      required:
+        - valueSet
+        - code
+        - labels
+      additionalProperties: false
+      properties:
+        valueSet:
+          type: string
+          description: The owning value set's key.
+        baseCodeId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Set to override an existing baseline code; omit/null to create a tenant extension.
+        code:
+          type: string
+          minLength: 1
+          maxLength: 64
+        labels:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReferenceCodeLabel"
+        sortOrder:
+          type: integer
+          default: 0
+        metadata:
+          type: object
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+          nullable: true
+    ReferenceDataUpdateTenantCodeRequest:
+      type: object
+      required:
+        - labels
+      additionalProperties: false
+      properties:
+        labels:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReferenceCodeLabel"
+        sortOrder:
+          type: integer
+          default: 0
+        metadata:
+          type: object
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+          nullable: true
+    ReferenceDataImportPayloadCode:
+      type: object
+      required:
+        - code
+        - labels
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        labels:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ReferenceCodeLabel"
+        sortOrder:
+          type: integer
+          default: 0
+        metadata:
+          type: object
+        validFrom:
+          type: string
+          format: date-time
+        validTo:
+          type: string
+          format: date-time
+          nullable: true
+        replace:
+          type: boolean
+          default: false
+          description: Explicit opt-in to REPLACE (not update) an existing code's identity. Rejected by commit when the target code is already referenced by tenant data.
+    ReferenceDataImportDryRunRequest:
+      type: object
+      required:
+        - codes
+      additionalProperties: false
+      properties:
+        codes:
+          type: array
+          minItems: 1
+          maxItems: 2000
+          items:
+            $ref: "#/components/schemas/ReferenceDataImportPayloadCode"
+        sourceProvenance:
+          type: string
+          nullable: true
+    ReferenceDataImportCommitRequest:
+      type: object
+      required:
+        - checksum
+      additionalProperties: false
+      properties:
+        checksum:
+          type: string
+          description: The checksum returned by the dry-run response for this import batch.

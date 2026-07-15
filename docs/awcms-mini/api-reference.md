@@ -7915,6 +7915,651 @@ High-risk mutation -- requires Idempotency-Key.
 | 409    | Organization unit is not currently deactivated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                          | [`ApiError`](#standard-error-envelope)                   |
 
+## Reference Data
+
+Optional, provider-neutral reference-data foundation (epic `platform-evolution` #738 Wave 3, Issue #750, ADR-0021) — effective-dated, localized value sets and codes with provenance/deprecation/supersession, a validated import pipeline (non-mutating dry-run, commit re-validated inside the same transaction, destructive replacement of a code already referenced by tenant data is always rejected), and a tenant-scoped override/extension layer that never mutates the global baseline. Value sets/codes/imports are GLOBAL (reviewed RLS-exempt, identical for every tenant); tenant overrides/extensions are RLS FORCE, predicate always and only `tenant_id`.
+
+### `GET /api/v1/reference-data/tenant-codes` — List the caller's tenant reference code overrides/extensions, raw or resolved
+
+- **operationId**: `referenceDataTenantCodesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name                | In     | Required | Type                    | Description                                 |
+| ------------------- | ------ | -------- | ----------------------- | ------------------------------------------- |
+| `valueSet`          | query  | yes      | string                  |                                             |
+| `mode`              | query  | no       | enum(`raw`, `resolved`) |                                             |
+| `includeDeprecated` | query  | no       | boolean                 |                                             |
+| `asOf`              | query  | no       | string (date-time)      |                                             |
+| `locale`            | query  | no       | string                  |                                             |
+| `X-Correlation-ID`  | header | no       | string                  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`      | header | no       | string                  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                            | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Tenant reference codes (mode=raw) or the resolved merged list (mode=resolved) -- always scoped to the caller's own tenant (RLS FORCE). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                             | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/tenant-codes` — Create a tenant reference code override or extension
+
+- **operationId**: `referenceDataTenantCodesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Writes ONLY to the caller's own tenant-scoped table (RLS FORCE) -- never the global baseline. Gated server-side by the value set's overridePolicy. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataCreateTenantCodeRequest`](#schema-referencedatacreatetenantcoderequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                                                                                                                          | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Tenant reference code created.                                                                                                                                                                                                                                                                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Duplicate code, override policy forbids this kind, the submitted code does not match the referenced base code's own code (CODE_MISMATCH_WITH_BASE_CODE), the submitted code as an extension already exists in the global baseline (CODE_COLLIDES_WITH_BASELINE), or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                                                                           | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reference-data/tenant-codes/{id}` — Get a tenant reference code override/extension by id
+
+- **operationId**: `referenceDataTenantCodesGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The tenant reference code.                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/reference-data/tenant-codes/{id}` — Update a tenant reference code override/extension
+
+- **operationId**: `referenceDataTenantCodesUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataUpdateTenantCodeRequest`](#schema-referencedataupdatetenantcoderequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Tenant reference code updated.                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/reference-data/tenant-codes/{id}` — Deprecate (soft-delete) a tenant reference code override/extension
+
+- **operationId**: `referenceDataTenantCodesDeprecate`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key and a reason.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataDeprecateRequest`](#schema-referencedatadeprecaterequest)
+
+**Responses**
+
+| Status | Description                                                             | Schema                                                   |
+| ------ | ----------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Tenant reference code deprecated.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                            | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                     | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                          | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                     | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Already deprecated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                              | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/tenant-codes/{id}/restore` — Restore a previously deprecated tenant reference code override/extension
+
+- **operationId**: `referenceDataTenantCodesRestore`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                   | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Tenant reference code restored.                                               | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                                           | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                           | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Not currently deprecated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                    | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reference-data/value-sets` — List/search reference value sets
+
+- **operationId**: `referenceDataValueSetsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                           | Description                                 |
+| ------------------ | ------ | -------- | ---------------------------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`active`, `deprecated`)                   |                                             |
+| `scope`            | query  | no       | enum(`module_contributed`, `platform_curated`) |                                             |
+| `X-Correlation-ID` | header | no       | string                                         | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                         | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                     | Schema                                                   |
+| ------ | ----------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reference value sets (global baseline catalog). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                    | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.             | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.  | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.      | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/value-sets` — Create a platform-curated reference value set
+
+- **operationId**: `referenceDataValueSetsCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataCreateValueSetRequest`](#schema-referencedatacreatevaluesetrequest)
+
+**Responses**
+
+| Status | Description                                                                                   | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reference value set created.                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A value set with this key already exists, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                    | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reference-data/value-sets/{key}` — Get a reference value set by key
+
+- **operationId**: `referenceDataValueSetsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The reference value set.                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/reference-data/value-sets/{key}` — Update a reference value set's metadata (name/description only)
+
+- **operationId**: `referenceDataValueSetsUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataUpdateValueSetRequest`](#schema-referencedataupdatevaluesetrequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reference value set updated.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/reference-data/value-sets/{key}` — Deprecate (soft-delete) a reference value set
+
+- **operationId**: `referenceDataValueSetsDeprecate`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation against the GLOBAL baseline shared by every tenant -- requires Idempotency-Key, audited critical.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataDeprecateRequest`](#schema-referencedatadeprecaterequest)
+
+**Responses**
+
+| Status | Description                                                                          | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Reference value set deprecated.                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Value set is already deprecated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                           | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reference-data/value-sets/{key}/codes` — List/search reference codes for a value set
+
+- **operationId**: `referenceDataCodesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name                | In     | Required | Type    | Description                                 |
+| ------------------- | ------ | -------- | ------- | ------------------------------------------- |
+| `key`               | path   | yes      | string  |                                             |
+| `includeDeprecated` | query  | no       | boolean |                                             |
+| `search`            | query  | no       | string  |                                             |
+| `X-Correlation-ID`  | header | no       | string  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`      | header | no       | string  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                           | Schema                                                   |
+| ------ | ----------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reference codes for this value set (global baseline). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                          | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                   | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.        | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.   | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.            | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/value-sets/{key}/codes` — Create a reference code manually
+
+- **operationId**: `referenceDataCodesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key. Never a descriptor-managed code (those are written only by contribution-sync).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataCreateCodeRequest`](#schema-referencedatacreatecoderequest)
+
+**Responses**
+
+| Status | Description                                                                                                  | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Reference code created.                                                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                               | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A code with this value already exists in this value set, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                   | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reference-data/value-sets/{key}/codes/{code}` — Get a reference code by its code string
+
+- **operationId**: `referenceDataCodesGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `code`             | path   | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The reference code.                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/reference-data/value-sets/{key}/codes/{code}` — Update a reference code's mutable attributes
+
+- **operationId**: `referenceDataCodesUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key. Rejected for descriptor-managed codes.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `code`             | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataUpdateCodeRequest`](#schema-referencedataupdatecoderequest)
+
+**Responses**
+
+| Status | Description                                                                                        | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reference code updated.                                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 409    | This code is managed by a module contribution, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                         | [`ApiError`](#standard-error-envelope)                   |
+
+### `DELETE /api/v1/reference-data/value-sets/{key}/codes/{code}` — Deprecate (soft-delete) a reference code
+
+- **operationId**: `referenceDataCodesDeprecate`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation against the GLOBAL baseline shared by every tenant -- requires Idempotency-Key, audited critical. Never a hard delete, even for a code already referenced by tenant data.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `code`             | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataDeprecateCodeRequest`](#schema-referencedatadeprecatecoderequest)
+
+**Responses**
+
+| Status | Description                                                                                                          | Schema                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reference code deprecated.                                                                                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Code is already deprecated, is managed by a module contribution, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                           | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/value-sets/{key}/codes/{code}/restore` — Restore a previously deprecated reference code
+
+- **operationId**: `referenceDataCodesRestore`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `code`             | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                              | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Reference code restored.                                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Code is not currently deprecated, the code is managed by a module contribution and cannot be restored manually (DESCRIPTOR_MANAGED), or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                               | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reference-data/value-sets/{key}/imports` — List reference data import batches for a value set
+
+- **operationId**: `referenceDataImportsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Import batch history for this value set.            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/value-sets/{key}/imports` — Submit a non-mutating dry-run import for a value set
+
+- **operationId**: `referenceDataImportsDryRun`
+- **Security**: bearerAuth + tenantHeader
+
+Never touches the global baseline codes table -- only writes an import batch row recording the computed diff. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataImportDryRunRequest`](#schema-referencedataimportdryrunrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Dry-run diff computed (non-mutating). status is "validated" (safe to commit) or "rejected" (destructive replacement of a referenced code was requested).                                                         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request.                                                                                                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/reference-data/value-sets/{key}/imports/{importId}` — Get a reference data import batch's detail/diff/status/checksum
+
+- **operationId**: `referenceDataImportsGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `key`              | path   | yes      | string        |                                             |
+| `importId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The import batch.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/value-sets/{key}/imports/{importId}/commit` — Commit a validated reference data import batch
+
+- **operationId**: `referenceDataImportsCommit`
+- **Security**: bearerAuth + tenantHeader
+
+HIGH RISK -- applies a validated import to the GLOBAL baseline shared by every tenant. Re-validates checksum and destructive-replace protection inside the same transaction as the write. Requires Idempotency-Key and the exact checksum from the dry-run response.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `key`              | path   | yes      | string        |                                             |
+| `importId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ReferenceDataImportCommitRequest`](#schema-referencedataimportcommitrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                             | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Import batch committed.                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                            | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Checksum mismatch, batch not committable, destructive replacement of a referenced code was blocked, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/value-sets/{key}/imports/{importId}/rollback` — Roll back a committed reference data import batch
+
+- **operationId**: `referenceDataImportsRollback`
+- **Security**: bearerAuth + tenantHeader
+
+HIGH RISK -- reverts a committed import batch's cumulative effect on the GLOBAL baseline. Refuses to delete a created code that has since been referenced by tenant data. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `key`              | path   | yes      | string        |                                             |
+| `importId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                       | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Import batch rolled back.                                                                                                         | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                                                                                               | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                               | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Batch not rollback-eligible, a created code is now referenced by tenant data, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                        | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/reference-data/value-sets/{key}/restore` — Restore a previously deprecated reference value set
+
+- **operationId**: `referenceDataValueSetsRestore`
+- **Security**: bearerAuth + tenantHeader
+
+High-risk mutation -- requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `key`              | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | Reference value set restored.                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                             | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                        | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Value set is not currently deprecated, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                 | [`ApiError`](#standard-error-envelope)                   |
+
 ## Document Infrastructure
 
 Optional, tenant-scoped generic document METADATA infrastructure (epic `platform-evolution` #738 Wave 3, Issue #751, ADR-0017) — a classification catalog, the document registry itself (owner module + document type + a primary generic resource reference), IMMUTABLE append-only versions (content referenced through an approved managed-object storage contract, never a binary blob), additional typed generic resource relations (written only through the capability port), concurrency-safe effective-dated numbering sequence definitions (SCD Type 2 style — revising the format never resets or reuses the counter), atomic number reservations (reserve/commit/cancel, a reservation's number can never be silently reused), and an append-only evidence trail. Never a domain document schema — no letters/invoices/POs/journal batches/medical records/contracts here.
@@ -14413,6 +15058,286 @@ At least one field must be provided.
 }
 ```
 
+### Schema: ReferenceCodeLabel
+
+One localized label/description for a reference code (Issue
+
+| Field         | Type   | Required | Nullable | Description |
+| ------------- | ------ | -------- | -------- | ----------- |
+| `locale`      | string | yes      | no       |             |
+| `label`       | string | yes      | no       |             |
+| `description` | string | yes      | yes      |             |
+
+**Example**
+
+```json
+{
+  "locale": "en",
+  "label": "string",
+  "description": "string"
+}
+```
+
+### Schema: ReferenceDataCreateCodeRequest
+
+| Field       | Type                                                        | Required | Nullable | Description |
+| ----------- | ----------------------------------------------------------- | -------- | -------- | ----------- |
+| `code`      | string                                                      | yes      | no       |             |
+| `labels`    | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | yes      | no       |             |
+| `sortOrder` | integer                                                     | no       | no       |             |
+| `metadata`  | object                                                      | no       | no       |             |
+| `validFrom` | string (date-time)                                          | no       | no       |             |
+| `validTo`   | string (date-time)                                          | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "code": "string",
+  "labels": [
+    {
+      "locale": "en",
+      "label": "string",
+      "description": "string"
+    }
+  ],
+  "sortOrder": 0,
+  "metadata": "(operation-specific payload)",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: ReferenceDataCreateTenantCodeRequest
+
+| Field        | Type                                                        | Required | Nullable | Description                                                                        |
+| ------------ | ----------------------------------------------------------- | -------- | -------- | ---------------------------------------------------------------------------------- |
+| `valueSet`   | string                                                      | yes      | no       | The owning value set's key.                                                        |
+| `baseCodeId` | string (uuid)                                               | no       | yes      | Set to override an existing baseline code; omit/null to create a tenant extension. |
+| `code`       | string                                                      | yes      | no       |                                                                                    |
+| `labels`     | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | yes      | no       |                                                                                    |
+| `sortOrder`  | integer                                                     | no       | no       |                                                                                    |
+| `metadata`   | object                                                      | no       | no       |                                                                                    |
+| `validFrom`  | string (date-time)                                          | no       | no       |                                                                                    |
+| `validTo`    | string (date-time)                                          | no       | yes      |                                                                                    |
+
+**Example**
+
+```json
+{
+  "valueSet": "string",
+  "baseCodeId": "00000000-0000-0000-0000-000000000000",
+  "code": "string",
+  "labels": [
+    {
+      "locale": "en",
+      "label": "string",
+      "description": "string"
+    }
+  ],
+  "sortOrder": 0,
+  "metadata": "(operation-specific payload)",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: ReferenceDataCreateValueSetRequest
+
+| Field              | Type                                                                           | Required | Nullable | Description |
+| ------------------ | ------------------------------------------------------------------------------ | -------- | -------- | ----------- |
+| `key`              | string                                                                         | yes      | no       |             |
+| `name`             | string                                                                         | yes      | no       |             |
+| `description`      | string                                                                         | no       | yes      |             |
+| `overridePolicy`   | enum(`none`, `tenant_extend`, `tenant_override`, `tenant_extend_and_override`) | yes      | no       |             |
+| `validationSchema` | object                                                                         | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "key": "string",
+  "name": "string",
+  "description": "string",
+  "overridePolicy": "none",
+  "validationSchema": "(operation-specific payload)"
+}
+```
+
+### Schema: ReferenceDataDeprecateCodeRequest
+
+| Field                | Type          | Required | Nullable | Description |
+| -------------------- | ------------- | -------- | -------- | ----------- |
+| `reason`             | string        | yes      | no       |             |
+| `supersededByCodeId` | string (uuid) | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "reason": "string",
+  "supersededByCodeId": "00000000-0000-0000-0000-000000000000"
+}
+```
+
+### Schema: ReferenceDataDeprecateRequest
+
+| Field    | Type   | Required | Nullable | Description |
+| -------- | ------ | -------- | -------- | ----------- |
+| `reason` | string | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "reason": "string"
+}
+```
+
+### Schema: ReferenceDataImportCommitRequest
+
+| Field      | Type   | Required | Nullable | Description                                                          |
+| ---------- | ------ | -------- | -------- | -------------------------------------------------------------------- |
+| `checksum` | string | yes      | no       | The checksum returned by the dry-run response for this import batch. |
+
+**Example**
+
+```json
+{
+  "checksum": "string"
+}
+```
+
+### Schema: ReferenceDataImportDryRunRequest
+
+| Field              | Type                                                                                | Required | Nullable | Description |
+| ------------------ | ----------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `codes`            | array of [`ReferenceDataImportPayloadCode`](#schema-referencedataimportpayloadcode) | yes      | no       |             |
+| `sourceProvenance` | string                                                                              | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "codes": [
+    {
+      "code": "string",
+      "labels": [],
+      "sortOrder": 0,
+      "metadata": "(operation-specific payload)",
+      "validFrom": "2026-01-01T00:00:00.000Z",
+      "validTo": "2026-01-01T00:00:00.000Z",
+      "replace": false
+    }
+  ],
+  "sourceProvenance": "string"
+}
+```
+
+### Schema: ReferenceDataImportPayloadCode
+
+| Field       | Type                                                        | Required | Nullable | Description                                                                                                                                        |
+| ----------- | ----------------------------------------------------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `code`      | string                                                      | yes      | no       |                                                                                                                                                    |
+| `labels`    | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | yes      | no       |                                                                                                                                                    |
+| `sortOrder` | integer                                                     | no       | no       |                                                                                                                                                    |
+| `metadata`  | object                                                      | no       | no       |                                                                                                                                                    |
+| `validFrom` | string (date-time)                                          | no       | no       |                                                                                                                                                    |
+| `validTo`   | string (date-time)                                          | no       | yes      |                                                                                                                                                    |
+| `replace`   | boolean                                                     | no       | no       | Explicit opt-in to REPLACE (not update) an existing code's identity. Rejected by commit when the target code is already referenced by tenant data. |
+
+**Example**
+
+```json
+{
+  "code": "string",
+  "labels": [
+    {
+      "locale": "en",
+      "label": "string",
+      "description": "string"
+    }
+  ],
+  "sortOrder": 0,
+  "metadata": "(operation-specific payload)",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validTo": "2026-01-01T00:00:00.000Z",
+  "replace": false
+}
+```
+
+### Schema: ReferenceDataUpdateCodeRequest
+
+| Field       | Type                                                        | Required | Nullable | Description |
+| ----------- | ----------------------------------------------------------- | -------- | -------- | ----------- |
+| `labels`    | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | yes      | no       |             |
+| `sortOrder` | integer                                                     | no       | no       |             |
+| `metadata`  | object                                                      | no       | no       |             |
+| `validFrom` | string (date-time)                                          | no       | no       |             |
+| `validTo`   | string (date-time)                                          | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "labels": [
+    {
+      "locale": "en",
+      "label": "string",
+      "description": "string"
+    }
+  ],
+  "sortOrder": 0,
+  "metadata": "(operation-specific payload)",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: ReferenceDataUpdateTenantCodeRequest
+
+| Field       | Type                                                        | Required | Nullable | Description |
+| ----------- | ----------------------------------------------------------- | -------- | -------- | ----------- |
+| `labels`    | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | yes      | no       |             |
+| `sortOrder` | integer                                                     | no       | no       |             |
+| `metadata`  | object                                                      | no       | no       |             |
+| `validFrom` | string (date-time)                                          | no       | no       |             |
+| `validTo`   | string (date-time)                                          | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "labels": [
+    {
+      "locale": "en",
+      "label": "string",
+      "description": "string"
+    }
+  ],
+  "sortOrder": 0,
+  "metadata": "(operation-specific payload)",
+  "validFrom": "2026-01-01T00:00:00.000Z",
+  "validTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: ReferenceDataUpdateValueSetRequest
+
+| Field         | Type   | Required | Nullable | Description |
+| ------------- | ------ | -------- | -------- | ----------- |
+| `name`        | string | yes      | no       |             |
+| `description` | string | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "description": "string"
+}
+```
+
 ### Schema: RelationshipCreateRequest
 
 | Field                        | Type               | Required | Nullable | Description                                                                                                          |
@@ -16785,7 +17710,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (86)
+### Channels (96)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -16847,6 +17772,16 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.organization-structure.unit.deactivated` — An organization unit was deactivated (soft-deleted, Issue #749). Producer: `organization-structure/application/organization-unit- directory.ts`'s `deactivateOrganizationUnit`.
 - `awcms-mini.organization-structure.unit.updated` — An organization unit was updated (Issue #749). Producer: `organization-structure/application/organization-unit-directory.ts`'s `updateOrganizationUnit`.
 - `awcms-mini.profile-identity.profile.merged` — Published when a profile merge request is executed (Issue #748, epic `platform-evolution` #738 Wave 2): the loser profile is soft-deleted (`merged_into_profile_id` set) and its `awcms_mini_profile_entity_links` rows are repointed to the survivor. Payload: `mergeRequestId`, `survivorProfileId`, `loserProfileId`, `entityLinksRepointedCount`. Lets domain modules react to the merge mapping through the outbox instead of importing `profile_identity` tables directly (see `src/modules/_shared/ports/party-directory-port.ts` for the pull-based equivalent). Producer: `profile-identity/application/merge-workflow.ts`'s `executeMergeRequest`.
+- `awcms-mini.reference-data.code.created` — A reference code was created within a value set (Issue #750). Producer: `reference-data/application/code-directory.ts`'s `createReferenceCode`.
+- `awcms-mini.reference-data.code.deprecated` — A reference code was deprecated (soft-deleted, Issue #750). Producer: `reference-data/application/code-directory.ts`'s `deprecateReferenceCode`.
+- `awcms-mini.reference-data.code.updated` — A reference code's mutable attributes were updated (Issue #750). Producer: `reference-data/application/code-directory.ts`'s `updateReferenceCode`.
+- `awcms-mini.reference-data.import.committed` — A validated reference-data import batch was committed to the global baseline (Issue #750) — commit re-validates checksum + destructive- replace protection inside the same transaction as the write. Producer: `reference-data/application/import-service.ts`'s `commitReferenceImport`.
+- `awcms-mini.reference-data.import.rolled-back` — A committed reference-data import batch was rolled back (Issue #750). Producer: `reference-data/application/import-service.ts`'s `rollbackReferenceImport`.
+- `awcms-mini.reference-data.tenant-code.created` — A tenant reference code override or extension was created (Issue #750) — writes ONLY to the tenant-scoped table, never the global baseline. Producer: `reference-data/application/tenant-code- directory.ts`'s `createTenantReferenceCode`.
+- `awcms-mini.reference-data.tenant-code.deprecated` — A tenant reference code override or extension was deprecated (Issue #750). Producer: `reference-data/application/tenant-code- directory.ts`'s `deprecateTenantReferenceCode`.
+- `awcms-mini.reference-data.value-set.created` — A reference value set was created (Issue #750, epic `platform-evolution` #738 Wave 3). Producer: `reference-data/ application/value-set-directory.ts`'s `createReferenceValueSet`.
+- `awcms-mini.reference-data.value-set.deprecated` — A reference value set was deprecated (soft-deleted, Issue #750). Producer: `reference-data/application/value-set-directory.ts`'s `deprecateReferenceValueSet`.
+- `awcms-mini.reference-data.value-set.updated` — A reference value set's metadata was updated (Issue #750). Producer: `reference-data/application/value-set-directory.ts`'s `updateReferenceValueSet`.
 - `awcms-mini.social-publishing.account.connected` — A social account was connected or reconnected/reauthorized (Issue #643). Documented contract only, same producer convention as every other event in this file — the structured JSON logger, invoked from `social-publishing/application/social-account-directory.ts`'s `connectSocialAccount` (`social_publishing.account.connected` audit event + log line).
 - `awcms-mini.social-publishing.account.disconnected` — A social account was disconnected (Issue #643) — a status transition, not a delete. Producer: `social-account-directory.ts`'s `disconnectSocialAccount`.
 - `awcms-mini.social-publishing.account.needs-reauth` — A connected social account's token expired/was rejected by its provider and now requires reauthorization (Issue #643). Producer: `social-account-directory.ts`'s `markSocialAccountNeedsReauth`, called by the outbox dispatcher on a `needs_reauth` publish outcome.
