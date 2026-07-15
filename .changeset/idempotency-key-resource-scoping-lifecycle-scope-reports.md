@@ -29,6 +29,14 @@ content where one exists:
 - `POST /api/v1/reports/projections/{key}/rebuild/cancel` (was
   `computeRequestHash({})` — completely empty, the same shape as the
   original bug)
+- `POST /api/v1/reports/projections/{key}/rebuild` (the rebuild-trigger
+  endpoint — found by an independent reviewer pass on this same PR,
+  missed from the original scope; migration 069's partial unique index
+  only protects against a duplicate rebuild START for the SAME
+  projection, it does not protect against this HTTP-layer idempotency
+  shortcut replaying a cached response before `triggerOrResumeRebuild`
+  is ever called)
+- `POST /api/v1/reports/exports/{id}/disable` (same reviewer pass)
 
 `POST /api/v1/data-lifecycle/legal-holds` (the collection-level create
 endpoint) was audited and confirmed NOT vulnerable to this class: it has
@@ -39,10 +47,11 @@ Adds adversarial integration tests
 (`tests/integration/business-scope-assignments.integration.test.ts`,
 `tests/integration/reporting-projections.integration.test.ts`) proving
 that reusing the same `Idempotency-Key` across two DIFFERENT resources
-of the same type now yields a clean `409 IDEMPOTENCY_CONFLICT`, that the
-second resource's real DB state is left untouched by the false-replay
-attempt, and that it still executes correctly once given its own
-distinct key — mirroring PR #783's test rigor.
+of the same type — including with an identical-shaped request body —
+now yields a clean `409 IDEMPOTENCY_CONFLICT`, that the second
+resource's real DB state is left untouched by the false-replay attempt,
+and that it still executes correctly once given its own distinct key —
+mirroring PR #783's test rigor.
 
 This is a partial fix for Issue #795, split across three parallel PRs by
 module cluster; `document-infrastructure`/`organization-structure` and

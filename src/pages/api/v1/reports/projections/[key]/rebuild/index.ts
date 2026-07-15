@@ -78,7 +78,7 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
     );
   }
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({ ...body, key, action: "rebuild" });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();

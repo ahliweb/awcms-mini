@@ -44,6 +44,7 @@ import {
 } from "../../src/pages/api/v1/reports/exports/index";
 import { POST as triggerExportRoute } from "../../src/pages/api/v1/reports/exports/trigger";
 import { GET as downloadExportRoute } from "../../src/pages/api/v1/reports/exports/runs/[id]/download";
+import { POST as disableExportRoute } from "../../src/pages/api/v1/reports/exports/[id]/disable";
 import { hashPassword } from "../../src/lib/auth/password";
 
 import type { ProjectionDescriptor } from "../../src/modules/_shared/module-contract";
@@ -684,7 +685,7 @@ suite("reporting-projections (Issue #753)", () => {
     });
   });
 
-  describe("idempotency-key scoping — rebuild cancel across two different projections (Issue #795)", () => {
+  describe("idempotency-key scoping across two different resources of the same type (Issue #795)", () => {
     test("ADVERSARIAL: reusing the same Idempotency-Key across POST rebuild/cancel of two DIFFERENT projections must NOT replay the first projection's cached response for the second -- the mismatched hash must yield 409 CONFLICT, the second projection's run must remain untouched, and it must still cancel once given its OWN key", async () => {
       const owner = await bootstrap();
       const sql = getAdminSql();
@@ -777,6 +778,198 @@ suite("reporting-projections (Issue #753)", () => {
         getRebuildRunById(tx, owner.tenantId, runA.id)
       );
       expect(finalA?.cancelRequested).toBe(true);
+    });
+
+    test("ADVERSARIAL: reusing the same Idempotency-Key across POST rebuild (trigger) of two DIFFERENT projections, with an identical-shaped body, must NOT replay the first projection's cached response for the second -- the mismatched hash must yield 409 CONFLICT, the second projection must NOT have a rebuild run created, and it must still trigger once given its OWN key", async () => {
+      const owner = await bootstrap();
+      const sql = getAdminSql();
+
+      // Two DIFFERENT resources of the SAME type (a tenant-scoped
+      // reporting projection) -- both share the identical request_scope
+      // ("reporting_projection_rebuild") and tenant_id, and here even an
+      // IDENTICAL body ({ reason: "..." }), differing only by the {key}
+      // path parameter. Pre-fix, `computeRequestHash(body)` never folded
+      // in {key}, so a reused Idempotency-Key + identical reason text
+      // would silently replay projection A's cached rebuild response
+      // (200, describing A's run) for a request meant to trigger
+      // projection B's rebuild -- B's rebuild would never actually start
+      // (triggerOrResumeRebuild is never called on the replay path), but
+      // the caller would see a 200 describing A's run as if B's rebuild
+      // had started. Migration 069's partial unique index only protects
+      // against a duplicate START for the SAME projection -- it does
+      // nothing here, since the cached body short-circuits before
+      // `triggerOrResumeRebuild` is ever invoked for B.
+      const descriptorA = accessAuditDescriptor();
+      const descriptorB = moduleActivityDescriptor();
+      const reusedKey = "rebuild-trigger-reused-key";
+      const sharedReason = "quarterly refresh";
+
+      const triggerA = await invoke<{
+        data: { rebuild: { id: string }; resumed: boolean };
+      }>(triggerRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${descriptorA.key}/rebuild`,
+        params: { key: descriptorA.key },
+        headers: authHeaders(owner, reusedKey),
+        body: { reason: sharedReason }
+      });
+      expect(triggerA.status).toBe(200);
+      expect(triggerA.body.data.resumed).toBe(false);
+
+      // Attempt to trigger B's rebuild with the SAME key and the SAME
+      // reason text. Post-fix, the hash folds in {key}, so the mismatch
+      // must be rejected as a conflict, never a false replay of A's
+      // response.
+      const triggerBReusedKey = await invoke(triggerRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${descriptorB.key}/rebuild`,
+        params: { key: descriptorB.key },
+        headers: authHeaders(owner, reusedKey),
+        body: { reason: sharedReason }
+      });
+      expect(triggerBReusedKey.status).toBe(409);
+      expect(
+        (triggerBReusedKey.body as { error: { code: string } }).error.code
+      ).toBe("IDEMPOTENCY_CONFLICT");
+
+      // B must have NO rebuild run at all -- NOT falsely reported as
+      // triggered/running.
+      const noRunForB = await withTenant(sql, owner.tenantId, (tx) =>
+        findRunningRebuild(tx, owner.tenantId, descriptorB.key)
+      );
+      expect(noRunForB).toBeNull();
+
+      // With its OWN distinct key, B's rebuild genuinely triggers.
+      const triggerBOwnKey = await invoke<{
+        data: { rebuild: { id: string }; resumed: boolean };
+      }>(triggerRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${descriptorB.key}/rebuild`,
+        params: { key: descriptorB.key },
+        headers: authHeaders(owner, "rebuild-trigger-b-own-key"),
+        body: { reason: sharedReason }
+      });
+      expect(triggerBOwnKey.status).toBe(200);
+      expect(triggerBOwnKey.body.data.resumed).toBe(false);
+
+      const runningB = await withTenant(sql, owner.tenantId, (tx) =>
+        findRunningRebuild(tx, owner.tenantId, descriptorB.key)
+      );
+      expect(runningB?.id).toBe(triggerBOwnKey.body.data.rebuild.id);
+
+      // A's run is unaffected by any of B's requests.
+      const finalA = await withTenant(sql, owner.tenantId, (tx) =>
+        findRunningRebuild(tx, owner.tenantId, descriptorA.key)
+      );
+      expect(finalA?.id).toBe(triggerA.body.data.rebuild.id);
+    });
+
+    test("ADVERSARIAL: reusing the same Idempotency-Key across POST exports/{id}/disable of two DIFFERENT scheduled export configs, with an identical-shaped body, must NOT replay the first config's cached response for the second -- the mismatched hash must yield 409 CONFLICT, the second config must remain enabled, and it must still disable once given its OWN key", async () => {
+      const owner = await bootstrap();
+      const sql = getAdminSql();
+
+      // Two DIFFERENT resources of the SAME type (a tenant-scoped
+      // scheduled export config) -- both share the identical
+      // request_scope ("reporting_scheduled_export_disable") and
+      // tenant_id, and here even an IDENTICAL body ({ reason: "..." }),
+      // differing only by the {id} path parameter. Pre-fix,
+      // `computeRequestHash(body)` never folded in {id}, so a reused
+      // Idempotency-Key + identical reason text would silently replay
+      // export config A's cached disable response for a request meant
+      // to disable config B -- B would stay enabled forever while the
+      // caller believed it was disabled.
+      const configA = await invoke<{
+        data: { scheduledExport: { id: string } };
+      }>(createScheduledExportRoute, {
+        method: "POST",
+        path: "/api/v1/reports/exports",
+        headers: authHeaders(owner, "export-disable-adv-create-a"),
+        body: {
+          projectionKey: ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,
+          format: "csv",
+          scheduleIntervalMinutes: 60
+        }
+      });
+      expect(configA.status).toBe(200);
+
+      const configB = await invoke<{
+        data: { scheduledExport: { id: string } };
+      }>(createScheduledExportRoute, {
+        method: "POST",
+        path: "/api/v1/reports/exports",
+        headers: authHeaders(owner, "export-disable-adv-create-b"),
+        body: {
+          projectionKey: MODULE_ACTIVITY_SUMMARY_PROJECTION_KEY,
+          format: "csv",
+          scheduleIntervalMinutes: 60
+        }
+      });
+      expect(configB.status).toBe(200);
+
+      const reusedKey = "export-disable-reused-key";
+      const sharedReason = "no longer needed";
+
+      const disableA = await invoke<{
+        data: { id: string; disabled: boolean };
+      }>(disableExportRoute, {
+        method: "POST",
+        path: `/api/v1/reports/exports/${configA.body.data.scheduledExport.id}/disable`,
+        params: { id: configA.body.data.scheduledExport.id },
+        headers: authHeaders(owner, reusedKey),
+        body: { reason: sharedReason }
+      });
+      expect(disableA.status).toBe(200);
+      expect(disableA.body.data.id).toBe(configA.body.data.scheduledExport.id);
+
+      // Attempt to disable B with the SAME key and the SAME reason text.
+      // Post-fix, the hash folds in {id}, so the mismatch must be
+      // rejected as a conflict, never a false replay of A's response.
+      const disableBReusedKey = await invoke(disableExportRoute, {
+        method: "POST",
+        path: `/api/v1/reports/exports/${configB.body.data.scheduledExport.id}/disable`,
+        params: { id: configB.body.data.scheduledExport.id },
+        headers: authHeaders(owner, reusedKey),
+        body: { reason: sharedReason }
+      });
+      expect(disableBReusedKey.status).toBe(409);
+      expect(
+        (disableBReusedKey.body as { error: { code: string } }).error.code
+      ).toBe("IDEMPOTENCY_CONFLICT");
+
+      // B must still be untouched -- NOT falsely reported as disabled.
+      const stillEnabledB = (await sql`
+        SELECT enabled, deleted_at FROM awcms_mini_reporting_scheduled_exports
+        WHERE id = ${configB.body.data.scheduledExport.id}
+      `) as { enabled: boolean; deleted_at: Date | null }[];
+      expect(stillEnabledB[0]!.enabled).toBe(true);
+      expect(stillEnabledB[0]!.deleted_at).toBeNull();
+
+      // With its OWN distinct key, B's disable genuinely executes.
+      const disableBOwnKey = await invoke<{
+        data: { id: string; disabled: boolean };
+      }>(disableExportRoute, {
+        method: "POST",
+        path: `/api/v1/reports/exports/${configB.body.data.scheduledExport.id}/disable`,
+        params: { id: configB.body.data.scheduledExport.id },
+        headers: authHeaders(owner, "export-disable-b-own-key"),
+        body: { reason: sharedReason }
+      });
+      expect(disableBOwnKey.status).toBe(200);
+      expect(disableBOwnKey.body.data.disabled).toBe(true);
+
+      const disabledB = (await sql`
+        SELECT enabled, deleted_at FROM awcms_mini_reporting_scheduled_exports
+        WHERE id = ${configB.body.data.scheduledExport.id}
+      `) as { enabled: boolean; deleted_at: Date | null }[];
+      expect(disabledB[0]!.enabled).toBe(false);
+      expect(disabledB[0]!.deleted_at).not.toBeNull();
+
+      // A's config is unaffected by any of B's requests.
+      const stillDisabledA = (await sql`
+        SELECT enabled FROM awcms_mini_reporting_scheduled_exports
+        WHERE id = ${configA.body.data.scheduledExport.id}
+      `) as { enabled: boolean }[];
+      expect(stillDisabledA[0]!.enabled).toBe(false);
     });
   });
 
