@@ -193,14 +193,54 @@ async function getChangedFiles(baseRef: string): Promise<string[]> {
     .filter((line) => line.length > 0);
 }
 
+/**
+ * `git diff --name-only` doesn't distinguish added/modified/deleted paths
+ * — a release-consumption PR that DELETES every consumed `.changeset/*.md`
+ * file (and adds none) makes `evaluateChangesetPolicy`'s `changesetFilesAdded`
+ * list include paths that no longer exist on disk. Used below to skip
+ * frontmatter validation for those, instead of crashing on ENOENT.
+ */
+async function getDeletedFiles(baseRef: string): Promise<Set<string>> {
+  const proc = Bun.spawn(
+    ["git", "diff", "--name-only", "--diff-filter=D", `${baseRef}...HEAD`],
+    { stdout: "pipe", stderr: "pipe" }
+  );
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited
+  ]);
+
+  if (exitCode !== 0) {
+    throw new Error(
+      `git diff --name-only --diff-filter=D ${baseRef}...HEAD gagal (exit ${exitCode}): ${stderr.trim()}`
+    );
+  }
+
+  return new Set(
+    stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+  );
+}
+
 if (import.meta.main) {
   const baseRef = process.env.CHANGESET_POLICY_BASE_REF ?? "origin/main";
 
   const changedFiles = await getChangedFiles(baseRef);
   const result = evaluateChangesetPolicy(changedFiles);
+  const deletedFiles = await getDeletedFiles(baseRef);
 
   const frontmatterProblems: string[] = [];
   for (const file of result.changesetFilesAdded) {
+    // A changeset PATH can appear in `changesetFilesAdded` because it was
+    // deleted (e.g. a release-consumption PR removing consumed changesets)
+    // rather than added — only validate frontmatter for paths that still
+    // exist in the working tree.
+    if (deletedFiles.has(file)) {
+      continue;
+    }
     const content = await Bun.file(file).text();
     const check = validateChangesetFrontmatter(content);
     if (!check.ok) {
@@ -221,11 +261,15 @@ if (import.meta.main) {
     }
   }
 
+  const changesetFilesActuallyAdded = result.changesetFilesAdded.filter(
+    (file) => !deletedFiles.has(file)
+  );
+
   if (result.violation || frontmatterProblems.length > 0) {
     process.exitCode = 1;
   } else if (result.requiresChangeset) {
     console.log(
-      `changesets:policy:check OK — ${result.changesetFilesAdded.length} changeset baru valid untuk ${result.nonExemptFiles.length} file non-docs/chore yang berubah.`
+      `changesets:policy:check OK — ${changesetFilesActuallyAdded.length} changeset baru valid untuk ${result.nonExemptFiles.length} file non-docs/chore yang berubah.`
     );
   } else {
     console.log(
