@@ -135,7 +135,11 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       typeof body.relationType === "string" ? body.relationType : "related_to"
   };
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    id: documentId,
+    action: "link"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
