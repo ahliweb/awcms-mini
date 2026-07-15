@@ -128,7 +128,10 @@ sungguhan kode tersebut:
   terbuang tanpa kepastian fix), jadi dismiss dipilih dengan bukti
   keamanan independen sebagai justifikasi, bukan sekadar asumsi "sama
   seperti pattern #1".
-- **Alert #16, #17** (`js/clear-text-logging`, `scripts/validate-env.ts:794,803`):
+- **Alert #16, #17** (`js/clear-text-logging`, `scripts/validate-env.ts` — the
+  `EnvCheckResult` printer near the end of `config:validate`'s CLI output
+  block, NOT a fixed line number; line numbers in this file drift as the
+  script grows, describe by function/context instead of re-citing a line):
   CodeQL menandai `console.log` yang mem-print `EnvCheckResult.name`/`.detail`
   sebagai membocorkan `AUTH_MFA_REQUIRED_WHEN_ENABLED` (array konstan berisi
   NAMA var, isinya `["AUTH_MFA_SECRET_ENCRYPTION_KEY"]`) secara clear-text.

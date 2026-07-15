@@ -220,15 +220,18 @@ masing-masing.
 
 `GET /api/v1/modules/{moduleKey}/permissions` (Issue #517) melaporkan
 `synced`/`missing`/`orphaned`/`mismatched_description` — **read-only**,
-tidak pernah menulis ke `awcms_mini_permissions`. **7 modul** sudah
-mendeklarasikan `permissions` di descriptornya — `module_management`,
+tidak pernah menulis ke `awcms_mini_permissions`. **17 modul** (dari 23)
+sudah mendeklarasikan `permissions` di descriptornya — `module_management`,
 `blog_content` (sejak Issue #543, 39-entry array), `idn_admin_regions`,
-`news_portal`, `social_publishing`, `tenant_domain`, dan
-`visitor_analytics`; 9 modul lain (email, form-drafts, identity-access,
-logging, profile-identity, reporting, sync-storage, tenant-admin,
-workflow-approval) punya permission seed nyata (dari migration
-masing-masing) tapi belum ditambahkan ke descriptor — jadi permission
-mereka **legitimately** muncul `orphaned` hari ini, bukan insiden. Jangan hapus baris `awcms_mini_permissions`
+`news_portal`, `social_publishing`, `tenant_domain`, `visitor_analytics`,
+`profile_identity`, `reporting`, `workflow_approval`, plus 7 modul
+platform-evolution epic #738: `data_exchange`, `data_lifecycle`,
+`document_infrastructure`, `domain_event_runtime`, `integration_hub`,
+`organization_structure`, `reference_data`. **6 modul** lain (email,
+form-drafts, identity-access, logging, sync-storage, tenant-admin) punya
+permission seed nyata (dari migration masing-masing) tapi belum
+ditambahkan ke descriptor — jadi permission mereka **legitimately** muncul
+`orphaned` hari ini, bukan insiden. Jangan hapus baris `awcms_mini_permissions`
 berdasarkan laporan ini tanpa keputusan admin eksplisit.
 
 ## Health check — GET pasif, POST eksplisit
@@ -275,7 +278,10 @@ ini), `awcms-mini-abac-guard` (guard bersama yang juga menegakkan
 kategori modul (Core/System/Official Optional Module/Derived Application/
 External Integration), kriteria admission, aturan dependency required vs
 optional (§5, melengkapi `capabilities` di atas), ekspektasi kompatibilitas
-offline/LAN vs full-online-only, dan pemetaan 16 modul terdaftar saat ini
+offline/LAN vs full-online-only, dan pemetaan 23 modul terdaftar saat ini
+(`src/modules/index.ts`'s `baseModules`, termasuk 7 modul platform-evolution
+epic #738: data_lifecycle, domain_event_runtime, organization_structure,
+document_infrastructure, data_exchange, integration_hub, reference_data)
 ke kategori tersebut (termasuk catatan remediasi field `type`/`isCore`/
 `maintainers` yang belum konsisten diisi — lihat doc 21 §8). Baca dokumen
 itu sebelum mengusulkan modul baru atau mengubah kategori/status lifecycle
@@ -302,7 +308,7 @@ di atas, sengaja dipakai ulang bukan diduplikasi).
   utuh.
 - **`listModules()` sekarang compose-aware** — mengembalikan hasil merge
   base + `applicationModuleRegistry`. Di repo base ini nilainya SELALU
-  sama seperti sebelum Issue #740 (registry base 16 modul, byte-identical)
+  sama seperti sebelum Issue #740 (registry base 23 modul, byte-identical)
   karena `applicationModuleRegistry` selalu `undefined` di sini. Konsumen
   yang sudah ada (`modules:sync`, `modules:dag:check`,
   `repo:inventory:generate`, semua service module-management) TIDAK perlu

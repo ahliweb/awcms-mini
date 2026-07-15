@@ -121,8 +121,10 @@ tenant. **Schema saja**, belum ada module descriptor (#558), resolver
 ### Module descriptor (Issue #558, `src/modules/tenant-domain/module.ts`)
 
 Modul `tenant_domain` terdaftar di `src/modules/index.ts`'s `listModules()`
-(12 modul total sekarang). **Hanya descriptor** — tidak ada API/UI/resolver
-di sini, itu semua issue lanjutan.
+(lihat file itu untuk jumlah modul terdaftar saat ini — angka ini
+bertambah tiap modul baru terdaftar, jangan hardcode ulang di sini).
+**Hanya descriptor** — tidak ada API/UI/resolver di sini, itu semua issue
+lanjutan.
 
 - `key: "tenant_domain"`, `type: "system"` (bukan `"domain"`/`"integration"`)
   — modul ini mengelola routing infrastructure yang dipakai bersama SEMUA

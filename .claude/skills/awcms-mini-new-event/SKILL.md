@@ -7,25 +7,65 @@ description: Tambah atau ubah domain event AWCMS-Mini. Gunakan saat mem-publish 
 
 Ikuti `docs/awcms-mini/05_openapi_asyncapi_detail.md`.
 
-## Envelope wajib
+## Dua bentuk BERBEDA — jangan tertukar
+
+Ada **dua** shape berbeda di sistem event ini, dipakai di layer berbeda.
+Keduanya WAJIB didokumentasikan/diikuti, tapi jangan campur satu sama lain.
+
+### 1. Wire envelope (kontrak AsyncAPI, yang keluar ke consumer eksternal)
+
+Satu-satunya sumber kebenaran: `asyncapi/awcms-mini-domain-events.asyncapi.yaml`'s
+`components.schemas.DomainEventEnvelope` — `additionalProperties: false`,
+jadi field di luar daftar ini **ditolak**, bukan diabaikan:
 
 ```ts
 type DomainEventEnvelope<TPayload> = {
-  eventId: string;
-  eventType: string; // mis. "sales.transaction.posted"
-  eventVersion: string; // "1.0"
-  tenantId: string;
-  nodeId?: string;
-  aggregateType: string; // mis. "sales_document"
-  aggregateId: string;
-  occurredAt: string; // ISO timestamptz
-  actor?: { tenantUserId?: string; profileId?: string };
-  correlationId?: string;
-  causationId?: string;
-  payload: TPayload;
-  metadata: { sourceModule: string; schemaVersion: string };
+  event_id: string; // uuid
+  event_type: string; // pattern "^[a-z0-9]+(\.[a-z0-9_]+)+$", mis. "awcms-mini.blog-content.post.published"
+  occurred_at: string; // ISO date-time
+  producer: { service: "awcms-mini"; module: string }; // module = ModuleDescriptor.key penerbit
+  tenant_id?: string | null;
+  correlation_id?: string | null;
+  payload: TPayload; // additionalProperties: true
 };
 ```
+
+Tidak ada `event_version`/`node_id`/`aggregate_type`/`aggregate_id`/`actor`/
+`causation_id`/`metadata` di envelope ini — kalau butuh versi payload,
+encode di `event_type`/dalam `payload` sendiri, bukan field envelope
+terpisah (skema sengaja minimal & tertutup).
+
+### 2. DB-level append input (internal, `domain-event-runtime`'s outbox)
+
+`AppendDomainEventInput` (`domain-event-runtime/application/append-domain-event.ts:18-38`)
+adalah shape yang BENAR-BENAR dipanggil kode modul lain untuk menulis baris
+outbox — **beda dari envelope wire di atas**, flat, dan TIDAK punya `eventId`
+(dibuat DB lewat `RETURNING id`, bukan digenerate caller):
+
+```ts
+type AppendDomainEventInput = {
+  eventType: string;
+  eventVersion: string;
+  aggregateType: string;
+  aggregateId: string;
+  aggregateVersion?: number;
+  orderKey?: string; // default deriveOrderKey(aggregateType, aggregateId)
+  correlationId?: string | null;
+  causationId?: string | null;
+  producerModule: string; // ModuleDescriptor.key penerbit, selalu eksplisit
+  schemaRef?: string | null; // pointer dokumentasi ke channel AsyncAPI, tidak divalidasi di sini
+  actorTenantUserId?: string | null;
+  actorProfileId?: string | null;
+  payload: Record<string, unknown>;
+  occurredAt?: Date; // default now()
+};
+```
+
+`appendDomainEvent` menyimpan baris ini ke `awcms_mini_domain_events` +
+delivery rows dalam transaksi yang sama dengan perubahan state sumbernya;
+proses dispatch terpisah yang membaca outbox itulah yang merakit shape #1
+(wire envelope) untuk dikirim ke consumer — jangan asumsikan kedua shape
+identik saat membaca/menulis kode di kedua layer.
 
 ## Aturan
 
@@ -39,9 +79,11 @@ type DomainEventEnvelope<TPayload> = {
 ## Event inti (contoh channel nyata — bukan daftar lengkap)
 
 `asyncapi/awcms-mini-domain-events.asyncapi.yaml` adalah satu-satunya
-sumber kebenaran (51 channel terdaftar hari ini — `grep -n "^  awcms-mini\."
-asyncapi/awcms-mini-domain-events.asyncapi.yaml` untuk daftar hidup
-lengkap). Contoh representatif lintas modul yang BENAR-BENAR ada di sana:
+sumber kebenaran — jumlah channel bertambah tiap modul baru, JANGAN
+hardcode angkanya di skill ini (drift setiap audit); jalankan
+`grep -c "^  awcms-mini\." asyncapi/awcms-mini-domain-events.asyncapi.yaml`
+untuk hitungan hidup, dan `grep -n "^  awcms-mini\." ...` untuk daftar
+lengkap. Contoh representatif lintas modul yang BENAR-BENAR ada di sana:
 
 - `awcms-mini.blog-content.post.published` (`blog_content`)
 - `awcms-mini.social-publishing.job.published` (`social_publishing`)

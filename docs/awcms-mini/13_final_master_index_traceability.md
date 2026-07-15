@@ -136,8 +136,8 @@ flowchart LR
 
 Sumber: `docs/awcms-mini/repo-inventory.md` §Migrations (GENERATED via
 `bun run repo:inventory:generate`) dan `src/modules/index.ts`, keduanya
-dibaca ulang saat menulis tabel ini. **55 file migration nyata** di
-`sql/` (`001`..`055`), dipetakan ke **16 modul terdaftar**. Tabel ini
+dibaca ulang saat menulis tabel ini. **76 file migration nyata** di
+`sql/` (`001`..`076`), dipetakan ke **23 modul terdaftar**. Tabel ini
 menggantikan versi sebelumnya yang mengutip nama file fiktif (mis.
 `003_awcms_mini_catalog_inventory_schema.sql`,
 `004_awcms_mini_sales_pos_schema.sql`) dari sebuah sistem POS/retail yang
@@ -365,8 +365,8 @@ Tiap folder standar menyertakan `README.md` sebagai kontrak isi/aturan folder:
 
 ### Source modules
 
-16 modul terdaftar nyata di `src/modules/index.ts` (`ls -d src/modules/*/`,
-dikonfirmasi `bun run modules:dag:check` — "16 registered modules"),
+23 modul terdaftar nyata di `src/modules/index.ts` (`ls -d src/modules/*/`,
+dikonfirmasi `bun run modules:dag:check` — "23 registered modules"),
 menggantikan daftar fiktif sebelumnya (`catalog-inventory`, `sales-pos`,
 `warehouse-management`, `accounting-tax`, `crm-communication`,
 `ai-analyst`, `observability-logging`, `database-connectivity`,
@@ -375,14 +375,21 @@ ini pernah ada di repo base):
 
 - `_shared` (bukan modul terdaftar — kontrak/helper lintas-modul)
 - blog-content
+- data-exchange
+- data-lifecycle
+- document-infrastructure
+- domain-event-runtime
 - email
 - form-drafts
 - identity-access
 - idn-admin-regions
+- integration-hub
 - logging
 - module-management
 - news-portal
+- organization-structure
 - profile-identity
+- reference-data
 - reporting
 - social-publishing
 - sync-storage

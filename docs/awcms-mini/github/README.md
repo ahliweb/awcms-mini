@@ -2,23 +2,23 @@
 
 Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folder ini adalah **snapshot state GitHub**, bukan backlog rencana; backlog rencana tetap berada di `docs/awcms-mini/06_github_issues_detail.md`. Metadata label/milestone di folder ini adalah salinan faktual dari GitHub saat refresh; bila ada deskripsi lama yang berbeda dari arsitektur Bun + Astro 7 + PostgreSQL, ikuti `README.md`, `AGENTS.md`, dan dokumen utama `docs/awcms-mini/`.
 
-| Metadata     | Nilai                           |
-| ------------ | ------------------------------- |
-| Repository   | `ahliweb/awcms-mini`            |
-| Snapshot     | 2026-07-12T07:47:25.110Z        |
-| Total issue  | 191                             |
-| Open issue   | 35                              |
-| Closed issue | 156                             |
-| Labels       | 99 (25 doc 06 + 74 peninggalan) |
-| Milestones   | 25 (6 doc 06 + 19 peninggalan)  |
+| Metadata     | Nilai                            |
+| ------------ | -------------------------------- |
+| Repository   | `ahliweb/awcms-mini`             |
+| Snapshot     | 2026-07-15T16:41:33.367Z         |
+| Total issue  | 219                              |
+| Open issue   | 1                                |
+| Closed issue | 218                              |
+| Labels       | 100 (25 doc 06 + 74 peninggalan) |
+| Milestones   | 25 (6 doc 06 + 19 peninggalan)   |
 
 ## File snapshot
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                   35 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                  156 |
-| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                             99 labels, 25 milestones |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    1 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                  218 |
+| LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                            100 labels, 25 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 
 ## Aturan pencatatan
@@ -69,6 +69,64 @@ Update juga metadata di `docs/awcms-mini/README.md`, `06_github_issues_detail.md
 | ------ | -----: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | OPEN   |      6 | Epic full-online auth security hardening (#588-#593) — enam issue fitur konkret (Turnstile, MFA/TOTP, Google OIDC, generic SSO, admin policy UI) plus penutup docs/kontrak, semuanya masih backlog. Issue pertama epic ini, #587 (gate bersama), sudah `completed` — lihat bagian di bawah.                                                                                                                                                                                                                                                                       |
 | CLOSED |    108 | 20 issue domain ditutup `not planned`; 18 issue backlog doc06 (#371-#373, #376-#379, #391-#393, #398, #401, #403-#408) ditutup `completed`; epic M9 (#433-#438, #447), 12 issue pasca-analisis lanjutan (#450-#454, #461-#465, #473, #475), epic reusable wizard form (#479, #481-#485), epic reusable email module (#492-#500), epic Module Management (#510-#522), epic blog_content (#536-#543), epic online public tenant routing (#555-#567), dan #587 (gate bersama epic auth hardening) ditutup `completed` di luar backlog doc06 — lihat bagian di bawah. |
+
+### Idempotency-key resource-binding + SoD hierarchy-aware follow-ups #794-#804 completed (2026-07-15)
+
+Rangkaian follow-up langsung dari epic `platform-evolution` #738 (bukan
+bagian tabel 17-issue epic itu sendiri), semuanya `completed`/merged pada
+hari yang sama epic itu ditutup:
+
+- **[#794](https://github.com/ahliweb/awcms-mini/issues/794)** — `identity_access`'s `same_scope_only` SoD conflict matching diperbaiki jadi hierarchy-aware (exact-match gap sebelumnya melewatkan konflik antar scope parent/child yang sebenarnya sama secara hierarki). PR [#800](https://github.com/ahliweb/awcms-mini/pull/800).
+- **[#795](https://github.com/ahliweb/awcms-mini/issues/795)** — kelas bug recurring "idempotency-key hash tidak terikat resource id" (pertama ditemukan Issue #750/PR #783, reference-data) di-grep ulang menyeluruh lintas modul lain dan ditemukan masih ada — diperbaiki di tiga PR terpisah per kelompok modul: `document_infrastructure` (PR [#798](https://github.com/ahliweb/awcms-mini/pull/798)), `organization_structure` (PR [#799](https://github.com/ahliweb/awcms-mini/pull/799)), dan `data_lifecycle`/business-scope/`reports` (PR [#801](https://github.com/ahliweb/awcms-mini/pull/801)).
+- **[#796](https://github.com/ahliweb/awcms-mini/issues/796)** — test adversarial idempotency-key-reuse tambahan untuk `reference-data` tenant-codes/codes `PATCH`/`DELETE` (memperkuat coverage #750/PR #783 yang sudah closed). PR [#797](https://github.com/ahliweb/awcms-mini/pull/797).
+- **[#802](https://github.com/ahliweb/awcms-mini/issues/802)** — follow-up dari #794: hierarchy-aware `same_scope_only` matching di atas belum di-thread ke chokepoint `checkHighRiskSoDConflicts` (zero telemetry gap) — sekarang di-thread. PR [#804](https://github.com/ahliweb/awcms-mini/pull/804).
+- **[#803](https://github.com/ahliweb/awcms-mini/pull/803)** — docs: cross-reference family-wide AWCMS agent usage pedoman (PR berdiri sendiri, bukan issue+PR terpisah).
+
+Skill `awcms-mini-idempotency` dan `awcms-mini-abac-guard` diperbarui
+(lihat repo-wide consistency audit #805) untuk mendokumentasikan pola
+binding resource-id yang benar dan daftar `AccessAction` terbaru, supaya
+kelas bug ini tidak berulang untuk kelima kalinya.
+
+### Epic platform-evolution #738 completed (2026-07-13 s.d. 2026-07-15)
+
+Epic terbesar sejauh ini — menyiapkan AWCMS-Mini untuk aplikasi turunan
+skala SaaS/bisnis/ERP. Tujuh belas issue anak, seluruhnya `completed`,
+epic tracking #738 sendiri ditutup 2026-07-15. Menambah **7 modul baru**
+langsung ke `src/modules/index.ts`'s `baseModules` (16 → 23 modul
+terdaftar): `domain_event_runtime`, `data_lifecycle`,
+`organization_structure`, `reference_data`, `document_infrastructure`,
+`data_exchange`, `integration_hub` — plus perluasan besar tiga modul yang
+sudah ada (`identity_access` business-scope/SoD, `workflow_approval`
+graph engine, `profile_identity` party lifecycle penuh) dan modul
+`reporting` (projection/export terjadwal).
+
+- **[#739](https://github.com/ahliweb/awcms-mini/issues/739)** — docs arsitektur: formalisasi lapisan ekstensi skalabel, batas tenant/bisnis, kriteria pemisahan service. PR [#766](https://github.com/ahliweb/awcms-mini/pull/766).
+- **[#740](https://github.com/ahliweb/awcms-mini/issues/740)** — komposisi modul build-time deterministik untuk aplikasi turunan (ADR-0014), `bun run modules:compose:check`. PR [#769](https://github.com/ahliweb/awcms-mini/pull/769).
+- **[#741](https://github.com/ahliweb/awcms-mini/issues/741)** — manifest kompatibilitas aplikasi turunan + test kit + gate SemVer (ADR-0015), `bun run extension:check`. PR [#774](https://github.com/ahliweb/awcms-mini/pull/774).
+- **[#742](https://github.com/ahliweb/awcms-mini/issues/742)** — modul baru `domain_event_runtime`: transactional event outbox, consumer idempoten, retry, ordering, dead-letter. PR [#772](https://github.com/ahliweb/awcms-mini/pull/772).
+- **[#743](https://github.com/ahliweb/awcms-mini/issues/743)** — pool database dan budget work-class jadi deployment-aware, kalkulator kapasitas horizontal. PR [#770](https://github.com/ahliweb/awcms-mini/pull/770).
+- **[#744](https://github.com/ahliweb/awcms-mini/issues/744)** — test performa representatif: load, soak, query-plan, budget regresi. PR [#775](https://github.com/ahliweb/awcms-mini/pull/775).
+- **[#745](https://github.com/ahliweb/awcms-mini/issues/745)** — modul baru `data_lifecycle`: retensi, partisi, arsip, legal hold, purge aman. PR [#773](https://github.com/ahliweb/awcms-mini/pull/773).
+- **[#746](https://github.com/ahliweb/awcms-mini/issues/746)** — `identity_access`: business-scope assignments reusable + hook policy segregation-of-duties. PR [#776](https://github.com/ahliweb/awcms-mini/pull/776).
+- **[#747](https://github.com/ahliweb/awcms-mini/issues/747)** — `workflow_approval` evolusi jadi graph-based managed engine: routing kondisional, delegation, escalation, quorum. PR [#778](https://github.com/ahliweb/awcms-mini/pull/778) (4 security finding diperbaiki sebelum merge — lihat `src/modules/workflow-approval/README.md` dan skill `awcms-mini-workflow-approval`).
+- **[#748](https://github.com/ahliweb/awcms-mini/issues/748)** — `profile_identity` dilengkapi penuh: party CRUD kanonik, deduplikasi, merge workflow approval-gated, relationships, proyeksi aman. PR [#777](https://github.com/ahliweb/awcms-mini/pull/777) (koreksi review sempat salah klaim migration mana yang menutup gap RLS FORCE — lihat skill `awcms-mini-profile-identity`).
+- **[#749](https://github.com/ahliweb/awcms-mini/issues/749)** — modul baru `organization_structure`: legal entities, unit organisasi, hierarki, assignment effective-dated (opsional). PR [#779](https://github.com/ahliweb/awcms-mini/pull/779).
+- **[#750](https://github.com/ahliweb/awcms-mini/issues/750)** — modul baru `reference_data`: value set effective-dated, katalog referensi kontribusi modul. PR [#783](https://github.com/ahliweb/awcms-mini/pull/783) (3 ronde perbaikan — sumber pertama bug class idempotency-hash resource-binding yang recurring, lihat §Idempotency-key follow-up di bawah).
+- **[#751](https://github.com/ahliweb/awcms-mini/issues/751)** — modul baru `document_infrastructure`: registry dokumen generik, versioning immutable, klasifikasi, evidence, numbering sequence aman-konkurensi. PR [#780](https://github.com/ahliweb/awcms-mini/pull/780) (security-review Critical finding confidentiality-tier, diperbaiki sebelum merge, diperluas Issue #787 — lihat skill `awcms-mini-document-infrastructure`).
+- **[#752](https://github.com/ahliweb/awcms-mini/issues/752)** — modul baru `data_exchange`: staged import, validasi, preview, commit idempoten, export, rekonsiliasi. PR [#782](https://github.com/ahliweb/awcms-mini/pull/782).
+- **[#753](https://github.com/ahliweb/awcms-mini/issues/753)** — `reporting`: read model kontribusi modul, projection inkremental, freshness, export terjadwal. PR [#781](https://github.com/ahliweb/awcms-mini/pull/781).
+- **[#754](https://github.com/ahliweb/awcms-mini/issues/754)** — modul baru `integration_hub`: signed inbound webhook, outbound subscription, replay protection, adapter health. PR [#784](https://github.com/ahliweb/awcms-mini/pull/784) (2 security finding SSRF redirect-bypass + confused-deputy secret reference diperbaiki sebelum merge — lihat skill `awcms-mini-integration-hub`).
+- **[#755](https://github.com/ahliweb/awcms-mini/issues/755)** — docs: kontrak kesiapan ekstensi ERP (business transaction, posting, period-lock, item, report-projection) untuk repository turunan. PR [#789](https://github.com/ahliweb/awcms-mini/pull/789).
+
+Follow-up langsung dari epic ini (idempotency-hash resource-binding
+recurring class + SoD hierarchy-aware matching, ditemukan lewat re-audit
+setelah #750/#783) dicatat terpisah di §Idempotency-key resource-binding
+
+- SoD hierarchy-aware follow-ups #794-#804 di atas — bukan bagian tabel
+  17-issue epic ini sendiri. Repo-wide consistency audit
+  [#805](https://github.com/ahliweb/awcms-mini/issues/805) (docs-only,
+  sesi ini) menyinkronkan `docs/`/`AGENTS.md`/`.claude/skills/` dengan
+  23-modul registry hasil epic ini.
 
 ### Epic full-online auth security hardening #587-#593 in progress (mulai 2026-07-09)
 

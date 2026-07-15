@@ -3,8 +3,8 @@
 | Metadata         | Nilai                    |
 | ---------------- | ------------------------ |
 | Repository       | `ahliweb/awcms-mini`     |
-| Snapshot         | 2026-07-12T07:47:25.110Z |
-| Total labels     | 99                       |
+| Snapshot         | 2026-07-15T16:41:33.367Z |
+| Total labels     | 100                      |
 | Total milestones | 25                       |
 
 Label diurutkan menjadi dua kelompok: **taksonomi doc 06** (dipakai backlog issue atomic base generik) dan **peninggalan proyek sebelumnya** (SIKESRA/governance-overlay, dibiarkan apa adanya, tidak dihapus/diubah).

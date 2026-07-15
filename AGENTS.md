@@ -130,6 +130,10 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Epic social_publishing auto-posting outbox foundation (Issue #643-#647)                                        | `awcms-mini-social-publishing`       |
 | Registry retensi/partisi/arsip/legal hold/purge tabel bervolume tinggi (Issue #745)                            | `awcms-mini-data-lifecycle`          |
 | Kontrak kesiapan ekstensi ERP (business transaction/posting/period-lock/item/reporting-projection, Issue #755) | `awcms-mini-erp-extension-readiness` |
+| Modul document_infrastructure — registry dokumen generik, versioning, numbering (Issue #751)                   | `awcms-mini-document-infrastructure` |
+| Modul integration_hub — inbound webhook, outbound subscription, adapter, SSRF guard (Issue #754)               | `awcms-mini-integration-hub`         |
+| Modul workflow_approval — graph engine, delegation/escalation/quorum (Issue 11.1, evolved #747)                | `awcms-mini-workflow-approval`       |
+| Modul profile_identity — party CRUD, merge workflow, cross-tenant guard (Issue 2.2, dilengkapi #748)           | `awcms-mini-profile-identity`        |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 
@@ -222,6 +226,31 @@ flowchart LR
   II --> ERPX[erp-extension-readiness]
   ERPX --> IDEM
   ERPX --> EV
+  II --> DOCI[document-infrastructure]
+  DOCI --> MIG
+  DOCI --> EP
+  DOCI --> ABAC
+  DOCI --> AUD
+  DOCI --> IDEM
+  II --> IH[integration-hub]
+  IH --> MIG
+  IH --> EP
+  IH --> ABAC
+  IH --> AUD
+  IH --> INT
+  II --> WF[workflow-approval]
+  WF --> MIG
+  WF --> EP
+  WF --> ABAC
+  WF --> AUD
+  WF --> IDEM
+  WF --> EV
+  II --> PI[profile-identity]
+  PI --> MIG
+  PI --> EP
+  PI --> ABAC
+  PI --> AUD
+  PI --> SD
 ```
 
 Skill merujuk `docs/awcms-mini/*` sebagai sumber kebenaran; bila standar berubah, perbarui doc **dan** skill terkait.
@@ -255,7 +284,7 @@ berjalan, bukan target/rencana:
 
 ```bash
 bun install
-bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + modules:compose:check + modules:composition:inventory:check + extension:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + typecheck + test + build
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + modules:compose:check + modules:composition:inventory:check + extension:check + data-lifecycle:registry:check + reporting:projections:registry:check + identity-access:sod-registry:check + reference-data:contributions:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + db:work-class:check + typecheck + test + build
 bun run dev                      # bun --bun astro dev
 bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
@@ -326,7 +355,7 @@ awcms-mini/
 ├── AGENTS.md                # file ini
 ├── CHANGELOG.md             # versioning (Changesets)
 ├── .changeset/              # config + changeset entries
-├── .claude/skills/          # 39 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/skills/          # 45 skill proyek (implement-issue, new-migration, dst.)
 ├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
 ├── README.md
 ├── package.json
@@ -354,7 +383,7 @@ awcms-mini/
 
 Modul **base generik** yang terdaftar di registry (`src/modules/index.ts` `listModules()`, lihat juga inventori GENERATED `docs/awcms-mini/repo-inventory.md` §Modules untuk daftar hidup key/versi/status):
 
-`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`), `idn-admin-regions` (`idn_admin_regions`, `type: base`, `status: experimental` — epic #654 master data wilayah administratif Indonesia, Issue #655-#664, lihat `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`), `domain-event-runtime` (`domain_event_runtime`, `type: system` — epic `platform-evolution` #738 Wave 1, Issue #742, transactional multi-consumer domain-event outbox/dispatcher, lihat `src/modules/domain-event-runtime/README.md`).
+`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`), `idn-admin-regions` (`idn_admin_regions`, `type: base`, `status: experimental` — epic #654 master data wilayah administratif Indonesia, Issue #655-#664, lihat `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`), `domain-event-runtime` (`domain_event_runtime`, `type: system` — epic `platform-evolution` #738 Wave 1, Issue #742, transactional multi-consumer domain-event outbox/dispatcher, lihat `src/modules/domain-event-runtime/README.md`), `organization-structure` (`organization_structure`, `type: domain` — epic `platform-evolution` #738 Wave 2, Issue #749, ADR-0016, hierarki organisasi/business-scope lintas modul, lihat `src/modules/organization-structure/README.md`), `document-infrastructure` (`document_infrastructure`, `type: domain` — epic `platform-evolution` #738 Wave 3, Issue #751, ADR-0017, capability port `document_resource_relations` reusable lintas modul, lihat `src/modules/document-infrastructure/README.md`), `data-exchange` (`data_exchange`, `type: domain` — epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0018, import/export/rekonsiliasi data batch, lihat `src/modules/data-exchange/README.md`), `integration-hub` (`integration_hub`, `type: system` — epic `platform-evolution` #738 Wave 3, Issue #754, ADR-0019, gateway integrasi outbound/inbound ke provider eksternal, lihat `src/modules/integration-hub/README.md`), `reference-data` (`reference_data`, `type: domain` — epic `platform-evolution` #738 Wave 3, Issue #750, ADR-0021, registry data referensi lintas modul, lihat `src/modules/reference-data/README.md`).
 
 `_shared` (`src/modules/_shared`) bukan modul terdaftar — berisi kontrak/tipe bersama (`module-contract.ts`, dsb.) yang dipakai seluruh modul lain.
 
