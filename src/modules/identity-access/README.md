@@ -528,15 +528,17 @@ longer be granted `.revoke` at a hierarchically-related child unit without
 tripping `business_scope_assignment_scope_maker_checker`. **Gap at the OTHER
 `same_scope_only` call site — CLOSED by Issue #802**: `checkHighRiskSoDConflicts`
 (`application/high-risk-sod-guard.ts`), wired at the generic
-`authorizeInTransaction` chokepoint (used by ~124 route files for many
-modules, most with no hierarchy concept at all), previously had no hierarchy
+`authorizeInTransaction` chokepoint (used by a large and growing number of
+route files across many modules, most with no hierarchy concept at all —
+re-grep `authorizeInTransaction` callers for the current count rather than
+trusting any number cited here), previously had no hierarchy
 port plumbed in at all and still compared `sodScopeType`/`sodScopeId` by
 exact equality only — the exact same gap #794 fixed for the create path,
 reachable here too (an actor holding `.revoke` via an ordinary RBAC role
 plus a business-scope `.create` fact at an ancestor unit could revoke a
 descendant-scope assignment without tripping the rule). Issue #802's
-investigation found the actual blast radius much narrower than "124 route
-files, all affected": of every caller of `authorizeInTransaction`, only
+investigation found the actual blast radius much narrower than the
+chokepoint's total fan-out suggests: of every caller of `authorizeInTransaction`, only
 ONE — `.../business-scope/assignments/[id]/revoke.ts` — has ever populated
 `resourceAttributes.sodScopeType`/`.sodScopeId` at all; every other caller
 always gets `requestedScope: null` from `extractRequestedScope`, which a

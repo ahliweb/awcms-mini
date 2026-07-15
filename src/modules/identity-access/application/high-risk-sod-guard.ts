@@ -76,8 +76,9 @@
  * because threading a real hierarchy port (`organization_structure`'s
  * adapter, needed to resolve `organization_unit`/`legal_entity` scopes) in
  * here directly would mean this shared `application` file — imported by
- * `access-guard.ts`, itself the chokepoint for ~124 unrelated route files —
- * importing an Optional module's code from Core, which
+ * `access-guard.ts`, itself the chokepoint for a large and growing number
+ * of unrelated route files (re-grep `authorizeInTransaction` callers for
+ * the current count) — importing an Optional module's code from Core, which
  * `business-scope-hierarchy-port-adapter.ts`'s own header and `module.ts`'s
  * `capabilities.consumes` entry both document as forbidden (ADR-0013 §1);
  * only a route (a real composition root) may choose which adapter to wire
@@ -85,13 +86,13 @@
  *
  * The fix threads an OPTIONAL `hierarchyPort` parameter through
  * `checkHighRiskSoDConflicts`/`authorizeInTransaction` instead of a
- * required one: when omitted (all but one of the ~124 callers today —
+ * required one: when omitted (every caller today except one —
  * `extractRequestedScope` returns `null` unless a caller populates
  * `resourceAttributes.sodScopeType`/`sodScopeId`, and only
  * `.../business-scope/assignments/[id]/revoke.ts` does), behavior is
  * byte-for-byte identical to before this issue — no new query, no new
- * import, no risk of regressing any of the other ~123 route files this
- * chokepoint serves. Only `revoke.ts` — the one caller that already sets
+ * import, no risk of regressing any of the chokepoint's other callers.
+ * Only `revoke.ts` — the one caller that already sets
  * `sodScopeType`/`sodScopeId` and is therefore the only real instance of
  * this gap today (verified: it is the sole caller of this chokepoint that
  * supplies a `requestedScope` at all) — now composes and passes the real
@@ -100,8 +101,9 @@
  * factored into `business-scope-hierarchy-port-composition.ts` so both
  * routes share one composition root instead of duplicating it), resolving
  * this scope's ancestors/descendants to populate `RequestedScope.relatedScopes`
- * the same way #794 already does for the create path. See
- * `tests/integration/high-risk-sod-guard-hierarchy.integration.test.ts`
+ * the same way #794 already does for the create path. See the "Issue #802
+ * adversarial" test in
+ * `tests/integration/business-scope-organization-structure-wiring.integration.test.ts`
  * for the adversarial proof: an actor holding `.create` at a parent
  * `organization_unit` can no longer `.revoke` an assignment at a
  * descendant unit without tripping

@@ -66,8 +66,9 @@ export type AuthorizeResult =
  * `options.hierarchyPort` (Issue #802) is OPTIONAL and forwarded verbatim to
  * `checkHighRiskSoDConflicts` for hierarchy-aware `same_scope_only` SoD
  * matching — see that function's own header for why this must stay
- * optional (this file is imported by ~124 route files, only one of which,
- * `revoke.ts`, has any hierarchy port to offer today). Every existing
+ * optional (this file is imported by a large and growing number of route
+ * files, only one of which, `revoke.ts`, has any hierarchy port to offer
+ * today). Every existing
  * 5-argument call site is unaffected.
  */
 export async function authorizeInTransaction(

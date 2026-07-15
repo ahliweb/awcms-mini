@@ -1163,8 +1163,10 @@ structure-wiring.integration.test.ts`, skenario "create di unit induk +
   chokepoint — DITUTUP Issue #802** (sebelumnya didokumentasikan di sini
   sebagai "TETAP ada, sengaja di luar scope #794"): `checkHighRiskSoDConflicts`
   (`application/high-risk-sod-guard.ts`), chokepoint `same_scope_only` LAIN
-  yang dipasang di `authorizeInTransaction` generik dipakai ~124 route file
-  lintas banyak modul, sebelumnya tidak punya hierarchy port sama sekali —
+  yang dipasang di `authorizeInTransaction` generik dipakai banyak route
+  file lintas banyak modul (jumlah pasti terus bertambah — re-grep caller
+  `authorizeInTransaction` daripada percaya angka manapun di sini),
+  sebelumnya tidak punya hierarchy port sama sekali —
   tetap membandingkan `sodScopeType`/`sodScopeId` persis, sehingga celah
   yang sama dengan #794 tetap bisa dieksploitasi lewat jalur ini (satu
   aktor menggenggam `.revoke` lewat role RBAC biasa + fact `.create`
@@ -1175,14 +1177,15 @@ structure-wiring.integration.test.ts`, skenario "create di unit induk +
   dengan syarat fallback eksplisit #794 sendiri ("bila tidak diperbaiki,
   minimal tambahkan monitoring"), yang saat itu belum benar-benar
   dikerjakan. **Investigasi Issue #802 menemukan blast radius sebenarnya
-  jauh lebih kecil dari "124 route file"**: dari SEMUA route yang memanggil
-  `authorizeInTransaction`, hanya SATU (`.../business-scope/assignments/
-[id]/revoke.ts`) yang pernah mengisi `resourceAttributes.sodScopeType`/
-  `.sodScopeId` sama sekali — setiap caller LAIN yang tidak mengisinya
-  membuat `extractRequestedScope` selalu `null`, yang UNTUK rule
-  `same_scope_only` sudah berarti `indeterminate: true` (default-deny,
-  bukan celah) sejak awal. Jadi celah nyata hari ini hanya ada di SATU
-  call site, bukan tersebar di 124. Diperbaiki dengan menambahkan parameter
+  jauh lebih kecil dari total fan-out chokepoint ini**: dari SEMUA route
+  yang memanggil `authorizeInTransaction`, hanya SATU (`.../business-scope/
+assignments/[id]/revoke.ts`) yang pernah mengisi
+  `resourceAttributes.sodScopeType`/`.sodScopeId` sama sekali — setiap
+  caller LAIN yang tidak mengisinya membuat `extractRequestedScope` selalu
+  `null`, yang UNTUK rule `same_scope_only` sudah berarti
+  `indeterminate: true` (default-deny, bukan celah) sejak awal. Jadi celah
+  nyata hari ini hanya ada di SATU call site, bukan tersebar luas.
+  Diperbaiki dengan menambahkan parameter
   `hierarchyPort` OPSIONAL ke `checkHighRiskSoDConflicts`/
   `authorizeInTransaction` — di-resolve LAZY, hanya dipanggil ketika
   `requestedScope` benar-benar ada DAN caller menyediakan `hierarchyPort`;
