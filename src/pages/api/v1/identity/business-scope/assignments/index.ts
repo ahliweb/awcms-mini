@@ -12,75 +12,24 @@ import {
   authorizeInTransaction,
   resolveAuthInputs
 } from "../../../../../../modules/identity-access/application/access-guard";
-import { resolveModuleEnabled } from "../../../../../../modules/identity-access/application/auth-context";
 import {
   computeRequestHash,
   findIdempotencyRecord,
   saveIdempotencyRecord
 } from "../../../../../../modules/_shared/idempotency";
-import { defaultBusinessScopeHierarchyPortAdapter } from "../../../../../../modules/identity-access/application/business-scope-hierarchy-port-adapter";
-import { organizationStructureHierarchyPortAdapter } from "../../../../../../modules/organization-structure/application/organization-structure-hierarchy-port-adapter";
-import type { BusinessScopeHierarchyPort } from "../../../../../../modules/_shared/ports/business-scope-hierarchy-port";
 import {
   createBusinessScopeAssignment,
   listBusinessScopeAssignments
 } from "../../../../../../modules/identity-access/application/business-scope-assignment-service";
 import { collectSoDRuleDescriptors } from "../../../../../../modules/identity-access/domain/sod-rule-registry";
 import { listModules } from "../../../../../../modules";
+import {
+  buildBusinessScopeHierarchyPort,
+  resolveOrganizationStructureEnabled
+} from "../hierarchy-port-composition";
 
 const IDEMPOTENCY_SCOPE = "identity_access_business_scope_assignment_create";
 const SOD_RULES = collectSoDRuleDescriptors(listModules());
-const ORGANIZATION_STRUCTURE_MODULE_KEY = "organization_structure";
-
-/**
- * The REAL `BusinessScopeHierarchyPort` composition (Issue #786, follow-up
- * to #746/#749 — the reviewer's non-blocking note on PR #779 that
- * `organizationStructureHierarchyPortAdapter` had zero production callers).
- * This route is the sole composition root for `createBusinessScopeAssignment`
- * today (`identity_access`'s own `application`/`domain` tree never imports
- * `organization_structure` — that would be a Core-depends-on-Optional
- * violation, ADR-0013 §1 — and is exactly what
- * `tests/unit/module-boundary-cycles.test.ts` structurally forbids).
- *
- * `organizationStructureEnabled` is resolved PER TENANT
- * (`resolveModuleEnabled`, the same tenant-module-enablement signal
- * `authorizeInTransaction` already enforces for every guarded endpoint,
- * Issue #515) — when `organization_structure` is disabled for this tenant,
- * `legal_entity`/`organization_unit` scope references are treated exactly
- * like any other scope type this module doesn't own: `resolved: false`,
- * default-deny, never a stale read of leftover rows from a module the
- * tenant has turned off. When enabled, the real adapter is tried FIRST;
- * since it already returns `resolved: false` for any scope type it doesn't
- * own (`"office"` included), falling through to identity-access's own flat
- * adapter is always safe — neither adapter needs to know the other exists.
- */
-function buildHierarchyPort(
-  organizationStructureEnabled: boolean
-): BusinessScopeHierarchyPort {
-  return {
-    async resolveScope(tx, tenantId, scopeType, scopeId) {
-      if (organizationStructureEnabled) {
-        const organizationResolution =
-          await organizationStructureHierarchyPortAdapter.resolveScope(
-            tx,
-            tenantId,
-            scopeType,
-            scopeId
-          );
-        if (organizationResolution.resolved) {
-          return organizationResolution;
-        }
-      }
-
-      return defaultBusinessScopeHierarchyPortAdapter.resolveScope(
-        tx,
-        tenantId,
-        scopeType,
-        scopeId
-      );
-    }
-  };
-}
 
 /** `GET /api/v1/identity/business-scope/assignments` (Issue #746) — list this tenant's business-scope assignments, optionally filtered by `status`/`tenantUserId`/`scopeType`. */
 export const GET: APIRoute = async ({ request, cookies, url }) => {
@@ -229,11 +178,8 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       });
     }
 
-    const organizationStructureEnabled = await resolveModuleEnabled(
-      tx,
-      tenantId,
-      ORGANIZATION_STRUCTURE_MODULE_KEY
-    );
+    const organizationStructureEnabled =
+      await resolveOrganizationStructureEnabled(tx, tenantId);
 
     const result = await createBusinessScopeAssignment(
       tx,
@@ -250,7 +196,9 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
         reason
       },
       {
-        hierarchyPort: buildHierarchyPort(organizationStructureEnabled),
+        hierarchyPort: buildBusinessScopeHierarchyPort(
+          organizationStructureEnabled
+        ),
         sodRules: SOD_RULES
       },
       now,

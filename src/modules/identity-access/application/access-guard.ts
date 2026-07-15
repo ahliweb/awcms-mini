@@ -1,6 +1,7 @@
 import type { AstroCookies } from "astro";
 
 import { fail } from "../../_shared/api-response";
+import type { BusinessScopeHierarchyPort } from "../../_shared/ports/business-scope-hierarchy-port";
 import {
   SESSION_COOKIE_NAME,
   TENANT_COOKIE_NAME
@@ -61,13 +62,21 @@ export type AuthorizeResult =
  * endpoints inline; it is centralized here so every guarded endpoint stays
  * consistent, always enforces tenant module state, and always records a
  * decision log.
+ *
+ * `options.hierarchyPort` (Issue #802) is OPTIONAL and forwarded verbatim to
+ * `checkHighRiskSoDConflicts` for hierarchy-aware `same_scope_only` SoD
+ * matching — see that function's own header for why this must stay
+ * optional (this file is imported by ~124 route files, only one of which,
+ * `revoke.ts`, has any hierarchy port to offer today). Every existing
+ * 5-argument call site is unaffected.
  */
 export async function authorizeInTransaction(
   tx: Bun.SQL,
   tenantId: string,
   tokenHash: string,
   now: Date,
-  guard: AccessRequest
+  guard: AccessRequest,
+  options?: { hierarchyPort?: BusinessScopeHierarchyPort }
 ): Promise<AuthorizeResult> {
   const context = await resolveTenantContext(tx, tenantId, tokenHash, now);
 
@@ -134,7 +143,8 @@ export async function authorizeInTransaction(
       tenantId,
       context,
       guard,
-      now
+      now,
+      options?.hierarchyPort
     );
 
     if (sodCheck.blocked) {

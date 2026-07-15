@@ -18,6 +18,10 @@ import {
   saveIdempotencyRecord
 } from "../../../../../../../modules/_shared/idempotency";
 import { revokeBusinessScopeAssignment } from "../../../../../../../modules/identity-access/application/business-scope-assignment-service";
+import {
+  buildBusinessScopeHierarchyPort,
+  resolveOrganizationStructureEnabled
+} from "../../hierarchy-port-composition";
 
 const IDEMPOTENCY_SCOPE = "identity_access_business_scope_assignment_revoke";
 
@@ -82,14 +86,37 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
     `) as { scope_type: string; scope_id: string }[];
     const target = targetRows[0];
 
-    const auth = await authorizeInTransaction(tx, tenantId, tokenHash, now, {
-      moduleKey: "identity_access",
-      activityCode: "business_scope_assignments",
-      action: "revoke",
-      resourceAttributes: target
-        ? { sodScopeType: target.scope_type, sodScopeId: target.scope_id }
-        : undefined
-    });
+    // Hierarchy-aware `same_scope_only` SoD matching at this chokepoint too
+    // (Issue #802): this route is the ONLY caller of `authorizeInTransaction`
+    // that populates `sodScopeType`/`sodScopeId` today, so it is the sole
+    // real instance of the gap #794/PR #800 left open here — compose the
+    // same real `BusinessScopeHierarchyPort`
+    // `business-scope/assignments/index.ts` already uses for the create
+    // path, so a subject holding `.create` at a parent scope can no longer
+    // `.revoke` at a hierarchically-descendant scope without tripping
+    // `business_scope_assignment_scope_maker_checker`.
+    const organizationStructureEnabled =
+      await resolveOrganizationStructureEnabled(tx, tenantId);
+
+    const auth = await authorizeInTransaction(
+      tx,
+      tenantId,
+      tokenHash,
+      now,
+      {
+        moduleKey: "identity_access",
+        activityCode: "business_scope_assignments",
+        action: "revoke",
+        resourceAttributes: target
+          ? { sodScopeType: target.scope_type, sodScopeId: target.scope_id }
+          : undefined
+      },
+      {
+        hierarchyPort: buildBusinessScopeHierarchyPort(
+          organizationStructureEnabled
+        )
+      }
+    );
 
     if (!auth.allowed) {
       return auth.denied;

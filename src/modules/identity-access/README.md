@@ -525,20 +525,45 @@ fact whose scope is a genuine ancestor/descendant of the requested scope,
 not only an EXACT `(scopeType, scopeId)` equal one — e.g. a subject holding
 `business_scope_assignments.create` at a parent `organization_unit` can no
 longer be granted `.revoke` at a hierarchically-related child unit without
-tripping `business_scope_assignment_scope_maker_checker`. **Remaining, documented
-gap**: `checkHighRiskSoDConflicts` (`application/high-risk-sod-guard.ts`),
-the OTHER `same_scope_only` call site wired at the generic
+tripping `business_scope_assignment_scope_maker_checker`. **Gap at the OTHER
+`same_scope_only` call site — CLOSED by Issue #802**: `checkHighRiskSoDConflicts`
+(`application/high-risk-sod-guard.ts`), wired at the generic
 `authorizeInTransaction` chokepoint (used by ~124 route files for many
-modules, most with no hierarchy concept at all), has no hierarchy port
-plumbed in at all — it still compares `sodScopeType`/`sodScopeId` by exact
-equality only. Threading hierarchy resolution through that fully generic
-chokepoint (which would require every one of its many callers to supply a
-hierarchy port, or resolve one per-request, for scope types the vast
-majority of them don't even have) is a materially larger, non-atomic
-change deliberately left out of issue #794's scope — tracked in
-`docs/awcms-mini/20_threat_model_security_architecture.md`'s SoD threat
-table as a distinct residual limitation, not silently absorbed into this
-fix's claim.
+modules, most with no hierarchy concept at all), previously had no hierarchy
+port plumbed in at all and still compared `sodScopeType`/`sodScopeId` by
+exact equality only — the exact same gap #794 fixed for the create path,
+reachable here too (an actor holding `.revoke` via an ordinary RBAC role
+plus a business-scope `.create` fact at an ancestor unit could revoke a
+descendant-scope assignment without tripping the rule). Issue #802's
+investigation found the actual blast radius much narrower than "124 route
+files, all affected": of every caller of `authorizeInTransaction`, only
+ONE — `.../business-scope/assignments/[id]/revoke.ts` — has ever populated
+`resourceAttributes.sodScopeType`/`.sodScopeId` at all; every other caller
+always gets `requestedScope: null` from `extractRequestedScope`, which a
+`same_scope_only` rule already treats as `indeterminate: true`
+(default-deny) regardless of hierarchy — never a silent gap for those
+callers. The fix threads an OPTIONAL `hierarchyPort` parameter through
+`checkHighRiskSoDConflicts`/`authorizeInTransaction`, resolved LAZILY only
+when both a `requestedScope` is supplied and a `hierarchyPort` is passed —
+every other caller today passes neither, so behavior for them is
+byte-for-byte unchanged (zero new queries, zero regression risk across the
+other ~123 route files). Only `revoke.ts` now composes the real
+`BusinessScopeHierarchyPort` (the same `organization_structure` adapter
+composition `assignments/index.ts` already uses for the create path,
+factored into a shared
+`src/pages/api/v1/identity/business-scope/hierarchy-port-composition.ts`
+so both routes share one composition root) and passes it in. Because the
+detection gap itself is closed, the near-miss that previously generated
+ZERO telemetry (`sod_conflicts_detected_total` never fired since
+`detectSoDConflicts` found no match) now correctly fires through the
+SAME, already-existing `recordSoDConflictEvaluation`/counter call —
+satisfying #794's own "if not fixed directly, at minimum add monitoring"
+fallback without needing a separate metric. Proven end-to-end by the
+"Issue #802 adversarial" test in `tests/integration/business-scope-
+organization-structure-wiring.integration.test.ts` (create at a parent
+`organization_unit` + ordinary-RBAC `.revoke`, attempting to revoke a
+different subject's assignment at a child unit through THIS chokepoint —
+now `403 SOD_CONFLICT`, recorded with `trigger_context: "high_risk_decision"`).
 
 ### ABAC extension (`domain/access-control.ts`)
 
@@ -602,7 +627,11 @@ the realistic case of both conflicting permissions being held through an
 ordinary role like the setup wizard's "owner"). A cheap code-defined
 `Set` membership short-circuit (`SOD_RELEVANT_PERMISSION_KEYS`) means
 extending this chokepoint costs nothing measurable for the hundreds of
-endpoints this feature does not touch.
+endpoints this feature does not touch. `checkHighRiskSoDConflicts` also
+accepts an OPTIONAL `hierarchyPort` (Issue #802, see the "Hierarchy-aware
+SoD matching" section above) for hierarchy-aware `same_scope_only`
+matching — omitted by every caller except `revoke.ts` today, with
+byte-for-byte unchanged behavior when omitted.
 
 **Scope of "chokepoint" — accurate claim, not "every endpoint in this
 codebase".** `authorizeInTransaction` is used by 124 route files, but 13

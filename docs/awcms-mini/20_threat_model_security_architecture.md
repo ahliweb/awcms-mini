@@ -1159,16 +1159,48 @@ structure-wiring.integration.test.ts`, skenario "create di unit induk +
   revoke di unit anak") dan unit test murni
   (`tests/unit/sod-conflict-evaluation.test.ts`). Tidak melintasi batas
   tenant/RLS dan tidak melewati default-deny ABAC — tetap butuh permission
-  pemberian assignment yang sah. **Celah residual yang TETAP ada, didokumentasikan
-  eksplisit, BUKAN diklaim selesai**: `checkHighRiskSoDConflicts`
-  (`application/high-risk-sod-guard.ts`) — chokepoint `same_scope_only`
-  LAIN, dipasang di `authorizeInTransaction` generik yang dipakai ~124
-  route file lintas banyak modul, kebanyakan tanpa konsep hierarki sama
-  sekali — tidak punya hierarchy port sama sekali, sehingga tetap
-  membandingkan `sodScopeType`/`sodScopeId` persis. Menyalurkan resolusi
-  hierarki ke chokepoint sebegitu generik adalah perubahan jauh lebih besar
-  dan tidak atomic, sengaja di luar scope issue #794 ini — dicatat di sini,
-  bukan diam-diam diserap ke klaim perbaikan ini.
+  pemberian assignment yang sah. **Celah residual di `checkHighRiskSoDGuard`
+  chokepoint — DITUTUP Issue #802** (sebelumnya didokumentasikan di sini
+  sebagai "TETAP ada, sengaja di luar scope #794"): `checkHighRiskSoDConflicts`
+  (`application/high-risk-sod-guard.ts`), chokepoint `same_scope_only` LAIN
+  yang dipasang di `authorizeInTransaction` generik dipakai ~124 route file
+  lintas banyak modul, sebelumnya tidak punya hierarchy port sama sekali —
+  tetap membandingkan `sodScopeType`/`sodScopeId` persis, sehingga celah
+  yang sama dengan #794 tetap bisa dieksploitasi lewat jalur ini (satu
+  aktor menggenggam `.revoke` lewat role RBAC biasa + fact `.create`
+  business-scope pada unit induk bisa `.revoke` assignment pada unit anak
+  tanpa memicu rule). Karena `detectSoDConflicts` mengembalikan nol
+  kecocokan pada near-miss ini, `recordSoDConflictEvaluation`/counter
+  `sod_conflicts_detected_total` juga TIDAK PERNAH terpicu — bertentangan
+  dengan syarat fallback eksplisit #794 sendiri ("bila tidak diperbaiki,
+  minimal tambahkan monitoring"), yang saat itu belum benar-benar
+  dikerjakan. **Investigasi Issue #802 menemukan blast radius sebenarnya
+  jauh lebih kecil dari "124 route file"**: dari SEMUA route yang memanggil
+  `authorizeInTransaction`, hanya SATU (`.../business-scope/assignments/
+[id]/revoke.ts`) yang pernah mengisi `resourceAttributes.sodScopeType`/
+  `.sodScopeId` sama sekali — setiap caller LAIN yang tidak mengisinya
+  membuat `extractRequestedScope` selalu `null`, yang UNTUK rule
+  `same_scope_only` sudah berarti `indeterminate: true` (default-deny,
+  bukan celah) sejak awal. Jadi celah nyata hari ini hanya ada di SATU
+  call site, bukan tersebar di 124. Diperbaiki dengan menambahkan parameter
+  `hierarchyPort` OPSIONAL ke `checkHighRiskSoDConflicts`/
+  `authorizeInTransaction` — di-resolve LAZY, hanya dipanggil ketika
+  `requestedScope` benar-benar ada DAN caller menyediakan `hierarchyPort`;
+  123+ caller lain yang tidak menyediakannya berperilaku identik
+  byte-for-byte dengan sebelum #802 (nol query tambahan, nol perubahan
+  perilaku, nol risiko regresi). Hanya `revoke.ts` (satu-satunya instance
+  celah nyata) kini menyusun `BusinessScopeHierarchyPort` yang sama
+  (`organization_structure`'s adapter, difaktorkan ke
+  `src/pages/api/v1/identity/business-scope/hierarchy-port-composition.ts`
+  agar dipakai bersama oleh route create DAN revoke, bukan diduplikasi) dan
+  meneruskannya. Karena celah ditutup di jalur deteksi itu sendiri, near-miss
+  yang tadinya nol-telemetri sekarang otomatis MEMICU
+  `recordSoDConflictEvaluation`/`sod_conflicts_detected_total` lewat
+  mekanisme yang sudah ada — tidak perlu metric terpisah lagi. Dibuktikan
+  lewat test adversarial baru di `tests/integration/business-scope-
+organization-structure-wiring.integration.test.ts` ("Issue #802
+  adversarial") yang membuktikan revoke lintas unit induk/anak lewat
+  chokepoint ini sendiri kini DITOLAK (403 SOD_CONFLICT) dan tercatat.
 - **Tiga rule fixture SoD** (bukan katalog domain lengkap) — dua dimiliki
   `identity_access` sendiri (maker/checker atas mekanisme exception itu
   sendiri, dan atas assignment create/revoke pada scope yang sama), satu

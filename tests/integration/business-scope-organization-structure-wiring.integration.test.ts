@@ -58,6 +58,7 @@ import {
   GET as listAssignments,
   POST as createAssignment
 } from "../../src/pages/api/v1/identity/business-scope/assignments/index";
+import { POST as revokeAssignment } from "../../src/pages/api/v1/identity/business-scope/assignments/[id]/revoke";
 import { POST as disableModule } from "../../src/pages/api/v1/tenant/modules/[moduleKey]/disable";
 import { hashPassword } from "../../src/lib/auth/password";
 
@@ -171,6 +172,24 @@ async function createSecondTenantUser(
   }
 
   return tenantUserRows[0]!.id;
+}
+
+async function loginAsSecondTenantUser(
+  tenantId: string,
+  loginIdentifier: string
+): Promise<{ token: string }> {
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password: SECOND_USER_PASSWORD },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+  return { token: login.body.data.token };
 }
 
 async function createRoleWithPermissions(
@@ -574,6 +593,148 @@ suite(
 
       expect(result.status).toBe(200);
       expect(result.body.data.assignment.scopeType).toBe("office");
+    });
+
+    test("Issue #802 adversarial: hierarchy-aware same_scope_only matching now also trips at the checkHighRiskSoDConflicts CHOKEPOINT (POST .../assignments/{id}/revoke), not only at assignment-create time — an actor holding create at a parent organization_unit (via a business-scope assignment) plus revoke via ordinary RBAC can no longer revoke a DIFFERENT subject's assignment at a descendant unit", async () => {
+      const owner = await bootstrap();
+      const { legalEntityId, unitId: parentUnitId } =
+        await seedLegalEntityWithUnit(owner.tenantId);
+      const childUnitId = await seedChildUnit(
+        owner.tenantId,
+        legalEntityId,
+        parentUnitId
+      );
+      const admin = getAdminSql();
+
+      // The ACTOR starts with NO role at all, so granting them `.create`
+      // at the parent unit below does not itself collide with anything
+      // (a null-scope RBAC fact would ALREADY conflict with a same-scope
+      // grant at ANY scope, per `sod-conflict-evaluation.ts`'s own
+      // "null-scope fact conflicts everywhere" rule — unrelated to this
+      // issue's hierarchy gap, and not what this test is proving).
+      const actorId = await createSecondTenantUser(
+        owner.tenantId,
+        "acme-chokepoint-actor@example.com"
+      );
+
+      const creatorRole = await createRoleWithPermissions(
+        owner.tenantId,
+        "org_chokepoint_creator",
+        "Org Chokepoint Creator",
+        ["identity_access.business_scope_assignments.create"]
+      );
+      const actorCreateGrant = await invoke<{
+        data: { assignment: { id: string } };
+      }>(createAssignment, {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/assignments",
+        headers: authHeaders(owner, "org-chokepoint-actor-grant"),
+        body: {
+          tenantUserId: actorId,
+          roleId: creatorRole,
+          scopeType: "organization_unit",
+          scopeId: parentUnitId
+        }
+      });
+      expect(actorCreateGrant.status).toBe(200);
+
+      // ONLY AFTER the actor already holds the scoped `.create` fact above
+      // is `.revoke` granted PERMANENTLY via an ordinary RBAC role —
+      // exactly the issue's own narrative ("an actor holding an ordinary
+      // RBAC `.revoke`-type permission plus a business-scope `.create`
+      // fact"). An ordinary role assignment (`awcms_mini_access_
+      // assignments`) is never itself SoD-gated (only the discrete
+      // business-scope-assignment create/revoke actions are), so this step
+      // is a plain admin-seeded grant, not a bypass of anything.
+      const revokerRole = await createRoleWithPermissions(
+        owner.tenantId,
+        "org_chokepoint_revoker",
+        "Org Chokepoint Revoker",
+        ["identity_access.business_scope_assignments.revoke"]
+      );
+      await admin`
+        INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+        VALUES (${owner.tenantId}, ${actorId}, ${revokerRole})
+      `;
+      const actorSession = await loginAsSecondTenantUser(
+        owner.tenantId,
+        "acme-chokepoint-actor@example.com"
+      );
+
+      // The TARGET: a DIFFERENT subject's assignment at the CHILD unit —
+      // any role, since only its `(scopeType, scopeId)` matters to the SoD
+      // check, not what it grants.
+      const victimId = await createSecondTenantUser(
+        owner.tenantId,
+        "acme-chokepoint-victim@example.com"
+      );
+      const targetAssignment = await invoke<{
+        data: { assignment: { id: string } };
+      }>(createAssignment, {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/assignments",
+        headers: authHeaders(owner, "org-chokepoint-target"),
+        body: {
+          tenantUserId: victimId,
+          scopeType: "organization_unit",
+          scopeId: childUnitId,
+          reason: "Target assignment for the #802 chokepoint adversarial test."
+        }
+      });
+      expect(targetAssignment.status).toBe(200);
+
+      // Before Issue #802: `checkHighRiskSoDConflicts` only ever compared
+      // `(scopeType, scopeId)` by EXACT equality, so `parentUnitId !==
+      // childUnitId` meant no conflict was ever detected here, and this
+      // revoke would have succeeded (200) despite the actor holding
+      // `.create` at the target's own ancestor unit. After the fix, the
+      // chokepoint resolves the target's ancestor/descendant scopes
+      // through the real `organization_structure` hierarchy adapter and
+      // finds the actor's `.create` fact among them — a genuine
+      // `same_scope_only` conflict, denied.
+      const revokeAttempt = await invoke(revokeAssignment, {
+        method: "POST",
+        path: `/api/v1/identity/business-scope/assignments/${targetAssignment.body.data.assignment.id}/revoke`,
+        headers: {
+          ...authHeaders(owner, "org-chokepoint-revoke-attempt"),
+          authorization: `Bearer ${actorSession.token}`
+        },
+        params: { id: targetAssignment.body.data.assignment.id },
+        body: { revokeReason: "Attempting cross-hierarchy revoke." }
+      });
+
+      expect(revokeAttempt.status).toBe(403);
+      expect(
+        (revokeAttempt.body as { error: { code: string } }).error.code
+      ).toBe("SOD_CONFLICT");
+
+      // The target assignment is untouched (still active) and the
+      // conflict evaluation was recorded against the real chokepoint's own
+      // `trigger_context` — proving `sod_conflicts_detected_total` (and
+      // `recordSoDConflictEvaluation`) now DO fire for this near-miss,
+      // closing the zero-telemetry gap Issue #802 also reported.
+      const targetRow = (await admin`
+        SELECT status FROM awcms_mini_business_scope_assignments
+        WHERE id = ${targetAssignment.body.data.assignment.id}
+      `) as { status: string }[];
+      expect(targetRow[0]!.status).toBe("active");
+
+      const evaluations = (await admin`
+        SELECT conflict_detected, resolved_via, trigger_context
+        FROM awcms_mini_sod_conflict_evaluations
+        WHERE tenant_id = ${owner.tenantId}
+          AND rule_key = 'identity_access.business_scope_assignment_scope_maker_checker'
+          AND trigger_context = 'high_risk_decision'
+      `) as {
+        conflict_detected: boolean;
+        resolved_via: string;
+        trigger_context: string;
+      }[];
+      expect(evaluations.length).toBeGreaterThan(0);
+      expect(evaluations.every((row) => row.conflict_detected)).toBe(true);
+      expect(evaluations.every((row) => row.resolved_via === "denied")).toBe(
+        true
+      );
     });
   }
 );
