@@ -200,7 +200,11 @@ export const DELETE: APIRoute = async ({
   const deleteReason =
     typeof body.deleteReason === "string" ? body.deleteReason : "";
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    id: documentId,
+    action: "delete"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();

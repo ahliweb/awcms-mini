@@ -47,7 +47,10 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     );
   }
 
-  const requestHash = computeRequestHash({});
+  const requestHash = computeRequestHash({
+    id: classificationId,
+    action: "restore"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();

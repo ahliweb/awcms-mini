@@ -60,7 +60,11 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   const cancelReason =
     typeof body.cancelReason === "string" ? body.cancelReason : "";
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    id: reservationId,
+    action: "cancel"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();

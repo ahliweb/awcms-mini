@@ -1744,4 +1744,246 @@ suite("document_infrastructure integration", () => {
     expect(allowedReservationIds).toContain(uncommittedReservationId);
     expect(allowedReservationIds).toContain(committedReservationId);
   });
+
+  test("ADVERSARIAL (security-review High, Issue #795): reusing the same Idempotency-Key across RESTORE of two DIFFERENT documents (both empty-body) must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second document must still actually restore once given its OWN key", async () => {
+    const owner = await bootstrap();
+    const documentA = await createDocumentFixture(owner);
+    const documentB = await createDocumentFixture(owner);
+
+    await invoke(deleteDocument, {
+      method: "DELETE",
+      path: `/api/v1/document-infrastructure/documents/${documentA}`,
+      headers: authHeaders(owner, `delete-a-${Math.random()}`),
+      params: { id: documentA },
+      body: { deleteReason: "Fixture setup." }
+    });
+    await invoke(deleteDocument, {
+      method: "DELETE",
+      path: `/api/v1/document-infrastructure/documents/${documentB}`,
+      headers: authHeaders(owner, `delete-b-${Math.random()}`),
+      params: { id: documentB },
+      body: { deleteReason: "Fixture setup." }
+    });
+
+    const reusedKey = "reused-document-restore-key";
+
+    // Restore A with the reused key -- succeeds normally.
+    const restoreA = await invoke<{ data: { document: { id: string } } }>(
+      restoreDocument,
+      {
+        method: "POST",
+        path: `/api/v1/document-infrastructure/documents/${documentA}/restore`,
+        headers: authHeaders(owner, reusedKey),
+        params: { id: documentA }
+      }
+    );
+    expect(restoreA.status).toBe(200);
+    expect(restoreA.body.data.document.id).toBe(documentA);
+
+    // Attempt to restore B with the SAME key. Both requests hash an
+    // empty body, so pre-fix (`computeRequestHash({})` with no `id`
+    // folded in), this would silently REPLAY A's cached response
+    // (200, describing A as restored) without B ever being touched --
+    // B would appear "restored" to the caller while remaining deleted.
+    const restoreBReusedKey = await invoke(restoreDocument, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/documents/${documentB}/restore`,
+      headers: authHeaders(owner, reusedKey),
+      params: { id: documentB }
+    });
+    expect(restoreBReusedKey.status).toBe(409);
+    expect(
+      (restoreBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be deleted -- NOT falsely reported as restored.
+    const admin = getAdminSql();
+    const stillDeletedRows = (await admin`
+      SELECT deleted_at FROM awcms_mini_documents WHERE id = ${documentB}
+    `) as { deleted_at: Date | null }[];
+    expect(stillDeletedRows).toHaveLength(1);
+    expect(stillDeletedRows[0]!.deleted_at).not.toBeNull();
+
+    // With its OWN distinct key, B's restore genuinely applies.
+    const restoreBOwnKey = await invoke<{ data: { document: { id: string } } }>(
+      restoreDocument,
+      {
+        method: "POST",
+        path: `/api/v1/document-infrastructure/documents/${documentB}/restore`,
+        headers: authHeaders(owner, `restore-b-own-${Math.random()}`),
+        params: { id: documentB }
+      }
+    );
+    expect(restoreBOwnKey.status).toBe(200);
+
+    const nowRestoredRows = (await admin`
+      SELECT deleted_at FROM awcms_mini_documents WHERE id = ${documentB}
+    `) as { deleted_at: Date | null }[];
+    expect(nowRestoredRows[0]!.deleted_at).toBeNull();
+  });
+
+  test("ADVERSARIAL (security-review High, Issue #795): reusing the same Idempotency-Key across RESTORE of two DIFFERENT classifications (both empty-body) must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second classification must still actually restore once given its OWN key", async () => {
+    const owner = await bootstrap();
+    const classificationA = await createClassificationFixture(owner, "policy");
+    const classificationB = await createClassificationFixture(owner, "memo");
+
+    await invoke(deactivateClassification, {
+      method: "DELETE",
+      path: `/api/v1/document-infrastructure/classifications/${classificationA}`,
+      headers: authHeaders(owner, `deactivate-a-${Math.random()}`),
+      params: { id: classificationA },
+      body: { deleteReason: "Fixture setup." }
+    });
+    await invoke(deactivateClassification, {
+      method: "DELETE",
+      path: `/api/v1/document-infrastructure/classifications/${classificationB}`,
+      headers: authHeaders(owner, `deactivate-b-${Math.random()}`),
+      params: { id: classificationB },
+      body: { deleteReason: "Fixture setup." }
+    });
+
+    const reusedKey = "reused-classification-restore-key";
+
+    // Restore A with the reused key -- succeeds normally.
+    const restoreA = await invoke<{
+      data: { classification: { id: string } };
+    }>(restoreClassification, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/classifications/${classificationA}/restore`,
+      headers: authHeaders(owner, reusedKey),
+      params: { id: classificationA }
+    });
+    expect(restoreA.status).toBe(200);
+    expect(restoreA.body.data.classification.id).toBe(classificationA);
+
+    // Attempt to restore B with the SAME key and the same empty body.
+    // Pre-fix (`computeRequestHash({})`), this would silently REPLAY A's
+    // cached response instead of B ever being restored.
+    const restoreBReusedKey = await invoke(restoreClassification, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/classifications/${classificationB}/restore`,
+      headers: authHeaders(owner, reusedKey),
+      params: { id: classificationB }
+    });
+    expect(restoreBReusedKey.status).toBe(409);
+    expect(
+      (restoreBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be deactivated -- NOT falsely reported as restored.
+    const admin = getAdminSql();
+    const stillDeactivatedRows = (await admin`
+      SELECT deleted_at FROM awcms_mini_document_classifications WHERE id = ${classificationB}
+    `) as { deleted_at: Date | null }[];
+    expect(stillDeactivatedRows).toHaveLength(1);
+    expect(stillDeactivatedRows[0]!.deleted_at).not.toBeNull();
+
+    // With its OWN distinct key, B's restore genuinely applies.
+    const restoreBOwnKey = await invoke<{
+      data: { classification: { id: string } };
+    }>(restoreClassification, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/classifications/${classificationB}/restore`,
+      headers: authHeaders(owner, `restore-b-own-${Math.random()}`),
+      params: { id: classificationB }
+    });
+    expect(restoreBOwnKey.status).toBe(200);
+
+    const nowRestoredRows = (await admin`
+      SELECT deleted_at FROM awcms_mini_document_classifications WHERE id = ${classificationB}
+    `) as { deleted_at: Date | null }[];
+    expect(nowRestoredRows[0]!.deleted_at).toBeNull();
+  });
+
+  test("ADVERSARIAL (security-review High, Issue #795): reusing the same Idempotency-Key across CANCEL of two DIFFERENT number reservations with an identical-shaped body must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second reservation must still actually cancel once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await invoke(defineSequence, {
+      method: "POST",
+      path: "/api/v1/document-infrastructure/sequences",
+      headers: authHeaders(owner, `define-key-${Math.random()}`),
+      body: {
+        scopeType: "tenant",
+        sequenceKey: "cross_resource_cancel",
+        formatTemplate: "{SEQ:4}",
+        resetPolicy: "never"
+      }
+    });
+
+    const reserveA = await invoke<{
+      data: { reservation: { id: string } };
+    }>(reserveNumber, {
+      method: "POST",
+      path: "/api/v1/document-infrastructure/reservations/reserve",
+      headers: authHeaders(owner, `reserve-a-${Math.random()}`),
+      body: { scopeType: "tenant", sequenceKey: "cross_resource_cancel" }
+    });
+    expect(reserveA.status).toBe(200);
+    const reservationA = reserveA.body.data.reservation.id;
+
+    const reserveB = await invoke<{
+      data: { reservation: { id: string } };
+    }>(reserveNumber, {
+      method: "POST",
+      path: "/api/v1/document-infrastructure/reservations/reserve",
+      headers: authHeaders(owner, `reserve-b-${Math.random()}`),
+      body: { scopeType: "tenant", sequenceKey: "cross_resource_cancel" }
+    });
+    expect(reserveB.status).toBe(200);
+    const reservationB = reserveB.body.data.reservation.id;
+
+    const reusedKey = "reused-reservation-cancel-key";
+    const sharedBody = { cancelReason: "No longer needed." };
+
+    // Cancel A with the reused key -- succeeds normally.
+    const cancelA = await invoke(cancelReservation, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/reservations/${reservationA}/cancel`,
+      headers: authHeaders(owner, reusedKey),
+      params: { id: reservationA },
+      body: sharedBody
+    });
+    expect(cancelA.status).toBe(200);
+
+    // Attempt to cancel B with the SAME key and an IDENTICALLY-shaped
+    // body. Pre-fix (`computeRequestHash(body)` with no `id` folded in),
+    // this would silently REPLAY A's cached response without B's
+    // reservation ever being touched -- B would appear "canceled" to the
+    // caller while remaining in `reserved` status.
+    const cancelBReusedKey = await invoke(cancelReservation, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/reservations/${reservationB}/cancel`,
+      headers: authHeaders(owner, reusedKey),
+      params: { id: reservationB },
+      body: sharedBody
+    });
+    expect(cancelBReusedKey.status).toBe(409);
+    expect(
+      (cancelBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be `reserved` -- NOT falsely reported as canceled.
+    const admin = getAdminSql();
+    const stillReservedRows = (await admin`
+      SELECT status, canceled_at FROM awcms_mini_document_number_reservations WHERE id = ${reservationB}
+    `) as { status: string; canceled_at: Date | null }[];
+    expect(stillReservedRows).toHaveLength(1);
+    expect(stillReservedRows[0]!.status).toBe("reserved");
+    expect(stillReservedRows[0]!.canceled_at).toBeNull();
+
+    // With its OWN distinct key, B's cancellation genuinely applies.
+    const cancelBOwnKey = await invoke(cancelReservation, {
+      method: "POST",
+      path: `/api/v1/document-infrastructure/reservations/${reservationB}/cancel`,
+      headers: authHeaders(owner, `cancel-b-own-${Math.random()}`),
+      params: { id: reservationB },
+      body: sharedBody
+    });
+    expect(cancelBOwnKey.status).toBe(200);
+
+    const nowCanceledRows = (await admin`
+      SELECT status, canceled_at FROM awcms_mini_document_number_reservations WHERE id = ${reservationB}
+    `) as { status: string; canceled_at: Date | null }[];
+    expect(nowCanceledRows[0]!.status).toBe("canceled");
+    expect(nowCanceledRows[0]!.canceled_at).not.toBeNull();
+  });
 });
