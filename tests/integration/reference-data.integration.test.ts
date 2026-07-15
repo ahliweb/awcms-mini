@@ -48,6 +48,16 @@ import {
   GET as listTenantCodes,
   POST as createTenantCode
 } from "../../src/pages/api/v1/reference-data/tenant-codes/index";
+import {
+  DELETE as deprecateTenantCode,
+  GET as getTenantCode,
+  PATCH as updateTenantCode
+} from "../../src/pages/api/v1/reference-data/tenant-codes/[id]";
+import {
+  DELETE as deprecateCode,
+  GET as getCode,
+  PATCH as updateCode
+} from "../../src/pages/api/v1/reference-data/value-sets/[key]/codes/[code]";
 
 import { hashPassword } from "../../src/lib/auth/password";
 
@@ -1183,6 +1193,354 @@ suite("reference_data integration", () => {
 
     const nowDeprecatedRows = (await admin`
       SELECT deprecated_at FROM awcms_mini_reference_value_sets WHERE key = 'fiscal_calendar'
+    `) as { deprecated_at: Date | null }[];
+    expect(nowDeprecatedRows[0]!.deprecated_at).not.toBeNull();
+  });
+
+  test("ADVERSARIAL (Issue #796, tenant-codes PATCH): reusing the same Idempotency-Key across PATCH update of two DIFFERENT tenant codes with an identical-shaped body must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second tenant code's own update must still actually apply once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+
+    const createA = await invoke<{ data: { tenantCode: { id: string } } }>(
+      createTenantCode,
+      {
+        method: "POST",
+        path: "/api/v1/reference-data/tenant-codes",
+        headers: authHeaders(owner, idKey()),
+        body: {
+          valueSet: "currency",
+          baseCodeId: null,
+          code: "EXT_A",
+          labels: [{ locale: "en", label: "Extension A" }]
+        }
+      }
+    );
+    expect(createA.status).toBe(200);
+    const tenantCodeAId = createA.body.data.tenantCode.id;
+
+    const createB = await invoke<{ data: { tenantCode: { id: string } } }>(
+      createTenantCode,
+      {
+        method: "POST",
+        path: "/api/v1/reference-data/tenant-codes",
+        headers: authHeaders(owner, idKey()),
+        body: {
+          valueSet: "currency",
+          baseCodeId: null,
+          code: "EXT_B",
+          labels: [{ locale: "en", label: "Extension B" }]
+        }
+      }
+    );
+    expect(createB.status).toBe(200);
+    const tenantCodeBId = createB.body.data.tenantCode.id;
+
+    const reusedKey = idKey();
+    const sharedBody = {
+      labels: [{ locale: "en", label: "Renamed" }],
+      sortOrder: 5
+    };
+
+    // Update A with the reused key -- succeeds normally.
+    const updateA = await invoke<{ data: { tenantCode: { id: string } } }>(
+      updateTenantCode,
+      {
+        method: "PATCH",
+        path: `/api/v1/reference-data/tenant-codes/${tenantCodeAId}`,
+        params: { id: tenantCodeAId },
+        headers: authHeaders(owner, reusedKey),
+        body: sharedBody
+      }
+    );
+    expect(updateA.status).toBe(200);
+    expect(updateA.body.data.tenantCode.id).toBe(tenantCodeAId);
+
+    // Attempt to update B with the SAME key and an IDENTICALLY-shaped body.
+    // Pre-fix, `computeRequestHash(body)` never included the resource `id`,
+    // so this would silently REPLAY A's cached response (200, describing A
+    // as renamed) without ever touching B -- B would appear renamed to the
+    // caller while its own sortOrder/labels stayed untouched. Post-fix, the
+    // hash folds in `id`, so the mismatch must be detected and rejected as
+    // a conflict, never a false replay.
+    const updateBReusedKey = await invoke(updateTenantCode, {
+      method: "PATCH",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeBId}`,
+      params: { id: tenantCodeBId },
+      headers: authHeaders(owner, reusedKey),
+      body: sharedBody
+    });
+    expect(updateBReusedKey.status).toBe(409);
+    expect(
+      (updateBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be untouched -- NOT falsely reported as renamed.
+    const bUnchanged = await invoke<{
+      data: { tenantCode: { sortOrder: number; labels: { label: string }[] } };
+    }>(getTenantCode, {
+      method: "GET",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeBId}`,
+      params: { id: tenantCodeBId },
+      headers: authHeaders(owner)
+    });
+    expect(bUnchanged.body.data.tenantCode.sortOrder).toBe(0);
+    expect(bUnchanged.body.data.tenantCode.labels[0]!.label).toBe(
+      "Extension B"
+    );
+
+    // With its OWN distinct key, B's update genuinely applies.
+    const updateBOwnKey = await invoke<{
+      data: { tenantCode: { sortOrder: number; labels: { label: string }[] } };
+    }>(updateTenantCode, {
+      method: "PATCH",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeBId}`,
+      params: { id: tenantCodeBId },
+      headers: authHeaders(owner, idKey()),
+      body: sharedBody
+    });
+    expect(updateBOwnKey.status).toBe(200);
+    expect(updateBOwnKey.body.data.tenantCode.sortOrder).toBe(5);
+    expect(updateBOwnKey.body.data.tenantCode.labels[0]!.label).toBe("Renamed");
+  });
+
+  test("ADVERSARIAL (Issue #796, tenant-codes DELETE): reusing the same Idempotency-Key across DELETE (deprecate) of two DIFFERENT tenant codes with an identical-shaped body must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second tenant code must still actually deprecate once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+
+    const createA = await invoke<{ data: { tenantCode: { id: string } } }>(
+      createTenantCode,
+      {
+        method: "POST",
+        path: "/api/v1/reference-data/tenant-codes",
+        headers: authHeaders(owner, idKey()),
+        body: {
+          valueSet: "currency",
+          baseCodeId: null,
+          code: "EXT_A",
+          labels: [{ locale: "en", label: "Extension A" }]
+        }
+      }
+    );
+    expect(createA.status).toBe(200);
+    const tenantCodeAId = createA.body.data.tenantCode.id;
+
+    const createB = await invoke<{ data: { tenantCode: { id: string } } }>(
+      createTenantCode,
+      {
+        method: "POST",
+        path: "/api/v1/reference-data/tenant-codes",
+        headers: authHeaders(owner, idKey()),
+        body: {
+          valueSet: "currency",
+          baseCodeId: null,
+          code: "EXT_B",
+          labels: [{ locale: "en", label: "Extension B" }]
+        }
+      }
+    );
+    expect(createB.status).toBe(200);
+    const tenantCodeBId = createB.body.data.tenantCode.id;
+
+    const reusedKey = idKey();
+    const sharedBody = { reason: "no longer needed" };
+
+    // Deprecate A with the reused key -- succeeds normally.
+    const deprecateA = await invoke<{ data: { tenantCode: { id: string } } }>(
+      deprecateTenantCode,
+      {
+        method: "DELETE",
+        path: `/api/v1/reference-data/tenant-codes/${tenantCodeAId}`,
+        params: { id: tenantCodeAId },
+        headers: authHeaders(owner, reusedKey),
+        body: sharedBody
+      }
+    );
+    expect(deprecateA.status).toBe(200);
+    expect(deprecateA.body.data.tenantCode.id).toBe(tenantCodeAId);
+
+    // Attempt to deprecate B with the SAME key and an IDENTICALLY-shaped
+    // body. Pre-fix, this would silently REPLAY A's cached response for B.
+    const deprecateBReusedKey = await invoke(deprecateTenantCode, {
+      method: "DELETE",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeBId}`,
+      params: { id: tenantCodeBId },
+      headers: authHeaders(owner, reusedKey),
+      body: sharedBody
+    });
+    expect(deprecateBReusedKey.status).toBe(409);
+    expect(
+      (deprecateBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be untouched -- NOT falsely reported as deprecated.
+    const admin = getAdminSql();
+    const stillActiveRows = (await admin`
+      SELECT deprecated_at FROM awcms_mini_reference_tenant_codes WHERE id = ${tenantCodeBId}
+    `) as { deprecated_at: Date | null }[];
+    expect(stillActiveRows).toHaveLength(1);
+    expect(stillActiveRows[0]!.deprecated_at).toBeNull();
+
+    // With its OWN distinct key, B's deprecation genuinely applies.
+    const deprecateBOwnKey = await invoke<{
+      data: { tenantCode: { id: string } };
+    }>(deprecateTenantCode, {
+      method: "DELETE",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeBId}`,
+      params: { id: tenantCodeBId },
+      headers: authHeaders(owner, idKey()),
+      body: sharedBody
+    });
+    expect(deprecateBOwnKey.status).toBe(200);
+
+    const nowDeprecatedRows = (await admin`
+      SELECT deprecated_at FROM awcms_mini_reference_tenant_codes WHERE id = ${tenantCodeBId}
+    `) as { deprecated_at: Date | null }[];
+    expect(nowDeprecatedRows[0]!.deprecated_at).not.toBeNull();
+  });
+
+  test("ADVERSARIAL (Issue #796, value-sets/codes PATCH): reusing the same Idempotency-Key across PATCH update of two DIFFERENT codes with an identical-shaped body must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second code's own update must still actually apply once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(owner, "currency", "none");
+    await createCodeFixture(owner, "currency", "IDR");
+    await createCodeFixture(owner, "currency", "USD");
+
+    const reusedKey = idKey();
+    const sharedBody = {
+      labels: [{ locale: "en", label: "Renamed" }],
+      sortOrder: 5
+    };
+
+    // Update IDR with the reused key -- succeeds normally.
+    const updateIdr = await invoke<{ data: { code: { code: string } } }>(
+      updateCode,
+      {
+        method: "PATCH",
+        path: "/api/v1/reference-data/value-sets/currency/codes/IDR",
+        params: { key: "currency", code: "IDR" },
+        headers: authHeaders(owner, reusedKey),
+        body: sharedBody
+      }
+    );
+    expect(updateIdr.status).toBe(200);
+    expect(updateIdr.body.data.code.code).toBe("IDR");
+
+    // Attempt to update USD (a DIFFERENT code in the same value set) with
+    // the SAME key and an IDENTICALLY-shaped body. Pre-fix,
+    // `computeRequestHash(body)` never included `key`/`code`, so this would
+    // silently REPLAY IDR's cached response for USD without ever touching
+    // it. Post-fix, the hash folds in `key`+`code`, so the mismatch must be
+    // detected and rejected as a conflict, never a false replay.
+    const updateUsdReusedKey = await invoke(updateCode, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency/codes/USD",
+      params: { key: "currency", code: "USD" },
+      headers: authHeaders(owner, reusedKey),
+      body: sharedBody
+    });
+    expect(updateUsdReusedKey.status).toBe(409);
+    expect(
+      (updateUsdReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // USD must still be untouched -- NOT falsely reported as renamed.
+    const usdUnchanged = await invoke<{
+      data: { code: { sortOrder: number; labels: { label: string }[] } };
+    }>(getCode, {
+      method: "GET",
+      path: "/api/v1/reference-data/value-sets/currency/codes/USD",
+      params: { key: "currency", code: "USD" },
+      headers: authHeaders(owner)
+    });
+    expect(usdUnchanged.body.data.code.sortOrder).toBe(0);
+    expect(usdUnchanged.body.data.code.labels[0]!.label).toBe("USD");
+
+    // With its OWN distinct key, USD's update genuinely applies.
+    const updateUsdOwnKey = await invoke<{
+      data: { code: { sortOrder: number; labels: { label: string }[] } };
+    }>(updateCode, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency/codes/USD",
+      params: { key: "currency", code: "USD" },
+      headers: authHeaders(owner, idKey()),
+      body: sharedBody
+    });
+    expect(updateUsdOwnKey.status).toBe(200);
+    expect(updateUsdOwnKey.body.data.code.sortOrder).toBe(5);
+    expect(updateUsdOwnKey.body.data.code.labels[0]!.label).toBe("Renamed");
+  });
+
+  test("ADVERSARIAL (Issue #796, value-sets/codes DELETE): reusing the same Idempotency-Key across DELETE (deprecate) of two DIFFERENT codes with an identical-shaped body must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second code must still actually deprecate once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(owner, "currency", "none");
+    await createCodeFixture(owner, "currency", "IDR");
+    await createCodeFixture(owner, "currency", "USD");
+
+    const reusedKey = idKey();
+    const sharedBody = { reason: "no longer needed" };
+
+    // Deprecate IDR with the reused key -- succeeds normally.
+    const deprecateIdr = await invoke<{ data: { code: { code: string } } }>(
+      deprecateCode,
+      {
+        method: "DELETE",
+        path: "/api/v1/reference-data/value-sets/currency/codes/IDR",
+        params: { key: "currency", code: "IDR" },
+        headers: authHeaders(owner, reusedKey),
+        body: sharedBody
+      }
+    );
+    expect(deprecateIdr.status).toBe(200);
+    expect(deprecateIdr.body.data.code.code).toBe("IDR");
+
+    // Attempt to deprecate USD (a DIFFERENT code) with the SAME key and an
+    // IDENTICALLY-shaped body. Pre-fix, this would silently REPLAY IDR's
+    // cached response for USD without ever touching it.
+    const deprecateUsdReusedKey = await invoke(deprecateCode, {
+      method: "DELETE",
+      path: "/api/v1/reference-data/value-sets/currency/codes/USD",
+      params: { key: "currency", code: "USD" },
+      headers: authHeaders(owner, reusedKey),
+      body: sharedBody
+    });
+    expect(deprecateUsdReusedKey.status).toBe(409);
+    expect(
+      (deprecateUsdReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // USD must still be untouched -- NOT falsely reported as deprecated.
+    const admin = getAdminSql();
+    const stillActiveRows = (await admin`
+      SELECT deprecated_at FROM awcms_mini_reference_codes
+      WHERE value_set_id = (SELECT id FROM awcms_mini_reference_value_sets WHERE key = 'currency')
+        AND code = 'USD'
+    `) as { deprecated_at: Date | null }[];
+    expect(stillActiveRows).toHaveLength(1);
+    expect(stillActiveRows[0]!.deprecated_at).toBeNull();
+
+    // With its OWN distinct key, USD's deprecation genuinely applies.
+    const deprecateUsdOwnKey = await invoke<{
+      data: { code: { code: string } };
+    }>(deprecateCode, {
+      method: "DELETE",
+      path: "/api/v1/reference-data/value-sets/currency/codes/USD",
+      params: { key: "currency", code: "USD" },
+      headers: authHeaders(owner, idKey()),
+      body: sharedBody
+    });
+    expect(deprecateUsdOwnKey.status).toBe(200);
+
+    const nowDeprecatedRows = (await admin`
+      SELECT deprecated_at FROM awcms_mini_reference_codes
+      WHERE value_set_id = (SELECT id FROM awcms_mini_reference_value_sets WHERE key = 'currency')
+        AND code = 'USD'
     `) as { deprecated_at: Date | null }[];
     expect(nowDeprecatedRows[0]!.deprecated_at).not.toBeNull();
   });
