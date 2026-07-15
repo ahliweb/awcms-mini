@@ -65,7 +65,11 @@ export const DELETE: APIRoute = async ({
   const body = bodyRead.value ?? {};
   const reason = typeof body.reason === "string" ? body.reason : "";
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    relationId,
+    action: "unlink"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();

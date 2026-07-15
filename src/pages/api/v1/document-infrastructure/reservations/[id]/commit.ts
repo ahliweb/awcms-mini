@@ -63,7 +63,11 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     return fail(400, "VALIDATION_ERROR", "documentId is required.");
   }
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    id: reservationId,
+    action: "commit"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();

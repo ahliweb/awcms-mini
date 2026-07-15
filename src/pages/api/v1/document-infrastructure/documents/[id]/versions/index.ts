@@ -144,7 +144,11 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     source: typeof body.source === "string" ? body.source : "upload"
   };
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    id: documentId,
+    action: "create"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
