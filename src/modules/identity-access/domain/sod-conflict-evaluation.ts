@@ -23,6 +23,30 @@
  * indeterminate exactly like a confirmed conflict, per the same
  * default-deny principle, rather than this pure function silently deciding
  * "no requestedScope means no conflict".
+ *
+ * **Hierarchy-aware `same_scope_only` matching (Issue #794, fixing a gap
+ * documented — but not yet closed — at #790's audit time).** Before this
+ * fix, `same_scope_only` matched a held fact's scope against
+ * `requestedScope` by EXACT `(scopeType, scopeId)` equality only, never
+ * consulting the ancestor/descendant references
+ * `BusinessScopeHierarchyPort.resolveScope` already computes. That made a
+ * "same scope" rule silently NOT bound a genuinely-related business
+ * hierarchy: a subject holding `business_scope_assignments.create` at a
+ * parent `organization_unit` could be granted `.revoke` at a
+ * hierarchically-related child unit without tripping
+ * `business_scope_assignment_scope_maker_checker` — purely theoretical
+ * before PR #790 (the org-structure hierarchy adapter always resolved
+ * `false` for those scope types), practically reachable after. Fixed by
+ * accepting an optional `RequestedScope.relatedScopes` list — the
+ * requested scope's OWN `ancestorScopes`/`descendantScopes` (the caller,
+ * `business-scope-assignment-service.ts`, already resolves this once via
+ * the hierarchy port to validate the scope exists; no second I/O call is
+ * introduced here) — and treating a held fact whose scope appears in that
+ * list as a scope match, same as exact equality or the pre-existing
+ * null-scope "ordinary RBAC grant matches every scope" rule. A caller
+ * that never resolves hierarchy (e.g. identity-access's own flat "office"
+ * adapter) simply omits `relatedScopes`, preserving exact-match-only
+ * behavior unchanged for that scope type.
  */
 import type { SoDRuleDescriptor } from "../../_shared/module-contract";
 
@@ -57,6 +81,17 @@ export type SoDAssignmentFact = {
 export type RequestedScope = {
   scopeType: string;
   scopeId: string;
+  /**
+   * Other scope references considered part of the SAME business hierarchy
+   * as `(scopeType, scopeId)` for a `"same_scope_only"` rule's purposes —
+   * typically the requested scope's own `ancestorScopes`/`descendantScopes`
+   * from `BusinessScopeHierarchyPort.resolveScope` (Issue #794). Optional
+   * and empty by default: a caller that resolves scope through a flat
+   * adapter (no real hierarchy, e.g. `"office"`) omits this entirely,
+   * which is exactly equivalent to passing `[]` — exact `(scopeType,
+   * scopeId)` equality is still the only match for that case.
+   */
+  relatedScopes?: readonly { scopeType: string; scopeId: string }[];
 };
 
 export type SoDConflictMatch = {
@@ -118,7 +153,16 @@ export function detectSoDConflicts(
             // to any business scope) conflicts at EVERY requested scope.
             (fact.scopeType === null && fact.scopeId === null) ||
             (fact.scopeType === requestedScope.scopeType &&
-              fact.scopeId === requestedScope.scopeId)
+              fact.scopeId === requestedScope.scopeId) ||
+            // Hierarchy-aware match (Issue #794): a fact held at a scope
+            // the caller has already resolved as an ancestor/descendant of
+            // the requested scope is the SAME business hierarchy this rule
+            // is meant to bound, not a merely-coincidentally-different one.
+            (requestedScope.relatedScopes ?? []).some(
+              (related) =>
+                related.scopeType === fact.scopeType &&
+                related.scopeId === fact.scopeId
+            )
         );
 
         if (scopedMatch) {

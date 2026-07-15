@@ -192,7 +192,21 @@ export async function createBusinessScopeAssignment(
     return { ok: false, reason: "self_grant_denied" };
   }
 
-  const requestedScope = { scopeType: input.scopeType, scopeId: input.scopeId };
+  // Hierarchy-aware `same_scope_only` SoD matching (Issue #794): reuse the
+  // resolution already fetched above (no second hierarchy-port call) so a
+  // held fact at an ancestor/descendant of the requested scope is treated
+  // as the SAME business hierarchy, not silently exempted just because its
+  // `scopeId` differs. A flat adapter (e.g. "office") always resolves
+  // empty ancestor/descendant lists, so this is a no-op for that scope
+  // type — exact-match-only behavior is unchanged there.
+  const requestedScope = {
+    scopeType: input.scopeType,
+    scopeId: input.scopeId,
+    relatedScopes: [
+      ...resolution.ancestorScopes,
+      ...resolution.descendantScopes
+    ]
+  };
   const conflicts: SoDConflictSummary[] = [];
 
   if (input.roleId) {
