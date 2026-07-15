@@ -29,7 +29,11 @@ import {
   GET as listValueSets,
   POST as createValueSet
 } from "../../src/pages/api/v1/reference-data/value-sets/index";
-import { DELETE as deprecateValueSet } from "../../src/pages/api/v1/reference-data/value-sets/[key]";
+import {
+  DELETE as deprecateValueSet,
+  GET as getValueSet,
+  PATCH as updateValueSet
+} from "../../src/pages/api/v1/reference-data/value-sets/[key]";
 import {
   GET as listCodes,
   POST as createCode
@@ -1044,6 +1048,143 @@ suite("reference_data integration", () => {
       headers: authHeaders(owner, idKey())
     });
     expect(rollbackCorrectKey.status).toBe(200);
+  });
+
+  test("ADVERSARIAL (security-review High, round 2): reusing the same Idempotency-Key across PATCH update of two DIFFERENT value sets with an identical-shaped body must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second value set's own update must still actually apply once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(owner, "unit_of_measure", "none");
+    await createValueSetFixture(owner, "fiscal_calendar", "none");
+
+    const reusedKey = idKey();
+    const sharedBody = { name: "Renamed", description: "Shared description" };
+
+    // Update A (unit_of_measure) with the reused key -- succeeds normally.
+    const updateA = await invoke<{ data: { valueSet: { key: string } } }>(
+      updateValueSet,
+      {
+        method: "PATCH",
+        path: "/api/v1/reference-data/value-sets/unit_of_measure",
+        params: { key: "unit_of_measure" },
+        headers: authHeaders(owner, reusedKey),
+        body: sharedBody
+      }
+    );
+    expect(updateA.status).toBe(200);
+    expect(updateA.body.data.valueSet.key).toBe("unit_of_measure");
+
+    // Attempt to update B (fiscal_calendar) with the SAME key and an
+    // IDENTICALLY-shaped body. Pre-fix, `computeRequestHash(body)` never
+    // included `key`, so this would silently REPLAY A's cached response
+    // (200, describing A) without ever touching B -- B would appear
+    // "renamed" to the caller while its name/description stayed untouched.
+    // Post-fix, the hash folds in `key`, so the mismatch must be detected
+    // and rejected as a conflict, never a false replay.
+    const updateBReusedKey = await invoke(updateValueSet, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner, reusedKey),
+      body: sharedBody
+    });
+    expect(updateBReusedKey.status).toBe(409);
+    expect(
+      (updateBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be untouched -- NOT falsely reported as renamed.
+    const bUnchanged = await invoke<{
+      data: { valueSet: { name: string; description: string | null } };
+    }>(getValueSet, {
+      method: "GET",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner)
+    });
+    expect(bUnchanged.body.data.valueSet.name).toBe("fiscal_calendar");
+    expect(bUnchanged.body.data.valueSet.description).not.toBe(
+      "Shared description"
+    );
+
+    // With its OWN distinct key, B's update genuinely applies.
+    const updateBOwnKey = await invoke<{
+      data: { valueSet: { name: string; description: string | null } };
+    }>(updateValueSet, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner, idKey()),
+      body: sharedBody
+    });
+    expect(updateBOwnKey.status).toBe(200);
+    expect(updateBOwnKey.body.data.valueSet.name).toBe("Renamed");
+    expect(updateBOwnKey.body.data.valueSet.description).toBe(
+      "Shared description"
+    );
+  });
+
+  test("ADVERSARIAL (security-review High, round 2): reusing the same Idempotency-Key across DELETE (deprecate) of two DIFFERENT value sets with an identical-shaped body must NOT replay the first's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second value set must still actually deprecate once given its OWN key", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(owner, "unit_of_measure", "none");
+    await createValueSetFixture(owner, "fiscal_calendar", "none");
+
+    const reusedKey = idKey();
+    const sharedBody = { reason: "no longer needed" };
+
+    // Deprecate A (unit_of_measure) with the reused key -- succeeds normally.
+    const deprecateA = await invoke<{ data: { valueSet: { key: string } } }>(
+      deprecateValueSet,
+      {
+        method: "DELETE",
+        path: "/api/v1/reference-data/value-sets/unit_of_measure",
+        params: { key: "unit_of_measure" },
+        headers: authHeaders(owner, reusedKey),
+        body: sharedBody
+      }
+    );
+    expect(deprecateA.status).toBe(200);
+    expect(deprecateA.body.data.valueSet.key).toBe("unit_of_measure");
+
+    // Attempt to deprecate B (fiscal_calendar) with the SAME key and an
+    // IDENTICALLY-shaped body. Pre-fix, `computeRequestHash(body)` never
+    // included `key`, so this would silently REPLAY A's cached response
+    // (200, describing A as deprecated) without ever touching B -- B
+    // would appear "deprecated" to the caller while remaining active.
+    const deprecateBReusedKey = await invoke(deprecateValueSet, {
+      method: "DELETE",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner, reusedKey),
+      body: sharedBody
+    });
+    expect(deprecateBReusedKey.status).toBe(409);
+    expect(
+      (deprecateBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be untouched -- NOT falsely reported as deprecated.
+    const admin = getAdminSql();
+    const stillActiveRows = (await admin`
+      SELECT deprecated_at FROM awcms_mini_reference_value_sets WHERE key = 'fiscal_calendar'
+    `) as { deprecated_at: Date | null }[];
+    expect(stillActiveRows).toHaveLength(1);
+    expect(stillActiveRows[0]!.deprecated_at).toBeNull();
+
+    // With its OWN distinct key, B's deprecation genuinely applies.
+    const deprecateBOwnKey = await invoke<{
+      data: { valueSet: { key: string } };
+    }>(deprecateValueSet, {
+      method: "DELETE",
+      path: "/api/v1/reference-data/value-sets/fiscal_calendar",
+      params: { key: "fiscal_calendar" },
+      headers: authHeaders(owner, idKey()),
+      body: sharedBody
+    });
+    expect(deprecateBOwnKey.status).toBe(200);
+
+    const nowDeprecatedRows = (await admin`
+      SELECT deprecated_at FROM awcms_mini_reference_value_sets WHERE key = 'fiscal_calendar'
+    `) as { deprecated_at: Date | null }[];
+    expect(nowDeprecatedRows[0]!.deprecated_at).not.toBeNull();
   });
 
   test("every mutation endpoint requires Idempotency-Key (400 IDEMPOTENCY_REQUIRED when omitted)", async () => {

@@ -105,7 +105,7 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     description: typeof body.description === "string" ? body.description : null
   };
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({ ...body, key, action: "update" });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
@@ -205,7 +205,11 @@ export const DELETE: APIRoute = async ({
   const body = bodyRead.value ?? {};
   const reason = typeof body.reason === "string" ? body.reason : "";
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    key,
+    action: "deprecate"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
