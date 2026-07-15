@@ -67,9 +67,51 @@
  * "ordinary RBAC alone" test for the proof this now catches a conflict
  * held ENTIRELY through ordinary role grants, with no business-scope
  * assignment involved at all.
+ *
+ * **Hierarchy-aware `same_scope_only` matching at THIS chokepoint too
+ * (Issue #802, closing the residual gap Issue #794/PR #800 explicitly left
+ * open here).** PR #800 made `same_scope_only` matching hierarchy-aware
+ * only for `business-scope-assignment-service.ts`'s `createBusinessScopeAssignment`
+ * — this chokepoint kept doing exact `(scopeType, scopeId)` equality only,
+ * because threading a real hierarchy port (`organization_structure`'s
+ * adapter, needed to resolve `organization_unit`/`legal_entity` scopes) in
+ * here directly would mean this shared `application` file — imported by
+ * `access-guard.ts`, itself the chokepoint for a large and growing number
+ * of unrelated route files (re-grep `authorizeInTransaction` callers for
+ * the current count) — importing an Optional module's code from Core, which
+ * `business-scope-hierarchy-port-adapter.ts`'s own header and `module.ts`'s
+ * `capabilities.consumes` entry both document as forbidden (ADR-0013 §1);
+ * only a route (a real composition root) may choose which adapter to wire
+ * in for a given tenant.
+ *
+ * The fix threads an OPTIONAL `hierarchyPort` parameter through
+ * `checkHighRiskSoDConflicts`/`authorizeInTransaction` instead of a
+ * required one: when omitted (every caller today except one —
+ * `extractRequestedScope` returns `null` unless a caller populates
+ * `resourceAttributes.sodScopeType`/`sodScopeId`, and only
+ * `.../business-scope/assignments/[id]/revoke.ts` does), behavior is
+ * byte-for-byte identical to before this issue — no new query, no new
+ * import, no risk of regressing any of the chokepoint's other callers.
+ * Only `revoke.ts` — the one caller that already sets
+ * `sodScopeType`/`sodScopeId` and is therefore the only real instance of
+ * this gap today (verified: it is the sole caller of this chokepoint that
+ * supplies a `requestedScope` at all) — now composes and passes the real
+ * `BusinessScopeHierarchyPort` (same composition
+ * `business-scope/assignments/index.ts` already uses for the #794 path,
+ * factored into `business-scope-hierarchy-port-composition.ts` so both
+ * routes share one composition root instead of duplicating it), resolving
+ * this scope's ancestors/descendants to populate `RequestedScope.relatedScopes`
+ * the same way #794 already does for the create path. See the "Issue #802
+ * adversarial" test in
+ * `tests/integration/business-scope-organization-structure-wiring.integration.test.ts`
+ * for the adversarial proof: an actor holding `.create` at a parent
+ * `organization_unit` can no longer `.revoke` an assignment at a
+ * descendant unit without tripping
+ * `business_scope_assignment_scope_maker_checker` through THIS chokepoint.
  */
 import { listModules } from "../../index";
 import { recordCounter } from "../../../lib/observability/metrics-port";
+import type { BusinessScopeHierarchyPort } from "../../_shared/ports/business-scope-hierarchy-port";
 import type { AccessRequest, TenantContext } from "../domain/access-control";
 import { permissionKey } from "../domain/access-control";
 import {
@@ -122,13 +164,21 @@ function extractRequestedScope(guard: AccessRequest): RequestedScope | null {
  * function can only additionally DENY (deny-overrides-allow, never
  * upgrades a deny to an allow), consistent with `evaluateAccess`'s own
  * default-deny chain.
+ *
+ * `hierarchyPort` (Issue #802) is OPTIONAL and looked up LAZILY — only
+ * queried when both (a) `requestedScope` was actually supplied (true for
+ * exactly one caller today, `revoke.ts`) and (b) the cheap
+ * `SOD_RELEVANT_PERMISSION_KEYS` short-circuit above already passed — so
+ * every other caller of this chokepoint pays zero extra cost and sees zero
+ * behavior change, whether or not it ever passes a `hierarchyPort` at all.
  */
 export async function checkHighRiskSoDConflicts(
   tx: Bun.SQL,
   tenantId: string,
   context: TenantContext,
   guard: AccessRequest,
-  now: Date
+  now: Date,
+  hierarchyPort?: BusinessScopeHierarchyPort
 ): Promise<HighRiskSoDCheckResult> {
   const requestedPermissionKey = permissionKey(
     guard.moduleKey,
@@ -140,7 +190,32 @@ export async function checkHighRiskSoDConflicts(
     return { blocked: false };
   }
 
-  const requestedScope = extractRequestedScope(guard);
+  const extractedScope = extractRequestedScope(guard);
+  // Hierarchy-aware `same_scope_only` matching (Issue #802) — reuses the
+  // same `RequestedScope.relatedScopes` mechanism #794/PR #800 introduced
+  // for `createBusinessScopeAssignment`. `resolution.resolved === false`
+  // (unknown scope type, deleted scope, wrong tenant, or no `hierarchyPort`
+  // supplied at all) leaves `requestedScope` as exact-match-only, exactly
+  // today's pre-#802 behavior — never a crash, never a wider grant.
+  let requestedScope = extractedScope;
+  if (extractedScope && hierarchyPort) {
+    const resolution = await hierarchyPort.resolveScope(
+      tx,
+      tenantId,
+      extractedScope.scopeType,
+      extractedScope.scopeId
+    );
+    if (resolution.resolved) {
+      requestedScope = {
+        ...extractedScope,
+        relatedScopes: [
+          ...resolution.ancestorScopes,
+          ...resolution.descendantScopes
+        ]
+      };
+    }
+  }
+
   const subjectFacts = await resolveSoDAssignmentFacts(
     tx,
     tenantId,
