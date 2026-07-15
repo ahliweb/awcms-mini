@@ -59,7 +59,11 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
 
   const decisionReason =
     typeof body.decisionReason === "string" ? body.decisionReason : null;
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    id: exceptionId,
+    action: "reject"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();

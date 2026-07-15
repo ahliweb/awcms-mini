@@ -59,7 +59,7 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
     return fail(400, "VALIDATION_ERROR", "reason must be 1-500 characters.");
   }
 
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({ ...body, id, action: "disable" });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();
