@@ -271,6 +271,22 @@ suite("reference_data integration", () => {
       valueSetList.body.data.valueSets.find((v) => v.key === "currency")?.status
     ).toBe("active");
 
+    // `status=active` genuinely INCLUDES `currency` while it's still
+    // active (checked here, before deprecation below) -- the later
+    // post-deprecation check only proves the EXCLUDE side, so both
+    // directions of the filter need a check at their own point in time.
+    const activeBefore = await invoke<{
+      data: { valueSets: { key: string }[] };
+    }>(listValueSets, {
+      method: "GET",
+      path: "/api/v1/reference-data/value-sets?status=active",
+      headers: authHeaders(owner)
+    });
+    expect(activeBefore.status).toBe(200);
+    expect(activeBefore.body.data.valueSets.map((v) => v.key)).toContain(
+      "currency"
+    );
+
     const key = idKey();
     const deprecate1 = await invoke(deprecateValueSet, {
       method: "DELETE",
