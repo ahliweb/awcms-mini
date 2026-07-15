@@ -79,6 +79,79 @@ describe("evaluateChangesetPolicy", () => {
     expect(result.requiresChangeset).toBe(true);
     expect(result.nonExemptFiles).toEqual(["src/lib/config/registry.ts"]);
   });
+
+  test("release-consumption commit (package.json version-only + deleted changesets) does not require a new changeset", () => {
+    const result = evaluateChangesetPolicy(
+      [
+        "package.json",
+        "CHANGELOG.md",
+        ".changeset/foo.md",
+        ".changeset/bar.md"
+      ],
+      [".changeset/foo.md", ".changeset/bar.md"],
+      true
+    );
+
+    expect(result.requiresChangeset).toBe(true);
+    expect(result.isReleaseConsumption).toBe(true);
+    expect(result.violation).toBeNull();
+    expect(result.changesetFilesAdded).toEqual([]);
+    expect(result.changesetFilesDeleted).toEqual([
+      ".changeset/foo.md",
+      ".changeset/bar.md"
+    ]);
+  });
+
+  test("SECURITY (Issue #810 follow-up): deleting an existing changeset instead of adding one still requires a changeset when other non-exempt files changed", () => {
+    // Reproduces the security-auditor's PR #811 Critical finding: a PR
+    // that makes a real source change and deletes (rather than adds) a
+    // changeset must NOT be treated as satisfying the policy.
+    const result = evaluateChangesetPolicy(
+      ["src/a.ts", ".changeset/existing-real.md"],
+      [".changeset/existing-real.md"],
+      false
+    );
+
+    expect(result.requiresChangeset).toBe(true);
+    expect(result.isReleaseConsumption).toBe(false);
+    expect(result.changesetFilesAdded).toEqual([]);
+    expect(result.changesetFilesDeleted).toEqual([
+      ".changeset/existing-real.md"
+    ]);
+    expect(result.violation).not.toBeNull();
+  });
+
+  test("package.json changed but NOT version-only (e.g. a script/dependency edit) is never treated as release-consumption, even with a deleted changeset", () => {
+    const result = evaluateChangesetPolicy(
+      ["package.json", ".changeset/existing-real.md"],
+      [".changeset/existing-real.md"],
+      false // isPackageJsonVersionOnlyChange computed false by the caller
+    );
+
+    expect(result.requiresChangeset).toBe(true);
+    expect(result.isReleaseConsumption).toBe(false);
+    expect(result.violation).not.toBeNull();
+  });
+
+  test("package.json version-only change with NO deleted changeset is not release-consumption (no real consumption happened)", () => {
+    const result = evaluateChangesetPolicy(["package.json"], [], true);
+
+    expect(result.requiresChangeset).toBe(true);
+    expect(result.isReleaseConsumption).toBe(false);
+    expect(result.violation).not.toBeNull();
+  });
+
+  test("release-consumption carve-out never applies when any OTHER non-exempt file is touched alongside package.json", () => {
+    const result = evaluateChangesetPolicy(
+      ["package.json", "src/a.ts", ".changeset/foo.md"],
+      [".changeset/foo.md"],
+      true
+    );
+
+    expect(result.requiresChangeset).toBe(true);
+    expect(result.isReleaseConsumption).toBe(false);
+    expect(result.violation).not.toBeNull();
+  });
 });
 
 describe("validateChangesetFrontmatter", () => {
