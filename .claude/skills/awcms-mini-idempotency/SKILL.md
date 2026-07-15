@@ -28,6 +28,41 @@ flowchart TD
 6. Kombinasikan dengan stock lock (`SELECT ... FOR UPDATE`) & transaction wrapper.
 7. Deadlock retry harus aman karena idempotency.
 8. Retention key: 7–30 hari.
+9. **Hash WAJIB terikat ke identitas resource** — lihat §"Bind hash ke resource id" di bawah, ini bukan opsional dan sudah menyebabkan bug nyata berulang kali.
+
+## CRITICAL — bind request hash ke resource id (Issue #750, #795 — recurring 4x)
+
+`computeRequestHash(payload: unknown)` (`src/modules/_shared/idempotency.ts:36`) **tidak menegakkan apa pun sendiri** — ia cuma SHA-256 dari JSON body yang key-nya sudah diurutkan. Ia TIDAK tahu resource mana yang sedang dimutasi. Store key di `awcms_mini_idempotency_keys` adalah `(tenant_id, request_scope, idempotency_key)`, dan `request_scope` itu **dibagi rata di seluruh resource bertipe sama dalam satu tenant** (bukan per-resource) — jadi kalau `computeRequestHash` hanya di-hash dari `body` mentah (atau body kosong `{}` untuk endpoint `restore`/`cancel`/`commit` yang tidak punya field lain), maka `Idempotency-Key` yang sama dipakai ulang klien untuk DUA resource berbeda dengan tipe endpoint sama akan mereplay respons resource pertama untuk request yang seharusnya memutasi resource kedua — **silent no-op yang terlihat seperti sukses (200 dengan body resource A), padahal resource B tidak pernah termutasi.**
+
+Bug class ini muncul 4 kali di repo ini: Issue #750 (reference-data, PR #783, 3 ronde perbaikan), lalu Issue #795 menemukan pola yang sama BELUM diperbaiki di modul lain (document-infrastructure PR #798, business-scope/organization-structure PR #801, identity-access/data-lifecycle/reports PR lain) lewat `grep -rn "computeRequestHash(" src/pages/api/` menyeluruh — audit pertama yang hanya menyasar endpoint yang "kelihatan jelas" (body kosong) melewatkan endpoint `PATCH`/action lain yang body-nya ADA tapi tidak menyertakan `id` dari path param.
+
+### Pola BENAR
+
+Selalu sertakan identitas resource (biasanya `id`/`[key]`/`relationId` dari path param) DAN literal `action` string eksplisit di payload yang di-hash — jangan hash `body` mentah begitu saja, dan jangan hash `{}` untuk endpoint yang path-nya sudah membawa id:
+
+```ts
+// src/pages/api/v1/tenant/domains/[id]/set-primary.ts:68 — body kosong, id dari path
+const requestHash = computeRequestHash({ domainId, action: "set_primary" });
+
+// src/pages/api/v1/data-lifecycle/legal-holds/[id]/release.ts:69-73 — body ADA tapi
+// tidak membawa id sendiri, jadi id dari path harus ditambahkan manual
+const requestHash = computeRequestHash({
+  ...body,
+  id: holdId,
+  action: "release"
+});
+```
+
+Aturan praktis: kalau endpoint punya path param `[id]`/`[key]`/`[relationId]`, path param itu **wajib** masuk ke object yang di-hash (spread body dulu lalu override/tambahkan `id`, supaya field `id` di body — kalau ada — tidak diam-diam menang). `action` literal wajib ada supaya dua endpoint berbeda pada resource yang sama (mis. `restore` vs `delete`) tidak collide walau kebetulan body-nya identik (`{}`).
+
+### Checklist verifikasi sebelum PR
+
+- Grep **seluruh tree yang di-assign**, bukan cuma daftar endpoint yang "kelihatan mencurigakan": `grep -rn "computeRequestHash(" src/pages/api/v1/<module>/`. Jangan percaya daftar endpoint bernama sebagai lengkap — Issue #795 sendiri butuh re-grep independen karena pass pertama hanya menyasar 7 dari 11 endpoint yang rentan.
+- Untuk tiap hit: apakah payload yang di-hash sudah menyertakan resource id dari path DAN literal `action`? Endpoint create murni (tidak ada resource pra-eksisting untuk diikat, mis. `POST /documents`) TIDAK rentan — tidak perlu `id`.
+- Endpoint index-level yang mengidentifikasi resource lewat kombinasi field yang SUDAH ada di body mentah (mis. `scopeType`+`scopeId`+`sequenceKey` pada `sequences/revise`) tidak perlu perubahan — tapi verifikasi ini secara eksplisit per endpoint, jangan asumsikan.
+- Test adversarial: dua resource berbeda, `Idempotency-Key` yang SAMA dipakai ulang pada keduanya secara berurutan → request kedua harus benar-benar memutasi resource kedua (bukan replay respons resource pertama). Contoh nyata: `tests/integration/document-infrastructure.integration.test.ts`.
+
+Lihat `src/modules/document-infrastructure/README.md` §"Catatan idempotency-key resource binding" untuk worked example lengkap lintas 11 endpoint satu modul.
 
 ## Endpoint wajib idempotency
 

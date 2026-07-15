@@ -9,10 +9,11 @@ Ikuti `src/modules/email/README.md` (arsitektur lengkap: kontrak provider, adapt
 
 ## Cara pakai (untuk modul domain turunan yang ingin kirim email)
 
-1. **Pastikan template ada** untuk kategori Anda — kategori base
-   (`auth.password_reset`, `system.announcement`, `system.security_notice`,
-   `workflow.task_assigned`, `workflow.decision_required`) sudah punya
-   allowlist variabel bawaan (`domain/email-template-categories.ts`).
+1. **Pastikan template ada** untuk kategori Anda — kategori base (6 fixed:
+   `auth.password_reset`, `system.announcement`, `system.security_notice`,
+   `system.maintenance`, `workflow.task_assigned`,
+   `workflow.decision_required`) sudah punya allowlist variabel bawaan
+   (`domain/email-template-categories.ts`'s `BASE_EMAIL_TEMPLATE_CATEGORIES`).
    Kategori sendiri harus `derived.*` dan didaftarkan dulu:
    ```ts
    registerDerivedEmailTemplateCategory("derived.order_confirmation", [

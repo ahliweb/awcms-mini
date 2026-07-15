@@ -141,13 +141,15 @@ tests/unit/module-composition-fixture.test.ts` sebelum PR.
   TIDAK PERNAH menjadi pengganti RLS/ABAC; period-lock dan business-
   scope keduanya eksplisit didokumentasikan sebagai "bukan batas
   identitas".
-- **Tidak ada hard-dependency ke `reference_data` (Issue #750)** — per
-  ADR-0020 §Status, `reference_data` masih OPEN dengan temuan Critical
-  belum diperbaiki saat kontrak ini ditulis; `ItemReference`/
-  `CurrencyReference`/`UnitOfMeasureReference` sengaja independen dari
-  sumber datanya. Jangan tambahkan import ke `reference_data` dari
-  `_shared/erp-reference-data-contract.ts` tanpa memverifikasi ulang
-  status keamanan modul itu terlebih dahulu.
+- **Tidak ada hard-dependency ke `reference_data`** — historis, Issue #750
+  masih OPEN dengan temuan Critical yang belum diperbaiki saat kontrak ini
+  pertama ditulis (per ADR-0020 §Status saat itu); Issue #750 sudah CLOSED
+  dan `reference_data/module.ts`'s `status` sekarang `"active"`. Keputusan
+  desainnya tetap berlaku terlepas dari status historis itu:
+  `ItemReference`/`CurrencyReference`/`UnitOfMeasureReference` sengaja
+  independen dari sumber datanya. Jangan tambahkan import ke
+  `reference_data` dari `_shared/erp-reference-data-contract.ts` tanpa
+  memverifikasi ulang status keamanan modul itu terlebih dahulu.
 
 ## Verifikasi
 

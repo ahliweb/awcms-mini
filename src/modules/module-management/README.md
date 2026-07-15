@@ -42,9 +42,11 @@ runs on the plain app connection with no tenant context needed.
 
 Declares `type: "system"`, `isCore: true` (module management cannot be
 tenant-disabled — you cannot disable the thing that manages modules), and
-its 12 seeded permissions (`migration 025`). Also declares one `navigation`
-entry (Issue #518 — `/admin/modules`, gated by `module_management.modules.read`)
-now that a real, if minimal, page exists there, and three `jobs` entries
+its 12 seeded permissions (`migration 025`). Also declares two `navigation`
+entries (Issue #518 — `/admin/modules`, gated by
+`module_management.modules.read`, now that a real, if minimal, page
+exists there; grown to a second entry, `/admin/modules/tenants`, via
+Issue #566) and three `jobs` entries
 (Issue #519 — `security:readiness`/`config:validate`/`production:preflight`,
 platform-wide checks not owned by any single domain module). Deliberately
 still does **not** declare `health` — that field exists on
@@ -175,24 +177,30 @@ metadata, `ModuleDescriptor.permissions`) and the actual
   acceptance criteria for this issue doesn't actually require (only the
   read-side report does), so it's left out rather than half-built.
 - **`module_management`, `blog_content`, `idn_admin_regions`,
-  `news_portal`, `social_publishing`, `tenant_domain`, and
-  `visitor_analytics`'s descriptors currently declare `permissions`** (7
-  of the 16 registered modules — `blog_content` added its original
-  36-entry array in Issue #543, closing epic #536, then grew to a
-  39-entry array via Issue #641 (epic `news_portal`), which added the
+  `news_portal`, `social_publishing`, `tenant_domain`,
+  `visitor_analytics`, `data_exchange`, `data_lifecycle`,
+  `document_infrastructure`, `domain_event_runtime`, `integration_hub`,
+  `organization_structure`, `reference_data`, `profile_identity`,
+  `reporting`, and `workflow_approval`'s descriptors currently declare
+  `permissions`** (17 of the 23 registered modules — `blog_content` added
+  its original 36-entry array in Issue #543, closing epic #536, then grew
+  to a 39-entry array via Issue #641 (epic `news_portal`), which added the
   `internal_links.{read,configure,preview}` trio through migration
   `052_awcms_mini_blog_content_internal_tag_links_permissions.sql`;
-  `tenant_domain` added a six-entry array in Issue #558, epic #555 — grep
-  `permissions:` across `src/modules/*/module.ts` to confirm which
-  modules declare it as code evolves, since this list keeps growing as
-  new domain modules land). The other 9 registered modules' permissions
-  (email, form-drafts, identity-access,
-  logging, profile-identity, reporting, sync-storage, tenant-admin,
-  workflow-approval) were seeded directly by their own migrations, e.g.
-  migration 005/010/014, without ever being added to their `module.ts`.
-  This means every one of those 9 modules'
-  catalog permissions legitimately shows as `orphaned` today — an honest
-  reflection of incomplete descriptor metadata, not a real drift/incident.
+  `tenant_domain` added a six-entry array in Issue #558, epic #555;
+  `data_exchange`, `data_lifecycle`, `document_infrastructure`,
+  `domain_event_runtime`, `integration_hub`, `organization_structure`,
+  and `reference_data` all added their own arrays as part of the
+  platform-evolution epic (#738) — grep `permissions:` across
+  `src/modules/*/module.ts` to confirm which modules declare it as code
+  evolves, since this list keeps growing as new domain modules land). The
+  other 6 registered modules' permissions (email, form-drafts,
+  identity-access, logging, sync-storage, tenant-admin) were seeded
+  directly by their own migrations, e.g. migration 005/010/014, without
+  ever being added to their `module.ts`. This means every one of those 6
+  modules' catalog permissions legitimately shows as `orphaned` today —
+  an honest reflection of incomplete descriptor metadata, not a real
+  drift/incident.
   Backfilling every other module's `permissions` array is out of scope
   here (the issue itself says this metadata is "optional... if not
   completed in Issue 1" — #511 didn't do it for the pre-existing modules,
@@ -240,9 +248,13 @@ own `/admin/modules`); several modules have since added their own
 `/admin/news-portal/homepage-sections` Issue #637 and
 `/admin/news-portal/ad-placements` Issue #638), `social_publishing`
 (three: `/admin/social-publishing/{accounts,rules,jobs}`),
-`tenant_domain` (`/admin/tenant/domains`, Issue #563), and
-`visitor_analytics` (`/admin/analytics`) — so it now
-surfaces 11 entries across 7 modules (grep `navigation:` across
+`tenant_domain` (`/admin/tenant/domains`, Issue #563),
+`visitor_analytics` (`/admin/analytics`), and the remaining
+platform-evolution modules added since (`data_exchange`,
+`document_infrastructure`, `identity-access` (a second entry),
+`integration_hub`, `organization_structure`, `profile_identity`,
+`reference_data`, `reporting`, `workflow_approval`) — so it now
+surfaces 33 entries across 15 modules (grep `navigation:` across
 `src/modules/*/module.ts` to confirm the current count as more modules
 add entries). A failure loading the registry (e.g.
 a transient DB hiccup) falls back to
@@ -291,6 +303,39 @@ Job ownership (`ModuleDescriptor.jobs`) by module:
   aren't owned by any single domain module — `module_management` is
   already the "generic infrastructure for managing every other registered
   module", the natural home for these).
+- `identity_access` — `identity-access:business-scope:expiry` (hourly —
+  transitions business-scope assignments and SoD conflict exceptions past
+  their `effective_to` to expired, recording lifecycle events).
+- `data_lifecycle` — `data-lifecycle:archive-purge` (daily — archives
+  where applicable and purges rows past retention for every registered
+  generic-execution descriptor, and records a dry-run backlog snapshot
+  for every delegated descriptor).
+- `data_exchange` — `data-exchange:worker` (every 1-2 minutes — parses/
+  validates staged import batches, commits previewed batches in bounded
+  per-row passes, executes queued export jobs, and records reconciliation
+  reports for every active tenant).
+- `organization_structure` — `organization-structure:metrics-snapshot`
+  (every 15-60 minutes — read-only per-tenant metrics snapshot of active
+  units, hierarchy max depth, and expiring-soon assignments, recorded as
+  gauges via the shared metrics port; never mutates data).
+- `domain_event_runtime` — `domain-events:dispatch` (every 30-60 seconds —
+  claims/executes/finalizes due `awcms_mini_domain_event_deliveries` rows
+  for every active tenant and registered consumer, with per-order-key
+  ordering, exponential backoff, and dead-letter transitions).
+- `workflow_approval` — `workflow:escalations:dispatch` (every 1-5
+  minutes — escalates `awcms_mini_workflow_tasks` rows past their
+  `due_at` for every active tenant, bounded batch, advisory lock,
+  idempotent per escalation step).
+- `reporting` — `reporting:projections:refresh` (every 2 minutes —
+  incrementally updates every `cursor_table`-strategy projection for
+  every active tenant) and `reporting:exports:dispatch` (every 15
+  minutes — generates a fresh export artifact for every enabled
+  scheduled export config whose interval has elapsed).
+- `integration_hub` — `integration-hub:outbound:dispatch` (every 1-2
+  minutes — claims/sends/finalizes due
+  `awcms_mini_integration_outbound_deliveries` rows for every active
+  tenant's active subscriptions, with SSRF-guarded delivery, retry/
+  backoff, and dead-letter transitions).
 
 Scheduling guidance (LAN/systemd/container/Coolify) lives in
 `docs/awcms-mini/deployment-profiles.md` §Job registry lainnya and

@@ -67,13 +67,17 @@ CREATE TABLE IF NOT EXISTS awcms_mini_<name> (
   restored_by uuid
 );
 
-CREATE INDEX IF NOT EXISTS idx_awcms_mini_<name>_tenant
+CREATE INDEX IF NOT EXISTS awcms_mini_<name>_tenant_idx
   ON awcms_mini_<name> (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_awcms_mini_<name>_tenant_created
+CREATE INDEX IF NOT EXISTS awcms_mini_<name>_tenant_created_idx
   ON awcms_mini_<name> (tenant_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_awcms_mini_<name>_active
+CREATE INDEX IF NOT EXISTS awcms_mini_<name>_active_idx
   ON awcms_mini_<name> (tenant_id, created_at DESC)
   WHERE deleted_at IS NULL;
+-- Konvensi nama index: SUFFIX `_idx` (unique: `_uidx` atau `_key`), bukan
+-- prefix `idx_` — lihat 15 migration terakhir/83 index nyata
+-- (mis. sql/071, sql/075: `awcms_mini_data_exchange_import_batches_tenant_status_idx`,
+-- `awcms_mini_reference_tenant_codes_tenant_active_idx`).
 
 ALTER TABLE awcms_mini_<name> ENABLE ROW LEVEL SECURITY;
 ALTER TABLE awcms_mini_<name> FORCE ROW LEVEL SECURITY;

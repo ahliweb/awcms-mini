@@ -716,17 +716,23 @@ daftar lengkap dan alasan tiap job dimiliki modul mana. Dua kategori:
 `email:dispatch` di atas (ganti nama command pada contoh crontab),
 idempoten/aman dijalankan berulang, no-op aman bila fiturnya nonaktif:
 
-| Command                         | Modul                | Jadwal disarankan                                                     |
-| ------------------------------- | -------------------- | --------------------------------------------------------------------- |
-| `sync:objects:dispatch`         | sync_storage         | Setiap 1-2 menit                                                      |
-| `logs:audit:purge`              | logging              | Harian                                                                |
-| `form-drafts:purge`             | form_drafts          | Harian                                                                |
-| `analytics:rollup`              | visitor_analytics    | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai)              |
-| `analytics:purge`               | visitor_analytics    | Harian, setelah `analytics:rollup`                                    |
-| `news-media:reconcile`          | news_portal          | Harian (Issue #690)                                                   |
-| `domain-events:dispatch`        | domain_event_runtime | Setiap 30-60 detik (Issue #742)                                       |
-| `data-lifecycle:archive-purge`  | data_lifecycle       | Harian (Issue #745, lihat §Data lifecycle archive/purge job di bawah) |
-| `workflow:escalations:dispatch` | workflow             | Setiap 1-5 menit (Issue #747)                                         |
+| Command                                   | Modul                  | Jadwal disarankan                                                     |
+| ----------------------------------------- | ---------------------- | --------------------------------------------------------------------- |
+| `sync:objects:dispatch`                   | sync_storage           | Setiap 1-2 menit                                                      |
+| `logs:audit:purge`                        | logging                | Harian                                                                |
+| `form-drafts:purge`                       | form_drafts            | Harian                                                                |
+| `analytics:rollup`                        | visitor_analytics      | Harian (mis. 00:15, setelah hari UTC sebelumnya selesai)              |
+| `analytics:purge`                         | visitor_analytics      | Harian, setelah `analytics:rollup`                                    |
+| `news-media:reconcile`                    | news_portal            | Harian (Issue #690)                                                   |
+| `domain-events:dispatch`                  | domain_event_runtime   | Setiap 30-60 detik (Issue #742)                                       |
+| `data-lifecycle:archive-purge`            | data_lifecycle         | Harian (Issue #745, lihat §Data lifecycle archive/purge job di bawah) |
+| `workflow:escalations:dispatch`           | workflow               | Setiap 1-5 menit (Issue #747)                                         |
+| `data-exchange:worker`                    | data_exchange          | Setiap 1-2 menit (Issue #752)                                         |
+| `integration-hub:outbound:dispatch`       | integration_hub        | Setiap 1-2 menit (Issue #754)                                         |
+| `reporting:projections:refresh`           | reporting              | Setiap 2 menit (Issue #753)                                           |
+| `reporting:exports:dispatch`              | reporting              | Setiap 15 menit (Issue #753)                                          |
+| `organization-structure:metrics-snapshot` | organization_structure | Setiap 15-60 menit (Issue #749)                                       |
+| `identity-access:business-scope:expiry`   | identity_access        | Per jam (Issue #746)                                                  |
 
 Semua bersifat operasi database murni (kecuali `sync:objects:dispatch`
 yang menyentuh R2 bila `STORAGE_DRIVER` bukan `local`, dan

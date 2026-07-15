@@ -5,13 +5,13 @@ editorial + media full-online, R2-only di atas `blog_content` (base
 module, sudah `active`) dan online public routing (`tenant_domain`).
 
 > **Catatan drift dokumentasi**: bagian di bawah ini ditulis saat Issue
-> #632 dan belum diperbarui mengikuti Issue #633-#638/#681/#690 yang sudah
-> selesai sejak itu (media registry, upload presigned, gate R2-only
+> #632 dan tidak sepenuhnya mengikuti Issue #633-#642/#649/#681/#690 yang
+> sudah selesai sejak itu (media registry, upload presigned, gate R2-only
 > `blog_content`, homepage section composer, ad placement presets, capability
-> ports, reconciliation job). **Rujukan status yang akurat**:
+> ports, reconciliation job) — epic `news_portal` (#631-#642, #649) FULLY
+> COMPLETE per 2026-07-13. **Rujukan status yang akurat**:
 > `.claude/skills/awcms-mini-news-portal/SKILL.md`'s tabel "Status per
-> issue" — jangan asumsikan README ini lengkap sampai diperbarui menyeluruh
-> (di luar cakupan Issue #638 untuk melakukan audit penuh itu sekarang).
+> issue" — jangan asumsikan README ini lengkap sampai diperbarui menyeluruh.
 
 ## Scope Issue #632 (status saat penulisan awal README ini)
 
@@ -33,11 +33,16 @@ Modul ini **baru berisi**:
   yang boleh dipakai untuk mengaktifkan preset ini (lihat komentar
   header file itu).
 
-**Belum ada** (issue lanjutan di epic yang sama): media object registry
-/ schema (#633), endpoint upload presigned R2 (#634), integrasi
-`blog_content` mewajibkan media R2 `confirmed` (#636), homepage
-composer/ads/video/quality-checklist/tag-linking/social-share/SEO
-(#637-#642, #649).
+**Belum ada saat README ini pertama ditulis** (issue lanjutan di epic yang
+sama, sekarang semuanya sudah selesai — lihat catatan drift di atas):
+media object registry / schema (#633), endpoint upload presigned R2
+(#634), integrasi `blog_content` mewajibkan media R2 `confirmed` (#636).
+Homepage section composer (`POST/GET /api/v1/news-portal/homepage-sections`,
+Issue #637) dan ad placement presets
+(`POST/GET /api/v1/news-portal/ad-placements`, Issue #638) sudah
+diimplementasikan penuh — routes, admin nav (`/admin/news-portal/homepage-sections`,
+`/admin/news-portal/ad-placements`), dan `permissions` sudah dideklarasikan
+di `module.ts` — **bukan lagi** item "belum ada".
 
 ## Kenapa modul ini diregistrasi sekarang, dependencies minimal
 

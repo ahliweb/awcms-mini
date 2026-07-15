@@ -69,19 +69,26 @@ capability dependency on `organization_structure` in either direction
 
 **Wired end-to-end since Issue #786** (this module shipped the adapter in
 #749 but had zero production callers until this follow-up). The real
-composition root — `POST /api/v1/identity/business-scope/assignments`'s
-`buildHierarchyPort` (`src/pages/api/v1/identity/business-scope/
-assignments/index.ts`) — checks whether `organization_structure` is
+composition root — `buildBusinessScopeHierarchyPort`
+(`src/pages/api/v1/identity/business-scope/hierarchy-port-composition.ts`,
+factored out of `assignments/index.ts` by Issue #802/PR #804 so
+`assignments/[id]/revoke.ts` could share the exact same composition
+instead of duplicating it) — checks whether `organization_structure` is
 enabled for the calling tenant (`resolveModuleEnabled`) and, when it is,
 tries this module's real adapter FIRST for every scope, falling back to
 identity-access's flat `"office"` adapter when this one doesn't resolve
 the scope (any scope type it doesn't own, or ANY scope type at all when
 the tenant has this module disabled). No file inside `identity_access`'s
 own `application`/`domain` tree imports anything from
-`organization_structure` — the wiring lives entirely in the route file, a
-composition root outside every module's own `application`/`domain` tree,
-which is what keeps `tests/unit/module-boundary-cycles.test.ts` (Core/
-Optional import-cycle guard) passing. This module's own
+`organization_structure` — the wiring lives entirely in this shared
+composition-root file, used by both
+`POST /api/v1/identity/business-scope/assignments`
+(`assignments/index.ts`) and
+`POST /api/v1/identity/business-scope/assignments/{id}/revoke`
+(`assignments/[id]/revoke.ts`), outside every module's own
+`application`/`domain` tree, which is what keeps
+`tests/unit/module-boundary-cycles.test.ts` (Core/Optional import-cycle
+guard) passing. This module's own
 `capabilities: { provides: ["organization_hierarchy_resolution"] }`
 (`module.ts`) is matched by `identity_access/module.ts`'s
 `capabilities.consumes` entry (`optional: true`) for the module-

@@ -326,7 +326,7 @@ awcms-mini/
 ├── AGENTS.md                # file ini
 ├── CHANGELOG.md             # versioning (Changesets)
 ├── .changeset/              # config + changeset entries
-├── .claude/skills/          # 39 skill proyek (implement-issue, new-migration, dst.)
+├── .claude/skills/          # 45 skill proyek (implement-issue, new-migration, dst.)
 ├── .claude/agents/          # subagents (coder, reviewer, security-auditor)
 ├── README.md
 ├── package.json
@@ -354,7 +354,7 @@ awcms-mini/
 
 Modul **base generik** yang terdaftar di registry (`src/modules/index.ts` `listModules()`, lihat juga inventori GENERATED `docs/awcms-mini/repo-inventory.md` §Modules untuk daftar hidup key/versi/status):
 
-`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`), `idn-admin-regions` (`idn_admin_regions`, `type: base`, `status: experimental` — epic #654 master data wilayah administratif Indonesia, Issue #655-#664, lihat `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`), `domain-event-runtime` (`domain_event_runtime`, `type: system` — epic `platform-evolution` #738 Wave 1, Issue #742, transactional multi-consumer domain-event outbox/dispatcher, lihat `src/modules/domain-event-runtime/README.md`).
+`tenant-admin` (`tenant_admin`), `profile-identity` (`profile_identity`), `identity-access` (`identity_access`), `sync-storage` (`sync_storage`), `reporting` (`reporting`), `logging` (`logging`), `workflow-approval` (`workflow`), `form-drafts` (`form_drafts`), `email` (`email`), `module-management` (`module_management`), `idn-admin-regions` (`idn_admin_regions`, `type: base`, `status: experimental` — epic #654 master data wilayah administratif Indonesia, Issue #655-#664, lihat `.claude/skills/awcms-mini-idn-admin-regions/SKILL.md`), `domain-event-runtime` (`domain_event_runtime`, `type: system` — epic `platform-evolution` #738 Wave 1, Issue #742, transactional multi-consumer domain-event outbox/dispatcher, lihat `src/modules/domain-event-runtime/README.md`), `organization-structure` (`organization_structure`, `type: domain` — epic `platform-evolution` #738 Wave 2, Issue #749, ADR-0016, hierarki organisasi/business-scope lintas modul, lihat `src/modules/organization-structure/README.md`), `document-infrastructure` (`document_infrastructure`, `type: domain` — epic `platform-evolution` #738 Wave 3, Issue #751, ADR-0017, capability port `document_resource_relations` reusable lintas modul, lihat `src/modules/document-infrastructure/README.md`), `data-exchange` (`data_exchange`, `type: domain` — epic `platform-evolution` #738 Wave 3, Issue #752, ADR-0018, import/export/rekonsiliasi data batch, lihat `src/modules/data-exchange/README.md`), `integration-hub` (`integration_hub`, `type: system` — epic `platform-evolution` #738 Wave 3, Issue #754, ADR-0019, gateway integrasi outbound/inbound ke provider eksternal, lihat `src/modules/integration-hub/README.md`), `reference-data` (`reference_data`, `type: domain` — epic `platform-evolution` #738 Wave 3, Issue #750, ADR-0021, registry data referensi lintas modul, lihat `src/modules/reference-data/README.md`).
 
 `_shared` (`src/modules/_shared`) bukan modul terdaftar — berisi kontrak/tipe bersama (`module-contract.ts`, dsb.) yang dipakai seluruh modul lain.
 

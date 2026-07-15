@@ -9,7 +9,7 @@
 ## 1. Konteks dan tujuan
 
 Repo ini awalnya dideskripsikan sebagai base generik dengan sedikit modul
-domain. Registry sekarang berisi **16 modul terdaftar** (`src/modules/
+domain. Registry sekarang berisi **23 modul terdaftar** (`src/modules/
 index.ts`), termasuk tiga modul domain nyata (`blog_content`, `news_portal`,
 `social_publishing`) yang didaftarkan langsung di base (pengecualian yang
 sudah didokumentasikan di `AGENTS.md` §Peta modul), modul `idn_admin_regions`
@@ -28,7 +28,7 @@ Dokumen ini mendefinisikan:
    runtime code upload/install/marketplace.
 5. Proposal template ringan + architecture decision checklist
    (`docs/awcms-mini/templates/`).
-6. Pemetaan 16 modul saat ini ke kategori + remediasi yang terdeteksi.
+6. Pemetaan 23 modul saat ini ke kategori + remediasi yang terdeteksi.
 
 **Yang TIDAK berubah oleh dokumen ini** (guardrail keras epic #679, tidak
 dilonggarkan): registry tetap **statis, tepercaya, hanya lewat kode yang
@@ -365,10 +365,13 @@ External Integration menurut §2, bukan entri registry terpisah):
 
 ### Remediasi yang terdeteksi (bukan blocker rilis dokumen ini — tercatat sebagai follow-up)
 
-1. **R1 — `type` tidak konsisten diisi.** Hanya 7 dari 16 modul
-   (`module_management`, `tenant_domain`, `visitor_analytics` = `system`;
-   `blog_content`, `news_portal`, `social_publishing` = `domain`;
-   `idn_admin_regions` = `base`) men-set field `type` di `module.ts`. 9
+1. **R1 — `type` tidak konsisten diisi.** Hanya 14 dari 23 modul
+   (`module_management`, `tenant_domain`, `visitor_analytics`,
+   `data_lifecycle`, `domain_event_runtime`, `integration_hub` = `system`;
+   `blog_content`, `news_portal`, `social_publishing`, `data_exchange`,
+   `document_infrastructure`, `organization_structure`, `reference_data` =
+   `domain`; `idn_admin_regions` = `base`) men-set field `type` di
+   `module.ts`. 9
    modul lain (`tenant_admin`, `identity_access`, `profile_identity`,
    `logging`, `sync_storage`, `email`, `form_drafts`, `reporting`,
    `workflow`) meninggalkannya `undefined`, walau kategori efektifnya
@@ -399,25 +402,23 @@ External Integration menurut §2, bukan entri registry terpisah):
    sepihak dokumen governance.
 3. **R3 — `maintainers` tidak pernah diisi.** Field opsional
    `ModuleDescriptor.maintainers?: string[]` ada di kontrak sejak awal
-   tapi 0 dari 16 modul mengisinya — ownership hari ini murni berasal dari
+   tapi 0 dari 23 modul mengisinya — ownership hari ini murni berasal dari
    `.github/CODEOWNERS` (satu maintainer untuk seluruh repo). Tidak masalah
    selama tim tetap satu maintainer, tapi tabel §8 akan butuh diperbarui
    dari `maintainers` per modul, bukan CODEOWNERS repo-wide, begitu tim
    bertambah. **Rekomendasi**: follow-up issue mengisi `maintainers` per
    modul saat struktur tim berubah — tidak mendesak hari ini.
-4. **R4 — `AGENTS.md` §Peta modul stale.** Daftar nama modul di
-   `AGENTS.md` (`localization-ui`, `management-reporting`, `database-
-connectivity`, `production-security-readiness`, dst.) tidak cocok
-   dengan nama folder/`key` nyata di `src/modules/` (`reporting`, bukan
-   `management-reporting`; tidak ada folder `localization-ui`/`database-
-connectivity`/`production-security-readiness`). Bagian yang sama juga
-   menyatakan `blog-content` sebagai "pengecualian tunggal" modul domain
-   di base — kini sudah ada `news_portal` juga. **Tabel §8 dokumen ini
-   adalah sumber kebenaran terkini**; `AGENTS.md` §Peta modul perlu
-   diperbarui di issue docs terpisah (di luar scope atomic Issue #696 —
-   AGENTS.md tidak disebut di scope issue ini, dan mengedit "kontrak kerja"
-   itu sendiri berisiko tinggi untuk dilakukan bersamaan dengan PR
-   governance murni ini).
+4. **R4 — `AGENTS.md` §Peta modul stale (RESOLVED).** Versi sebelumnya dari
+   catatan ini melaporkan bahwa `AGENTS.md` §Peta modul memakai nama folder
+   fiktif (`localization-ui`, `management-reporting`, `database-
+connectivity`, `production-security-readiness`, dst.) yang tidak cocok
+   dengan folder/`key` nyata di `src/modules/`. `AGENTS.md` §Peta modul saat
+   ini sudah memakai nama modul nyata dan mendaftar seluruh 23 modul
+   (base generik + pengecualian domain/system) — gap ini sudah tertutup,
+   dicatat di sini hanya sebagai riwayat. **Tabel §8 dokumen ini tetap
+   sumber kebenaran terkini** untuk kategori admission; jika keduanya
+   berbeda di masa depan, `AGENTS.md` §Peta modul yang perlu disinkronkan
+   ulang.
 
 ## 9. Proposal template ringan + architecture decision checklist
 

@@ -134,7 +134,7 @@ flowchart LR
 2. Baca [`CONTRIBUTING.md`](CONTRIBUTING.md) — alur kontribusi, setup, konvensi commit, Definition of Done.
 3. Gunakan **skill proyek** di [`.claude/skills/`](.claude/skills/README.md) agar standar diterapkan konsisten.
 4. Kerjakan **atomic** per issue; migration bila schema berubah, OpenAPI bila API berubah, AsyncAPI bila event berubah.
-5. Validasi (`bun run check` = lint + `check:docs` + `api:spec:check` + `api:docs:check` + `repo:inventory:check` + `modules:dag:check` + `i18n:pot:check` + `i18n:parity:check` + `config:docs:check` + `logging:lint:check` + typecheck + `bun test` + Astro build) sebelum PR. Untuk perubahan UI non-trivial, tambahkan/jalankan E2E browser sungguhan secara terpisah — `bun run test:e2e` (Playwright + Bun, skill `awcms-mini-browser-test`), butuh app+`DATABASE_URL` hidup, belum bagian dari `bun run check`.
+5. Validasi (`bun run check` — gate CI utama; rantai sub-check lengkap dan urutannya didokumentasikan di [`CONTRIBUTING.md`](CONTRIBUTING.md#validasi-sebelum-pr) dan `package.json`'s `check` script, jangan diduplikasi di sini agar tidak drift) sebelum PR. Untuk perubahan UI non-trivial, tambahkan/jalankan E2E browser sungguhan secara terpisah — `bun run test:e2e` (Playwright + Bun, skill `awcms-mini-browser-test`), butuh app+`DATABASE_URL` hidup, belum bagian dari `bun run check`.
 
 ### Mulai dari
 

@@ -12,19 +12,24 @@ Buat modul mengikuti struktur standar di `docs/awcms-mini/10_template_kode_codin
 ```text
 src/modules/<module-kebab>/
 ├── module.ts            # ModuleDescriptor
-├── domain/              # entities.ts, value-objects.ts, events.ts
-├── application/         # services.ts, commands.ts, queries.ts
-├── infrastructure/      # repository.ts, mappers.ts
-├── api/                 # routes.ts, schemas.ts, handlers.ts
-└── README.md            # ringkas: tujuan, tabel, endpoint, event, dependency
+├── domain/               # entities.ts, value-objects.ts, events.ts
+├── application/          # services.ts, commands.ts, queries.ts
+├── infrastructure/       # repository.ts, mappers.ts
+└── README.md             # design doc lengkap: tujuan, tabel, endpoint, event, dependency, invariant keamanan (lihat README modul lain — 94-854 baris, bukan ringkasan singkat)
 ```
+
+Route API **tidak** hidup di dalam folder modul — tidak ada modul mana pun
+yang punya folder `api/` (`find src/modules -maxdepth 2 -type d -name api`
+kosong). Route nyata selalu di `src/pages/api/v1/<resource>/...` (Astro
+file-based routing), meng-import service/repository dari
+`application`/`infrastructure` modul terkait. Lihat `awcms-mini-new-endpoint`.
 
 ## Module descriptor (`module.ts`)
 
 ```ts
-import type { ModuleDescriptor } from "../_shared/module-contract";
+import { defineModule } from "../_shared/module-contract";
 
-export const <camelCase>Module: ModuleDescriptor = {
+export const <camelCase>Module = defineModule({
   key: "<snake_case>",
   name: "<Nama Modul>",
   version: "0.1.0",
@@ -45,7 +50,7 @@ export const <camelCase>Module: ModuleDescriptor = {
   // kapabilitas yang belum diimplementasi (lihat contoh nyata:
   // `src/modules/module-management/module.ts` menambah `navigation`
   // baru setelah Issue #518 selesai, `jobs` setelah #519, satu-satu).
-};
+});
 ```
 
 ## Aturan
@@ -62,7 +67,7 @@ export const <camelCase>Module: ModuleDescriptor = {
 
 Domain retail/POS contoh (aspirational, belum tentu ada di base generik ini): `tenant-admin`, `identity-access`, `profile-identity`, `catalog-inventory`, `sales-pos`, `shared-stock-routing`, `warehouse-management`, `accounting-tax`, `crm-communication`, `sync-storage`, `ai-analyst`, `localization-ui`, `observability-logging`, `database-connectivity`, `workflow-approval`, `management-reporting`, `ui-experience`, `production-security-readiness`.
 
-Modul base generik yang **sudah nyata terdaftar** di repo ini (`src/modules/index.ts`, 16 modul): `tenant-admin`, `profile-identity`, `identity-access`, `sync-storage`, `reporting`, `logging`, `workflow-approval`, `form-drafts`, `email`, `module-management`, `blog-content`, `tenant-domain`, `visitor-analytics`, `news-portal`, `social-publishing`, `idn-admin-regions`.
+Modul base generik yang **sudah nyata terdaftar** di repo ini (`src/modules/index.ts`, 23 modul): `tenant-admin`, `profile-identity`, `identity-access`, `sync-storage`, `reporting`, `logging`, `workflow-approval`, `form-drafts`, `email`, `module-management`, `blog-content`, `tenant-domain`, `visitor-analytics`, `news-portal`, `social-publishing`, `idn-admin-regions`, plus 7 modul platform-evolution epic #738: `data-exchange`, `data-lifecycle`, `document-infrastructure`, `domain-event-runtime`, `integration-hub`, `organization-structure`, `reference-data`.
 
 ## Sebelum scaffold modul baru: cek kebijakan admission
 

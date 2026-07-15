@@ -604,6 +604,69 @@ Modul domain pertama yang didaftarkan langsung di repo base ini, bukan aplikasi 
 3. **Tidak ada rute publik untuk widget/iklan** — CRUD-nya sudah berfungsi penuh di admin UI, tapi belum ada placement nyata di halaman publik manapun yang menampilkannya.
 4. **Editor konten memakai textarea JSON berlabel**, bukan editor visual/WYSIWYG — field "Content blocks (JSON)" mengharuskan format `{ "blocks": [...] }` valid (paragraph/heading/list/quote/gallery). Salah format ditolak sebelum submit (validasi klien) maupun di server.
 
+## SOP Modul Data Lifecycle (epic platform-evolution #738, Issue #745)
+
+Registry lintas-modul untuk tabel bervolume tinggi (retention/partition/archive/legal-hold/purge descriptors dideklarasikan oleh modul pemilik) plus mesin lifecycle yang menegakkannya. Belum ada layar admin UI khusus — operasional murni lewat API `/api/v1/data-lifecycle/*`.
+
+- **Job terjadwal**: `bun run data-lifecycle:archive-purge` — harian via cron/systemd timer. Mengarsipkan (bila berlaku) dan mem-purge baris lewat retensi untuk tiap descriptor generic-execution; mencatat snapshot dry-run backlog untuk descriptor delegated (adopter lama). Operasi database + filesystem lokal murni, aman di profil offline/LAN.
+- **Aksi manual/on-demand**: `GET/POST /api/v1/data-lifecycle/dry-run` untuk pratinjau dampak sebelum purge nyata; `POST /api/v1/data-lifecycle/legal-holds` membuat legal hold (menahan baris dari purge biasa) dan `POST /api/v1/data-lifecycle/legal-holds/{id}/release` melepasnya; `GET /api/v1/data-lifecycle/runs` untuk riwayat eksekusi job. Legal hold create/release wajib diaudit (lihat skill `awcms-mini-audit-log`).
+
+## SOP Modul Reporting Projections (epic platform-evolution #738 Wave 3, Issue #753)
+
+Mekanisme read-model projection berbasis kontribusi modul (incremental cursor-based dan domain-event-driven), melengkapi lima live view management reporting yang sudah ada. Admin UI: `/admin/reporting/projections`.
+
+- **Job terjadwal**: `bun run reporting:projections:refresh` — setiap 2 menit, memperbarui tiap projection strategi `cursor_table` secara incremental dan melanjutkan rebuild yang sedang berjalan. `bun run reporting:exports:dispatch` — setiap 15 menit, menghasilkan artifact export baru untuk tiap scheduled export config yang jatuh tempo.
+- **Aksi manual/on-demand**: dari `/admin/reporting/projections`, admin bisa memicu/melanjutkan full rebuild sebuah projection, membuat/menonaktifkan scheduled export config, dan memicu manual satu export run — semua operasi database murni, aman di profil offline/LAN.
+
+## SOP Modul Identity Access — Business Scope & SoD (epic platform-evolution #738 Wave 2, Issue #746; hierarchy-aware matching Issue #794/#802/#804)
+
+Business-scope assignment (legal entity/organization unit) dan Segregation-of-Duties (SoD) conflict exception, dibangun di atas `identity_access`. Admin UI: `/admin/business-scope` (assignment) dan `/admin/security` (SoD/access governance).
+
+- **Job terjadwal**: `bun run identity-access:business-scope:expiry` — per jam, mentransisikan business-scope assignment dan SoD conflict exception yang `effective_to`-nya sudah lewat menjadi expired, mencatat lifecycle event. Operasi database murni.
+- **Aksi manual/on-demand**: memberi/mencabut business-scope assignment, dan meninjau/menyetujui SoD conflict exception dari `/admin/business-scope`/`/admin/security` — keduanya wajib diaudit. SoD matching sudah hierarchy-aware untuk `same_scope_only` (lihat `checkHighRiskSoDConflicts`, PR #800/#804) — operator perlu paham cakupan efektif sebuah exception mengikuti hierarki organisasi, bukan hanya kecocokan scope persis.
+
+## SOP Modul Reference Data (epic platform-evolution #738 Wave 3, Issue #750, ADR-0021)
+
+Fondasi data referensi opsional, provider-neutral: value set dan code global (`awcms_mini_reference_value_sets`/`awcms_mini_reference_codes`) dengan provenance/deprecation, plus lapisan override/extension tenant-scoped yang tidak pernah memutasi baseline global. Admin UI: `/admin/reference-data/value-sets`, `/admin/reference-data/codes`, `/admin/reference-data/tenant-codes`.
+
+- **Job terjadwal**: tidak ada — modul ini tidak mendaftarkan `jobs` di `module.ts`. `bun run reference-data:contributions:sync` adalah sinkronisasi one-off (dijalankan manual/CI saat descriptor kontribusi modul berubah), bukan dispatcher terjadwal.
+- **Aksi manual/on-demand**: import dry-run/diff (non-mutating) lalu commit (revalidasi ulang dalam transaksi yang sama, menolak penggantian destruktif atas code yang sudah dirujuk data tenant) dari `/admin/reference-data/*`; menjalankan `reference-data:contributions:sync` setelah menambah/mengubah `ModuleDescriptor.referenceData.contributesValueSets` modul lain.
+
+## SOP Modul Domain Event Runtime (epic platform-evolution #738 Wave 1, Issue #742)
+
+Outbox domain-event transaksional, versioned, multi-consumer — fondasi generic pengganti outbox single-purpose (`sync-storage`, `email`, `social-publishing`). Belum ada layar admin UI khusus — operasional lewat API `/api/v1/domain-events/*`.
+
+- **Job terjadwal**: `bun run domain-events:dispatch` — setiap 30-60 detik, claim/execute/finalize delivery yang jatuh tempo dengan ordering per-order-key, exponential backoff, dan dead-letter. No-op aman bila tidak ada backlog jatuh tempo.
+- **Aksi manual/on-demand**: `POST /api/v1/domain-events/deliveries/{id}/replay` untuk me-replay delivery yang dead-lettered (permission-gated, wajib alasan, idempotent, diaudit); `POST /api/v1/domain-events/consumers/{name}/pause` atau `.../resume` untuk menjeda/melanjutkan sebuah consumer per tenant.
+
+## SOP Modul Workflow Approval — Escalation (epic platform-evolution #738 Wave 2, Issue #747)
+
+Engine workflow bergraf (quorum/any/all, delegasi, eskalasi/timeout) yang mengevolusi approval linear Issue 11.1. Admin UI: `/admin/workflows`.
+
+- **Job terjadwal**: `bun run workflow:escalations:dispatch` — setiap 1-5 menit, mengeskalasi task yang lewat `due_at` (bounded batch, advisory lock, idempotent per langkah eskalasi).
+- **Aksi manual/on-demand**: dari `/admin/workflows`, admin-recovery action (`reassign`/`cancel`/`force-decision`) tersedia untuk task yang macet — masing-masing wajib permission eksplisit, alasan, `Idempotency-Key`, dan tercatat penuh di audit log.
+
+## SOP Modul Organization Structure (epic platform-evolution #738 Wave 2, Issue #749, ADR-0016)
+
+Fondasi struktur organisasi tenant-scoped opsional: legal entity, tipe unit organisasi, unit organisasi, hierarki parent-child versioned/effective-dated (SCD Type 2 — reparent tidak pernah memutasi in-place), lokasi operasional, relasi lokasi-unit, dan assignment party/unit. Admin UI: `/admin/organization-structure/{legal-entities,unit-types,units,hierarchy,locations,assignments}`.
+
+- **Job terjadwal**: `bun run organization-structure:metrics-snapshot` — setiap 15-60 menit, snapshot metrik read-only (jumlah unit aktif, kedalaman hierarki maksimum, assignment yang mendekati kedaluwarsa) sebagai gauge lewat metrics port. Tidak pernah memutasi data.
+- **Aksi manual/on-demand**: CRUD legal entity/unit/tipe unit, reparent edge hierarki (menutup periode berjalan lalu membuka periode baru, tervalidasi transaksional dengan tenant-wide advisory lock — tidak pernah cycle/self-parent/overlap), serta kelola lokasi operasional dan assignment — semua dari `/admin/organization-structure/*`.
+
+## SOP Modul Integration Hub (epic platform-evolution #738 Wave 3, Issue #754, ADR-0019)
+
+Boundary integrasi generic, provider-neutral: endpoint webhook inbound bertanda tangan (HMAC per-endpoint, rotasi kunci dengan overlap), proteksi replay ditegakkan di database, normalisasi pesan inbound terverifikasi ke bentuk domain-event lewat `domain_event_runtime`, dan subscription outbound dengan delivery yang dijaga SSRF. Admin UI: `/admin/integration-hub/{endpoints,subscriptions,deliveries}`.
+
+- **Job terjadwal**: `bun run integration-hub:outbound:dispatch` — setiap 1-2 menit, claim/send/finalize delivery outbound yang jatuh tempo untuk tiap subscription aktif, dengan retry/backoff dan transisi dead-letter. Egress jaringan nyata ke `target_url` masing-masing subscription (job-nya sendiri selalu jalan; konektivitas hanya dibutuhkan bila target ada di internet publik).
+- **Aksi manual/on-demand**: registrasi/rotasi secret endpoint inbound, kelola subscription outbound (filter deklaratif dibatasi), dan inspeksi delivery/DLQ (termasuk replay yang aman-operator) dari `/admin/integration-hub/*`.
+
+## SOP Modul Data Exchange (epic platform-evolution #738 Wave 3, Issue #752, ADR-0018)
+
+Framework import/export CSV/JSON staged, provider-neutral, dikontribusikan tiap modul pemilik lewat descriptor+adapter-nya sendiri (modul ini tidak pernah menulis langsung ke tabel modul lain). Admin UI: `/admin/data-exchange/{imports,exports}`.
+
+- **Job terjadwal**: `bun run data-exchange:worker` — setiap 1-2 menit, parse/validasi batch import staged, commit batch yang sudah dipratinjau dalam pass per-baris terbatas (resumable via `commit_cursor`), eksekusi export job yang antre, dan catat laporan rekonsiliasi. Operasi database/in-process murni, aman di profil offline/LAN.
+- **Aksi manual/on-demand**: stage import baru, pratinjau (non-mutating), cancel/retry-resume/pause-resume batch import, serta trigger/cancel export job dari `/admin/data-exchange/*`; unduh hasil export lewat endpoint download yang sama.
+
 ## SOP Backup/Restore
 
 Backup:
