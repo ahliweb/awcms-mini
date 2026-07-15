@@ -627,6 +627,21 @@ suite("integration_hub (Issue #754)", () => {
         });
         expect(subscriptionResult.status).toBe(200);
 
+        const subscriptionListResult = await invoke<{
+          data: { subscriptions: { id: string; targetAdapterKey: string }[] };
+        }>(listSubscriptions, {
+          method: "GET",
+          path: "/api/v1/integration-hub/subscriptions",
+          headers: authHeaders(owner)
+        });
+        expect(subscriptionListResult.status).toBe(200);
+        expect(
+          subscriptionListResult.body.data.subscriptions.map((s) => s.id)
+        ).toContain(subscriptionResult.body.data.subscription.id);
+        expect(
+          subscriptionListResult.body.data.subscriptions[0]!.targetAdapterKey
+        ).toBe("generic_http_webhook");
+
         const payload = { hello: "world" };
         const rawBody = JSON.stringify(payload);
         const timestamp = String(Math.floor(Date.now() / 1000));
