@@ -1136,20 +1136,39 @@ default-deny, audit) yang sudah berlaku sama di sini.
   (scope type lain, atau modul nonaktif untuk tenant itu) — diverifikasi
   end-to-end lewat `tests/integration/business-scope-organization-
 structure-wiring.integration.test.ts` (bukan hanya unit test adapter
-  itu sendiri). **Catatan jujur, diperbarui pasca-audit PR #790**:
-  pencocokan konflik SoD (`same_scope_only`) tetap berbasis kesetaraan
-  `(scopeType, scopeId)` persis — belum mengonsultasikan
-  `ancestorScopes`/`descendantScopes` yang kini benar-benar dihitung
-  adapter. Sebelum PR ini, batasan tersebut murni teoritis (scope
-  `legal_entity`/`organization_unit` tidak pernah benar-benar resolve);
-  PR #790 membuatnya nyata dapat dijangkau — subjek yang menggenggam
-  `business_scope_assignments.create` pada `organization_unit` induk kini
-  bisa mendapat `.revoke` pada unit anak yang berelasi hierarkis tanpa
-  memicu rule `same_scope_only` (`business_scope_assignment_scope_maker_
-checker`). Tidak melintasi batas tenant/RLS dan tidak melewati
-  default-deny ABAC — tetap butuh permission pemberian assignment yang
-  sah. Dilacak sebagai Issue #794 (severity Medium, bukan blocker
-  go-live per gerbang doc 07, karena hanya Critical yang memblokir).
+  itu sendiri). **Diperbaiki di Issue #794** (severity Medium, bukan
+  blocker go-live per gerbang doc 07 — dilacak sejak audit PR #790 sampai
+  ditutup): pencocokan konflik SoD (`same_scope_only`) pada
+  `createBusinessScopeAssignment` sebelumnya berbasis kesetaraan
+  `(scopeType, scopeId)` persis saja — tidak mengonsultasikan
+  `ancestorScopes`/`descendantScopes` yang sudah dihitung adapter. Sebelum
+  PR #790, batasan itu murni teoritis (scope `legal_entity`/
+  `organization_unit` tidak pernah benar-benar resolve); PR #790
+  membuatnya nyata dapat dijangkau — subjek yang menggenggam
+  `business_scope_assignments.create` pada `organization_unit` induk bisa
+  mendapat `.revoke` pada unit anak yang berelasi hierarkis tanpa memicu
+  rule `same_scope_only` (`business_scope_assignment_scope_maker_checker`).
+  `detectSoDConflicts` (`domain/sod-conflict-evaluation.ts`) kini menerima
+  `RequestedScope.relatedScopes` opsional — `createBusinessScopeAssignment`
+  mengisinya dari resolusi hierarki yang SUDAH diambil untuk validasi
+  keberadaan scope (tidak ada panggilan hierarchy-port tambahan) — fact
+  yang dipegang pada scope ancestor/descendant kini juga dihitung sebagai
+  kecocokan scope, bukan hanya id yang identik. Dibuktikan lewat test
+  adversarial baru (`tests/integration/business-scope-organization-
+structure-wiring.integration.test.ts`, skenario "create di unit induk +
+  revoke di unit anak") dan unit test murni
+  (`tests/unit/sod-conflict-evaluation.test.ts`). Tidak melintasi batas
+  tenant/RLS dan tidak melewati default-deny ABAC — tetap butuh permission
+  pemberian assignment yang sah. **Celah residual yang TETAP ada, didokumentasikan
+  eksplisit, BUKAN diklaim selesai**: `checkHighRiskSoDConflicts`
+  (`application/high-risk-sod-guard.ts`) — chokepoint `same_scope_only`
+  LAIN, dipasang di `authorizeInTransaction` generik yang dipakai ~124
+  route file lintas banyak modul, kebanyakan tanpa konsep hierarki sama
+  sekali — tidak punya hierarchy port sama sekali, sehingga tetap
+  membandingkan `sodScopeType`/`sodScopeId` persis. Menyalurkan resolusi
+  hierarki ke chokepoint sebegitu generik adalah perubahan jauh lebih besar
+  dan tidak atomic, sengaja di luar scope issue #794 ini — dicatat di sini,
+  bukan diam-diam diserap ke klaim perbaikan ini.
 - **Tiga rule fixture SoD** (bukan katalog domain lengkap) — dua dimiliki
   `identity_access` sendiri (maker/checker atas mekanisme exception itu
   sendiri, dan atas assignment create/revoke pada scope yang sama), satu

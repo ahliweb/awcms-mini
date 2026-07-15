@@ -142,6 +142,68 @@ describe("detectSoDConflicts", () => {
     expect(otherScope).toHaveLength(1);
   });
 
+  test("same_scope_only: a fact held at a scope listed in requestedScope.relatedScopes (an ancestor/descendant of the requested scope) is treated as a scope match (Issue #794 — hierarchy-aware matching)", () => {
+    const parentAncestorMatch = detectSoDConflicts(
+      [SCOPED_RULE],
+      "test_module.gadgets.revoke",
+      {
+        scopeType: "organization_unit",
+        scopeId: "child-unit",
+        relatedScopes: [
+          { scopeType: "organization_unit", scopeId: "parent-unit" }
+        ]
+      },
+      [
+        {
+          permissionKey: "test_module.gadgets.create",
+          scopeType: "organization_unit",
+          scopeId: "parent-unit"
+        }
+      ]
+    );
+    expect(parentAncestorMatch).toHaveLength(1);
+    expect(parentAncestorMatch[0]!.indeterminate).toBe(false);
+
+    // A fact at a scope NOT in relatedScopes and not exactly equal is still
+    // no conflict — relatedScopes narrows to genuinely-related scopes only,
+    // it is not a wildcard.
+    const unrelatedScope = detectSoDConflicts(
+      [SCOPED_RULE],
+      "test_module.gadgets.revoke",
+      {
+        scopeType: "organization_unit",
+        scopeId: "child-unit",
+        relatedScopes: [
+          { scopeType: "organization_unit", scopeId: "parent-unit" }
+        ]
+      },
+      [
+        {
+          permissionKey: "test_module.gadgets.create",
+          scopeType: "organization_unit",
+          scopeId: "cousin-unit"
+        }
+      ]
+    );
+    expect(unrelatedScope).toHaveLength(0);
+  });
+
+  test("same_scope_only: an EMPTY/omitted relatedScopes preserves exact-match-only behavior — a caller that never resolves hierarchy (e.g. the flat office adapter) sees no change", () => {
+    const noRelatedScopes = detectSoDConflicts(
+      [SCOPED_RULE],
+      "test_module.gadgets.revoke",
+      { scopeType: "office", scopeId: "scope-a", relatedScopes: [] },
+      [
+        {
+          permissionKey: "test_module.gadgets.create",
+          scopeType: "office",
+          scopeId: "scope-b"
+        }
+      ]
+    );
+    expect(noRelatedScopes).toHaveLength(0);
+  });
+
   test('same_scope_only: no requestedScope supplied is INDETERMINATE, not silently "no conflict" — default-deny', () => {
     const matches = detectSoDConflicts(
       [SCOPED_RULE],

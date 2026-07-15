@@ -12,15 +12,18 @@
  * HONEST SCOPE NOTE (do not overclaim — see this repo's own recurring
  * "issue requirement + false in-code claim of compliance" failure pattern,
  * `docs/awcms-mini/20_threat_model_security_architecture.md`'s Wave-3
- * findings): `detectSoDConflicts` (`domain/sod-conflict-evaluation.ts`)
- * matches a `"same_scope_only"` rule by EXACT `(scopeType, scopeId)`
- * equality — it does NOT consult `resolution.ancestorScopes`/
- * `descendantScopes` at all today (verified: nothing outside the port/
- * adapter files themselves reads those fields). This issue wires the
- * SCOPE VALIDITY step (`resolveScope(...).resolved`) to the real,
- * hierarchy-walking adapter — it does NOT add hierarchy-aware (ancestor/
- * descendant) SoD conflict MATCHING, which remains a distinct, not-yet-built
- * feature. The tests below prove: (1) `legal_entity`/`organization_unit`
+ * findings): at the time THIS issue (#786) shipped, `detectSoDConflicts`
+ * (`domain/sod-conflict-evaluation.ts`) matched a `"same_scope_only"` rule
+ * by EXACT `(scopeType, scopeId)` equality only — it did not consult
+ * `resolution.ancestorScopes`/`descendantScopes` at all (verified: nothing
+ * outside the port/adapter files themselves read those fields). This issue
+ * wired the SCOPE VALIDITY step (`resolveScope(...).resolved`) to the real,
+ * hierarchy-walking adapter — it deliberately did NOT add hierarchy-aware
+ * (ancestor/descendant) SoD conflict MATCHING, left as a distinct
+ * not-yet-built feature, tracked and later closed by Issue #794 (see
+ * `hierarchy-aware SoD conflict matching` test below, and
+ * `sod-conflict-evaluation.ts`'s own header for the fix). The tests in
+ * THIS describe block prove: (1) `legal_entity`/`organization_unit`
  * scope references now resolve through the REAL adapter (previously
  * impossible — the old hardcoded flat adapter returns `resolved: false`
  * for every scope type except `"office"`), genuinely reading
@@ -31,7 +34,9 @@
  * per-tenant module enablement gates which adapter answers — disabling
  * `organization_structure` for a tenant makes its scope types unresolved
  * again, exactly like any other module the composition root doesn't
- * recognize, and the flat "office" adapter keeps working unaffected.
+ * recognize, and the flat "office" adapter keeps working unaffected; (4)
+ * (Issue #794) a `same_scope_only` conflict now ALSO trips across a real
+ * ancestor/descendant organization-unit pair, not just identical scope ids.
  *
  * Skipped unless DATABASE_URL is set (see tests/integration/harness.ts).
  */
@@ -217,6 +222,39 @@ async function seedLegalEntityWithUnit(
   return { legalEntityId, unitId: unitRows[0]!.id };
 }
 
+/**
+ * Adds a CHILD organization unit under `parentUnitId`, with a current
+ * (`effective_to IS NULL`) hierarchy edge row seeded directly (same
+ * "raw admin SQL, not the real reparent route — keep this file's scope
+ * narrow" convention `seedLegalEntityWithUnit` above documents) — enough
+ * for `organizationStructureHierarchyPortAdapter.resolveScope` to walk a
+ * real ancestor/descendant chain, without re-testing
+ * `organization-unit-hierarchy-service.ts`'s own reparent validation
+ * (already covered elsewhere).
+ */
+async function seedChildUnit(
+  tenantId: string,
+  legalEntityId: string,
+  parentUnitId: string
+): Promise<string> {
+  const admin = getAdminSql();
+
+  const unitRows = (await admin`
+    INSERT INTO awcms_mini_organization_units (tenant_id, legal_entity_id, code, name)
+    VALUES (${tenantId}, ${legalEntityId}, 'branch_a_child', 'Branch A Child')
+    RETURNING id
+  `) as { id: string }[];
+  const childUnitId = unitRows[0]!.id;
+
+  await admin`
+    INSERT INTO awcms_mini_organization_unit_hierarchies
+      (tenant_id, organization_unit_id, parent_organization_unit_id)
+    VALUES (${tenantId}, ${childUnitId}, ${parentUnitId})
+  `;
+
+  return childUnitId;
+}
+
 const suite = integrationEnabled ? describe : describe.skip;
 
 suite(
@@ -391,6 +429,82 @@ suite(
         SELECT conflict_detected FROM awcms_mini_sod_conflict_evaluations
         WHERE tenant_id = ${owner.tenantId} AND trigger_context = 'assignment_create'
       `) as { conflict_detected: boolean }[];
+      expect(evaluations.length).toBeGreaterThan(0);
+      expect(evaluations[0]!.conflict_detected).toBe(true);
+    });
+
+    test("Issue #794 adversarial: same_scope_only conflict now trips across a HIERARCHY-RELATED organization_unit pair — subject holding create at a parent unit CANNOT be granted revoke at a child unit either (previously silently allowed since only exact (scopeType, scopeId) equality was checked)", async () => {
+      const owner = await bootstrap();
+      const { legalEntityId, unitId: parentUnitId } =
+        await seedLegalEntityWithUnit(owner.tenantId);
+      const childUnitId = await seedChildUnit(
+        owner.tenantId,
+        legalEntityId,
+        parentUnitId
+      );
+      const subjectId = await createSecondTenantUser(
+        owner.tenantId,
+        "acme-org-subject-hierarchy@example.com"
+      );
+
+      const creatorRole = await createRoleWithPermissions(
+        owner.tenantId,
+        "org_scope_creator_hierarchy",
+        "Org Scope Creator Hierarchy",
+        ["identity_access.business_scope_assignments.create"]
+      );
+      const revokerRole = await createRoleWithPermissions(
+        owner.tenantId,
+        "org_scope_revoker_hierarchy",
+        "Org Scope Revoker Hierarchy",
+        ["identity_access.business_scope_assignments.revoke"]
+      );
+
+      // Subject is granted `.create` at the PARENT unit.
+      const first = await invoke<{ data: { assignment: { id: string } } }>(
+        createAssignment,
+        {
+          method: "POST",
+          path: "/api/v1/identity/business-scope/assignments",
+          headers: authHeaders(owner, "org-wiring-sod-hierarchy-1"),
+          body: {
+            tenantUserId: subjectId,
+            roleId: creatorRole,
+            scopeType: "organization_unit",
+            scopeId: parentUnitId
+          }
+        }
+      );
+      expect(first.status).toBe(200);
+
+      // Attempting to ALSO grant `.revoke` at the CHILD unit — a DIFFERENT
+      // scopeId, but the same business hierarchy (child of the parent the
+      // subject already holds `.create` at) — must now be blocked by
+      // `business_scope_assignment_scope_maker_checker` even though the
+      // two scope ids are not identical.
+      const conflicting = await invoke(createAssignment, {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/assignments",
+        headers: authHeaders(owner, "org-wiring-sod-hierarchy-2"),
+        body: {
+          tenantUserId: subjectId,
+          roleId: revokerRole,
+          scopeType: "organization_unit",
+          scopeId: childUnitId
+        }
+      });
+
+      expect(conflicting.status).toBe(409);
+      expect((conflicting.body as { error: { code: string } }).error.code).toBe(
+        "SOD_CONFLICT"
+      );
+
+      const admin = getAdminSql();
+      const evaluations = (await admin`
+        SELECT conflict_detected, rule_key FROM awcms_mini_sod_conflict_evaluations
+        WHERE tenant_id = ${owner.tenantId} AND trigger_context = 'assignment_create'
+          AND rule_key = 'identity_access.business_scope_assignment_scope_maker_checker'
+      `) as { conflict_detected: boolean; rule_key: string }[];
       expect(evaluations.length).toBeGreaterThan(0);
       expect(evaluations[0]!.conflict_detected).toBe(true);
     });

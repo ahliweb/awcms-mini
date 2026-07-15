@@ -513,13 +513,32 @@ module-composition validator (Issue #740), the same shape `blog_content`
 already declares for its own optional `news_media`/`social_publishing`
 consumption — this is a documentation/build-time-validation entry, not the
 runtime wiring itself. **Scope note**: this wiring makes scope EXISTENCE/
-VALIDITY resolution real for `legal_entity`/`organization_unit` — it does
-NOT make SoD conflict MATCHING (`domain/sod-conflict-evaluation.ts`)
-hierarchy-aware; `detectSoDConflicts`'s `"same_scope_only"` rule still
-compares `(scopeType, scopeId)` by exact equality, never consulting
-`ancestorScopes`/`descendantScopes` — a true hierarchy-aware conflict check
-(e.g. "held at a parent org unit conflicts with a child") remains a
-distinct, not-yet-built feature.
+VALIDITY resolution real for `legal_entity`/`organization_unit`.
+**Hierarchy-aware SoD matching (Issue #794, fixing a gap #786 deliberately
+left open and #790 made practically reachable)**: `createBusinessScopeAssignment`
+(`application/business-scope-assignment-service.ts`) now passes the
+requested scope's already-resolved `ancestorScopes`/`descendantScopes` (no
+extra hierarchy-port call — it reuses the resolution already fetched to
+validate scope existence) as `RequestedScope.relatedScopes` into
+`detectSoDConflicts`; a `"same_scope_only"` rule now also matches a held
+fact whose scope is a genuine ancestor/descendant of the requested scope,
+not only an EXACT `(scopeType, scopeId)` equal one — e.g. a subject holding
+`business_scope_assignments.create` at a parent `organization_unit` can no
+longer be granted `.revoke` at a hierarchically-related child unit without
+tripping `business_scope_assignment_scope_maker_checker`. **Remaining, documented
+gap**: `checkHighRiskSoDConflicts` (`application/high-risk-sod-guard.ts`),
+the OTHER `same_scope_only` call site wired at the generic
+`authorizeInTransaction` chokepoint (used by ~124 route files for many
+modules, most with no hierarchy concept at all), has no hierarchy port
+plumbed in at all — it still compares `sodScopeType`/`sodScopeId` by exact
+equality only. Threading hierarchy resolution through that fully generic
+chokepoint (which would require every one of its many callers to supply a
+hierarchy port, or resolve one per-request, for scope types the vast
+majority of them don't even have) is a materially larger, non-atomic
+change deliberately left out of issue #794's scope — tracked in
+`docs/awcms-mini/20_threat_model_security_architecture.md`'s SoD threat
+table as a distinct residual limitation, not silently absorbed into this
+fix's claim.
 
 ### ABAC extension (`domain/access-control.ts`)
 
