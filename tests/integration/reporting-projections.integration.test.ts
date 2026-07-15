@@ -37,6 +37,7 @@ import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
 import { GET as listProjectionsRoute } from "../../src/pages/api/v1/reports/projections/index";
 import { GET as getProjectionRoute } from "../../src/pages/api/v1/reports/projections/[key]/index";
 import { POST as triggerRebuildRoute } from "../../src/pages/api/v1/reports/projections/[key]/rebuild/index";
+import { POST as cancelRebuildRoute } from "../../src/pages/api/v1/reports/projections/[key]/rebuild/cancel";
 import {
   GET as listScheduledExportsRoute,
   POST as createScheduledExportRoute
@@ -680,6 +681,102 @@ suite("reporting-projections (Issue #753)", () => {
       );
       expect(metricsA.total_count).toBe(5);
       expect(metricsB.total_count ?? 0).toBe(0);
+    });
+  });
+
+  describe("idempotency-key scoping — rebuild cancel across two different projections (Issue #795)", () => {
+    test("ADVERSARIAL: reusing the same Idempotency-Key across POST rebuild/cancel of two DIFFERENT projections must NOT replay the first projection's cached response for the second -- the mismatched hash must yield 409 CONFLICT, the second projection's run must remain untouched, and it must still cancel once given its OWN key", async () => {
+      const owner = await bootstrap();
+      const sql = getAdminSql();
+
+      // Two DIFFERENT resources of the SAME type (a tenant-scoped
+      // reporting projection rebuild run) -- both share the identical
+      // request_scope ("reporting_projection_rebuild_cancel") and
+      // tenant_id, differing only by the {key} path parameter. Pre-fix,
+      // `computeRequestHash({})` was identical for both requests
+      // regardless of {key}, so a reused Idempotency-Key would silently
+      // replay projection A's cached response (200, describing A's run)
+      // for a request meant to cancel projection B -- B's run would
+      // stay 'running' forever while the caller believed it was
+      // cancelled.
+      const descriptorA = accessAuditDescriptor();
+      const descriptorB = moduleActivityDescriptor();
+
+      const { run: runA } = await withTenant(sql, owner.tenantId, (tx) =>
+        triggerOrResumeRebuild(tx, owner.tenantId, descriptorA, {
+          requestedBy: null,
+          reason: "idempotency-key scoping test (A)"
+        })
+      );
+      expect(runA.status).toBe("running");
+
+      const { run: runB } = await withTenant(sql, owner.tenantId, (tx) =>
+        triggerOrResumeRebuild(tx, owner.tenantId, descriptorB, {
+          requestedBy: null,
+          reason: "idempotency-key scoping test (B)"
+        })
+      );
+      expect(runB.status).toBe("running");
+
+      const reusedKey = "rebuild-cancel-reused-key";
+
+      // Cancel A with the reused key -- succeeds normally.
+      const cancelA = await invoke<{
+        data: { rebuildId: string; cancelRequested: boolean };
+      }>(cancelRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${descriptorA.key}/rebuild/cancel`,
+        params: { key: descriptorA.key },
+        headers: authHeaders(owner, reusedKey)
+      });
+      expect(cancelA.status).toBe(200);
+      expect(cancelA.body.data.rebuildId).toBe(runA.id);
+
+      // Attempt to cancel B with the SAME key. Post-fix, the hash folds
+      // in {key}, so the mismatch must be rejected as a conflict, never
+      // a false replay of A's response.
+      const cancelBReusedKey = await invoke(cancelRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${descriptorB.key}/rebuild/cancel`,
+        params: { key: descriptorB.key },
+        headers: authHeaders(owner, reusedKey)
+      });
+      expect(cancelBReusedKey.status).toBe(409);
+      expect(
+        (cancelBReusedKey.body as { error: { code: string } }).error.code
+      ).toBe("IDEMPOTENCY_CONFLICT");
+
+      // B's run must still be untouched -- NOT falsely reported as
+      // cancel-requested.
+      const stillRunningB = await withTenant(sql, owner.tenantId, (tx) =>
+        getRebuildRunById(tx, owner.tenantId, runB.id)
+      );
+      expect(stillRunningB?.status).toBe("running");
+      expect(stillRunningB?.cancelRequested).toBe(false);
+
+      // With its OWN distinct key, B's cancel genuinely executes.
+      const cancelBOwnKey = await invoke<{
+        data: { rebuildId: string; cancelRequested: boolean };
+      }>(cancelRebuildRoute, {
+        method: "POST",
+        path: `/api/v1/reports/projections/${descriptorB.key}/rebuild/cancel`,
+        params: { key: descriptorB.key },
+        headers: authHeaders(owner, "rebuild-cancel-b-own-key")
+      });
+      expect(cancelBOwnKey.status).toBe(200);
+      expect(cancelBOwnKey.body.data.rebuildId).toBe(runB.id);
+
+      const cancelRequestedB = await withTenant(sql, owner.tenantId, (tx) =>
+        getRebuildRunById(tx, owner.tenantId, runB.id)
+      );
+      expect(cancelRequestedB?.status).toBe("running"); // cooperative: still 'running' until next bounded pass observes it
+      expect(cancelRequestedB?.cancelRequested).toBe(true);
+
+      // A's run is unaffected by any of B's requests.
+      const finalA = await withTenant(sql, owner.tenantId, (tx) =>
+        getRebuildRunById(tx, owner.tenantId, runA.id)
+      );
+      expect(finalA?.cancelRequested).toBe(true);
     });
   });
 

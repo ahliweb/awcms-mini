@@ -59,7 +59,11 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
 
   const revokeReason =
     typeof body.revokeReason === "string" ? body.revokeReason : "";
-  const requestHash = computeRequestHash(body);
+  const requestHash = computeRequestHash({
+    ...body,
+    id: exceptionId,
+    action: "revoke"
+  });
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
   const now = new Date();

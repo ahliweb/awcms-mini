@@ -35,6 +35,8 @@ import {
   POST as createException
 } from "../../src/pages/api/v1/identity/business-scope/exceptions/index";
 import { POST as approveException } from "../../src/pages/api/v1/identity/business-scope/exceptions/[id]/approve";
+import { POST as rejectException } from "../../src/pages/api/v1/identity/business-scope/exceptions/[id]/reject";
+import { POST as revokeException } from "../../src/pages/api/v1/identity/business-scope/exceptions/[id]/revoke";
 import { hashPassword } from "../../src/lib/auth/password";
 import { withTenant } from "../../src/lib/database/tenant-context";
 import {
@@ -766,5 +768,462 @@ suite("business-scope assignments API (Issue #746)", () => {
       }
     );
     expect(pending.body.data.exceptions).toHaveLength(1);
+  });
+
+  test("ADVERSARIAL (Issue #795): reusing the same Idempotency-Key across REVOKE of two DIFFERENT business-scope assignments must NOT replay the first assignment's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second assignment must still actually revoke once given its OWN key", async () => {
+    const owner = await bootstrap();
+    const subjectX = await createSecondTenantUser(
+      owner.tenantId,
+      "acme-subject-x@example.com"
+    );
+    const subjectY = await createSecondTenantUser(
+      owner.tenantId,
+      "acme-subject-y@example.com"
+    );
+
+    const assignmentX = await invoke<{
+      data: { assignment: { id: string } };
+    }>(createAssignment, {
+      method: "POST",
+      path: "/api/v1/identity/business-scope/assignments",
+      headers: authHeaders(owner, "create-x"),
+      body: {
+        tenantUserId: subjectX,
+        scopeType: "office",
+        scopeId: owner.officeId
+      }
+    });
+    expect(assignmentX.status).toBe(200);
+
+    const assignmentY = await invoke<{
+      data: { assignment: { id: string } };
+    }>(createAssignment, {
+      method: "POST",
+      path: "/api/v1/identity/business-scope/assignments",
+      headers: authHeaders(owner, "create-y"),
+      body: {
+        tenantUserId: subjectY,
+        scopeType: "office",
+        scopeId: owner.officeId
+      }
+    });
+    expect(assignmentY.status).toBe(200);
+
+    // Least-privilege revoker (same reasoning as the "revoke succeeds"
+    // test above): `owner`'s full-permission role also holds `.create`,
+    // which would (correctly) conflict with `.revoke` under the
+    // same-scope-only maker/checker rule -- not the behavior under test.
+    const revokerRole = await createRoleWithPermissions(
+      owner.tenantId,
+      "assignment_revoker_adversarial",
+      "Assignment Revoker (adversarial)",
+      ["identity_access.business_scope_assignments.revoke"]
+    );
+    await createSecondTenantUser(
+      owner.tenantId,
+      "acme-revoker-adversarial@example.com",
+      revokerRole
+    );
+    const revokerSession = await loginAsSecondTenantUser(
+      owner.tenantId,
+      "acme-revoker-adversarial@example.com"
+    );
+
+    const reusedKey = "revoke-reused-key";
+
+    // Revoke X with the reused key -- succeeds normally.
+    const revokeX = await invoke<{
+      data: { assignment: { id: string; status: string } };
+    }>(revokeAssignment, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/assignments/${assignmentX.body.data.assignment.id}/revoke`,
+      params: { id: assignmentX.body.data.assignment.id },
+      headers: {
+        ...authHeaders(owner, reusedKey),
+        authorization: `Bearer ${revokerSession.token}`
+      },
+      body: { revokeReason: "Revoking X." }
+    });
+    expect(revokeX.status).toBe(200);
+    expect(revokeX.body.data.assignment.id).toBe(
+      assignmentX.body.data.assignment.id
+    );
+
+    // Attempt to revoke Y with the SAME key and an identical-shaped body.
+    // Pre-fix, `computeRequestHash(body)` hashed only `{ revokeReason }`
+    // (no path {id} folded in), so this would silently REPLAY X's cached
+    // response for Y without ever touching Y -- Y would appear "revoked"
+    // to the caller while remaining active in the database.
+    const revokeYReusedKey = await invoke(revokeAssignment, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/assignments/${assignmentY.body.data.assignment.id}/revoke`,
+      params: { id: assignmentY.body.data.assignment.id },
+      headers: {
+        ...authHeaders(owner, reusedKey),
+        authorization: `Bearer ${revokerSession.token}`
+      },
+      body: { revokeReason: "Revoking X." }
+    });
+    expect(revokeYReusedKey.status).toBe(409);
+    expect(
+      (revokeYReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // Y must still be untouched -- NOT falsely reported as revoked.
+    const admin = getAdminSql();
+    const stillActiveY = (await admin`
+      SELECT status FROM awcms_mini_business_scope_assignments WHERE id = ${assignmentY.body.data.assignment.id}
+    `) as { status: string }[];
+    expect(stillActiveY[0]!.status).toBe("active");
+
+    // With its OWN distinct key, Y's revoke genuinely executes.
+    const revokeYOwnKey = await invoke<{
+      data: { assignment: { id: string; status: string } };
+    }>(revokeAssignment, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/assignments/${assignmentY.body.data.assignment.id}/revoke`,
+      params: { id: assignmentY.body.data.assignment.id },
+      headers: {
+        ...authHeaders(owner, "revoke-y-own-key"),
+        authorization: `Bearer ${revokerSession.token}`
+      },
+      body: { revokeReason: "Revoking Y." }
+    });
+    expect(revokeYOwnKey.status).toBe(200);
+    expect(revokeYOwnKey.body.data.assignment.status).toBe("revoked");
+  });
+
+  test("ADVERSARIAL (Issue #795): reusing the same Idempotency-Key across APPROVE of two DIFFERENT SoD conflict exceptions must NOT replay the first exception's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second exception must still actually approve once given its OWN key", async () => {
+    const owner = await bootstrap();
+
+    const exceptionA = await invoke<{ data: { exception: { id: string } } }>(
+      createException,
+      {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/exceptions",
+        headers: authHeaders(owner, "exc-adv-approve-a"),
+        body: {
+          ruleKey: "data_lifecycle.legal_hold_maker_checker",
+          subjectTenantUserId: owner.tenantUserId,
+          justification: "Adversarial approve test A.",
+          effectiveTo: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000
+          ).toISOString()
+        }
+      }
+    );
+    expect(exceptionA.status).toBe(200);
+
+    const exceptionB = await invoke<{ data: { exception: { id: string } } }>(
+      createException,
+      {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/exceptions",
+        headers: authHeaders(owner, "exc-adv-approve-b"),
+        body: {
+          ruleKey:
+            "identity_access.business_scope_assignment_scope_maker_checker",
+          subjectTenantUserId: owner.tenantUserId,
+          justification: "Adversarial approve test B.",
+          effectiveTo: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000
+          ).toISOString()
+        }
+      }
+    );
+    expect(exceptionB.status).toBe(200);
+
+    // Least-privilege approver holding ONLY `.approve` -- `owner` also
+    // holds `.create` via its full-permission role, which is itself the
+    // (non-exceptable) `business_scope_exception_maker_checker` conflict;
+    // not the behavior under test here.
+    const approverOnlyRole = await createRoleWithPermissions(
+      owner.tenantId,
+      "exception_approver_adversarial",
+      "Exception Approver (adversarial)",
+      ["identity_access.business_scope_exceptions.approve"]
+    );
+    await createSecondTenantUser(
+      owner.tenantId,
+      "acme-approver-adversarial@example.com",
+      approverOnlyRole
+    );
+    const approverSession = await loginAsSecondTenantUser(
+      owner.tenantId,
+      "acme-approver-adversarial@example.com"
+    );
+
+    const reusedKey = "approve-reused-key";
+
+    const approveA = await invoke<{
+      data: { exception: { id: string; status: string } };
+    }>(approveException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionA.body.data.exception.id}/approve`,
+      params: { id: exceptionA.body.data.exception.id },
+      headers: {
+        ...authHeaders(owner, reusedKey),
+        authorization: `Bearer ${approverSession.token}`
+      },
+      body: {}
+    });
+    expect(approveA.status).toBe(200);
+    expect(approveA.body.data.exception.status).toBe("approved");
+
+    // Attempt to approve B with the SAME key. Pre-fix,
+    // `computeRequestHash(body)` was identical for both requests (both
+    // bodies are `{}`), so this would silently REPLAY A's cached response
+    // for B without ever approving B.
+    const approveBReusedKey = await invoke(approveException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionB.body.data.exception.id}/approve`,
+      params: { id: exceptionB.body.data.exception.id },
+      headers: {
+        ...authHeaders(owner, reusedKey),
+        authorization: `Bearer ${approverSession.token}`
+      },
+      body: {}
+    });
+    expect(approveBReusedKey.status).toBe(409);
+    expect(
+      (approveBReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // B must still be untouched -- NOT falsely reported as approved.
+    const admin = getAdminSql();
+    const stillPendingB = (await admin`
+      SELECT status FROM awcms_mini_sod_conflict_exceptions WHERE id = ${exceptionB.body.data.exception.id}
+    `) as { status: string }[];
+    expect(stillPendingB[0]!.status).toBe("pending");
+
+    // With its OWN distinct key, B's approval genuinely executes.
+    const approveBOwnKey = await invoke<{
+      data: { exception: { id: string; status: string } };
+    }>(approveException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionB.body.data.exception.id}/approve`,
+      params: { id: exceptionB.body.data.exception.id },
+      headers: {
+        ...authHeaders(owner, "approve-b-own-key"),
+        authorization: `Bearer ${approverSession.token}`
+      },
+      body: {}
+    });
+    expect(approveBOwnKey.status).toBe(200);
+    expect(approveBOwnKey.body.data.exception.status).toBe("approved");
+  });
+
+  test("ADVERSARIAL (Issue #795): reusing the same Idempotency-Key across REJECT of two DIFFERENT SoD conflict exceptions must NOT replay the first exception's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second exception must still actually reject once given its OWN key", async () => {
+    const owner = await bootstrap();
+
+    // `.reject` is NOT a conflictingPermissionKeys member of any
+    // registered SoD rule (only `.create`/`.approve` are), so `owner`'s
+    // full-permission role can call this endpoint directly -- no
+    // least-privilege actor needed here, unlike approve/assignment-revoke
+    // above.
+    const exceptionC = await invoke<{ data: { exception: { id: string } } }>(
+      createException,
+      {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/exceptions",
+        headers: authHeaders(owner, "exc-adv-reject-c"),
+        body: {
+          ruleKey: "data_lifecycle.legal_hold_maker_checker",
+          subjectTenantUserId: owner.tenantUserId,
+          justification: "Adversarial reject test C.",
+          effectiveTo: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000
+          ).toISOString()
+        }
+      }
+    );
+    expect(exceptionC.status).toBe(200);
+
+    const exceptionD = await invoke<{ data: { exception: { id: string } } }>(
+      createException,
+      {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/exceptions",
+        headers: authHeaders(owner, "exc-adv-reject-d"),
+        body: {
+          ruleKey:
+            "identity_access.business_scope_assignment_scope_maker_checker",
+          subjectTenantUserId: owner.tenantUserId,
+          justification: "Adversarial reject test D.",
+          effectiveTo: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000
+          ).toISOString()
+        }
+      }
+    );
+    expect(exceptionD.status).toBe(200);
+
+    const reusedKey = "reject-reused-key";
+
+    const rejectC = await invoke<{
+      data: { exception: { id: string; status: string } };
+    }>(rejectException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionC.body.data.exception.id}/reject`,
+      params: { id: exceptionC.body.data.exception.id },
+      headers: authHeaders(owner, reusedKey),
+      body: {}
+    });
+    expect(rejectC.status).toBe(200);
+    expect(rejectC.body.data.exception.status).toBe("rejected");
+
+    // Attempt to reject D with the SAME key -- must be rejected as a
+    // conflict, never a false replay of C's response.
+    const rejectDReusedKey = await invoke(rejectException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionD.body.data.exception.id}/reject`,
+      params: { id: exceptionD.body.data.exception.id },
+      headers: authHeaders(owner, reusedKey),
+      body: {}
+    });
+    expect(rejectDReusedKey.status).toBe(409);
+    expect(
+      (rejectDReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // D must still be untouched -- NOT falsely reported as rejected.
+    const admin = getAdminSql();
+    const stillPendingD = (await admin`
+      SELECT status FROM awcms_mini_sod_conflict_exceptions WHERE id = ${exceptionD.body.data.exception.id}
+    `) as { status: string }[];
+    expect(stillPendingD[0]!.status).toBe("pending");
+
+    // With its OWN distinct key, D's rejection genuinely executes.
+    const rejectDOwnKey = await invoke<{
+      data: { exception: { id: string; status: string } };
+    }>(rejectException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionD.body.data.exception.id}/reject`,
+      params: { id: exceptionD.body.data.exception.id },
+      headers: authHeaders(owner, "reject-d-own-key"),
+      body: {}
+    });
+    expect(rejectDOwnKey.status).toBe(200);
+    expect(rejectDOwnKey.body.data.exception.status).toBe("rejected");
+  });
+
+  test("ADVERSARIAL (Issue #795): reusing the same Idempotency-Key across REVOKE of two DIFFERENT approved SoD conflict exceptions must NOT replay the first exception's cached response for the second -- the mismatched hash must yield 409 CONFLICT, and the second exception must still actually revoke once given its OWN key", async () => {
+    const owner = await bootstrap();
+    const sql = getTestSql();
+
+    const exceptionE = await invoke<{ data: { exception: { id: string } } }>(
+      createException,
+      {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/exceptions",
+        headers: authHeaders(owner, "exc-adv-revoke-e"),
+        body: {
+          ruleKey: "data_lifecycle.legal_hold_maker_checker",
+          subjectTenantUserId: owner.tenantUserId,
+          justification: "Adversarial revoke test E.",
+          effectiveTo: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000
+          ).toISOString()
+        }
+      }
+    );
+    expect(exceptionE.status).toBe(200);
+
+    const exceptionF = await invoke<{ data: { exception: { id: string } } }>(
+      createException,
+      {
+        method: "POST",
+        path: "/api/v1/identity/business-scope/exceptions",
+        headers: authHeaders(owner, "exc-adv-revoke-f"),
+        body: {
+          ruleKey:
+            "identity_access.business_scope_assignment_scope_maker_checker",
+          subjectTenantUserId: owner.tenantUserId,
+          justification: "Adversarial revoke test F.",
+          effectiveTo: new Date(
+            Date.now() + 3 * 24 * 60 * 60 * 1000
+          ).toISOString()
+        }
+      }
+    );
+    expect(exceptionF.status).toBe(200);
+
+    // Approve both directly via the application layer with a distinct
+    // actor -- bypassing the HTTP approve endpoint's own SOD_CONFLICT
+    // check on `owner`'s full-permission role, which is fixture setup,
+    // not the behavior under test in THIS test (same "isolate one
+    // behavior below the chokepoint" convention this file's own
+    // self-approval test already establishes).
+    const distinctApproverId = await createSecondTenantUser(
+      owner.tenantId,
+      "acme-approver-for-revoke@example.com"
+    );
+    await withTenant(sql, owner.tenantId, (tx) =>
+      approveSoDConflictException(
+        tx,
+        owner.tenantId,
+        distinctApproverId,
+        exceptionE.body.data.exception.id,
+        null,
+        "corr-setup-e"
+      )
+    );
+    await withTenant(sql, owner.tenantId, (tx) =>
+      approveSoDConflictException(
+        tx,
+        owner.tenantId,
+        distinctApproverId,
+        exceptionF.body.data.exception.id,
+        null,
+        "corr-setup-f"
+      )
+    );
+
+    const reusedKey = "revoke-exception-reused-key";
+
+    const revokeE = await invoke<{
+      data: { exception: { id: string; status: string } };
+    }>(revokeException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionE.body.data.exception.id}/revoke`,
+      params: { id: exceptionE.body.data.exception.id },
+      headers: authHeaders(owner, reusedKey),
+      body: { revokeReason: "No longer needed (E)." }
+    });
+    expect(revokeE.status).toBe(200);
+    expect(revokeE.body.data.exception.status).toBe("revoked");
+
+    // Attempt to revoke F with the SAME key and an identical-shaped body.
+    const revokeFReusedKey = await invoke(revokeException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionF.body.data.exception.id}/revoke`,
+      params: { id: exceptionF.body.data.exception.id },
+      headers: authHeaders(owner, reusedKey),
+      body: { revokeReason: "No longer needed (E)." }
+    });
+    expect(revokeFReusedKey.status).toBe(409);
+    expect(
+      (revokeFReusedKey.body as { error: { code: string } }).error.code
+    ).toBe("IDEMPOTENCY_CONFLICT");
+
+    // F must still be untouched -- NOT falsely reported as revoked.
+    const admin = getAdminSql();
+    const stillApprovedF = (await admin`
+      SELECT status FROM awcms_mini_sod_conflict_exceptions WHERE id = ${exceptionF.body.data.exception.id}
+    `) as { status: string }[];
+    expect(stillApprovedF[0]!.status).toBe("approved");
+
+    // With its OWN distinct key, F's revocation genuinely executes.
+    const revokeFOwnKey = await invoke<{
+      data: { exception: { id: string; status: string } };
+    }>(revokeException, {
+      method: "POST",
+      path: `/api/v1/identity/business-scope/exceptions/${exceptionF.body.data.exception.id}/revoke`,
+      params: { id: exceptionF.body.data.exception.id },
+      headers: authHeaders(owner, "revoke-f-own-key"),
+      body: { revokeReason: "No longer needed (F)." }
+    });
+    expect(revokeFOwnKey.status).toBe(200);
+    expect(revokeFOwnKey.body.data.exception.status).toBe("revoked");
   });
 });
