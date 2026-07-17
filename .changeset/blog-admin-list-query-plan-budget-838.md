@@ -52,3 +52,23 @@ sering basi karena peran `awcms_mini_app` bukan owner tabel, sehingga `ANALYZE`
 **di-skip diam-diam dengan WARNING, bukan error** — assertion bentuk plan
 bertahan pada regime statistik buruk, assertion cost tidak. Itulah alasan
 budget `admin_list` memimpin dengan bentuk plan.
+
+Konsekuensi lanjutan yang juga terukur: `CREATE INDEX` memperbarui
+`pg_class.reltuples`/`relpages` sebagai efek samping (`-1/0` → `2000/334`),
+sehingga planner tahu jumlah baris sebenarnya tapi **tetap nol statistik
+kolom** — satu-satunya kondisi di mana index budget ini justru kalah tipis:
+
+| kondisi `pg_class`                | plan                                    | cost  |
+| --------------------------------- | --------------------------------------- | ----- |
+| `reltuples=-1` (belum di-analyze) | `Index Scan(..._tenant_updated_idx)`     | 8,3   |
+| `reltuples` nyata, nol stat kolom | `Sort` + `Scan(..._tenant_deleted_idx)`  | 8,19  |
+| ter-`ANALYZE` penuh (DB nyata)    | `Index Scan(..._tenant_updated_idx)`     | 57,17 |
+
+Dua plan itu **seri dalam ~1%**, jadi planner ambil yang sedikit lebih murah —
+lemparan koin, bukan penilaian. Baris tengah tidak pernah terjadi di deployment
+nyata (autovacuum menghasilkan baris ketiga). Karena itu proof `DROP INDEX`
+meng-assert pemulihan index lewat `pg_indexes.indexdef` (round-trip terhadap
+definisi yang ditangkap sebelum drop), **bukan** dengan menjalankan `EXPLAIN`
+ulang: memulihkan index itu fakta schema, jadi di-assert sebagai fakta schema.
+Assertion inti (before hijau, regressed merah) tidak berubah dan tetap
+terbukti merah lewat mutation test.

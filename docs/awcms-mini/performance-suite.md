@@ -295,6 +295,28 @@ here:
   939.88 against an accurately-ANALYZEd database but ~8 in the integration
   suite — while the `Sort` node is present in **both**. This is the
   concrete reason `admin_list` budgets lead with shape.
+- **`CREATE INDEX` half-fixes the statistics, and that is worse than not
+  fixing them.** Building an index updates `pg_class.reltuples`/`relpages`
+  as a side effect (measured on `awcms_mini_blog_pages`: `-1/0` →
+  `2000/334`), so the planner suddenly knows the real row count while
+  still having **zero** column statistics. For the blog admin lists that
+  half-informed state is the only one in which the budget's own index
+  loses:
+
+  | `pg_class` state                          | plan                                    | cost  |
+  | ----------------------------------------- | --------------------------------------- | ----- |
+  | `reltuples=-1` (pristine, never analyzed) | `Index Scan(..._tenant_updated_idx)`    | 8.3   |
+  | `reltuples` real, ZERO column statistics  | `Sort` + `Scan(..._tenant_deleted_idx)` | 8.19  |
+  | fully `ANALYZE`d (any real deployment)    | `Index Scan(..._tenant_updated_idx)`    | 57.17 |
+
+  The two plans are tied to within ~1%, so the planner takes the
+  marginally cheaper one — a coin flip, not a judgement. The middle row
+  does not occur in any real database (autovacuum's ANALYZE produces the
+  third), and it is the reason the `DROP INDEX` proof asserts its
+  restoration against `pg_indexes.indexdef` rather than by re-running
+  `EXPLAIN`: restoring an index is a schema fact, so it is asserted as
+  one.
+
 - `blog-posts-fulltext-search` currently passes CI only because of this.
   Against a `VACUUM FULL ANALYZE`d database at the same `safe` scale it
   measures **939.5 against its approved `maxTotalCost` of 800** — i.e. it
