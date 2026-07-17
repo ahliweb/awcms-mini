@@ -593,7 +593,8 @@ describe("database migration runner helpers", () => {
       "073_awcms_mini_integration_hub_schema.sql",
       "074_awcms_mini_integration_hub_permissions.sql",
       "075_awcms_mini_reference_data_schema.sql",
-      "076_awcms_mini_reference_data_permissions.sql"
+      "076_awcms_mini_reference_data_permissions.sql",
+      "077_awcms_mini_performance_missing_indexes.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

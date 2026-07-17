@@ -31,8 +31,16 @@ Sumber kebenaran: **`docs/awcms-mini/16_backend_data_access_integration.md`** (l
 - [ ] **SSR reuse** — halaman admin fetch via fungsi application-layer di dalam satu `withTenant`, bukan round-trip HTTP ke API sendiri (pola `*-directory.ts`/`*-report.ts`).
 - [ ] **Locking** — `FOR UPDATE` hanya pada baris yang benar-benar dimutasi bersama (mis. stok); hindari lock rentang lebar.
 
+## Perangkap terverifikasi
+
+- [ ] **Fan-out per-entitas di `Promise.all`** (Issue #824, terukur) — `fetchModuleMatrix` memanggil `fetchModuleHealthReport` per modul; tiap panggilan 4 query sendiri ⇒ **94 query/render** di 23 modul, **tumbuh linear tiap modul baru**. Pola perbaikan: satu prefetch di luar loop (`prepareModuleHealthContext`), suapkan row ke fungsi yang jadi pure, sediakan entry point batch (`fetchModuleHealthReports`). Hasil: 94 → 6 query. Curigai signal yang **tidak menerima kunci entitas sama sekali** (`migrationsAppliedSignal(tx)`) — itu invariant, wajib di-hoist.
+- [ ] **Cache stampede: cache di-set SETELAH `await`** (Issue #824, penyebab dominan sebenarnya) — `readYamlCached` mengisi cache pasca-`await`, jadi 22 modul yang mendeklarasikan `openapi.yaml` (~1 MB) yang **sama** semuanya miss serentak di dalam satu `Promise.all` dan mem-parse file itu 22× paralel: **~5,6 detik CPU murni**, sementara query hanya ~10ms. Perbaikan: **cache Promise in-flight**, di-`set` sinkron sebelum `await` pertama, sehingga pemanggil lain ikut serta pada parse yang sama. Cold render 3,8s → 0,36s.
+- **Pelajaran metodologis:** "N+1 query" adalah hipotesis yang paling mudah dilihat, **bukan otomatis biaya terbesar**. Di #824 diagnosis awal (di issue) hanya menyebut fan-out query; ukuran nyata menunjukkan parse YAML jauh lebih mahal. **Selalu ukur cold vs warm render terpisah** — selisih besar antara keduanya menunjuk ke cache dingin/stampede, bukan ke DB. Jangan berhenti setelah hipotesis pertama terkonfirmasi.
+- **Timeout test yang "hilang saat rerun" bukan bukti flake infra** — saturasi/kerja berlebih terlihat identik dengan flake. Lihat memori `fetchmodulematrix-ci-timeout-flake`; jangan `gh run rerun` sebagai "perbaikan", dan jangan menaikkan timeout.
+
 ## Verifikasi
 
+- **Hitung query sebelum/sesudah, jangan diasumsikan** — bungkus `tx` dengan `Proxy` bertrap `apply` (tagged template = satu pemanggilan) di test integrasi sementara, catat juga durasi render **pertama** dan **kedua** di proses yang sama. Bandingkan terhadap baseline dengan `git stash push src/` lalu `git stash pop`.
 - `EXPLAIN ANALYZE` sebelum/sesudah menunjukkan perbaikan nyata (Seq→Index Scan, plan cost turun).
 - Benchmark p95 endpoint membaik; tak ada regresi fungsional (`bun run check` hijau).
 - Uji beban ringan: query saturasi kelas pool → `503`, mengering ke 0 (bukti backpressure, seperti verifikasi Issue 10.2).

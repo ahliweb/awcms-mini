@@ -7,6 +7,7 @@ import {
   serverErrorHtmlResponse
 } from "../../lib/html/error-responses";
 import { log } from "../../lib/logging/logger";
+import { parsePageParam } from "../../modules/_shared/offset-pagination";
 import {
   fetchPublicBlogSettings,
   listPublicBlogPosts
@@ -45,8 +46,7 @@ import { newsMediaPortAdapter } from "../../modules/news-portal/application/news
 export const GET: APIRoute = async ({ request, url }) => {
   try {
     const sql = getDatabaseClient();
-    const pageParam = url.searchParams.get("page");
-    const page = pageParam ? Number(pageParam) : 1;
+    const page = parsePageParam(url.searchParams.get("page"));
 
     const result = await withNewsTenant(
       sql,

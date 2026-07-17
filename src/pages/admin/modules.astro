@@ -20,7 +20,7 @@ import { getDatabaseClient } from "../../lib/database/client";
 import { withTenant } from "../../lib/database/tenant-context";
 import { permissionKey } from "../../modules/identity-access/domain/access-control";
 import { fetchModuleCatalog } from "../../modules/module-management/application/module-catalog";
-import { fetchModuleHealthReport } from "../../modules/module-management/application/health-registry";
+import { fetchModuleHealthReports } from "../../modules/module-management/application/health-registry";
 import { createTranslator } from "../../lib/i18n/translate";
 import { logAdminPageError } from "../../lib/logging/error-log";
 
@@ -60,19 +60,20 @@ if (CAN_READ_MODULES) {
           return catalog.map((entry) => ({ ...entry, healthStatus: null }));
         }
 
-        const withHealth = await Promise.all(
-          catalog.map(async (entry) => {
-            const report = await fetchModuleHealthReport(
-              tx,
-              context.tenantId,
-              entry.moduleKey,
-              Astro.locals.correlationId
-            );
-            return { ...entry, healthStatus: report?.status ?? null };
-          })
+        // One batched prefetch for the whole catalog — see Issue #824 for why
+        // a per-module `fetchModuleHealthReport` loop here was a pool-saturating
+        // O(modules) fan-out.
+        const reports = await fetchModuleHealthReports(
+          tx,
+          context.tenantId,
+          catalog.map((entry) => entry.moduleKey),
+          Astro.locals.correlationId
         );
 
-        return withHealth;
+        return catalog.map((entry) => ({
+          ...entry,
+          healthStatus: reports.get(entry.moduleKey)?.status ?? null
+        }));
       }
     );
   } catch (error) {

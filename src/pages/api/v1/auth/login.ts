@@ -30,8 +30,14 @@ import {
   findActiveMfaFactor
 } from "../../../../modules/identity-access/application/mfa";
 import { recordAuditEvent } from "../../../../modules/logging/application/audit-log";
+import {
+  hashClientIp,
+  summarizeUserAgent
+} from "../../../../lib/security/client-fingerprint";
+import { log } from "../../../../lib/logging/logger";
 import { isSsoRequired } from "../../../../lib/auth/sso-config";
 import { isPasswordLoginDisabledForIdentity } from "../../../../modules/identity-access/application/tenant-auth-policy";
+import type { LoginDenyReason } from "../../../../modules/identity-access/domain/login-policy";
 
 const MAX_FAILED_ATTEMPTS = Number(process.env.AUTH_LOGIN_MAX_ATTEMPTS ?? 5);
 const LOCKOUT_MINUTES = 15;
@@ -61,6 +67,170 @@ type LoginBody = {
   password?: unknown;
   turnstileToken?: unknown;
 };
+
+/**
+ * Issue #821 — source attribution shared by the `login_succeeded` and
+ * `login_failed` audit rows below.
+ *
+ * `loginIdentifier` is deliberately NOT part of this: it is typically an
+ * email address (PII, and one that `redactSensitiveAttributes` would *not*
+ * catch under that key name), and persisting the attacker-supplied string on
+ * a failed attempt is exactly the user-enumeration leak this issue asks to
+ * avoid. `password` is likewise never referenced here — the only inputs that
+ * reach an audit attribute are the source fingerprint and the policy's own
+ * deny reason.
+ */
+type LoginAuditContext = {
+  ipHash: string;
+  userAgent?: string;
+};
+
+function buildLoginAuditContext(
+  request: Request,
+  clientIp: string
+): LoginAuditContext {
+  return {
+    ipHash: hashClientIp(clientIp),
+    userAgent: summarizeUserAgent(request)
+  };
+}
+
+/**
+ * Every `evaluateLoginAttempt` deny reason, plus `"internal_error"` for the
+ * one failure the policy layer cannot describe: the login transaction threw
+ * and was rolled back (see `recordLoginFailureOutOfBand`).
+ */
+type LoginAuditFailureReason = LoginDenyReason | "internal_error";
+
+/**
+ * Records one `login_failed` audit row.
+ *
+ * `reason` is the `evaluateLoginAttempt` deny reason verbatim, which is
+ * already collapsed at the policy layer: an unknown `loginIdentifier`, a
+ * wrong password, an inactive identity, and an inactive tenant-user all
+ * return the single reason `"invalid_credentials"` (see
+ * `login-policy.ts`) — so the reason alone never distinguishes "this account
+ * does not exist" from "this account exists and the password was wrong".
+ *
+ * `resourceId` IS set when the identity resolved, and that is intentional:
+ * `awcms_mini_audit_events` is tenant-scoped and RLS-protected, readable only
+ * by operators who can already read `awcms_mini_identities` directly, so it
+ * discloses nothing they don't already hold — while omitting it would strip
+ * the trail of the one field that answers "which account is being attacked?",
+ * defeating the purpose of auditing failures at all. The enumeration
+ * guarantee this issue asks for is about what an *unauthenticated caller* can
+ * infer, and setting `resourceId` here does not affect that either way: the
+ * audit row is never part of a response.
+ *
+ * That is deliberately NOT a claim that the responses below are
+ * indistinguishable — they are not, and this comment used to say they were
+ * (PR #839 security review). Two branches, both reachable only once the
+ * identity has resolved, are observably different from the
+ * `"Invalid login identifier or password."` 401 an unknown identifier gets:
+ * `locked` answers 401 with `"Account is temporarily locked."`, and
+ * `password_login_disabled` answers 403. An unauthenticated caller can
+ * therefore still infer that a given identifier exists. That oracle predates
+ * this change and is tracked separately in Issue #840 (the `fail()` calls it
+ * concerns are deliberately untouched here); do not read this comment as
+ * evidence it is closed.
+ */
+async function recordLoginFailure(
+  tx: Bun.SQL,
+  input: {
+    tenantId: string;
+    tenantExists: boolean;
+    identityId?: string;
+    reason: LoginAuditFailureReason;
+    audit: LoginAuditContext;
+    correlationId?: string;
+  }
+): Promise<void> {
+  // `awcms_mini_audit_events.tenant_id` is `NOT NULL REFERENCES
+  // awcms_mini_tenants (id)`, so there is no tenant-scoped audit row to write
+  // for a tenant that does not exist — attempting it violates the FK, aborts
+  // the transaction, and turns this endpoint's intended 403 into a 500. A
+  // well-formed but unknown tenant header is reachable by any unauthenticated
+  // caller, so that would be a trivial way to force 500s.
+  //
+  // The attempt is not lost: it goes to the structured log instead, which is
+  // not tenant-scoped. Nothing tenant-scoped can be recorded here by
+  // definition — there is no tenant.
+  if (!input.tenantExists) {
+    log("warning", "identity_access.login_failed.unknown_tenant", {
+      reason: input.reason,
+      correlationId: input.correlationId,
+      ...input.audit
+    });
+    return;
+  }
+
+  await recordAuditEvent(tx, {
+    tenantId: input.tenantId,
+    moduleKey: "identity_access",
+    action: "login_failed",
+    resourceType: "identity",
+    resourceId: input.identityId,
+    severity: "warning",
+    message: `Password sign-in failed: ${input.reason}.`,
+    attributes: {
+      method: "password",
+      reason: input.reason,
+      ...input.audit
+    },
+    correlationId: input.correlationId
+  });
+}
+
+/**
+ * Issue #821 — records `login_failed` in a FRESH transaction, for the case
+ * where the login transaction itself threw and was rolled back, taking any
+ * audit row written inside it along with it.
+ *
+ * Reached only on an exception, never on an ordinary authentication denial
+ * (those `return` and commit with `recordLoginFailure` above), so this never
+ * doubles the connection cost of a brute-force attempt against this public,
+ * unauthenticated endpoint — which is exactly why the normal deny path is not
+ * routed through here as well.
+ *
+ * Strictly best-effort: whatever unwound the login transaction was very
+ * plausibly the database itself, in which case this write cannot succeed
+ * either. Its own failure is swallowed and logged so it can never mask the
+ * original error, which is rethrown by the caller. The raw exception is never
+ * handed to `log()` — see doc 20 §Issue #687: an exception message is
+ * unkeyed free text that key-based redaction cannot clean.
+ */
+async function recordLoginFailureOutOfBand(
+  sql: Bun.SQL,
+  input: {
+    tenantId: string;
+    audit: LoginAuditContext;
+    correlationId?: string;
+  }
+): Promise<void> {
+  try {
+    await withTenant(sql, input.tenantId, async (tx) => {
+      // Re-checked here rather than threaded in: this runs after the login
+      // transaction unwound, so nothing it computed can be trusted to still
+      // hold. Without it an unknown-tenant header would trip the audit table's
+      // tenant FK and this recovery write would fail for the wrong reason.
+      const rows =
+        await tx`SELECT 1 FROM awcms_mini_tenants WHERE id = ${input.tenantId}`;
+      await recordLoginFailure(tx, {
+        tenantId: input.tenantId,
+        tenantExists: rows.length > 0,
+        reason: "internal_error",
+        audit: input.audit,
+        correlationId: input.correlationId
+      });
+    });
+  } catch {
+    log("warning", "auth.login.audit_write_failed", {
+      moduleKey: "identity_access",
+      tenantId: input.tenantId,
+      correlationId: input.correlationId
+    });
+  }
+}
 
 export const POST: APIRoute = async ({
   request,
@@ -138,6 +308,7 @@ export const POST: APIRoute = async ({
   const password = body.password;
   const sql = getDatabaseClient();
   const now = new Date();
+  const auditContext = buildLoginAuditContext(request, clientIp);
 
   return withTenant(sql, tenantId, async (tx) => {
     const tenantRows =
@@ -212,6 +383,23 @@ export const POST: APIRoute = async ({
         `;
       }
 
+      // Written inside the same transaction as the `failed_login_count`
+      // UPDATE above, and therefore committed with it: every deny path below
+      // `return`s a response rather than throwing, so this transaction always
+      // reaches COMMIT (the lockout counter's durability across the exact same
+      // boundary is what the account-lockout feature has always depended on).
+      // The out-of-band recorder in the `catch` at the bottom of this handler
+      // covers the remaining case — an exception unwinding this transaction
+      // before it commits.
+      await recordLoginFailure(tx, {
+        tenantId,
+        tenantExists: tenantRows.length > 0,
+        identityId: identityRow?.id,
+        reason: result.reason,
+        audit: auditContext,
+        correlationId: locals.correlationId
+      });
+
       if (result.reason === "tenant_inactive") {
         return fail(403, "ACCESS_DENIED", "Tenant is not active.");
       }
@@ -271,6 +459,7 @@ export const POST: APIRoute = async ({
           resourceId: identityRow!.id,
           severity: "info",
           message: "Password verified; MFA challenge issued.",
+          attributes: { method: "password", ...auditContext },
           correlationId: locals.correlationId
         });
 
@@ -302,6 +491,25 @@ export const POST: APIRoute = async ({
       VALUES (${tenantId}, ${identityRow!.id}, ${tokenHash}, ${expiresAt})
     `;
 
+    // Issue #821 — `method: "password"` is unconditional here: this is the
+    // only branch that mints a session directly from a password, and it is
+    // reached only when no MFA challenge was issued above. The MFA and
+    // OIDC/SSO completions mint their sessions in their own routes and audit
+    // themselves (`mfa_challenge_verified`, `google_login_succeeded`,
+    // `sso_login_succeeded`), so this row must never claim those methods.
+    // Neither `token` nor `tokenHash` is referenced in the attributes.
+    await recordAuditEvent(tx, {
+      tenantId,
+      moduleKey: "identity_access",
+      action: "login_succeeded",
+      resourceType: "identity",
+      resourceId: identityRow!.id,
+      severity: "info",
+      message: "Password sign-in succeeded; session created.",
+      attributes: { method: "password", ...auditContext },
+      correlationId: locals.correlationId
+    });
+
     // Additive (Issue 8.1): also set httpOnly + SameSite=Lax cookies so the
     // SSR admin shell (src/layouts/AdminLayout.astro) can authenticate
     // without exposing the raw session token to client-side JavaScript
@@ -319,5 +527,17 @@ export const POST: APIRoute = async ({
     cookies.set(TENANT_COOKIE_NAME, tenantId, cookieOptions);
 
     return ok({ token, expiresAt: expiresAt.toISOString() });
+  }).catch(async (error: unknown) => {
+    // Issue #821 — the login transaction was rolled back, so any `login_failed`
+    // row `recordLoginFailure` wrote inside it is gone. Re-record it on a fresh
+    // transaction, then rethrow untouched: this handler observes the failure
+    // for the audit trail, it does not swallow or reshape it.
+    await recordLoginFailureOutOfBand(sql, {
+      tenantId,
+      audit: auditContext,
+      correlationId: locals.correlationId
+    });
+
+    throw error;
   });
 };

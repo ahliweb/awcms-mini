@@ -5,8 +5,10 @@ import {
   BODY_SIZE_TIER_BYTES,
   bodyTooLargeResponse,
   checkContentLengthCeiling,
+  invalidJsonObjectBodyResponse,
   readFormBody,
   readJsonBody,
+  readJsonObjectBody,
   readTextBody
 } from "../../src/lib/security/request-body-limit";
 
@@ -239,5 +241,99 @@ describe("tier configuration invariant", () => {
     for (const bytes of Object.values(BODY_SIZE_TIER_BYTES)) {
       expect(bytes).toBeLessThanOrEqual(BODY_SIZE_HARD_CEILING_BYTES);
     }
+  });
+});
+
+/**
+ * `readJsonObjectBody` exists because `readJsonBody` cannot distinguish the
+ * cases below — every one of them arrives as `value: null`, which handlers
+ * then squash into a valid empty request with `?? {}`. These tests assert the
+ * distinction itself, not merely that "invalid input is rejected".
+ */
+describe("readJsonObjectBody", () => {
+  test("an empty body is `absent`, NOT an empty object", async () => {
+    const result = await readJsonObjectBody(jsonRequest(""));
+    expect(result).toEqual({ tooLarge: false, ok: false, reason: "absent" });
+  });
+
+  test("a whitespace-only body is `absent` too", async () => {
+    const result = await readJsonObjectBody(jsonRequest("  \n\t "));
+    expect(result).toEqual({ tooLarge: false, ok: false, reason: "absent" });
+  });
+
+  test("malformed JSON is `malformed`, NOT an empty object", async () => {
+    const result = await readJsonObjectBody(jsonRequest("{ not json"));
+    expect(result).toEqual({ tooLarge: false, ok: false, reason: "malformed" });
+  });
+
+  test("a literal JSON null is `not_object` (typeof null === 'object')", async () => {
+    const result = await readJsonObjectBody(jsonRequest("null"));
+    expect(result).toEqual({
+      tooLarge: false,
+      ok: false,
+      reason: "not_object"
+    });
+  });
+
+  test("a JSON array is `not_object` — it must never reach a field-by-field patch parser, which would read no known keys off it and report a clean empty patch", async () => {
+    const result = await readJsonObjectBody(jsonRequest("[1,2,3]"));
+    expect(result).toEqual({
+      tooLarge: false,
+      ok: false,
+      reason: "not_object"
+    });
+  });
+
+  test.each(["5", '"text"', "true"])(
+    "the JSON scalar %s is `not_object`",
+    async (scalar) => {
+      const result = await readJsonObjectBody(jsonRequest(scalar));
+      expect(result).toEqual({
+        tooLarge: false,
+        ok: false,
+        reason: "not_object"
+      });
+    }
+  );
+
+  test("`{}` IS a real body — an empty object is a valid request, distinct from no body at all", async () => {
+    const result = await readJsonObjectBody(jsonRequest("{}"));
+    expect(result).toEqual({ tooLarge: false, ok: true, value: {} });
+  });
+
+  test("a populated object round-trips verbatim", async () => {
+    const result = await readJsonObjectBody(
+      jsonRequest('{"sortOrder":3,"metadata":{"a":1}}')
+    );
+    expect(result).toEqual({
+      tooLarge: false,
+      ok: true,
+      value: { sortOrder: 3, metadata: { a: 1 } }
+    });
+  });
+
+  test("an oversized body still short-circuits to tooLarge before any parsing", async () => {
+    const oversized = JSON.stringify({
+      pad: "x".repeat(BODY_SIZE_TIER_BYTES.default + 1)
+    });
+    const result = await readJsonObjectBody(jsonRequest(oversized));
+    expect(result.tooLarge).toBe(true);
+  });
+
+  test("every rejection reason maps to a 400 with its own message", async () => {
+    const reasons = ["absent", "malformed", "not_object"] as const;
+    const messages = new Set<string>();
+
+    for (const reason of reasons) {
+      const response = invalidJsonObjectBodyResponse(reason);
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as {
+        error: { code: string; message: string };
+      };
+      expect(body.error.code).toBe("VALIDATION_ERROR");
+      messages.add(body.error.message);
+    }
+
+    expect(messages.size).toBe(reasons.length);
   });
 });

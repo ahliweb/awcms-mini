@@ -35,7 +35,7 @@ POST /imports (multipart/form-data)         -> stage (checksum, size bound, Idem
 runImportValidatePass  -- bounded passes, staged -> validating -> previewed
   |  (parses CSV/JSON with row/field bounds + formula-injection neutralization)
   v
-GET /imports/{id}/preview                   -- zero-mutation, masked unless preview_errors.read
+GET /imports/{id}/preview                   -- zero-mutation, masked per descriptor's sensitiveFields
   |
 POST /imports/{id}/commit                   -- previewed -> committing (trigger only, Idempotency-Key)
   |
@@ -104,9 +104,34 @@ neutralization at serialization) -> `completed` -> `GET /exports/{id}/download`.
 - **Idempotency-Key** required on every mutating endpoint: stage-upload,
   commit, cancel, retry, pause, resume (imports); create, cancel
   (exports).
-- **Preview/error artifact masking**: `data_exchange.preview_errors.read`
-  is a separate permission from `data_exchange.imports.read` — raw invalid
-  row values are masked by default.
+- **Preview raw-value masking is default-deny and descriptor-driven**
+  (hardened by Issue #820): a descriptor MUST declare `sensitiveFields`
+  (the registry gate rejects one that does not) — declare
+  `{ fieldNames: [] }` to state affirmatively that nothing is sensitive.
+  Fields named in `fieldNames` are unmasked ONLY for a caller holding the
+  permission that same descriptor names in `sensitiveFields.rawValuePermission`
+  — its own, narrow permission, never a generic `data_exchange.*` one. A
+  descriptor with no policy at all is masked entirely and no permission
+  unmasks it. `naturalKey` is masked too when `sensitiveFields.naturalKeyField`
+  names a field that is itself sensitive (a profile import's dedup key is
+  typically the email/NIK — masking the `fields` copy while echoing the
+  same value back as `naturalKey` would mask nothing).
+  Before #820 all of this was inverted: omitting `sensitiveFields` returned
+  every staged value raw with no check at all, `rawValuePermission` was
+  validated at registration but enforced nowhere, and the route gated on a
+  hardcoded, far broader `data_exchange.preview_errors.read` instead.
+- **An unresolvable descriptor fails closed** (Issue #820): if a batch's
+  `importKey`/`exportKey` stops resolving because its owning module was
+  disabled or removed via `module_management` after staging, preview/commit/
+  retry/download answer `409 INVALID_STATE` rather than proceeding. A batch
+  must never become MORE accessible than while its module was running —
+  which is what passing a `null` descriptor to the descriptor gate used to
+  cause. `authorizeExchangeDescriptorPermission` no longer accepts `null`
+  at all, so each route must decide explicitly.
+- **Preview pagination is bounded on both ends** (Issue #831): `limit` is
+  capped at `PREVIEW_PAGE_SIZE_MAX`, and `offset` at `PREVIEW_OFFSET_MAX`
+  (= `MAX_EXCHANGE_ROW_COUNT`, so it can hide no reachable row). A single
+  large CSV fills `staged_rows` to deep-offset volume in one shot.
 - **Export downloads**: `data_exchange.export_downloads.read` is a
   separate, more sensitive permission from `data_exchange.exports.read`,
   and every download writes its own `recordAuditEvent` entry (distinct

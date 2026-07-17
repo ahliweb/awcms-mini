@@ -511,8 +511,12 @@ paths:
     patch:
       tags:
         - Reference Data
-      summary: Update a reference code's mutable attributes
-      description: Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key. Rejected for descriptor-managed codes.
+      summary: Partially update a reference code's mutable attributes
+      description: >-
+        True PATCH semantics -- omitted fields keep their stored value, explicit
+        null clears/resets (see ReferenceDataUpdateCodeRequest). Writes to the
+        GLOBAL baseline shared by every tenant -- requires Idempotency-Key.
+        Rejected for descriptor-managed codes.
       operationId: referenceDataCodesUpdate
       security:
         - bearerAuth: []
@@ -1171,8 +1175,11 @@ paths:
     patch:
       tags:
         - Reference Data
-      summary: Update a tenant reference code override/extension
-      description: Requires Idempotency-Key.
+      summary: Partially update a tenant reference code override/extension
+      description: >-
+        True PATCH semantics -- omitted fields keep their stored value, explicit
+        null clears/resets (see ReferenceDataUpdateTenantCodeRequest). Requires
+        Idempotency-Key.
       operationId: referenceDataTenantCodesUpdate
       security:
         - bearerAuth: []
@@ -1761,27 +1768,43 @@ components:
           nullable: true
     ReferenceDataUpdateCodeRequest:
       type: object
-      required:
-        - labels
       additionalProperties: false
+      description: >-
+        Partial PATCH body. Every property is optional: a property that is
+        ABSENT from the body leaves the stored value untouched. A property sent
+        as explicit null CLEARS/resets it (sortOrder -> 0, metadata -> {},
+        validTo -> null). labels and validFrom reject null -- at least one label
+        is always required and valid_from is NOT NULL -- so omit them instead of
+        nulling them. Sending {} is a valid no-op update: it returns the current
+        representation with 200 and is genuinely inert -- updated_at is not
+        bumped and no audit or domain event is emitted. The body itself is
+        required and must be a JSON object; an absent, malformed, non-object
+        (null, array, scalar) body is rejected with 400 VALIDATION_ERROR rather
+        than being treated as {}.
       properties:
         labels:
           type: array
           minItems: 1
+          description: Replaces ALL stored labels for this code. Omit to keep them; null is rejected.
           items:
             $ref: "#/components/schemas/ReferenceCodeLabel"
         sortOrder:
           type: integer
-          default: 0
+          nullable: true
+          description: Omit to keep the stored value; null resets to 0.
         metadata:
           type: object
+          nullable: true
+          description: Replaces the stored metadata wholesale (not a deep merge). Omit to keep it; null clears it to {}.
         validFrom:
           type: string
           format: date-time
+          description: Omit to keep the stored value; null is rejected.
         validTo:
           type: string
           format: date-time
           nullable: true
+          description: Omit to keep the stored value; null clears the end of validity.
     ReferenceDataCreateTenantCodeRequest:
       type: object
       required:
@@ -1821,27 +1844,43 @@ components:
           nullable: true
     ReferenceDataUpdateTenantCodeRequest:
       type: object
-      required:
-        - labels
       additionalProperties: false
+      description: >-
+        Partial PATCH body. Every property is optional: a property that is
+        ABSENT from the body leaves the stored value untouched. A property sent
+        as explicit null CLEARS/resets it (sortOrder -> 0, metadata -> {},
+        validTo -> null). labels and validFrom reject null -- at least one label
+        is always required and valid_from is NOT NULL -- so omit them instead of
+        nulling them. Sending {} is a valid no-op update: it returns the current
+        representation with 200 and is genuinely inert -- updated_at is not
+        bumped and no audit or domain event is emitted. The body itself is
+        required and must be a JSON object; an absent, malformed, non-object
+        (null, array, scalar) body is rejected with 400 VALIDATION_ERROR rather
+        than being treated as {}.
       properties:
         labels:
           type: array
           minItems: 1
+          description: Replaces ALL stored labels for this code. Omit to keep them; null is rejected.
           items:
             $ref: "#/components/schemas/ReferenceCodeLabel"
         sortOrder:
           type: integer
-          default: 0
+          nullable: true
+          description: Omit to keep the stored value; null resets to 0.
         metadata:
           type: object
+          nullable: true
+          description: Replaces the stored metadata wholesale (not a deep merge). Omit to keep it; null clears it to {}.
         validFrom:
           type: string
           format: date-time
+          description: Omit to keep the stored value; null is rejected.
         validTo:
           type: string
           format: date-time
           nullable: true
+          description: Omit to keep the stored value; null clears the end of validity.
     ReferenceDataImportPayloadCode:
       type: object
       required:

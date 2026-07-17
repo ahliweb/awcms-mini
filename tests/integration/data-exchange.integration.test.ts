@@ -53,6 +53,7 @@ import {
 } from "../../src/pages/api/v1/data-exchange/imports/index";
 import { GET as getImportBatchRoute } from "../../src/pages/api/v1/data-exchange/imports/[id]/index";
 import { GET as getPreview } from "../../src/pages/api/v1/data-exchange/imports/[id]/preview";
+import { PREVIEW_OFFSET_MAX } from "../../src/modules/data-exchange/application/staged-row-directory";
 import { POST as commitImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/commit";
 import { POST as cancelImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/cancel";
 import { POST as retryImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/retry";
@@ -64,10 +65,15 @@ import { GET as getReconciliation } from "../../src/pages/api/v1/data-exchange/r
 
 import { hashPassword } from "../../src/lib/auth/password";
 import { hashSessionToken } from "../../src/lib/auth/session-token";
+import { fetchGrantedPermissionKeys } from "../../src/modules/identity-access/application/auth-context";
+import { syncModuleDescriptors } from "../../src/modules/module-management/application/descriptor-sync";
 import { getDatabaseClient } from "../../src/lib/database/client";
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { runDataExchangeWorkerPassForTenant } from "../../src/modules/data-exchange/application/data-exchange-worker";
-import { authorizeExchangeDescriptorPermission } from "../../src/modules/data-exchange/application/descriptor-authorization";
+import {
+  authorizeExchangeDescriptorPermission,
+  isDescriptorPermissionGranted
+} from "../../src/modules/data-exchange/application/descriptor-authorization";
 import { findReferenceItemByCode } from "../../src/modules/data-exchange/application/reference-items-directory";
 import { referenceItemsImportAdapter } from "../../src/modules/data-exchange/application/reference-items-exchange-adapter";
 import {
@@ -1260,6 +1266,7 @@ suite("data_exchange integration", () => {
         limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
         adapterRegistryKey: "reference_items",
         requiredPermission: "identity_access.user_management.read",
+        sensitiveFields: { fieldNames: [] },
         description:
           "synthetic descriptor for requiredPermission enforcement test"
       };
@@ -1303,7 +1310,235 @@ suite("data_exchange integration", () => {
       expect(allowResult.allowed).toBe(true);
     });
 
-    test("a descriptor with no requiredPermission is a no-op (always allowed)", async () => {
+    /**
+     * PR #839 security review, HIGH 1. `src/pages/admin/data-exchange/
+     * imports/[id].astro` does not go through any of the six routes — it
+     * queries and projects staged rows itself — and made this decision
+     * NOWHERE, so a descriptor's `requiredPermission` was enforced by every
+     * API surface and by nothing in the UI.
+     *
+     * The page cannot reuse `authorizeExchangeDescriptorPermission` (it has
+     * a permission set from `resolveSsrContext`, not a bearer token), so the
+     * risk is that the two gates drift apart again. This pins them TOGETHER
+     * against one real subject and one real database: the SSR decision must
+     * equal the route decision, before and after the grant.
+     */
+    test("the SSR page gate agrees with the route gate for the same real subject", async () => {
+      const owner = await bootstrap();
+      const limited = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" }
+      ]);
+
+      const syntheticDescriptor: ExchangeDescriptor = {
+        key: "data_exchange.synthetic_test_descriptor",
+        ownerModuleKey: "data_exchange",
+        direction: "both",
+        formats: ["csv"],
+        schemaVersion: "1.0",
+        limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
+        adapterRegistryKey: "reference_items",
+        requiredPermission: "identity_access.user_management.read",
+        // An EMPTY sensitiveFields policy: the exploit shape. The page's
+        // raw-value gate treats this as "nothing sensitive" and renders
+        // values unmasked, so `requiredPermission` is the ONLY thing
+        // standing between this subject and the owning module's data.
+        sensitiveFields: { fieldNames: [] },
+        description:
+          "synthetic descriptor for the SSR-vs-route gate parity test"
+      };
+
+      const appSql = getDatabaseClient();
+      const limitedTokenHash = hashSessionToken(limited.token);
+
+      // The exact permission set `src/lib/auth/ssr-session.ts` puts on
+      // `Astro.locals.ssrContext` — same function, same tenant scope.
+      const ssrPermissions = await withTenant(appSql, owner.tenantId, (tx) =>
+        fetchGrantedPermissionKeys(tx, owner.tenantId, limited.tenantUserId)
+      );
+
+      // The subject really does hold the broad gate the page checks first —
+      // otherwise this test would pass for the wrong reason.
+      expect(ssrPermissions.has("data_exchange.imports.read")).toBe(true);
+
+      expect(
+        await withTenant(appSql, owner.tenantId, (tx) =>
+          isDescriptorPermissionGranted(
+            tx,
+            owner.tenantId,
+            ssrPermissions,
+            syntheticDescriptor.requiredPermission
+          )
+        )
+      ).toBe(false);
+
+      const routeDeny = await withTenant(appSql, owner.tenantId, (tx) =>
+        authorizeExchangeDescriptorPermission(
+          tx,
+          owner.tenantId,
+          limitedTokenHash,
+          new Date(),
+          syntheticDescriptor
+        )
+      );
+      expect(routeDeny.allowed).toBe(false);
+
+      const admin = getAdminSql();
+      await admin`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        SELECT ${owner.tenantId}, r.id, p.id
+        FROM awcms_mini_roles r, awcms_mini_permissions p
+        WHERE r.tenant_id = ${owner.tenantId} AND r.role_code = 'limited'
+          AND p.module_key = 'identity_access' AND p.activity_code = 'user_management' AND p.action = 'read'
+      `;
+
+      const grantedPermissions = await withTenant(
+        appSql,
+        owner.tenantId,
+        (tx) =>
+          fetchGrantedPermissionKeys(tx, owner.tenantId, limited.tenantUserId)
+      );
+
+      expect(
+        await withTenant(appSql, owner.tenantId, (tx) =>
+          isDescriptorPermissionGranted(
+            tx,
+            owner.tenantId,
+            grantedPermissions,
+            syntheticDescriptor.requiredPermission
+          )
+        )
+      ).toBe(true);
+
+      const routeAllow = await withTenant(appSql, owner.tenantId, (tx) =>
+        authorizeExchangeDescriptorPermission(
+          tx,
+          owner.tenantId,
+          limitedTokenHash,
+          new Date(),
+          syntheticDescriptor
+        )
+      );
+      expect(routeAllow.allowed).toBe(true);
+    });
+
+    /**
+     * PR #839 security review, SECOND parity finding — the axis the test
+     * above could not see.
+     *
+     * That test compares SSR and route on ONE axis (does the caller hold the
+     * key?), so it stayed green while the two gates disagreed on a different
+     * one entirely. `authorizeInTransaction` denies `403 MODULE_DISABLED` via
+     * `resolveModuleEnabled` BEFORE evaluating RBAC, and
+     * `fetchGrantedPermissionKeys` never filters disabled modules out of the
+     * SSR permission set — so with the owning module switched off, every
+     * route refused while the page happily rendered the staged rows.
+     *
+     * The lesson this test encodes: pin the SSR and route decisions together
+     * on every axis the route's guard actually consults, not just the one the
+     * bug of the day happened to be about.
+     */
+    test("the SSR page gate agrees with the route gate when the tenant DISABLES the module", async () => {
+      const owner = await bootstrap();
+      const limited = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" },
+        {
+          moduleKey: "identity_access",
+          activityCode: "user_management",
+          action: "read"
+        }
+      ]);
+
+      const syntheticDescriptor: ExchangeDescriptor = {
+        key: "data_exchange.synthetic_test_descriptor",
+        ownerModuleKey: "data_exchange",
+        direction: "both",
+        formats: ["csv"],
+        schemaVersion: "1.0",
+        limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
+        adapterRegistryKey: "reference_items",
+        requiredPermission: "identity_access.user_management.read",
+        sensitiveFields: { fieldNames: [] },
+        description:
+          "synthetic descriptor for the SSR-vs-route module-enabled parity test"
+      };
+
+      const appSql = getDatabaseClient();
+      const admin = getAdminSql();
+      const limitedTokenHash = hashSessionToken(limited.token);
+
+      const ssrDecision = () =>
+        withTenant(appSql, owner.tenantId, async (tx) =>
+          isDescriptorPermissionGranted(
+            tx,
+            owner.tenantId,
+            await fetchGrantedPermissionKeys(
+              tx,
+              owner.tenantId,
+              limited.tenantUserId
+            ),
+            syntheticDescriptor.requiredPermission
+          )
+        );
+
+      const routeDecision = () =>
+        withTenant(appSql, owner.tenantId, (tx) =>
+          authorizeExchangeDescriptorPermission(
+            tx,
+            owner.tenantId,
+            limitedTokenHash,
+            new Date(),
+            syntheticDescriptor
+          )
+        );
+
+      // Baseline: module enabled (no row at all — resolveModuleEnabled's
+      // documented "missing row = enabled" default), permission held. BOTH
+      // allow, so a later divergence can only come from the module state.
+      expect(await ssrDecision()).toBe(true);
+      expect((await routeDecision()).allowed).toBe(true);
+
+      // The registry FK requires awcms_mini_modules to be populated first —
+      // this test writes a tenant_modules row directly (bypassing the
+      // enable/disable endpoints, which auto-sync), so it syncs explicitly.
+      // Same reason and same call as module-tenant-lifecycle's own setup.
+      await syncModuleDescriptors(admin);
+
+      // The tenant switches the descriptor's owning module off.
+      await admin`
+        INSERT INTO awcms_mini_tenant_modules (tenant_id, module_key, enabled, disabled_at)
+        VALUES (${owner.tenantId}, 'identity_access', false, now())
+        ON CONFLICT (tenant_id, module_key) DO UPDATE SET enabled = false, disabled_at = now()
+      `;
+
+      // The permission key is STILL granted — this is the mechanism of the
+      // bug, not an incidental detail. Nothing revoked it; the module was
+      // merely disabled, and the SSR permission set cannot tell.
+      const stillGranted = await withTenant(appSql, owner.tenantId, (tx) =>
+        fetchGrantedPermissionKeys(tx, owner.tenantId, limited.tenantUserId)
+      );
+      expect(stillGranted.has("identity_access.user_management.read")).toBe(
+        true
+      );
+
+      // The route denies...
+      const routeAfter = await routeDecision();
+      expect(routeAfter.allowed).toBe(false);
+      if (!routeAfter.allowed) {
+        expect(routeAfter.denied.status).toBe(403);
+      }
+
+      // ...so the SSR page must deny too. THIS is the assertion that fails
+      // against a gate built on `permissions.has()` alone.
+      expect(await ssrDecision()).toBe(false);
+    });
+
+    // Issue #820 Cacat 3: this test used to pass `null` (an unresolvable
+    // descriptor) and assert `allowed: true` — it asserted the fail-open
+    // itself. `null` is no longer representable at this signature; the
+    // genuine no-op case is a RESOLVED descriptor declaring no extra
+    // requirement, which is what this now covers. Each route's own handling
+    // of an unresolvable descriptor is covered by the route tests below.
+    test("a resolved descriptor with no requiredPermission is a no-op (always allowed)", async () => {
       const owner = await bootstrap();
       const noAccess = await bootstrapNoAccessUser(owner);
       const appSql = getDatabaseClient();
@@ -1314,7 +1549,17 @@ suite("data_exchange integration", () => {
           owner.tenantId,
           hashSessionToken(noAccess.token),
           new Date(),
-          null
+          {
+            key: "data_exchange.synthetic_test_descriptor",
+            ownerModuleKey: "data_exchange",
+            direction: "both",
+            formats: ["csv"],
+            schemaVersion: "1.0",
+            limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
+            adapterRegistryKey: "reference_items",
+            sensitiveFields: { fieldNames: [] },
+            description: "synthetic descriptor with no requiredPermission"
+          }
         )
       );
       expect(result.allowed).toBe(true);
@@ -1340,6 +1585,7 @@ suite("data_exchange integration", () => {
             adapterRegistryKey: "reference_items",
             // Only two segments -- not a valid "module.activity.action" key.
             requiredPermission: "not-a-valid-permission-key",
+            sensitiveFields: { fieldNames: [] },
             description:
               "synthetic descriptor with a malformed requiredPermission"
           }
@@ -1495,6 +1741,305 @@ suite("data_exchange integration", () => {
       expect(auditRows.some((row) => row.message.includes("completed"))).toBe(
         true
       );
+    });
+  });
+
+  /**
+   * Issue #820 (raw-value guard) + #831 (offset clamp), both on
+   * `GET .../imports/{id}/preview`.
+   *
+   * These drive the REAL route handler, not the projection helpers in
+   * isolation — the defects being fixed were precisely of the "the helper
+   * is correct, nothing calls it / the route decides something else" class
+   * (cf. #740/#769), which a helper-level test cannot detect.
+   *
+   * `resolveImportDescriptor` re-reads `listModules()` on every request, so
+   * these tests swap the live `reference_items` descriptor's policy for the
+   * duration of one test and restore it afterwards. That keeps the route,
+   * the registry lookup and the permission checks all real, and is the only
+   * way to exercise a sensitive descriptor today: no module in the base
+   * declares one yet (which is exactly why these defects went unnoticed).
+   */
+  describe("preview raw-value guard (Issue #820) and offset clamp (Issue #831)", () => {
+    const referenceDescriptor = dataExchangeModule.dataExchange!.find(
+      (descriptor) => descriptor.key === REFERENCE_ITEMS_KEY
+    )! as {
+      sensitiveFields?: {
+        fieldNames: readonly string[];
+        rawValuePermission?: string;
+        naturalKeyField?: string;
+      };
+    };
+    const originalPolicy = referenceDescriptor.sensitiveFields;
+
+    afterEach(() => {
+      referenceDescriptor.sensitiveFields = originalPolicy;
+    });
+
+    async function stageAndValidate(owner: Bootstrap, idempotencyKey: string) {
+      const stage = await stageCsv(
+        owner,
+        "code,label,value\nwidget-a,Widget A,10\n",
+        idempotencyKey
+      );
+      expect(stage.status).toBe(200);
+      await drainWorker(getWorkerTestSql(), owner.tenantId);
+      return stage.body.data.batch.id as string;
+    }
+
+    test("a descriptor declaring NO sensitiveFields masks every value — omission must not reveal (Cacat 1)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-1");
+
+      // The pre-#820 default: no policy declared. This used to set
+      // `canSeeRawValues = true` and return every staged value raw, with no
+      // raw-value permission check performed at all.
+      referenceDescriptor.sensitiveFields = undefined;
+
+      // The tenant OWNER — the most privileged caller there is — still sees
+      // nothing raw. No permission unmasks an undeclared policy.
+      const preview = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(owner)
+      });
+
+      expect(preview.status).toBe(200);
+      const row = preview.body.data.rows[0];
+      expect(Object.keys(row.fields).length).toBeGreaterThan(0);
+      for (const value of Object.values(row.fields)) {
+        expect(value).toBe("[REDACTED]");
+      }
+      expect(row.naturalKey).toBe("[REDACTED]");
+      // Non-content metadata still flows — the preview stays navigable.
+      expect(row.proposedAction).toBe("create");
+      expect(row.rowNumber).toBe(1);
+    });
+
+    test("the DESCRIPTOR's own rawValuePermission gates raw values — the broader data_exchange.preview_errors.read does not (Cacat 2)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-2");
+
+      // A descriptor declaring a NARROW permission of its own, exactly as
+      // the contract has always promised it could.
+      referenceDescriptor.sensitiveFields = {
+        fieldNames: ["label", "code"],
+        rawValuePermission: "identity_access.user_management.read",
+        naturalKeyField: "code"
+      };
+
+      // A caller holding the BROAD, generic raw-value permission the route
+      // used to hardcode — and nothing the descriptor actually asked for.
+      // Pre-#820 this caller saw NIK/NPWP-equivalents in the clear.
+      const broad = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" },
+        {
+          moduleKey: "data_exchange",
+          activityCode: "preview_errors",
+          action: "read"
+        }
+      ]);
+
+      const denied = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(broad)
+      });
+
+      expect(denied.status).toBe(200);
+      const maskedRow = denied.body.data.rows[0];
+      expect(maskedRow.fields.label).toBe("[REDACTED]");
+      expect(maskedRow.fields.code).toBe("[REDACTED]");
+      // Cacat 4: naturalKey IS the sensitive `code` here — masking `fields`
+      // while echoing the same value back as `naturalKey` masks nothing.
+      expect(maskedRow.naturalKey).toBe("[REDACTED]");
+      // A field outside the policy is untouched (the adapter normalizes
+      // `value` to a number, so this is the stored shape, unmasked).
+      expect(maskedRow.fields.value).toBe(10);
+
+      // The descriptor's OWN permission — and only it — reveals the values.
+      const admin = getAdminSql();
+      await admin`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        SELECT ${owner.tenantId}, r.id, p.id
+        FROM awcms_mini_roles r, awcms_mini_permissions p
+        WHERE r.tenant_id = ${owner.tenantId} AND r.role_code = 'limited'
+          AND p.module_key = 'identity_access' AND p.activity_code = 'user_management' AND p.action = 'read'
+      `;
+
+      const allowed = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(broad)
+      });
+
+      expect(allowed.status).toBe(200);
+      expect(allowed.body.data.rows[0].fields.label).toBe("Widget A");
+      expect(allowed.body.data.rows[0].naturalKey).toBe("widget-a");
+    });
+
+    test("naturalKey stays visible when it is NOT declared sensitive (masking is not blanket)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-3");
+
+      referenceDescriptor.sensitiveFields = {
+        fieldNames: ["label"],
+        rawValuePermission: "identity_access.user_management.read",
+        naturalKeyField: "code"
+      };
+
+      const limited = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" }
+      ]);
+
+      const preview = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(limited)
+      });
+
+      expect(preview.status).toBe(200);
+      expect(preview.body.data.rows[0].fields.label).toBe("[REDACTED]");
+      // `code` is the naturalKey but is not in `fieldNames` — it is the
+      // row's identity in the preview list and stays readable.
+      expect(preview.body.data.rows[0].naturalKey).toBe("widget-a");
+    });
+
+    test("a batch whose importKey is no longer registered is DENIED, not opened (Cacat 3)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-4");
+
+      // Simulates the owning module being disabled/removed via
+      // `module_management` AFTER the batch was staged: the key stops
+      // resolving. Pre-#820 this made the batch MORE readable than while
+      // its module ran — the descriptor gate returned `allowed: true` for a
+      // null descriptor AND the (now absent) sensitiveFields defaulted to
+      // "nothing is sensitive", so every value came back raw.
+      const admin = getAdminSql();
+      await admin`
+        UPDATE awcms_mini_data_exchange_import_batches
+        SET import_key = 'data_exchange.retired_descriptor'
+        WHERE tenant_id = ${owner.tenantId} AND id = ${batchId}
+      `;
+
+      const preview = await invoke<{ data?: { rows: any[] }; error?: any }>(
+        getPreview,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+
+      expect(preview.status).toBe(409);
+      expect(preview.body.data).toBeUndefined();
+    });
+
+    /**
+     * The Cacat 3 fail-closed branch above must not swallow an idempotent
+     * REPLAY. `_shared/idempotency.ts` states the contract outright ("same key
+     * + same request hash -> replay the stored response"), and a replay runs
+     * no adapter — so gating it on the descriptor's CURRENT state prevents
+     * nothing while making one key+hash answer differently over time, which is
+     * the one thing idempotency exists to prevent. (Review finding, PR #839.)
+     */
+    test("REGRESSION (PR #839): a commit retried with the SAME Idempotency-Key after the module is disabled REPLAYS the stored response instead of the fail-closed 409", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "replay-key-1");
+
+      const commitKey = "replay-commit-key-1";
+      const firstCommit = await invoke<{ data: unknown }>(commitImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+        params: { id: batchId },
+        headers: authHeaders(owner, commitKey)
+      });
+      expect(firstCommit.status).toBe(200);
+
+      // The module is disabled AFTER the commit already succeeded.
+      const admin = getAdminSql();
+      await admin`
+        UPDATE awcms_mini_data_exchange_import_batches
+        SET import_key = 'data_exchange.retired_descriptor'
+        WHERE tenant_id = ${owner.tenantId} AND id = ${batchId}
+      `;
+
+      // Same key, same request hash -> the stored response, verbatim.
+      const replay = await invoke<{ data: unknown }>(commitImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+        params: { id: batchId },
+        headers: authHeaders(owner, commitKey)
+      });
+
+      expect(replay.status).toBe(firstCommit.status);
+      expect(replay.body).toEqual(firstCommit.body);
+    });
+
+    test("REGRESSION (PR #839): the Cacat 3 fail-closed 409 still fires for a FRESH key on a disabled module -- the replay reorder must not have disabled the gate itself", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "replay-key-2");
+
+      const admin = getAdminSql();
+      await admin`
+        UPDATE awcms_mini_data_exchange_import_batches
+        SET import_key = 'data_exchange.retired_descriptor'
+        WHERE tenant_id = ${owner.tenantId} AND id = ${batchId}
+      `;
+
+      // A key with no stored record cannot replay, so it must reach the
+      // descriptor gate and be refused. Without this half, deleting the gate
+      // outright would still pass the replay test above.
+      const fresh = await invoke<{ data?: unknown; error?: { code: string } }>(
+        commitImport,
+        {
+          method: "POST",
+          path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+          params: { id: batchId },
+          headers: authHeaders(owner, "replay-fresh-key-1")
+        }
+      );
+
+      expect(fresh.status).toBe(409);
+      expect(fresh.body.error?.code).toBe("INVALID_STATE");
+      expect(fresh.body.data).toBeUndefined();
+    });
+
+    test("a deep offset is clamped instead of reaching Postgres verbatim (Issue #831)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-5");
+
+      const preview = await invoke<{
+        data: { rows: any[]; offset: number; limit: number };
+      }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview?offset=5000000`,
+        params: { id: batchId },
+        headers: authHeaders(owner)
+      });
+
+      expect(preview.status).toBe(200);
+      // The echoed offset proves the clamp happened BEFORE the query: an
+      // unclamped 5_000_000 would have been sent to Postgres as an OFFSET
+      // to walk and discard. The ceiling equals the registry's hard cap on
+      // rows per batch, so it can never hide a reachable row.
+      expect(preview.body.data.offset).toBe(PREVIEW_OFFSET_MAX);
+      expect(preview.body.data.offset).toBeLessThan(5_000_000);
+      expect(preview.body.data.rows).toEqual([]);
+
+      // A legitimate in-range offset is untouched.
+      const inRange = await invoke<{ data: { offset: number } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview?offset=0`,
+        params: { id: batchId },
+        headers: authHeaders(owner)
+      });
+      expect(inRange.body.data.offset).toBe(0);
     });
   });
 });

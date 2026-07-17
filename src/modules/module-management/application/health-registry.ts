@@ -21,8 +21,16 @@ import { parseDocument } from "yaml";
 import { log } from "../../../lib/logging/logger";
 import { listModules } from "../..";
 import type { ModuleDescriptor } from "../../_shared/module-contract";
-import { fetchModulePermissionSyncReport } from "./permission-sync";
-import { fetchModuleSettingsView } from "./module-settings";
+import {
+  buildModulePermissionSyncReport,
+  fetchCatalogPermissionsByModule
+} from "./permission-sync";
+import {
+  buildModuleSettingsView,
+  fetchTenantSettingsRowsByModule,
+  type ModuleSettingsRow
+} from "./module-settings";
+import type { CatalogPermission } from "../domain/permission-sync";
 import { fetchModuleJobs } from "./job-registry";
 import { syncModuleDescriptors } from "./descriptor-sync";
 import { validateJobDescriptor } from "../domain/job-registry";
@@ -50,14 +58,39 @@ function findDescriptor(moduleKey: string): ModuleDescriptor | null {
  * (that would be a backwards dependency, `src/` on `scripts/`, and drags
  * in checksum/transaction-control validation this read-only check doesn't
  * need). Just enough to compare "files on disk" vs. "rows already applied".
+ *
+ * Cached for the life of the process on first success, same promise-caching
+ * shape as `readYamlCached` below (Issue #824): `sql/*.sql` is build-time
+ * content that cannot change under a running server, so re-`readdir`-ing it on
+ * every health signal was pure waste. Caching the in-flight promise (not the
+ * resolved value) means concurrent callers join one `readdir` instead of each
+ * starting their own — see `readYamlCached`'s note on why that distinction
+ * matters. Failures are deliberately NOT cached: unlike a missing spec file, a
+ * filesystem error here is plausibly transient and must not pin
+ * `migrations_applied` to `fail` for the rest of the process's life.
  */
-async function listMigrationFileNames(): Promise<string[]> {
-  const migrationsDir = path.resolve(process.cwd(), "sql");
-  const entries = await readdir(migrationsDir, { withFileTypes: true });
+let migrationFileNamesCache: Promise<string[]> | null = null;
 
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
-    .map((entry) => entry.name);
+function listMigrationFileNames(): Promise<string[]> {
+  if (!migrationFileNamesCache) {
+    const pending = (async () => {
+      const migrationsDir = path.resolve(process.cwd(), "sql");
+      const entries = await readdir(migrationsDir, { withFileTypes: true });
+
+      return entries
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
+        .map((entry) => entry.name);
+    })();
+
+    migrationFileNamesCache = pending;
+    pending.catch(() => {
+      if (migrationFileNamesCache === pending) {
+        migrationFileNamesCache = null;
+      }
+    });
+  }
+
+  return migrationFileNamesCache;
 }
 
 async function migrationsAppliedSignal(
@@ -95,55 +128,173 @@ async function migrationsAppliedSignal(
   }
 }
 
-async function dbRegistrySyncedSignal(
+/**
+ * Every DB-backed input the generic signals need, fetched ONCE per render
+ * rather than once per module (Issue #824). Before this existed, each of the
+ * 23 registered modules independently ran its own registry lookup, migration
+ * scan, permission-catalog query and settings lookup — ≈92 queries to answer a
+ * single admin screen, growing linearly with every module added, which
+ * saturated the connection pool and made `fetchModuleMatrix` time out under
+ * load. All four inputs are small, whole-table (or whole-tenant) reads at this
+ * scale, so batching them costs nothing and makes the fan-out O(1).
+ *
+ * A `null` map means that batch query itself failed; the signal it feeds then
+ * reports `fail` with the same generic detail string the old per-module
+ * `catch` produced, preserving the "never leak a raw error" guarantee.
+ */
+export type ModuleHealthContext = {
+  /** Module-invariant by construction — `migrationsAppliedSignal` takes no module key, so all modules share one answer. */
+  migrations: ReadinessSignal;
+  registryStatusByKey: Map<string, string> | null;
+  permissionsByModuleKey: Map<string, CatalogPermission[]> | null;
+  settingsRowByModuleKey: Map<string, ModuleSettingsRow> | null;
+};
+
+async function fetchRegistryStatuses(
   tx: Bun.SQL,
-  descriptor: ModuleDescriptor,
   correlationId?: string
-): Promise<ReadinessSignal> {
+): Promise<Map<string, string> | null> {
   try {
     const rows = (await tx`
-      SELECT lifecycle_status FROM awcms_mini_modules WHERE module_key = ${descriptor.key}
-    `) as { lifecycle_status: string }[];
-    const row = rows[0];
+      SELECT module_key, lifecycle_status FROM awcms_mini_modules
+    `) as { module_key: string; lifecycle_status: string }[];
 
-    if (!row) {
-      return {
-        name: "db_registry_synced",
-        status: "fail",
-        detail: "No database registry row yet — run the descriptor sync."
-      };
-    }
-
-    return {
-      name: "db_registry_synced",
-      status: row.lifecycle_status === descriptor.status ? "pass" : "fail",
-      detail:
-        row.lifecycle_status === descriptor.status
-          ? undefined
-          : "Database registry status is stale — run the descriptor sync."
-    };
+    return new Map(rows.map((row) => [row.module_key, row.lifecycle_status]));
   } catch (error) {
     log("error", "health-registry: db_registry_synced check failed", {
-      moduleKey: descriptor.key,
+      moduleKey: "module_management",
       correlationId,
       error: error instanceof Error ? error.message : String(error)
     });
 
+    return null;
+  }
+}
+
+async function fetchPermissionCatalog(
+  tx: Bun.SQL,
+  correlationId?: string
+): Promise<Map<string, CatalogPermission[]> | null> {
+  try {
+    return await fetchCatalogPermissionsByModule(tx);
+  } catch (error) {
+    log("error", "health-registry: permission_catalog_synced check failed", {
+      moduleKey: "module_management",
+      correlationId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+
+    return null;
+  }
+}
+
+async function fetchTenantSettingsRows(
+  tx: Bun.SQL,
+  tenantId: string,
+  correlationId?: string
+): Promise<Map<string, ModuleSettingsRow> | null> {
+  try {
+    return await fetchTenantSettingsRowsByModule(tx, tenantId);
+  } catch (error) {
+    log("error", "health-registry: settings_valid check failed", {
+      moduleKey: "module_management",
+      correlationId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+
+    return null;
+  }
+}
+
+/**
+ * Four queries + one (cached) `readdir` — the whole DB cost of a health render,
+ * no matter how many modules are then resolved against it. Share one context
+ * across every module of a single render; never cache it across requests (the
+ * registry/settings state it snapshots is live data).
+ *
+ * Sequential, NOT `Promise.all` — every caller passes a `tx` bound to ONE
+ * connection, and a single Postgres connection serves one query at a time;
+ * issuing these concurrently on it produced a real hang in this repo (see the
+ * note in `reporting/application/projection-reconciliation.ts`, where the stuck
+ * connection went on to break every subsequent test's `resetDatabase()`).
+ * The win here was never concurrency — it is collapsing a per-module fan-out
+ * into four queries total, which sequential awaits keep intact.
+ */
+export async function prepareModuleHealthContext(
+  tx: Bun.SQL,
+  tenantId: string,
+  correlationId?: string
+): Promise<ModuleHealthContext> {
+  const migrations = await migrationsAppliedSignal(tx, correlationId);
+  const registryStatusByKey = await fetchRegistryStatuses(tx, correlationId);
+  const permissionsByModuleKey = await fetchPermissionCatalog(
+    tx,
+    correlationId
+  );
+  const settingsRowByModuleKey = await fetchTenantSettingsRows(
+    tx,
+    tenantId,
+    correlationId
+  );
+
+  return {
+    migrations,
+    registryStatusByKey,
+    permissionsByModuleKey,
+    settingsRowByModuleKey
+  };
+}
+
+function dbRegistrySyncedSignal(
+  descriptor: ModuleDescriptor,
+  context: ModuleHealthContext
+): ReadinessSignal {
+  if (!context.registryStatusByKey) {
     return {
       name: "db_registry_synced",
       status: "fail",
       detail: "Could not query the module registry."
     };
   }
+
+  const lifecycleStatus = context.registryStatusByKey.get(descriptor.key);
+
+  if (lifecycleStatus === undefined) {
+    return {
+      name: "db_registry_synced",
+      status: "fail",
+      detail: "No database registry row yet — run the descriptor sync."
+    };
+  }
+
+  return {
+    name: "db_registry_synced",
+    status: lifecycleStatus === descriptor.status ? "pass" : "fail",
+    detail:
+      lifecycleStatus === descriptor.status
+        ? undefined
+        : "Database registry status is stale — run the descriptor sync."
+  };
 }
 
-async function permissionCatalogSyncedSignal(
-  tx: Bun.SQL,
+function permissionCatalogSyncedSignal(
   moduleKey: string,
+  context: ModuleHealthContext,
   correlationId?: string
-): Promise<ReadinessSignal> {
+): ReadinessSignal {
+  if (!context.permissionsByModuleKey) {
+    return {
+      name: "permission_catalog_synced",
+      status: "fail",
+      detail: "Could not check the permission catalog."
+    };
+  }
+
   try {
-    const report = await fetchModulePermissionSyncReport(tx, moduleKey);
+    const report = buildModulePermissionSyncReport(
+      moduleKey,
+      context.permissionsByModuleKey.get(moduleKey) ?? []
+    );
     const unsynced = (report?.entries ?? []).filter(
       (entry) =>
         entry.status === "missing" || entry.status === "mismatched_description"
@@ -172,14 +323,24 @@ async function permissionCatalogSyncedSignal(
   }
 }
 
-async function settingsValidSignal(
-  tx: Bun.SQL,
-  tenantId: string,
+function settingsValidSignal(
   moduleKey: string,
+  context: ModuleHealthContext,
   correlationId?: string
-): Promise<ReadinessSignal> {
+): ReadinessSignal {
+  if (!context.settingsRowByModuleKey) {
+    return {
+      name: "settings_valid",
+      status: "fail",
+      detail: "Could not resolve effective module settings."
+    };
+  }
+
   try {
-    await fetchModuleSettingsView(tx, tenantId, moduleKey);
+    buildModuleSettingsView(
+      moduleKey,
+      context.settingsRowByModuleKey.get(moduleKey) ?? null
+    );
     return { name: "settings_valid", status: "pass" };
   } catch (error) {
     log("error", "health-registry: settings_valid check failed", {
@@ -215,25 +376,47 @@ function jobsDocumentedSignal(moduleKey: string): ReadinessSignal {
   };
 }
 
-const yamlDocumentCache = new Map<string, unknown>();
+/**
+ * Caches the in-flight PROMISE, not the resolved document — deliberately, and
+ * this is the single biggest win in Issue #824.
+ *
+ * The previous version only populated the cache AFTER its `await`, so every
+ * concurrent caller missed. 22 of the 23 modules declare the very same
+ * `openapi/awcms-mini-public-api.openapi.yaml` (~1 MB), and a health render
+ * resolves them all in one `Promise.all` — so that one file was read and
+ * YAML-parsed 22 times in parallel, ~5.6s of pure CPU, a textbook cache
+ * stampede. Storing the promise synchronously before the first `await` means
+ * the 21 later callers join the first parse instead of starting their own,
+ * which is what actually collapses a cold render from ~5.6s to ~6ms.
+ *
+ * A parse failure resolves (and caches) `null` exactly as before — spec files
+ * are build-time content, so a missing/broken one is a permanent fact, not a
+ * transient error worth retrying per request.
+ */
+const yamlDocumentCache = new Map<string, Promise<unknown | null>>();
 
-async function readYamlCached(relativePath: string): Promise<unknown | null> {
-  if (yamlDocumentCache.has(relativePath)) {
-    return yamlDocumentCache.get(relativePath) ?? null;
+function readYamlCached(relativePath: string): Promise<unknown | null> {
+  const cached = yamlDocumentCache.get(relativePath);
+
+  if (cached) {
+    return cached;
   }
 
-  try {
-    const source = await readFile(
-      path.resolve(process.cwd(), relativePath),
-      "utf8"
-    );
-    const document = parseDocument(source).toJSON();
-    yamlDocumentCache.set(relativePath, document);
-    return document;
-  } catch {
-    yamlDocumentCache.set(relativePath, null);
-    return null;
-  }
+  const pending = (async () => {
+    try {
+      const source = await readFile(
+        path.resolve(process.cwd(), relativePath),
+        "utf8"
+      );
+      return parseDocument(source).toJSON() as unknown;
+    } catch {
+      return null;
+    }
+  })();
+
+  yamlDocumentCache.set(relativePath, pending);
+
+  return pending;
 }
 
 async function openApiDocumentedSignal(
@@ -287,29 +470,35 @@ async function asyncApiDocumentedSignal(
 }
 
 async function computeGenericSignals(
-  tx: Bun.SQL,
-  tenantId: string,
   descriptor: ModuleDescriptor,
+  context: ModuleHealthContext,
   correlationId?: string
 ): Promise<ReadinessSignal[]> {
   return [
     { name: "descriptor_registered", status: "pass" },
-    await dbRegistrySyncedSignal(tx, descriptor, correlationId),
-    await migrationsAppliedSignal(tx, correlationId),
-    await permissionCatalogSyncedSignal(tx, descriptor.key, correlationId),
-    await settingsValidSignal(tx, tenantId, descriptor.key, correlationId),
+    dbRegistrySyncedSignal(descriptor, context),
+    context.migrations,
+    permissionCatalogSyncedSignal(descriptor.key, context, correlationId),
+    settingsValidSignal(descriptor.key, context, correlationId),
     jobsDocumentedSignal(descriptor.key),
     await openApiDocumentedSignal(descriptor),
     await asyncApiDocumentedSignal(descriptor)
   ];
 }
 
-/** `null` means `moduleKey` isn't a registered descriptor — `404`. */
+/**
+ * `null` means `moduleKey` isn't a registered descriptor — `404`.
+ *
+ * Pass `context` when reporting on several modules in one render so they share
+ * a single prefetch; omit it and this builds its own (four queries), which is
+ * exactly what the single-module `GET .../health` endpoint wants.
+ */
 export async function fetchModuleHealthReport(
   tx: Bun.SQL,
   tenantId: string,
   moduleKey: string,
-  correlationId?: string
+  correlationId?: string,
+  context?: ModuleHealthContext
 ): Promise<ModuleHealthReport | null> {
   const descriptor = findDescriptor(moduleKey);
 
@@ -317,10 +506,11 @@ export async function fetchModuleHealthReport(
     return null;
   }
 
+  const resolvedContext =
+    context ?? (await prepareModuleHealthContext(tx, tenantId, correlationId));
   const signals = await computeGenericSignals(
-    tx,
-    tenantId,
     descriptor,
+    resolvedContext,
     correlationId
   );
 
@@ -330,6 +520,38 @@ export async function fetchModuleHealthReport(
     signals,
     generatedAt: new Date().toISOString()
   };
+}
+
+/**
+ * Health for many modules at a flat cost of four queries total (Issue #824) —
+ * the batch entry point every multi-module caller (`fetchModuleMatrix`,
+ * `admin/modules.astro`) should use instead of looping `fetchModuleHealthReport`.
+ * Unregistered keys are simply absent from the returned map.
+ */
+export async function fetchModuleHealthReports(
+  tx: Bun.SQL,
+  tenantId: string,
+  moduleKeys: readonly string[],
+  correlationId?: string
+): Promise<Map<string, ModuleHealthReport>> {
+  const context = await prepareModuleHealthContext(tx, tenantId, correlationId);
+  const reports = new Map<string, ModuleHealthReport>();
+
+  for (const moduleKey of moduleKeys) {
+    const report = await fetchModuleHealthReport(
+      tx,
+      tenantId,
+      moduleKey,
+      correlationId,
+      context
+    );
+
+    if (report) {
+      reports.set(moduleKey, report);
+    }
+  }
+
+  return reports;
 }
 
 /**
@@ -430,10 +652,10 @@ export async function runModuleHealthCheck(
 
   await syncModuleDescriptors(tx);
 
+  const context = await prepareModuleHealthContext(tx, tenantId, correlationId);
   const signals = await computeGenericSignals(
-    tx,
-    tenantId,
     descriptor,
+    context,
     correlationId
   );
   signals.push(await providerHealthCheckSignal(moduleKey, correlationId));

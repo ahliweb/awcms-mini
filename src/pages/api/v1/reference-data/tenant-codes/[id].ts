@@ -14,7 +14,9 @@ import {
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
 import {
   bodyTooLargeResponse,
-  readJsonBody
+  invalidJsonObjectBodyResponse,
+  readJsonBody,
+  readJsonObjectBody
 } from "../../../../../lib/security/request-body-limit";
 import {
   computeRequestHash,
@@ -26,7 +28,10 @@ import {
   fetchTenantReferenceCodeById,
   updateTenantReferenceCode
 } from "../../../../../modules/reference-data/application/tenant-code-directory";
-import type { ReferenceCodeLabelInput } from "../../../../../modules/reference-data/domain/code";
+import {
+  mergeReferenceCodePatchInput,
+  parseReferenceCodePatchInput
+} from "../../../../../modules/reference-data/domain/code-patch";
 
 const UPDATE_IDEMPOTENCY_SCOPE = "reference_data_tenant_code_update";
 const DEPRECATE_IDEMPOTENCY_SCOPE = "reference_data_tenant_code_deprecate";
@@ -46,21 +51,6 @@ const DELETE_GUARD = {
   activityCode: "tenant_codes",
   action: "delete" as const
 };
-
-function parseLabels(value: unknown): ReferenceCodeLabelInput[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter(
-      (entry): entry is Record<string, unknown> =>
-        !!entry && typeof entry === "object"
-    )
-    .map((entry) => ({
-      locale: typeof entry.locale === "string" ? entry.locale : "",
-      label: typeof entry.label === "string" ? entry.label : "",
-      description:
-        typeof entry.description === "string" ? entry.description : null
-    }));
-}
 
 export const GET: APIRoute = async ({ request, cookies, params }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
@@ -91,7 +81,14 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
   });
 };
 
-/** `PATCH /api/v1/reference-data/tenant-codes/{id}` — update mutable attributes. Requires `Idempotency-Key`. */
+/**
+ * `PATCH /api/v1/reference-data/tenant-codes/{id}` — partial update of mutable
+ * attributes. Requires `Idempotency-Key`.
+ *
+ * True `PATCH` semantics: an omitted field keeps its stored value; an explicit
+ * `null` clears/resets it (`sortOrder` -> `0`, `metadata` -> `{}`, `validTo` ->
+ * `null`). `validFrom` and `labels` reject `null` (both are always required).
+ */
 export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
   if (!tenantId)
@@ -110,26 +107,21 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     );
   }
 
-  const bodyRead = await readJsonBody<Record<string, unknown>>(
-    request,
-    "default"
-  );
+  const bodyRead = await readJsonObjectBody(request, "default");
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
-  const body = bodyRead.value ?? {};
+  if (!bodyRead.ok) return invalidJsonObjectBodyResponse(bodyRead.reason);
+  const body = bodyRead.value;
 
-  const input = {
-    labels: parseLabels(body.labels),
-    sortOrder: typeof body.sortOrder === "number" ? body.sortOrder : 0,
-    metadata:
-      body.metadata && typeof body.metadata === "object"
-        ? (body.metadata as Record<string, unknown>)
-        : {},
-    validFrom:
-      typeof body.validFrom === "string"
-        ? new Date(body.validFrom)
-        : new Date(),
-    validTo: typeof body.validTo === "string" ? new Date(body.validTo) : null
-  };
+  const parsed = parseReferenceCodePatchInput(body);
+  if (!parsed.ok) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      parsed.errors
+        .map((error) => `${error.field}: ${error.message}`)
+        .join("; ")
+    );
+  }
 
   const requestHash = computeRequestHash({ ...body, id, action: "update" });
   const sql = getDatabaseClient();
@@ -166,12 +158,49 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
       });
     }
 
+    const existing = await fetchTenantReferenceCodeById(tx, tenantId, id);
+    if (!existing) return fail(404, "NOT_FOUND", "Tenant code not found.");
+
+    // `{}` is a documented valid no-op (see the OpenAPI request-body note),
+    // but `updateTenantReferenceCode` is unconditional: it would bump
+    // `updated_at`, re-write the translation rows, emit an audit event and
+    // append a `reference-code-updated` domain event for a request that
+    // changes nothing. Answer with the current representation instead, so a
+    // no-op stays observably a no-op. Deliberately AFTER authorization and the
+    // 404/idempotency-replay checks — an empty patch must not become a way to
+    // probe for a code's existence without holding the update permission.
+    //
+    // Every refusal `updateTenantReferenceCode` would have applied has to be
+    // re-applied here, or the endpoint's answer starts depending on how many
+    // fields the caller happened to send. Its UPDATE carries
+    // `AND deprecated_at IS NULL` and reports `not_found` for a deprecated
+    // row, so the empty patch must 404 on one too — otherwise a deprecated
+    // tenant code reads back as a live, editable-looking 200 through this path
+    // alone. (Issue #843 tracks removing this duplication outright.)
+    if (Object.keys(parsed.patch).length === 0) {
+      if (existing.deprecatedAt !== null) {
+        return fail(404, "NOT_FOUND", "Tenant code not found.");
+      }
+
+      const noopResponse = ok({ tenantCode: existing });
+      await saveIdempotencyRecord(
+        tx,
+        tenantId,
+        UPDATE_IDEMPOTENCY_SCOPE,
+        idempotencyKey,
+        requestHash,
+        200,
+        await noopResponse.clone().json()
+      );
+      return noopResponse;
+    }
+
     const result = await updateTenantReferenceCode(
       tx,
       tenantId,
       auth.context.tenantUserId,
       id,
-      input,
+      mergeReferenceCodePatchInput(existing, parsed.patch),
       correlationId
     );
 

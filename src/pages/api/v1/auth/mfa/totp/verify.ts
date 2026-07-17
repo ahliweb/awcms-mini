@@ -15,7 +15,12 @@ import {
   resolveClientIp
 } from "../../../../../../lib/security/rate-limit";
 import { verifyMfaChallenge } from "../../../../../../modules/identity-access/application/mfa";
+import { log } from "../../../../../../lib/logging/logger";
 import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
+import {
+  hashClientIp,
+  summarizeUserAgent
+} from "../../../../../../lib/security/client-fingerprint";
 
 const SESSION_TTL_MIN = Number(process.env.AUTH_SESSION_TTL_MIN ?? 120);
 const RATE_LIMIT_MAX_ATTEMPTS = Number(
@@ -115,6 +120,53 @@ export const POST: APIRoute = async ({
     if (!result.ok) {
       const status = result.code === "MFA_MISCONFIGURED" ? 500 : 401;
 
+      // Issue #821 — the second factor is the last gate in front of a session
+      // for a caller who already proved the password, so a failure here is a
+      // higher-signal brute-force indicator than a plain `login_failed`, yet
+      // it was the one auth outcome in this file left untraced.
+      //
+      // No `resourceId`: an invalid/expired/replayed challenge token does not
+      // resolve to an identity (`verifyMfaChallenge` returns none on the `!ok`
+      // path), and the token itself must never be persisted. `result.code` is
+      // a fixed enum, not caller-controlled text.
+      // `awcms_mini_audit_events.tenant_id` is `NOT NULL REFERENCES
+      // awcms_mini_tenants (id)`. A well-formed but unknown tenant header
+      // reaches here, and writing this row for a tenant that does not exist
+      // violates that FK, aborts the transaction, and replaces the intended
+      // 401 with a 500. There is no tenant-scoped audit trail to write for a
+      // tenant that does not exist; the structured log (not tenant-scoped)
+      // keeps the attempt visible.
+      const tenantRows =
+        await tx`SELECT 1 FROM awcms_mini_tenants WHERE id = ${tenantId}`;
+      if (tenantRows.length === 0) {
+        log("warning", "identity_access.mfa_challenge_failed.unknown_tenant", {
+          moduleKey: "identity_access",
+          reason: result.code
+        });
+        return fail(
+          status,
+          result.code,
+          result.code === "MFA_MISCONFIGURED"
+            ? "Multi-factor authentication is misconfigured on this server."
+            : "This MFA challenge is invalid, expired, or already used."
+        );
+      }
+
+      await recordAuditEvent(tx, {
+        tenantId,
+        moduleKey: "identity_access",
+        action: "mfa_challenge_failed",
+        resourceType: "identity",
+        severity: "warning",
+        message: `MFA challenge verification failed: ${result.code}.`,
+        attributes: {
+          reason: result.code,
+          ipHash: hashClientIp(clientIp),
+          userAgent: summarizeUserAgent(request)
+        },
+        correlationId: locals.correlationId
+      });
+
       return fail(
         status,
         result.code,
@@ -148,6 +200,14 @@ export const POST: APIRoute = async ({
       resourceId: identityId,
       severity: "info",
       message: "MFA challenge verified; session created.",
+      // Same source fingerprint as the `login_failed`/`mfa_challenge_failed`
+      // rows, so an operator can follow one source across the whole two-step
+      // sign-in rather than only across its failures (Issue #821).
+      attributes: {
+        method: "mfa",
+        ipHash: hashClientIp(clientIp),
+        userAgent: summarizeUserAgent(request)
+      },
       correlationId: locals.correlationId
     });
 

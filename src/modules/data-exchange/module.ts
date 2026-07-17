@@ -315,6 +315,11 @@ export const dataExchangeModule = defineModule({
         maxFieldsPerRow: 10
       },
       adapterRegistryKey: "reference_items",
+      // Affirmatively non-sensitive (Issue #820): this fixture's fields are
+      // synthetic code/label/value/status rows carrying no identifier, and
+      // `naturalKey` is its `code`. Declared explicitly rather than omitted
+      // — omission is now a registry-gate error, not a silent "show all".
+      sensitiveFields: { fieldNames: [], naturalKeyField: "code" },
       description:
         "Self-contained reference fixture (generic tenant-scoped code/label/value/status rows, awcms_mini_data_exchange_reference_items) proving the staging/validate/preview/commit/export/reconciliation mechanism end-to-end. Not a real business domain — see this module's README."
     }
