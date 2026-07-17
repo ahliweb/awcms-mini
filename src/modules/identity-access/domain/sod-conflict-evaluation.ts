@@ -47,6 +47,25 @@
  * that never resolves hierarchy (e.g. identity-access's own flat "office"
  * adapter) simply omits `relatedScopes`, preserving exact-match-only
  * behavior unchanged for that scope type.
+ *
+ * **Hoisted index (Issue #833, epic #818).** `detectSoDConflicts` is called
+ * ONCE PER PERMISSION the assigned role grants (100-200 for an admin role,
+ * `business-scope-assignment-service.ts`), and each call used to rescan
+ * every rule's key list, then `subjectFacts` in full (~1000 facts for a
+ * subject with 5 assignments — `business-scope-facts.ts` cross-products
+ * assignments × role_permissions × permissions), then `relatedScopes`
+ * nested inside that — O(P×R×K×F×S), millions of element visits for ONE
+ * POST, all inside the DB transaction. `createSoDConflictEvaluator` builds
+ * the three indexes ONCE per request (rules by trigger key, facts by
+ * permission key, related scopes as a Set) and `detect` then does
+ * O(matchingRules) work per permission. `detectSoDConflicts` is retained
+ * as a thin single-shot wrapper for the callers that only ever evaluate one
+ * permission key (`high-risk-sod-guard.ts`) — this is a DATA-STRUCTURE
+ * change only; the matching semantics (order, indeterminate handling,
+ * null-scope wildcard, hierarchy-aware `relatedScopes` matching, duplicate
+ * key handling) are deliberately byte-for-byte identical, and
+ * `tests/unit/sod-conflict-evaluation-index-equivalence.test.ts` pins that
+ * against a literal transcription of the pre-#833 implementation.
  */
 import type { SoDRuleDescriptor } from "../../_shared/module-contract";
 
@@ -103,6 +122,181 @@ export type SoDConflictMatch = {
 };
 
 /**
+ * A rule that `requestedPermissionKey` triggers, with the rule's OTHER
+ * conflicting keys precomputed at index-build time — the exact list the
+ * pre-#833 `conflictingPermissionKeys.filter((key) => key !== requested)`
+ * produced, including any duplicate entries, so a rule that (however
+ * oddly) registers the same key twice still yields the same repeated
+ * matches it always did.
+ */
+type IndexedRule = {
+  rule: SoDRuleDescriptor;
+  otherKeys: readonly string[];
+};
+
+/**
+ * `scopeType`/`scopeId` are both DB-controlled identifiers (a registered
+ * scope type name and a uuid), never free-form user input, but a NUL
+ * separator is used anyway so no pair of legal values can ever collide
+ * into the same composite key.
+ */
+const SCOPE_KEY_SEPARATOR = "\u0000";
+
+function scopeKey(scopeType: string, scopeId: string): string {
+  return `${scopeType}${SCOPE_KEY_SEPARATOR}${scopeId}`;
+}
+
+/**
+ * Evaluates SoD conflicts for MANY requested permission keys against ONE
+ * fixed `(rules, requestedScope, subjectFacts)` context, without rescanning
+ * any of them per key (Issue #833). See this file's header for why.
+ */
+export type SoDConflictEvaluator = {
+  detect(requestedPermissionKey: string): SoDConflictMatch[];
+};
+
+/**
+ * Builds the per-request indexes ONCE — O(R×K + F + S) — and returns an
+ * evaluator whose `detect` is O(matchingRules) per permission key.
+ *
+ * Callers evaluating a role's whole permission set (`business-scope-
+ * assignment-service.ts`) MUST build this once outside their loop; a
+ * caller evaluating exactly one key can keep using `detectSoDConflicts`.
+ */
+export function createSoDConflictEvaluator(
+  rules: readonly SoDRuleDescriptor[],
+  requestedScope: RequestedScope | null,
+  subjectFacts: readonly SoDAssignmentFact[]
+): SoDConflictEvaluator {
+  // Rules keyed by each permission key that TRIGGERS them, preserving the
+  // registry's own array order within each bucket — `detect` must emit
+  // matches in the same order the pre-#833 `for (const rule of rules)`
+  // scan did, since the caller records one audit row per match in order.
+  const rulesByTriggerKey = new Map<string, IndexedRule[]>();
+  for (const rule of rules) {
+    const conflictingKeys = rule.conflictingPermissionKeys;
+    const registeredTriggers = new Set<string>();
+    for (const triggerKey of conflictingKeys) {
+      // A key listed twice used to be found once by `.includes` — dedupe
+      // the TRIGGER side so it still produces exactly one rule visit.
+      if (registeredTriggers.has(triggerKey)) {
+        continue;
+      }
+      registeredTriggers.add(triggerKey);
+
+      const indexed: IndexedRule = {
+        rule,
+        otherKeys: conflictingKeys.filter((key) => key !== triggerKey)
+      };
+      const bucket = rulesByTriggerKey.get(triggerKey);
+      if (bucket) {
+        bucket.push(indexed);
+      } else {
+        rulesByTriggerKey.set(triggerKey, [indexed]);
+      }
+    }
+  }
+
+  // Facts bucketed by permission key, replacing the full `subjectFacts`
+  // rescan that ran per rule per key. Insertion order within a bucket is
+  // `subjectFacts` order, so `.some(...)` below still short-circuits on
+  // the same fact the pre-#833 `.filter(...).some(...)` did.
+  const factsByPermissionKey = new Map<string, SoDAssignmentFact[]>();
+  for (const fact of subjectFacts) {
+    const bucket = factsByPermissionKey.get(fact.permissionKey);
+    if (bucket) {
+      bucket.push(fact);
+    } else {
+      factsByPermissionKey.set(fact.permissionKey, [fact]);
+    }
+  }
+
+  // `relatedScopes` (Issue #794) as a Set, replacing the nested
+  // `relatedScopes.some(...)` inside `holdingFacts.some(...)`.
+  const relatedScopeKeys = new Set<string>();
+  for (const related of requestedScope?.relatedScopes ?? []) {
+    relatedScopeKeys.add(scopeKey(related.scopeType, related.scopeId));
+  }
+
+  function factMatchesRequestedScope(fact: SoDAssignmentFact): boolean {
+    // A `null`-scope fact (ordinary RBAC role grant — not confined to any
+    // business scope) conflicts at EVERY requested scope.
+    if (fact.scopeType === null && fact.scopeId === null) {
+      return true;
+    }
+    if (!requestedScope) {
+      return false;
+    }
+    if (
+      fact.scopeType === requestedScope.scopeType &&
+      fact.scopeId === requestedScope.scopeId
+    ) {
+      return true;
+    }
+    // Hierarchy-aware match (Issue #794): a fact held at a scope the caller
+    // has already resolved as an ancestor/descendant of the requested scope
+    // is the SAME business hierarchy this rule is meant to bound, not a
+    // merely-coincidentally-different one. A half-null fact scope can never
+    // equal a `relatedScopes` entry (both of whose fields are non-null
+    // strings), exactly as the pre-#833 field-by-field comparison found.
+    if (fact.scopeType === null || fact.scopeId === null) {
+      return false;
+    }
+    return relatedScopeKeys.has(scopeKey(fact.scopeType, fact.scopeId));
+  }
+
+  return {
+    detect(requestedPermissionKey: string): SoDConflictMatch[] {
+      const matches: SoDConflictMatch[] = [];
+      const candidates = rulesByTriggerKey.get(requestedPermissionKey);
+      if (!candidates) {
+        return matches;
+      }
+
+      for (const { rule, otherKeys } of candidates) {
+        for (const otherKey of otherKeys) {
+          const holdingFacts = factsByPermissionKey.get(otherKey);
+          if (!holdingFacts || holdingFacts.length === 0) {
+            continue;
+          }
+
+          if (rule.scopeApplicability === "same_scope_only") {
+            if (!requestedScope) {
+              matches.push({
+                rule,
+                conflictingPermissionKey: otherKey,
+                indeterminate: true
+              });
+              continue;
+            }
+
+            if (holdingFacts.some(factMatchesRequestedScope)) {
+              matches.push({
+                rule,
+                conflictingPermissionKey: otherKey,
+                indeterminate: false
+              });
+            }
+            continue;
+          }
+
+          // "global_within_tenant" (and the reserved, currently-unused
+          // "any") — holding the other permission ANYWHERE in the tenant is
+          // itself the conflict, no scope match required.
+          matches.push({
+            rule,
+            conflictingPermissionKey: otherKey,
+            indeterminate: false
+          });
+        }
+      }
+
+      return matches;
+    }
+  };
+}
+
+/**
  * Every rule (from the WHOLE registry, `collectSoDRuleDescriptors`) whose
  * `conflictingPermissionKeys` includes `requestedPermissionKey` AND whose
  * OTHER conflicting key(s) the subject is already found to hold (per
@@ -110,6 +304,12 @@ export type SoDConflictMatch = {
  * currently-active business-scope-assignment-granted permissions —
  * EXCLUDING the assignment/action being evaluated itself, the caller's
  * responsibility to exclude before calling this).
+ *
+ * Single-shot convenience over `createSoDConflictEvaluator` — builds the
+ * index, evaluates one key, discards it. Correct (and still cheaper than
+ * the pre-#833 scan) for a caller with exactly one permission key to check;
+ * a caller looping over a role's permission set must hoist the evaluator
+ * itself instead of calling this per key.
  */
 export function detectSoDConflicts(
   rules: readonly SoDRuleDescriptor[],
@@ -117,76 +317,9 @@ export function detectSoDConflicts(
   requestedScope: RequestedScope | null,
   subjectFacts: readonly SoDAssignmentFact[]
 ): SoDConflictMatch[] {
-  const matches: SoDConflictMatch[] = [];
-
-  for (const rule of rules) {
-    if (!rule.conflictingPermissionKeys.includes(requestedPermissionKey)) {
-      continue;
-    }
-
-    const otherKeys = rule.conflictingPermissionKeys.filter(
-      (key) => key !== requestedPermissionKey
-    );
-
-    for (const otherKey of otherKeys) {
-      const holdingFacts = subjectFacts.filter(
-        (fact) => fact.permissionKey === otherKey
-      );
-
-      if (holdingFacts.length === 0) {
-        continue;
-      }
-
-      if (rule.scopeApplicability === "same_scope_only") {
-        if (!requestedScope) {
-          matches.push({
-            rule,
-            conflictingPermissionKey: otherKey,
-            indeterminate: true
-          });
-          continue;
-        }
-
-        const scopedMatch = holdingFacts.some(
-          (fact) =>
-            // A `null`-scope fact (ordinary RBAC role grant — not confined
-            // to any business scope) conflicts at EVERY requested scope.
-            (fact.scopeType === null && fact.scopeId === null) ||
-            (fact.scopeType === requestedScope.scopeType &&
-              fact.scopeId === requestedScope.scopeId) ||
-            // Hierarchy-aware match (Issue #794): a fact held at a scope
-            // the caller has already resolved as an ancestor/descendant of
-            // the requested scope is the SAME business hierarchy this rule
-            // is meant to bound, not a merely-coincidentally-different one.
-            (requestedScope.relatedScopes ?? []).some(
-              (related) =>
-                related.scopeType === fact.scopeType &&
-                related.scopeId === fact.scopeId
-            )
-        );
-
-        if (scopedMatch) {
-          matches.push({
-            rule,
-            conflictingPermissionKey: otherKey,
-            indeterminate: false
-          });
-        }
-        continue;
-      }
-
-      // "global_within_tenant" (and the reserved, currently-unused "any")
-      // — holding the other permission ANYWHERE in the tenant is itself
-      // the conflict, no scope match required.
-      matches.push({
-        rule,
-        conflictingPermissionKey: otherKey,
-        indeterminate: false
-      });
-    }
-  }
-
-  return matches;
+  return createSoDConflictEvaluator(rules, requestedScope, subjectFacts).detect(
+    requestedPermissionKey
+  );
 }
 
 /**

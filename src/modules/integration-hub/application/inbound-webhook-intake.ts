@@ -4,6 +4,14 @@ import {
   INTEGRATION_HUB_EVENT_VERSION,
   INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE
 } from "../../domain-event-runtime/domain/event-type-registry";
+// Side-effect import (Issue #826): registers this module's outbound
+// fan-out consumer into `domain_event_runtime`'s registry. This file is
+// the ONLY producer of `integration_hub.inbound_message.normalized`, and
+// `appendDomainEvent` below creates delivery rows from that registry at
+// PUBLISH time — so importing the registration HERE is what guarantees the
+// consumer is registered before this module can emit the event it handles.
+// See `../infrastructure/domain-event-consumer-registration.ts`.
+import "../infrastructure/domain-event-consumer-registration";
 import { getIntegrationAdapterByKey } from "../infrastructure/adapter-registry";
 import {
   checkBodySize,

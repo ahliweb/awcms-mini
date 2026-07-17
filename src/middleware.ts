@@ -15,7 +15,10 @@ import {
   bodyTooLargeResponse,
   checkContentLengthCeiling
 } from "./lib/security/request-body-limit";
-import { resolvePublicTenantFromRequest } from "./lib/tenant/public-host-tenant-resolver";
+import {
+  extractPublicHostHeader,
+  resolvePublicTenantFromRequest
+} from "./lib/tenant/public-host-tenant-resolver";
 import { log } from "./lib/logging/logger";
 import {
   recordCounter,
@@ -33,6 +36,10 @@ import {
   collectVisitorTelemetry,
   shouldCollectRequest
 } from "./modules/visitor-analytics/application/collector";
+import {
+  enqueueVisitorTelemetry,
+  installVisitorTelemetryShutdownHook
+} from "./modules/visitor-analytics/application/telemetry-queue";
 
 const PROTECTED_PREFIX = "/admin";
 const API_PREFIX = "/api/";
@@ -113,14 +120,35 @@ async function applyCorrelationIdToApiBody(
  * #617-#624). Called after `next()` resolves, on both the pre-admin and
  * `/admin/*` branches below, so `response.status` is already known.
  *
- * BINDING (fail-open, acceptance criterion): this function never throws
- * and never delays the response beyond its own `await` — every failure
- * (cheap config/cookie logic here, or the DB write inside
+ * BINDING (fail-open, acceptance criterion): this function never throws —
+ * every failure (cheap config/cookie logic here, or the DB write inside
  * `collectVisitorTelemetry` itself) is caught and logged as a `warning`
- * with `correlationId`, never surfaced to the caller. Tenant resolution
- * and the actual write happen only when `shouldCollectRequest` says so,
- * so most requests (assets, disabled areas, disabled module) pay only
- * the cost of that one cheap pure check.
+ * with `correlationId`, never surfaced to the caller.
+ *
+ * BINDING (Issue #832, epic #818 — never block the response): this
+ * function is **synchronous and does not touch the database**. It used to
+ * be `await`ed here while it resolved the tenant and wrote a session +
+ * visit event, putting 4-6 round trips in front of every public
+ * response's first byte — its own docblock claimed it "never delays the
+ * response beyond its own `await`", and that `await` was the whole
+ * problem. The split is by dependency, not convenience:
+ *
+ * - Everything touching `context` stays here, inline and synchronous:
+ *   config, the visitor-key cookie plan/set/revoke, and the
+ *   header-derived IP/geo/UA values. This CANNOT be deferred — Astro
+ *   serializes `context.cookies` into the response as soon as this
+ *   middleware returns, so a fire-and-forget `context.cookies.set(...)`
+ *   would be dropped and every single request would mint a new visitor
+ *   key, silently shattering sessions. (That is why the issue's suggested
+ *   "minimal: `void collectRequestAnalytics(...)`" is not what this does.)
+ * - Only the tenant lookup and the write itself go to
+ *   `enqueueVisitorTelemetry` as a self-contained task over plain values.
+ *   Nothing in the response depends on either, which is precisely what
+ *   the collector's pre-existing fail-open contract already guaranteed.
+ *
+ * Tenant resolution for public requests now also runs against an
+ * in-process TTL cache (`lib/tenant/public-tenant-cache.ts`), so the
+ * queued task is usually zero queries of host lookup plus the write.
  *
  * `identityId`/`isAuthenticated` are always server-derived here — `null`/
  * `false` for every non-`/admin` request (public routes never resolve a
@@ -145,12 +173,12 @@ async function applyCorrelationIdToApiBody(
 // Exported anyway (harmless — Astro's page/middleware loader only looks
 // for the exports it needs) in case a future Astro test harness makes
 // this importable.
-export async function collectRequestAnalytics(
+export function collectRequestAnalytics(
   context: APIContext,
   response: Response,
   identityId: string | null,
   isAuthenticated: boolean
-): Promise<void> {
+): void {
   try {
     const config = resolveVisitorAnalyticsConfig();
 
@@ -181,29 +209,27 @@ export async function collectRequestAnalytics(
       return;
     }
 
+    // Tenant resolution for the public branch is a DB lookup, so it can no
+    // longer happen here (Issue #832) — it moves into the queued task
+    // below. The admin branch's tenant is already in memory on
+    // `ssrContext`, so it is read synchronously here.
+    //
+    // Consequence, deliberate: the visitor-key cookie is now planned/set
+    // for every trackable request, including public requests whose tenant
+    // turns out to be unresolvable (unknown host, offline/LAN deployment
+    // with no public routing). Previously an unresolvable tenant returned
+    // before the cookie was set. This is the right trade: the cookie is an
+    // opaque random key with no tenant-derived content and no cross-tenant
+    // meaning (it is only ever hashed with a server-side salt into
+    // `visitor_key_hash`, and every session row it can ever reach is
+    // tenant-scoped by RLS), so setting it early leaks nothing — whereas
+    // keeping the old ordering would have required awaiting the tenant
+    // lookup, which is exactly the blocking round trip this issue removes.
     const sql = getDatabaseClient();
-    let tenantId: string | null = null;
+    const adminTenantId =
+      area === "admin" ? (context.locals.ssrContext?.tenantId ?? null) : null;
 
-    if (area === "admin") {
-      tenantId = context.locals.ssrContext?.tenantId ?? null;
-    } else {
-      // Same env vars the tenant-domain-routing epic documents
-      // (`PUBLIC_TENANT_RESOLUTION_MODE`/`PUBLIC_TRUST_PROXY`, Issue #556)
-      // — best-effort: a request whose tenant cannot be resolved (unknown
-      // host, offline/LAN deployment with no public routing configured,
-      // etc.) is simply not collected, never a hard failure.
-      const resolution = await resolvePublicTenantFromRequest(
-        sql,
-        context.request,
-        {
-          mode: process.env.PUBLIC_TENANT_RESOLUTION_MODE,
-          trustProxy: process.env.PUBLIC_TRUST_PROXY === "true"
-        }
-      );
-      tenantId = resolution?.tenantId ?? null;
-    }
-
-    if (!tenantId) return;
+    if (area === "admin" && !adminTenantId) return;
 
     const existingVisitorKey = context.cookies.get(
       VISITOR_KEY_COOKIE_NAME
@@ -243,21 +269,68 @@ export async function collectRequestAnalytics(
       trustCloudflare: config.trustCloudflare
     });
 
-    await collectVisitorTelemetry({
-      sql,
-      tenantId,
-      correlationId: context.locals.correlationId,
-      config,
-      method: context.request.method,
-      rawPath: `${pathname}${context.url.search}`,
-      statusCode: response.status,
-      visitorKey,
-      ipAddress,
-      userAgent: context.request.headers.get("user-agent"),
-      referrerHeader: context.request.headers.get("referer"),
-      isAuthenticated,
-      identityId,
-      geo
+    // Everything below is captured as plain values BEFORE the task is
+    // queued: `context`/`request`/`response` are request-scoped and may be
+    // torn down by the time the task actually runs, so the closure must
+    // never reach back into them.
+    const correlationId = context.locals.correlationId;
+    const method = context.request.method;
+    const rawPath = `${pathname}${context.url.search}`;
+    const statusCode = response.status;
+    const userAgent = context.request.headers.get("user-agent");
+    const referrerHeader = context.request.headers.get("referer");
+    const publicResolutionConfig = {
+      // Same env vars the tenant-domain-routing epic documents
+      // (`PUBLIC_TENANT_RESOLUTION_MODE`/`PUBLIC_TRUST_PROXY`, Issue #556).
+      mode: process.env.PUBLIC_TENANT_RESOLUTION_MODE,
+      trustProxy: process.env.PUBLIC_TRUST_PROXY === "true"
+    };
+    // The `Host`/`X-Forwarded-Host` decision must be made from the real
+    // request, but the request object itself must not outlive this
+    // function — so resolve the host string now and hand the resolver a
+    // string, using its documented `Request | string` overload.
+    const publicHost =
+      area === "admin"
+        ? null
+        : extractPublicHostHeader(
+            context.request,
+            publicResolutionConfig.trustProxy
+          );
+
+    enqueueVisitorTelemetry(async () => {
+      let tenantId = adminTenantId;
+
+      if (!tenantId) {
+        // Best-effort: a request whose tenant cannot be resolved (unknown
+        // host, offline/LAN deployment with no public routing configured,
+        // etc.) is simply not collected, never a hard failure. Cached in
+        // process (Issue #832), so this is usually zero round trips.
+        const resolution = await resolvePublicTenantFromRequest(
+          sql,
+          publicHost ?? "",
+          publicResolutionConfig
+        );
+        tenantId = resolution?.tenantId ?? null;
+      }
+
+      if (!tenantId) return;
+
+      await collectVisitorTelemetry({
+        sql,
+        tenantId,
+        correlationId,
+        config,
+        method,
+        rawPath,
+        statusCode,
+        visitorKey,
+        ipAddress,
+        userAgent,
+        referrerHeader,
+        isAuthenticated,
+        identityId,
+        geo
+      });
     });
   } catch (error) {
     log("warning", "visitor_analytics.middleware.failed", {
@@ -344,6 +417,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // includes everything below, not just `next()`'s own render time.
   const requestStartedAt = performance.now();
 
+  // Issue #832: the visitor-telemetry queue's SIGTERM/SIGINT flush is
+  // installed HERE, from the only code path that proves this process is a
+  // real HTTP server, and never from `enqueueVisitorTelemetry` itself.
+  // Installing a signal handler is a process-lifecycle decision the app
+  // entry owns — a library doing it as a side effect of queueing data gave
+  // every `bun test` process a SIGTERM handler that killed the whole test
+  // runner when `job-runner.test.ts` synthesized `process.emit("SIGTERM")`
+  // (see that function's docblock). Idempotent: one boolean check.
+  installVisitorTelemetryShutdownHook();
+
   context.locals.correlationId = resolveCorrelationId(context.request);
   // Cookie-only resolution (no DB call) for every request — good enough for
   // pre-auth pages (`/`, `/login`) where no tenant is known yet. Re-resolved
@@ -382,7 +465,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
       context.locals.correlationId
     );
 
-    await collectRequestAnalytics(context, response, null, false);
+    collectRequestAnalytics(context, response, null, false);
     recordHttpRequestMetrics(context, response.status, requestStartedAt);
 
     return applyResponseHeaders(response, context.locals.correlationId);
@@ -411,7 +494,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const response = await next();
 
-  await collectRequestAnalytics(context, response, ssrContext.identityId, true);
+  collectRequestAnalytics(context, response, ssrContext.identityId, true);
   recordHttpRequestMetrics(context, response.status, requestStartedAt);
 
   return applyResponseHeaders(response, context.locals.correlationId);

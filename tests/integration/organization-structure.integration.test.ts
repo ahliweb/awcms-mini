@@ -63,6 +63,10 @@ import { POST as endAssignment } from "../../src/pages/api/v1/organization-struc
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { hashPassword } from "../../src/lib/auth/password";
 import { organizationStructureHierarchyPortAdapter } from "../../src/modules/organization-structure/application/organization-structure-hierarchy-port-adapter";
+import {
+  readAncestorChainEdgeMap,
+  readEdgeMap
+} from "../../src/modules/organization-structure/application/organization-unit-hierarchy-service";
 import { defaultBusinessScopeHierarchyPortAdapter } from "../../src/modules/identity-access/application/business-scope-hierarchy-port-adapter";
 
 const OWNER_LOGIN = "owner@example.com";
@@ -1214,6 +1218,197 @@ suite("organization_structure integration", () => {
         )
     );
     expect(bothPointingAtEachOther).toBe(false);
+  });
+
+  test("hierarchy reparent: readAncestorChainEdgeMap loads ONLY the candidate parent's chain, not the whole tenant (Issue #834)", async () => {
+    const owner = await bootstrap();
+    const testSql = getTestSql();
+
+    // A 3-deep chain (chain-0 <- chain-1 <- chain-2) plus SIX unrelated
+    // units that also have their own open edges. `readEdgeMap` (what the
+    // advisory lock's critical section used to call) returns ALL of them;
+    // `readAncestorChainEdgeMap` must return only the 3 on the chain.
+    // `chain-0` is reparented to `null` EXPLICITLY rather than just left
+    // alone: an untouched unit has no hierarchy row at all, whereas this
+    // gives the root a real open edge with a NULL parent -- the row the
+    // recursive CTE must terminate on (its JOIN finds no parent to follow).
+    const chain: string[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      const unitId = await createUnitFixture(owner, `chain-${index}`);
+      const result = await invoke(reparent, {
+        method: "POST",
+        path: "/api/v1/organization-structure/hierarchy/reparent",
+        headers: authHeaders(owner, `chain-key-${index}`),
+        body: {
+          organizationUnitId: unitId,
+          parentOrganizationUnitId: index > 0 ? chain[index - 1] : null
+        }
+      });
+      expect(result.status).toBe(200);
+      chain.push(unitId);
+    }
+
+    const noiseIds: string[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      const unitId = await createUnitFixture(owner, `noise-${index}`);
+      const result = await invoke(reparent, {
+        method: "POST",
+        path: "/api/v1/organization-structure/hierarchy/reparent",
+        headers: authHeaders(owner, `noise-key-${index}`),
+        body: { organizationUnitId: unitId, parentOrganizationUnitId: null }
+      });
+      expect(result.status).toBe(200);
+      noiseIds.push(unitId);
+    }
+
+    await withTenant(testSql, owner.tenantId, async (tx) => {
+      // Sequential awaits, never Promise.all — one tx serves one query at a
+      // time and concurrent queries on it HANG (see reporting/application/
+      // projection-reconciliation.ts:89-94).
+      const fullMap = await readEdgeMap(tx, owner.tenantId, null);
+      const chainMap = await readAncestorChainEdgeMap(
+        tx,
+        owner.tenantId,
+        chain[2]!
+      );
+
+      // Baseline: the full-tenant read really does carry all the noise —
+      // this is what used to sit inside the tenant-wide advisory lock.
+      for (const noiseId of noiseIds) {
+        expect(fullMap.has(noiseId)).toBe(true);
+      }
+
+      // The chain read carries the complete chain...
+      expect(chainMap.get(chain[2]!)).toBe(chain[1]!);
+      expect(chainMap.get(chain[1]!)).toBe(chain[0]!);
+      expect(chainMap.get(chain[0]!)).toBe(null);
+
+      // ...and NOTHING else. This is the whole point: the critical section's
+      // cost now scales with hierarchy DEPTH, not with TENANT SIZE.
+      expect(chainMap.size).toBe(3);
+      for (const noiseId of noiseIds) {
+        expect(chainMap.has(noiseId)).toBe(false);
+      }
+    });
+  });
+
+  test("hierarchy reparent: still rejects a DEEP cycle (many hops up the chain) through the REAL write path (Issue #834)", async () => {
+    const owner = await bootstrap();
+
+    // Guards the narrowed in-lock read (`readAncestorChainEdgeMap`) against
+    // the failure mode that would matter: if the recursive CTE walked only
+    // part of the chain, `isAncestorOf` would hit a missing entry, stop
+    // early, and report NO cycle -- silently writing a real cycle into the
+    // hierarchy. A cycle 8 hops up only gets caught if the whole chain is
+    // loaded.
+    const depth = 8;
+    const chain: string[] = [];
+    for (let index = 0; index < depth; index += 1) {
+      const unitId = await createUnitFixture(owner, `deep-${index}`);
+      if (index > 0) {
+        const result = await invoke(reparent, {
+          method: "POST",
+          path: "/api/v1/organization-structure/hierarchy/reparent",
+          headers: authHeaders(owner, `deep-key-${index}`),
+          body: {
+            organizationUnitId: unitId,
+            parentOrganizationUnitId: chain[index - 1]
+          }
+        });
+        expect(result.status).toBe(200);
+      }
+      chain.push(unitId);
+    }
+
+    // Reparent the ROOT under the DEEPEST leaf: a cycle only visible after
+    // walking all `depth` hops back up to the root.
+    const cycleAttempt = await invoke<{ error: { code: string } }>(reparent, {
+      method: "POST",
+      path: "/api/v1/organization-structure/hierarchy/reparent",
+      headers: authHeaders(owner, "deep-cycle-key"),
+      body: {
+        organizationUnitId: chain[0],
+        parentOrganizationUnitId: chain[depth - 1]
+      }
+    });
+    expect(cycleAttempt.status).toBe(422);
+    expect(cycleAttempt.body.error.code).toBe("HIERARCHY_INVALID");
+
+    // Nothing was written: the root still has no open parent edge.
+    const admin = getAdminSql();
+    const rootEdges = (await admin`
+      SELECT parent_organization_unit_id
+      FROM awcms_mini_organization_unit_hierarchies
+      WHERE tenant_id = ${owner.tenantId} AND organization_unit_id = ${chain[0]}
+        AND effective_to IS NULL
+    `) as { parent_organization_unit_id: string | null }[];
+    expect(rootEdges[0]?.parent_organization_unit_id ?? null).toBe(null);
+  });
+
+  test("legal-entity scope includes a declaring unit nested under a NON-declaring parent, plus its subtree (Issue #834)", async () => {
+    const owner = await bootstrap();
+    const testSql = getTestSql();
+
+    const legalEntity = await invoke<{
+      data: { legalEntity: { id: string } };
+    }>(createLegalEntity, {
+      method: "POST",
+      path: "/api/v1/organization-structure/legal-entities",
+      headers: authHeaders(owner),
+      body: { name: "Nested Entity" }
+    });
+    const legalEntityId = legalEntity.body.data.legalEntity.id;
+
+    // outsider (declares NOTHING)
+    //   +-- declaring (declares the entity -- NOT a root!)
+    //         +-- grandchild (declares NOTHING, inherits structurally)
+    const outsiderId = await createUnitFixture(owner, "nested-outsider");
+    const declaringId = await createUnitFixture(
+      owner,
+      "nested-declaring",
+      legalEntityId
+    );
+    const grandchildId = await createUnitFixture(owner, "nested-grandchild");
+
+    for (const [index, [unitId, parentId]] of [
+      [declaringId, outsiderId],
+      [grandchildId, declaringId]
+    ].entries()) {
+      const result = await invoke(reparent, {
+        method: "POST",
+        path: "/api/v1/organization-structure/hierarchy/reparent",
+        headers: authHeaders(owner, `nested-key-${index}`),
+        body: {
+          organizationUnitId: unitId,
+          parentOrganizationUnitId: parentId
+        }
+      });
+      expect(result.status).toBe(200);
+    }
+
+    await withTenant(testSql, owner.tenantId, async (tx) => {
+      const resolution =
+        await organizationStructureHierarchyPortAdapter.resolveScope(
+          tx,
+          owner.tenantId,
+          "legal_entity",
+          legalEntityId
+        );
+      expect(resolution.resolved).toBe(true);
+      const scopeIds = resolution.descendantScopes.map((ref) => ref.scopeId);
+
+      // The seed set is every unit that DECLARES the entity -- deliberately
+      // NOT "root units only". `declaring` sits under a non-declaring
+      // parent, so a `parent IS NULL` root filter (Issue #834's literal DoD
+      // wording) would drop it AND `grandchild` from the scope, silently
+      // narrowing authorization. Both must be present.
+      expect(new Set(scopeIds)).toEqual(new Set([declaringId, grandchildId]));
+      // ...and the non-declaring ANCESTOR must never be pulled in: the walk
+      // goes strictly downward.
+      expect(scopeIds).not.toContain(outsiderId);
+      // No duplicates, even though seeds and descendants can overlap.
+      expect(scopeIds.length).toBe(new Set(scopeIds).size);
+    });
   });
 
   test("cross-tenant isolation: unit cannot reference another tenant's legal entity, and RLS blocks direct row access", async () => {

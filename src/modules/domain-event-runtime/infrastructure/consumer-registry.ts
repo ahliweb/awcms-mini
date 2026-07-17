@@ -1,15 +1,7 @@
 import { recordAuditEvent } from "../../logging/application/audit-log";
-import {
-  handleOutboundFanout,
-  INTEGRATION_HUB_OUTBOUND_FANOUT_CONSUMER_NAME
-} from "../../integration-hub/application/outbound-fanout-consumer";
-import { applyEventActivityProjectionIncrement } from "../../reporting/application/event-activity-projection";
-import { EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME } from "../../reporting/domain/projection-keys";
 import { applyConsumerEffectOnce } from "../application/consumer-effect";
 import type { DomainEventConsumerDefinition } from "../domain/consumer-types";
 import {
-  INTEGRATION_HUB_EVENT_VERSION,
-  INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE,
   SAMPLE_RECORDED_EVENT_TYPE,
   SAMPLE_RECORDED_EVENT_VERSION
 } from "../domain/event-type-registry";
@@ -20,9 +12,14 @@ import {
  * reporting/read-model projection consumer or test fixture"), both
  * registered against `SAMPLE_RECORDED_EVENT_TYPE` — the same
  * self-contained reference event `event-type-registry.ts` documents.
- * Real producer/consumer modules register their OWN entries here when
- * they start using this runtime (deliberately not done for any existing
- * module in this foundation issue — see that file's scope note).
+ *
+ * A real consumer/producer module does NOT add its entry to this file
+ * (Issue #826 — doing so is what created a live `domain_event_runtime <->
+ * integration_hub` import cycle). It calls `registerDomainEventConsumer`
+ * below from its own `infrastructure/domain-event-consumer-registration.ts`
+ * instead; see that function's doc comment and
+ * `integration-hub/infrastructure/domain-event-consumer-registration.ts`
+ * for the worked example.
  */
 
 const AUDIT_PROJECTOR_CONSUMER_NAME = "logging.sample_event_audit_projector";
@@ -108,98 +105,140 @@ export const activityRollupProjectorConsumer: DomainEventConsumerDefinition = {
 };
 
 /**
- * `integration_hub`'s real (non-reference) CONSUMER registration (Issue
- * #754, epic `platform-evolution` #738 Wave 3) — fans a normalized inbound
- * webhook message out to every matching outbound subscription. See
- * `integration-hub/application/outbound-fanout-consumer.ts`'s own doc
- * comment for the full design (same-process, DB-only handler; the real
- * HTTP delivery happens later, outside any transaction, via a separate
- * worker job).
+ * This runtime's OWN consumers only (Issue #826). A consumer owned by
+ * ANOTHER module is never listed here and never imported by this file —
+ * that module registers it itself via `registerDomainEventConsumer` below.
+ * Two such consumers moved OUT of this array in #826:
+ * `integration_hub`'s outbound fan-out (`integration-hub/infrastructure/
+ * domain-event-consumer-registration.ts`) and `reporting`'s event-activity
+ * projector (`reporting/infrastructure/domain-event-consumer-
+ * registration.ts`).
+ *
+ * `logging` is the one cross-module import this file still makes
+ * (`sampleAuditProjectorConsumer`'s `recordAuditEvent`) and is deliberately
+ * kept: `logging` is foundational infrastructure BENEATH this runtime in
+ * the layering (13 modules import it, it imports nothing back), so that
+ * edge is one-directional by construction, is declared in `module.ts`'s
+ * `dependencies`, and is not a plugin registration.
  */
-export const integrationHubOutboundFanoutConsumer: DomainEventConsumerDefinition =
-  {
-    name: INTEGRATION_HUB_OUTBOUND_FANOUT_CONSUMER_NAME,
-    description:
-      "Fans a normalized integration_hub inbound-message event out to every active outbound subscription matching its event type (creates pending awcms_mini_integration_outbound_deliveries rows; the real HTTP delivery happens later via bun run integration-hub:outbound:dispatch, Issue #754).",
-    eventTypes: [INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE],
-    eventVersions: [INTEGRATION_HUB_EVENT_VERSION],
-    handler: handleOutboundFanout
-  };
+export const BASE_DOMAIN_EVENT_CONSUMERS: readonly DomainEventConsumerDefinition[] =
+  [sampleAuditProjectorConsumer, activityRollupProjectorConsumer];
 
 /**
- * REAL cross-module consumer (Issue #753, epic #738 platform-evolution
- * Wave 3 — the first non-reference, genuinely-used consumer registered in
- * this file): projects `sample.recorded` events into `reporting`'s own
- * `awcms_mini_reporting_event_activity_summary` projection metric via
- * `applyEventActivityProjectionIncrement`. This IS the one cross-module
- * edge that wires `domain_event_runtime` -> `reporting/application` — safe
- * against `tests/unit/module-boundary-cycles.test.ts` because
- * `reporting`'s own `application`/`domain` files import nothing back from
- * `domain_event_runtime` (its rebuild path reads
- * `awcms_mini_domain_events` via a plain SQL table name, never a
- * cross-module TypeScript import — see `reporting/application/
- * projection-rebuild.ts`'s header comment), so no cycle exists.
- *
- * Idempotency: `applyConsumerEffectOnce` (this module's own, reused
- * unchanged) guards against a redelivered event double-incrementing the
- * counter — same mechanism the two reference consumers above already use.
- * `reporting`'s own `applyEventActivityProjectionIncrement` ADDITIONALLY
- * skips entirely while a rebuild owns this projection (mutual exclusion
- * with `reporting/application/projection-rebuild.ts` — see that file's
- * header comment §3 for why this is safe against double-counting).
+ * Consumers owned by OTHER modules, appended by
+ * `registerDomainEventConsumer` below at import time of that module's own
+ * registration file (Issue #826). Tracked SEPARATELY from
+ * `BASE_DOMAIN_EVENT_CONSUMERS` so `resetDomainEventConsumersForTests`
+ * can drop test-only fakes without also silently unregistering a REAL
+ * cross-module consumer for the rest of the process — a reset that
+ * restored only the base array would leave `integration_hub`'s outbound
+ * fan-out permanently un-dispatched (its deliveries would sit `pending`
+ * forever, since `dispatch-domain-events.ts` iterates registered
+ * consumers, not delivery rows).
  */
-const EVENT_ACTIVITY_PROJECTOR_DESCRIPTION =
-  "reporting module consumer — projects a sample.recorded domain event into awcms_mini_reporting_projection_metrics' reporting.event_activity_summary/sample_recorded_count counter (Issue #753).";
-
-export const eventActivityProjectorConsumer: DomainEventConsumerDefinition = {
-  name: EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME,
-  description: EVENT_ACTIVITY_PROJECTOR_DESCRIPTION,
-  eventTypes: [SAMPLE_RECORDED_EVENT_TYPE],
-  eventVersions: [SAMPLE_RECORDED_EVENT_VERSION],
-  handler: async (tx, event, ctx) => {
-    await applyConsumerEffectOnce(
-      tx,
-      ctx.tenantId,
-      EVENT_ACTIVITY_PROJECTOR_CONSUMER_NAME,
-      event.id,
-      () =>
-        applyEventActivityProjectionIncrement(
-          tx,
-          ctx.tenantId,
-          event.occurredAt
-        )
-    );
-  }
-};
-
-const BASE_DOMAIN_EVENT_CONSUMERS: readonly DomainEventConsumerDefinition[] = [
-  sampleAuditProjectorConsumer,
-  activityRollupProjectorConsumer,
-  integrationHubOutboundFanoutConsumer,
-  eventActivityProjectorConsumer
-];
+let registeredConsumers: readonly DomainEventConsumerDefinition[] = [];
 
 /**
  * The static consumer registry (Issue #742 scope: "a static consumer
- * registry owned by reviewed source code") — every REAL entry is added by
- * reviewed source code (`BASE_DOMAIN_EVENT_CONSUMERS` above), never a
- * dynamic/database-driven registration. `application/append-domain-
- * event.ts` fans out delivery rows from this list at PUBLISH time;
- * `application/dispatch-domain-events.ts` iterates it at DISPATCH time.
+ * registry owned by reviewed source code") — every REAL entry is still
+ * added by reviewed source code, never a dynamic/database-driven
+ * registration: this module's OWN consumers via
+ * `BASE_DOMAIN_EVENT_CONSUMERS` above, and another module's via that
+ * module's own reviewed `registerDomainEventConsumer` call (Issue #826).
+ * `application/append-domain-event.ts` fans out delivery rows from this
+ * list at PUBLISH time; `application/dispatch-domain-events.ts` iterates
+ * it at DISPATCH time.
  *
- * `export let` (not `const`) so `registerDomainEventConsumerForTests`
- * below can append a deliberately-failing fake consumer for a single
- * test's duration (retry/backoff/dead-letter scenarios need a handler
- * that reliably throws — neither of the two real consumers ever does) —
- * same test-injection SHAPE `social-provider-registry.ts`'s
- * `registerSocialProviderAdapter`/`resetSocialProviderRegistryForTests`
- * already established for social_publishing's provider adapters. A
- * reassignment here is a LIVE ES module binding — every other module that
- * imports `DOMAIN_EVENT_CONSUMERS` (not a snapshot taken at import time)
- * sees the update.
+ * `export let` (not `const`) so `registerDomainEventConsumer` and
+ * `registerDomainEventConsumerForTests` below can append (the latter a
+ * deliberately-failing fake consumer for a single test's duration —
+ * retry/backoff/dead-letter scenarios need a handler that reliably
+ * throws, which no real consumer ever does) — same registry SHAPE
+ * `social-provider-registry.ts`'s `registerSocialProviderAdapter`/
+ * `resetSocialProviderRegistryForTests` already established for
+ * social_publishing's provider adapters. A reassignment here is a LIVE ES
+ * module binding — every other module that imports
+ * `DOMAIN_EVENT_CONSUMERS` (not a snapshot taken at import time) sees the
+ * update.
  */
 export let DOMAIN_EVENT_CONSUMERS: readonly DomainEventConsumerDefinition[] =
   BASE_DOMAIN_EVENT_CONSUMERS;
+
+/**
+ * The PRODUCTION registration entry point for a consumer owned by ANOTHER
+ * module (Issue #826). Registration is INVERTED — the consumer's owning
+ * module calls this from its own `infrastructure/domain-event-consumer-
+ * registration.ts`; this runtime never imports a consumer module's code.
+ *
+ * Why (the actual defect #826 fixed): this file used to import
+ * `integration-hub/application/outbound-fanout-consumer` directly, while
+ * `integration_hub` legitimately and permanently imports THIS module back
+ * (`appendDomainEvent` to publish, `event-type-registry` to validate — it
+ * is a PLUGIN of this runtime). That made `domain_event_runtime <->
+ * integration_hub` a real module-level import CYCLE. A capability port in
+ * `_shared/ports/` could NOT have fixed it: a port only removes the
+ * PLUGIN -> runtime type dependency, and here the plugin -> runtime edge
+ * is a genuine value import (`appendDomainEvent`) that must stay. Only
+ * removing the runtime -> plugin edge — i.e. this inversion — breaks it.
+ * A `system`-type foundation module importing a feature module was the
+ * layering violation underneath the cycle, not just an accident.
+ *
+ * Registering is idempotent by NAME: re-importing a registration module
+ * (which is expected — several composition roots import the same one)
+ * re-runs this call, and the second call is a no-op rather than a
+ * duplicate registry entry that would double-fan-out every event at
+ * publish time. A DIFFERENT definition claiming an already-registered
+ * name is a programming error and throws loudly at import time — silently
+ * letting one module hijack another's consumer name would repeat exactly
+ * the "later entry silently wins" defect Issue #740/PR #769 shipped.
+ */
+export function registerDomainEventConsumer(
+  consumer: DomainEventConsumerDefinition
+): void {
+  const existing = [
+    ...BASE_DOMAIN_EVENT_CONSUMERS,
+    ...registeredConsumers
+  ].find((entry) => entry.name === consumer.name);
+
+  if (existing) {
+    if (existing.handler !== consumer.handler) {
+      throw new Error(
+        `Domain event consumer "${consumer.name}" is already registered with a different handler. ` +
+          `Consumer names must be globally unique across modules — prefix the name with your own module key.`
+      );
+    }
+
+    return;
+  }
+
+  registeredConsumers = [...registeredConsumers, consumer];
+  DOMAIN_EVENT_CONSUMERS = [...DOMAIN_EVENT_CONSUMERS, consumer];
+}
+
+/**
+ * Test-only. Undoes a `registerDomainEventConsumer` call by name.
+ *
+ * Needed because `registerDomainEventConsumer` is a PRODUCTION API writing
+ * to a module-level singleton, and `bun test` shares module state across
+ * every test file in the same process: a test that registers a fixture
+ * consumer and relies on `resetDomainEventConsumersForTests` would leak it
+ * into unrelated files, since that reset deliberately PRESERVES production
+ * registrations. Exactly that leak was caught by
+ * `domain-event-registry-parity.test.ts` while building #826 (a fixture's
+ * `awcms-mini.test.fixture` event type surfaced in a different file's
+ * assertion over `DOMAIN_EVENT_CONSUMERS`).
+ *
+ * Never called from production code — a real consumer is registered for the
+ * life of the process.
+ */
+export function unregisterDomainEventConsumerForTests(name: string): void {
+  registeredConsumers = registeredConsumers.filter(
+    (entry) => entry.name !== name
+  );
+  DOMAIN_EVENT_CONSUMERS = DOMAIN_EVENT_CONSUMERS.filter(
+    (entry) => entry.name !== name
+  );
+}
 
 /** Test-only. Appends `consumer` to the registry for the remainder of the current test file/process — call `resetDomainEventConsumersForTests()` (typically in `afterEach`) to restore the base two real consumers. Never called from production code. */
 export function registerDomainEventConsumerForTests(
@@ -208,9 +247,21 @@ export function registerDomainEventConsumerForTests(
   DOMAIN_EVENT_CONSUMERS = [...DOMAIN_EVENT_CONSUMERS, consumer];
 }
 
-/** Test-only. Restores the registry to exactly the two real, reviewed consumers. */
+/**
+ * Test-only. Drops every fake appended by
+ * `registerDomainEventConsumerForTests`, restoring the registry to the
+ * real, reviewed consumers — this module's own PLUS any cross-module
+ * consumer registered via `registerDomainEventConsumer` (Issue #826).
+ * Deliberately NOT `= BASE_DOMAIN_EVENT_CONSUMERS`: that would also
+ * unregister the real cross-module consumers for the remainder of the
+ * process, so whichever test ran next in the same file would silently see
+ * an incomplete registry.
+ */
 export function resetDomainEventConsumersForTests(): void {
-  DOMAIN_EVENT_CONSUMERS = BASE_DOMAIN_EVENT_CONSUMERS;
+  DOMAIN_EVENT_CONSUMERS = [
+    ...BASE_DOMAIN_EVENT_CONSUMERS,
+    ...registeredConsumers
+  ];
 }
 
 export function getConsumersForEventType(

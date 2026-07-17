@@ -30,6 +30,7 @@ import {
   getSetupDatabaseClient,
   getWorkerDatabaseClient
 } from "../../src/lib/database/client";
+import { resetPublicTenantCache } from "../../src/lib/tenant/public-tenant-cache";
 
 // Captured at module load, before provisionAppRole() repoints DATABASE_URL.
 const ADMIN_DATABASE_URL = process.env.DATABASE_URL ?? "";
@@ -198,8 +199,18 @@ export async function provisionSetupRole(): Promise<void> {
  * CASCADE` resets identity sequences and follows FKs so order doesn't matter.
  * Truncating `awcms_mini_setup_state` resets the singleton setup lock so each
  * test can bootstrap a fresh tenant.
+ *
+ * Also clears the public tenant resolver's in-process cache (Issue #832).
+ * That cache lives in module memory, not in Postgres, so TRUNCATE alone
+ * does NOT reset it: without this, one test's `example.com -> tenant A`
+ * (or, worse, a cached `-> null`) would survive into the next test and make
+ * it pass or fail for reasons having nothing to do with what it asserts.
+ * Cache resets belong next to the database reset for exactly the same
+ * reason the database reset exists.
  */
 export async function resetDatabase(): Promise<void> {
+  resetPublicTenantCache();
+
   const sql = getAdminSql();
   const rows = (await sql`
     SELECT tablename FROM pg_tables

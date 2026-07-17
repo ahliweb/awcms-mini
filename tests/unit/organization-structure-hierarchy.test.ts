@@ -11,6 +11,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   computeAncestorChain,
+  computeDescendantClosure,
   computeDescendants,
   computeMaxDepth,
   validateEffectivePeriodForReparent,
@@ -125,6 +126,71 @@ describe("computeDescendants", () => {
   test("returns an empty array for a leaf unit", () => {
     const childrenByParent = new Map<string, readonly string[]>();
     expect(computeDescendants(childrenByParent, "unit-z")).toEqual([]);
+  });
+});
+
+describe("computeDescendantClosure (Issue #834)", () => {
+  test("includes the seeds themselves plus every unit reachable downward", () => {
+    const childrenByParent = new Map<string, readonly string[]>([
+      ["unit-a", ["unit-b"]],
+      ["unit-b", ["unit-c"]],
+      ["unit-x", ["unit-y"]]
+    ]);
+    expect(
+      new Set(computeDescendantClosure(childrenByParent, ["unit-a", "unit-x"]))
+    ).toEqual(new Set(["unit-a", "unit-b", "unit-c", "unit-x", "unit-y"]));
+  });
+
+  test("emits every unit exactly once when seed subtrees overlap", () => {
+    // `unit-b` is BOTH a seed and a descendant of the seed `unit-a`.
+    const childrenByParent = new Map<string, readonly string[]>([
+      ["unit-a", ["unit-b"]],
+      ["unit-b", ["unit-c"]]
+    ]);
+    const closure = computeDescendantClosure(childrenByParent, [
+      "unit-a",
+      "unit-b",
+      "unit-c"
+    ]);
+    expect(closure.length).toBe(new Set(closure).size);
+    expect(new Set(closure)).toEqual(new Set(["unit-a", "unit-b", "unit-c"]));
+  });
+
+  test("no seed re-walks another seed's subtree: total work stays linear, not quadratic", () => {
+    // THE regression this function exists to prevent (Issue #834). The old
+    // shape — one fresh-`visited`-set `computeDescendants` call per seed —
+    // re-walked every shared subtree once per seed above it. On this shape
+    // (a 200-deep chain where EVERY unit declares the same legal entity, so
+    // every unit is a seed) that is ~200*200/2 = ~20_000 lookups; the shared
+    // multi-source traversal does ~200.
+    //
+    // Asserted by COUNTING lookups, not by timing — a wall-clock assertion
+    // would be flaky, and the point is the complexity class, not the speed.
+    const depth = 200;
+    const backing = new Map<string, readonly string[]>();
+    const seeds: string[] = [];
+    for (let index = 0; index < depth; index += 1) {
+      seeds.push(`unit-${index}`);
+      if (index > 0) {
+        backing.set(`unit-${index - 1}`, [`unit-${index}`]);
+      }
+    }
+
+    let lookups = 0;
+    const counting: ReadonlyMap<string, readonly string[]> = {
+      ...backing,
+      get(key: string) {
+        lookups += 1;
+        return backing.get(key);
+      }
+    } as unknown as ReadonlyMap<string, readonly string[]>;
+
+    const closure = computeDescendantClosure(counting, seeds);
+
+    expect(new Set(closure).size).toBe(depth);
+    // Linear bound with generous headroom: one lookup per node visited.
+    // The quadratic shape blows through this by two orders of magnitude.
+    expect(lookups).toBeLessThanOrEqual(depth * 2);
   });
 });
 

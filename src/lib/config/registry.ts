@@ -1121,6 +1121,17 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
       "Default tenant code for mode=env_default (one of ID/CODE required)."
   },
   {
+    name: "PUBLIC_TENANT_CACHE_TTL_MS",
+    type: "integer",
+    required: "optional",
+    ownerModule: "tenant-domain",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "60000",
+    description:
+      "TTL for the in-process host->tenant resolution cache (Issue #832). Bounds how long a tenant-domain change can stay stale on any app instance; 0 disables caching entirely."
+  },
+  {
     name: "PUBLIC_CANONICAL_BASE_PATH",
     type: "path",
     required: "optional",

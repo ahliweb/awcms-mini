@@ -53,6 +53,7 @@ import type {
 import { readEdgeMap } from "./organization-unit-hierarchy-service";
 import {
   computeAncestorChain,
+  computeDescendantClosure,
   computeDescendants
 } from "../domain/organization-unit-hierarchy";
 
@@ -76,7 +77,32 @@ async function resolveLegalEntityScope(
     return UNRESOLVED;
   }
 
-  const rootUnitRows = (await tx`
+  // SEED SET = every unit that DECLARES this legal entity — deliberately
+  // NOT "only the root units of this entity" (Issue #834 proposed filtering
+  // these rows down to roots; that proposal is wrong twice over):
+  //
+  //   1. There is no root to filter ON. `awcms_mini_organization_units` has
+  //      no `parent_id` column at all — the hierarchy lives in the separate,
+  //      effective-dated `awcms_mini_organization_unit_hierarchies` table
+  //      (sql/063), so a `parent_id IS NULL` predicate cannot be written
+  //      against this query in the first place.
+  //   2. It would SILENTLY NARROW an authorization scope. A unit that
+  //      declares this entity while sitting UNDER a parent that does not
+  //      (a different entity's unit, or an unaffiliated grouping unit) is
+  //      not a root by any definition — filtering to roots would drop it AND
+  //      its entire subtree from `descendantScopes`, contradicting this
+  //      file's documented contract ("every unit that either directly
+  //      declares this legal_entity_id, or is a hierarchy descendant of one
+  //      that does").
+  //
+  // The DOWNWARD WALK IS LOAD-BEARING, not redundant: descendants routinely
+  // do NOT declare the entity themselves (they inherit it structurally), so
+  // the closure is strictly larger than this seed set. The real defect was
+  // the walk's SHAPE — one fresh-`visited`-set `computeDescendants` call per
+  // seed re-walked every shared subtree once per seed above it (O(S x depth),
+  // worst O(U^2)). `computeDescendantClosure` does the same job as a single
+  // multi-source traversal over one shared `visited` set: O(U + E).
+  const entityUnitRows = (await tx`
     SELECT id FROM awcms_mini_organization_units
     WHERE tenant_id = ${tenantId} AND legal_entity_id = ${legalEntityId} AND deleted_at IS NULL
   `) as { id: string }[];
@@ -92,19 +118,9 @@ async function resolveLegalEntityScope(
     childrenByParent.set(parentId, list);
   }
 
-  const descendantUnitIds = new Set<string>();
-  for (const rootUnit of rootUnitRows) {
-    descendantUnitIds.add(rootUnit.id);
-    for (const descendantId of computeDescendants(
-      childrenByParent,
-      rootUnit.id
-    )) {
-      descendantUnitIds.add(descendantId);
-    }
-  }
-
-  const descendantScopes: BusinessScopeReference[] = Array.from(
-    descendantUnitIds
+  const descendantScopes: BusinessScopeReference[] = computeDescendantClosure(
+    childrenByParent,
+    entityUnitRows.map((row) => row.id)
   ).map((scopeId) => ({ scopeType: "organization_unit", scopeId }));
 
   return {

@@ -60,6 +60,14 @@ import {
   registerDomainEventConsumerForTests,
   resetDomainEventConsumersForTests
 } from "../../src/modules/domain-event-runtime/infrastructure/consumer-registry";
+// Side-effect import (Issue #826) — this file is a COMPOSITION ROOT: it
+// asserts `reporting`'s event-activity projector actually ran (see the
+// `awcms_mini_reporting_projection_metrics` assertions below). That
+// consumer used to live in this runtime's own base registry; #826 inverted
+// the registration to break the `domain_event_runtime <-> integration_hub`
+// cycle, so a test process that never imports the registration file simply
+// has no such consumer registered.
+import "../../src/modules/reporting/infrastructure/domain-event-consumer-registration";
 import type { DomainEventConsumerDefinition } from "../../src/modules/domain-event-runtime/domain/consumer-types";
 import {
   SAMPLE_RECORDED_EVENT_TYPE,

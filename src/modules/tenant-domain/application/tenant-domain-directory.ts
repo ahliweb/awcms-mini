@@ -8,6 +8,22 @@
  * (Issue #559) per the epic's own binding rule (skill
  * `awcms-mini-tenant-domain-routing` §Aturan lintas-issue #10).
  *
+ * **BINDING (Issue #832) — every mutation here has a cache consequence.**
+ * The public resolver memoizes hostname -> tenant in process for
+ * `PUBLIC_TENANT_CACHE_TTL_MS` (`src/lib/tenant/public-tenant-cache.ts`),
+ * so any write that changes whether/where a hostname resolves (create,
+ * update to `status`, verify, soft-delete) must be followed by
+ * `invalidatePublicTenantHost(normalizedHostname)`.
+ *
+ * That call deliberately lives in the API routes, AFTER `withTenant`'s
+ * transaction has committed — never inside these functions. Invalidating
+ * from inside the transaction would open a real race: a concurrent public
+ * request could re-populate the cache with the still-uncommitted old value
+ * in the window between the eviction and the commit, and nothing would
+ * evict it again. It would also evict on paths that later roll back.
+ * Over-invalidating is harmless (one extra query); under-invalidating
+ * serves stale tenant routing for up to a TTL.
+ *
  * `verification_token_hash` is deliberately never selected/returned by any
  * function in this file — Issue #562's acceptance criteria: API responses
  * must never expose provider token/secret values, and this column (an
@@ -230,6 +246,15 @@ export async function updateTenantDomain(
  * constraint, so this is a cleanliness choice, not a constraint
  * requirement — a subsequent `create`/`set-primary` for a replacement
  * domain is unaffected either way).
+ *
+ * Returns the deleted row's `normalized_hostname` (or `null` when nothing
+ * matched) rather than a bare boolean: the route needs the hostname to
+ * evict it from the public resolver's in-process cache once this
+ * transaction commits (Issue #832). A soft-deleted domain that stays cached
+ * would keep resolving public traffic to the tenant that just unmapped it,
+ * so this is the one caller for which "did it work?" is not enough
+ * information. `null` is falsy, so existing `if (!deleted)` checks keep
+ * working unchanged.
  */
 export async function softDeleteTenantDomain(
   tx: Bun.SQL,
@@ -237,16 +262,16 @@ export async function softDeleteTenantDomain(
   actorTenantUserId: string,
   id: string,
   reason: string
-): Promise<boolean> {
-  const rows = await tx`
+): Promise<string | null> {
+  const rows = (await tx`
     UPDATE awcms_mini_tenant_domains
     SET deleted_at = now(), deleted_by = ${actorTenantUserId}, delete_reason = ${reason},
         is_primary = false, updated_by = ${actorTenantUserId}, updated_at = now()
     WHERE tenant_id = ${tenantId} AND id = ${id} AND deleted_at IS NULL
-    RETURNING id
-  `;
+    RETURNING normalized_hostname
+  `) as { normalized_hostname: string }[];
 
-  return rows.length > 0;
+  return rows[0]?.normalized_hostname ?? null;
 }
 
 export type VerifyTenantDomainResult =

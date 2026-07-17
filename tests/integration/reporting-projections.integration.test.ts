@@ -48,6 +48,13 @@ import { POST as disableExportRoute } from "../../src/pages/api/v1/reports/expor
 import { hashPassword } from "../../src/lib/auth/password";
 
 import type { ProjectionDescriptor } from "../../src/modules/_shared/module-contract";
+// Side-effect import (Issue #826) — this file is a COMPOSITION ROOT: it
+// asserts this module's own event-activity projector consumer runs under a
+// real dispatcher tick. #826 moved that registration out of
+// `domain_event_runtime`'s base registry (which imported `reporting` back,
+// forming a cycle) into `reporting`'s own registration file, so it is only
+// registered in processes that import it.
+import "../../src/modules/reporting/infrastructure/domain-event-consumer-registration";
 import { findProjectionDescriptor } from "../../src/modules/reporting/application/projection-directory";
 import {
   ACCESS_AUDIT_SUMMARY_PROJECTION_KEY,

@@ -137,6 +137,11 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Modul integration_hub — inbound webhook, outbound subscription, adapter, SSRF guard (Issue #754)               | `awcms-mini-integration-hub`         |
 | Modul workflow_approval — graph engine, delegation/escalation/quorum (Issue 11.1, evolved #747)                | `awcms-mini-workflow-approval`       |
 | Modul profile_identity — party CRUD, merge workflow, cross-tenant guard (Issue 2.2, dilengkapi #748)           | `awcms-mini-profile-identity`        |
+| Modul data_exchange — import/export staged CSV/JSON, formula injection, masking `sensitiveFields` (Issue #752) | `awcms-mini-data-exchange`           |
+| Modul reference_data — value set, tenant override, import tervalidasi, PATCH parsial (Issue #750)              | `awcms-mini-reference-data`          |
+| Modul domain_event_runtime — outbox transaksional, consumer registry, ordering, replay (Issue #742)            | `awcms-mini-domain-event-runtime`    |
+| Modul organization_structure — legal entity, hierarki unit effective-dated, business scope port (Issue #749)   | `awcms-mini-organization-structure`  |
+| Modul reporting — lima view live + projections/freshness/rebuild/scheduled export (Issue 9.1, #753)            | `awcms-mini-reporting`               |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 

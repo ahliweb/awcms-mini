@@ -190,8 +190,10 @@ export const DATA_EXCHANGE_RECONCILIATION_MISMATCH_EVENT_TYPE =
  * `appendDomainEvent` with this event type, inside the SAME transaction
  * that persists the verified inbound delivery row, after a signed inbound
  * webhook passes verification and is normalized. `integration_hub`'s own
- * static fan-out consumer (`infrastructure/consumer-registry.ts`'s
- * `integrationHubOutboundFanoutConsumer`) subscribes to this event type to
+ * static fan-out consumer (`integration-hub/infrastructure/domain-event-
+ * consumer-registration.ts`'s `integrationHubOutboundFanoutConsumer`,
+ * which that module registers into this runtime itself — this runtime
+ * never imports it back, Issue #826) subscribes to this event type to
  * create outbound-subscription delivery rows (a DB-only write, still
  * inside this same transaction) — the real HTTP delivery to each
  * subscriber happens later, outside any transaction, via `bun run

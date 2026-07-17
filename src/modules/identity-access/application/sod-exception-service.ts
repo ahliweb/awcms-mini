@@ -373,28 +373,41 @@ export async function listSoDConflictExceptions(
 }
 
 /**
- * The single valid, currently-in-force approved exception (if any) for
- * `(ruleKey, subjectTenantUserId)` covering `requestedScope` — used by
- * BOTH `business-scope-assignment-service.ts` (`assignment_create` trigger)
- * and `access-guard.ts`'s chokepoint (`high_risk_decision` trigger), so the
- * exact same "status is a cache, effective_to vs now() is the real gate"
- * rule (`isSoDConflictExceptionCurrentlyValid`) applies identically at both
- * call sites.
+ * The valid, currently-in-force approved exception (if any) per rule key,
+ * for MANY rule keys in ONE query (Issue #833, epic #818).
+ * `business-scope-assignment-service.ts` used to call the single-key
+ * `findValidSoDConflictException` below once PER DETECTED MATCH — an N+1
+ * round trip inside the assignment transaction, on a latency path an admin
+ * waits on. Keys are deduplicated here, so a rule matched by several of the
+ * role's permission keys still costs one row lookup, and an empty key list
+ * costs no query at all.
+ *
+ * `Map` semantics are identical to calling the single-key function per key:
+ * a key absent from the returned map means "no valid exception on file",
+ * which the caller must treat exactly like the previous `null`.
  */
-export async function findValidSoDConflictException(
+export async function findValidSoDConflictExceptionsByRuleKeys(
   tx: Bun.SQL,
   tenantId: string,
-  ruleKey: string,
+  ruleKeys: readonly string[],
   subjectTenantUserId: string,
   now: Date,
   requestedScope: RequestedScope | null
-): Promise<SoDConflictExceptionRow | null> {
+): Promise<Map<string, SoDConflictExceptionRow>> {
+  const validByRuleKey = new Map<string, SoDConflictExceptionRow>();
+
+  const distinctRuleKeys = [...new Set(ruleKeys)];
+  if (distinctRuleKeys.length === 0) {
+    return validByRuleKey;
+  }
+
   const rows = (await tx`
     SELECT id, tenant_id, rule_key, subject_tenant_user_id, scope_type, scope_id,
       justification, requested_by_tenant_user_id, approved_by_tenant_user_id, status,
       effective_from, effective_to, created_at, updated_at
     FROM awcms_mini_sod_conflict_exceptions
-    WHERE tenant_id = ${tenantId} AND rule_key = ${ruleKey}
+    WHERE tenant_id = ${tenantId}
+      AND rule_key = ANY(${tx.array(distinctRuleKeys, "text")})
       AND subject_tenant_user_id = ${subjectTenantUserId} AND status = 'approved'
       AND (
         (scope_type IS NULL AND scope_id IS NULL)
@@ -407,6 +420,14 @@ export async function findValidSoDConflictException(
   `) as SoDConflictExceptionDbRow[];
 
   for (const row of rows) {
+    // First VALID row per rule key wins — the same "return the first row
+    // that passes `isSoDConflictExceptionCurrentlyValid`" rule the
+    // single-key path has always applied (neither path orders rows; the
+    // caller only ever consumes presence/absence, never a row's identity).
+    if (validByRuleKey.has(row.rule_key)) {
+      continue;
+    }
+
     const exception = toRow(row);
     if (
       isSoDConflictExceptionCurrentlyValid(
@@ -421,9 +442,39 @@ export async function findValidSoDConflictException(
         requestedScope
       )
     ) {
-      return exception;
+      validByRuleKey.set(exception.ruleKey, exception);
     }
   }
 
-  return null;
+  return validByRuleKey;
+}
+
+/**
+ * The single valid, currently-in-force approved exception (if any) for
+ * `(ruleKey, subjectTenantUserId)` covering `requestedScope` — used by
+ * `access-guard.ts`'s chokepoint (`high_risk_decision` trigger), which only
+ * ever evaluates ONE permission key per request. Delegates to the batch
+ * function above so both paths share one SQL statement and one validity
+ * rule ("status is a cache, effective_to vs now() is the real gate",
+ * `isSoDConflictExceptionCurrentlyValid`) — there is no second copy to
+ * drift.
+ */
+export async function findValidSoDConflictException(
+  tx: Bun.SQL,
+  tenantId: string,
+  ruleKey: string,
+  subjectTenantUserId: string,
+  now: Date,
+  requestedScope: RequestedScope | null
+): Promise<SoDConflictExceptionRow | null> {
+  const validByRuleKey = await findValidSoDConflictExceptionsByRuleKeys(
+    tx,
+    tenantId,
+    [ruleKey],
+    subjectTenantUserId,
+    now,
+    requestedScope
+  );
+
+  return validByRuleKey.get(ruleKey) ?? null;
 }

@@ -75,10 +75,13 @@ replay_key) DO NOTHING`. A zero-row result means this exact delivery
    to listen for, a `targetUrl` (SSRF-validated at write time), and an
    optional bounded declarative `filter`.
 2. `integration_hub`'s own static `domain_event_runtime` consumer
-   (`integrationHubOutboundFanoutConsumer`,
-   `application/outbound-fanout-consumer.ts`) is registered into
-   `domain-event-runtime/infrastructure/consumer-registry.ts`'s array —
-   the designated additive extension point (mirrors how
+   (`integrationHubOutboundFanoutConsumer`, defined in
+   `infrastructure/domain-event-consumer-registration.ts`, handler in
+   `application/outbound-fanout-consumer.ts`) registers ITSELF into
+   `domain_event_runtime` via `registerDomainEventConsumer` (Issue #826;
+   before that this module's consumer was listed in the runtime's own
+   registry, which made the runtime import this module back — a real
+   import cycle) — the designated additive extension point (mirrors how
    `workflow_approval`/`organization_structure` became real event
    PRODUCERS by editing `event-type-registry.ts`; this module is the
    first real third-party CONSUMER). It runs inside the SAME transaction
@@ -229,7 +232,7 @@ FROM <tableName>` per descriptor with no cross-descriptor FK-aware
 normalized`) — a future producer module wanting outbound webhook
   fan-out for its OWN event type adds it to
   `integrationHubOutboundFanoutConsumer`'s `eventTypes` array
-  (`domain-event-runtime/infrastructure/consumer-registry.ts`) and to
+  (`infrastructure/domain-event-consumer-registration.ts`) and to
   `subscription-directory.ts`'s allowlist check, following the same
   reviewed-source-code registration convention every other real producer/
   consumer in this repo already uses.

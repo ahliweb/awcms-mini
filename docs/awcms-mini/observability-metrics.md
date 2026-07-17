@@ -120,6 +120,21 @@ Every metric this codebase emits is declared in `METRIC_DEFINITIONS`
 | `provider_call_total`                          | counter   | `provider`, `outcome`                  | ~20 bound                | `provider` is `deriveProviderFamilyLabel`'s bounded family prefix — see below.                                  |
 | `provider_call_duration_ms`                    | histogram | `provider`                             | ~10 bound                | Same.                                                                                                           |
 | `provider_circuit_state`                       | gauge     | `provider`                             | ~10 bound                | Same. Encoded `0=closed, 1=half_open, 2=open`.                                                                  |
+| `visitor_analytics_queue_dropped_total`        | counter   | (none)                                 | exactly 1                | Unlabeled (Issue #832). A tenant id here would be precisely the visitor-identifying label this port forbids.    |
+| `visitor_analytics_queue_depth`                | gauge     | (none)                                 | exactly 1                | Unlabeled (Issue #832).                                                                                         |
+
+**The one metric that signals real data loss**:
+`visitor_analytics_queue_dropped_total` (Issue #832). Visitor telemetry is
+written off the response path through a bounded in-process queue
+(`visitor-analytics/application/telemetry-queue.ts`), so the response never
+waits on it. Backpressure is the price: once the queue reaches
+`MAX_QUEUE_DEPTH` the newest event is dropped rather than growing memory
+without bound. Any non-zero value here therefore means visit events are
+genuinely being lost — alert on it, and read `visitor_analytics_queue_depth`
+as the leading indicator (sustained growth toward the cap precedes the first
+drop). Both are unlabeled on purpose: the natural label would be `tenantId`,
+which is exactly the visitor-identifying, per-tenant-unbounded label this
+port exists to keep out.
 
 **The one label that needed a specific bounding mechanism**:
 `getProviderCircuitBreaker`'s registry key can be tenant-scoped — e.g.
