@@ -267,8 +267,20 @@ Ini varian dari catatan yang sudah ada di `fixture-seeder.ts` (TRUNCATE/ANALYZE 
 
 **Bom waktu terukur:** budget PRE-EXISTING `blog-posts-fulltext-search` lulus CI **hanya karena statistik basi**. Terhadap DB skala `safe` yang sudah di-`VACUUM FULL ANALYZE` ia mengukur **939,5 vs `maxTotalCost: 800`** — sama persis kelasnya dengan yang di-root-cause Issue #782 untuk `audit-events-tenant-activity-reporting` (~11 pra-ANALYZE vs ~1088 pasca). Jadi **memperbaiki ANALYZE = wajib rekalibrasi budget itu di perubahan yang sama** (threshold change yang di-approve), jangan dibundel sembarangan; kalau tidak CI langsung merah.
 
+**`CREATE INDEX` memperbaiki statistik SETENGAH — dan itu lebih buruk daripada tidak sama sekali.** Membangun index memperbarui `pg_class.reltuples`/`relpages` sebagai efek samping (terukur di `awcms_mini_blog_pages`: `-1/0` → `2000/334`), jadi planner tahu jumlah baris nyata tapi **tetap nol statistik kolom** (`pg_statistic` = 0, `last_autoanalyze` = null). Untuk blog admin list, justru kondisi setengah-tahu itu satu-satunya yang membuat index-nya kalah:
+
+| kondisi `pg_class` | plan | cost |
+|---|---|---|
+| `reltuples=-1` (belum pernah analyze) | `Index Scan(..._tenant_updated_idx)` | 8,3 |
+| `reltuples` nyata, NOL statistik kolom | `Sort` + `Scan(..._tenant_deleted_idx)` | 8,19 |
+| ter-ANALYZE penuh (DB nyata mana pun) | `Index Scan(..._tenant_updated_idx)` | 57,17 |
+
+Dua plan itu **seri dalam ~1%** → planner ambil yang sedikit lebih murah; lemparan koin, bukan penilaian. Ini yang membuat test `after` (EXPLAIN ulang setelah `finally` CREATE INDEX) MERAH di DB bersih padahal budget-nya benar — baris tengah tak pernah ada di deployment nyata. Gejalanya menyesatkan: `before` hijau + `after` merah dalam run yang SAMA, index definisi identik byte-per-byte. **Memulihkan index itu fakta schema → assert lewat `pg_indexes.indexdef` (round-trip terhadap definisi sebelum drop), jangan lewat bentuk plan.**
+
 **How to apply:**
 - Jangan pernah percaya `EXPLAIN` cost dari suite perf tanpa memeriksa `pg_stat_user_tables.last_analyze` dulu.
+- Beda plan "sebelum vs sesudah" yang selisih costnya **~1%** bukan sinyal — itu seri. Cari beda 10x+ sebelum menyimpulkan planner "memilih" sesuatu.
+- Repro dengan superuser psql **menyembunyikan** kelas bug ini: tanpa RLS, dan sering DB-nya sudah ter-ANALYZE. Reproduksi lewat peran app + RLS + DB bersih (`CREATE DATABASE` baru), bukan DB dev berumur panjang.
 - Butuh ANALYZE beneran di test? pakai `getAdminSql()` (koneksi privileged), **bukan** `getTestSql()`.
 - **Hati-hati efek samping lintas-job**: CI menjalankan `bun test` lalu `performance:query-plan:check` **di database yang sama**. Meng-ANALYZE tabel dari dalam sebuah test akan membuat run skrip berikutnya melihat statistik akurat → `blog-posts-fulltext-search` merah. Sengaja TIDAK dilakukan di #838.
 - `DELETE` tidak pernah mengembalikan halaman fisik, jadi seeding berulang di DB dev yang berumur panjang menggelembungkan cost (`audit-events-tenant-activity-reporting` 170 → 1612 setelah beberapa siklus). `VACUUM FULL ANALYZE` dulu sebelum membandingkan angka apa pun — dan pisahkan pre-existing dari regresi PR dengan `git stash push -- <src>` di DB yang SAMA.
