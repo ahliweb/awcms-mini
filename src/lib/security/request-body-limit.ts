@@ -173,6 +173,67 @@ export async function readJsonBody<T = unknown>(
   }
 }
 
+/**
+ * Result of {@link readJsonObjectBody}. `ok: false` carries `reason` so the
+ * handler can say which of the rejected shapes arrived instead of a generic
+ * "invalid body".
+ */
+export type InvalidJsonObjectBodyReason = "absent" | "malformed" | "not_object";
+
+export type JsonObjectBodyResult =
+  | { tooLarge: true; limitBytes: number }
+  | { tooLarge: false; ok: true; value: Record<string, unknown> }
+  | { tooLarge: false; ok: false; reason: InvalidJsonObjectBodyReason };
+
+/**
+ * `readJsonBody` collapses "absent body", "malformed JSON" and "the literal
+ * `null`" into the same `value: null`, and passes a well-formed array/number/
+ * string straight through. Handlers that require a JSON *object* cannot tell
+ * those apart, so they reach for `bodyRead.value ?? {}` — which silently turns
+ * an empty, malformed, or non-object body into a valid empty request. For a
+ * PATCH whose empty body is a legitimate no-op that is not a harmless default:
+ * garbage passes authorization and idempotency and lands as a real write.
+ *
+ * Use this instead whenever the endpoint's request body is a required JSON
+ * object. `{}` is returned as `ok: true` — an empty *object* is a real body,
+ * distinct from no body at all.
+ */
+export async function readJsonObjectBody(
+  request: Request,
+  tier: BodySizeTier = "default"
+): Promise<JsonObjectBodyResult> {
+  const limitBytes = resolveLimitBytes(tier);
+  const textResult = await readCappedText(request, limitBytes);
+
+  if (textResult.tooLarge) {
+    return { tooLarge: true, limitBytes };
+  }
+
+  if (textResult.text.trim().length === 0) {
+    return { tooLarge: false, ok: false, reason: "absent" };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(textResult.text);
+  } catch {
+    return { tooLarge: false, ok: false, reason: "malformed" };
+  }
+
+  // `typeof null === "object"`, and arrays are objects too — both must be
+  // rejected here rather than reaching a field-by-field patch parser, which
+  // would find no known keys on them and report a clean empty patch.
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { tooLarge: false, ok: false, reason: "not_object" };
+  }
+
+  return {
+    tooLarge: false,
+    ok: true,
+    value: parsed as Record<string, unknown>
+  };
+}
+
 /** Drop-in replacement for `await request.text()`, capped at `tier`'s limit. */
 export async function readTextBody(
   request: Request,
@@ -247,6 +308,31 @@ export function bodyTooLargeResponse(limitBytes: number): Response {
     {},
     undefined,
     { connection: "close" }
+  );
+}
+
+const INVALID_JSON_OBJECT_BODY_MESSAGE: Record<
+  InvalidJsonObjectBodyReason,
+  string
+> = {
+  absent: "A JSON object request body is required; none was sent.",
+  malformed: "Request body is not valid JSON.",
+  not_object:
+    "Request body must be a JSON object. Send {} for a no-op; null, arrays and scalars are not accepted."
+};
+
+/**
+ * Maps a {@link readJsonObjectBody} rejection to the `400` the endpoint's
+ * required-object request body implies. Kept next to the reader so a new
+ * `reason` cannot be added without the compiler demanding a message for it.
+ */
+export function invalidJsonObjectBodyResponse(
+  reason: InvalidJsonObjectBodyReason
+): Response {
+  return fail(
+    400,
+    "VALIDATION_ERROR",
+    INVALID_JSON_OBJECT_BODY_MESSAGE[reason]
   );
 }
 

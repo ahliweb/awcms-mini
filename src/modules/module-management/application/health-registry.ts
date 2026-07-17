@@ -211,23 +211,31 @@ async function fetchTenantSettingsRows(
  * no matter how many modules are then resolved against it. Share one context
  * across every module of a single render; never cache it across requests (the
  * registry/settings state it snapshots is live data).
+ *
+ * Sequential, NOT `Promise.all` — every caller passes a `tx` bound to ONE
+ * connection, and a single Postgres connection serves one query at a time;
+ * issuing these concurrently on it produced a real hang in this repo (see the
+ * note in `reporting/application/projection-reconciliation.ts`, where the stuck
+ * connection went on to break every subsequent test's `resetDatabase()`).
+ * The win here was never concurrency — it is collapsing a per-module fan-out
+ * into four queries total, which sequential awaits keep intact.
  */
 export async function prepareModuleHealthContext(
   tx: Bun.SQL,
   tenantId: string,
   correlationId?: string
 ): Promise<ModuleHealthContext> {
-  const [
-    migrations,
-    registryStatusByKey,
-    permissionsByModuleKey,
-    settingsRowByModuleKey
-  ] = await Promise.all([
-    migrationsAppliedSignal(tx, correlationId),
-    fetchRegistryStatuses(tx, correlationId),
-    fetchPermissionCatalog(tx, correlationId),
-    fetchTenantSettingsRows(tx, tenantId, correlationId)
-  ]);
+  const migrations = await migrationsAppliedSignal(tx, correlationId);
+  const registryStatusByKey = await fetchRegistryStatuses(tx, correlationId);
+  const permissionsByModuleKey = await fetchPermissionCatalog(
+    tx,
+    correlationId
+  );
+  const settingsRowByModuleKey = await fetchTenantSettingsRows(
+    tx,
+    tenantId,
+    correlationId
+  );
 
   return {
     migrations,
