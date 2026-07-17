@@ -2164,15 +2164,15 @@ msgstr ""
 msgid "admin.data_exchange.exports.title"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:66
+#: src/pages/admin/data-exchange/imports/[id].astro:78
 msgid "admin.data_exchange.imports.action_success"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:223
+#: src/pages/admin/data-exchange/imports/[id].astro:264
 msgid "admin.data_exchange.imports.cancel_button"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:67
+#: src/pages/admin/data-exchange/imports/[id].astro:79
 msgid "admin.data_exchange.imports.cancel_reason_prompt"
 msgstr ""
 
@@ -2184,7 +2184,7 @@ msgstr ""
 msgid "admin.data_exchange.imports.col_actions"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:243
+#: src/pages/admin/data-exchange/imports/[id].astro:284
 msgid "admin.data_exchange.imports.col_commit_status"
 msgstr ""
 
@@ -2192,19 +2192,19 @@ msgstr ""
 msgid "admin.data_exchange.imports.col_created_at"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:246
+#: src/pages/admin/data-exchange/imports/[id].astro:287
 msgid "admin.data_exchange.imports.col_errors"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:175
+#: src/pages/admin/data-exchange/imports/[id].astro:216
 msgid "admin.data_exchange.imports.col_import_key"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:237
+#: src/pages/admin/data-exchange/imports/[id].astro:278
 msgid "admin.data_exchange.imports.col_natural_key"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:240
+#: src/pages/admin/data-exchange/imports/[id].astro:281
 msgid "admin.data_exchange.imports.col_proposed_action"
 msgstr ""
 
@@ -2212,15 +2212,15 @@ msgstr ""
 msgid "admin.data_exchange.imports.col_rows"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:177
+#: src/pages/admin/data-exchange/imports/[id].astro:218
 msgid "admin.data_exchange.imports.col_status"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:199
+#: src/pages/admin/data-exchange/imports/[id].astro:240
 msgid "admin.data_exchange.imports.commit_button"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:134
+#: src/pages/admin/data-exchange/imports/[id].astro:175
 msgid "admin.data_exchange.imports.detail_title"
 msgstr ""
 
@@ -2236,47 +2236,47 @@ msgstr ""
 msgid "admin.data_exchange.imports.field_import_key"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:289
+#: src/pages/admin/data-exchange/imports/[id].astro:330
 msgid "admin.data_exchange.imports.matched"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:288
+#: src/pages/admin/data-exchange/imports/[id].astro:329
 msgid "admin.data_exchange.imports.mismatch"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:230
+#: src/pages/admin/data-exchange/imports/[id].astro:271
 msgid "admin.data_exchange.imports.no_rows"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:210
+#: src/pages/admin/data-exchange/imports/[id].astro:251
 msgid "admin.data_exchange.imports.pause_button"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:228
+#: src/pages/admin/data-exchange/imports/[id].astro:269
 msgid "admin.data_exchange.imports.preview_heading"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:285
+#: src/pages/admin/data-exchange/imports/[id].astro:326
 msgid "admin.data_exchange.imports.processed_count"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:278
+#: src/pages/admin/data-exchange/imports/[id].astro:319
 msgid "admin.data_exchange.imports.reconciliation_heading"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:215
+#: src/pages/admin/data-exchange/imports/[id].astro:256
 msgid "admin.data_exchange.imports.resume_button"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:205
+#: src/pages/admin/data-exchange/imports/[id].astro:246
 msgid "admin.data_exchange.imports.retry_button"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:270
+#: src/pages/admin/data-exchange/imports/[id].astro:311
 msgid "admin.data_exchange.imports.showing_rows"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:283
+#: src/pages/admin/data-exchange/imports/[id].astro:324
 msgid "admin.data_exchange.imports.source_count"
 msgstr ""
 
@@ -2292,31 +2292,31 @@ msgstr ""
 msgid "admin.data_exchange.imports.stage_summary"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:187
+#: src/pages/admin/data-exchange/imports/[id].astro:228
 msgid "admin.data_exchange.imports.summary_conflict"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:181
+#: src/pages/admin/data-exchange/imports/[id].astro:222
 msgid "admin.data_exchange.imports.summary_created"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:191
+#: src/pages/admin/data-exchange/imports/[id].astro:232
 msgid "admin.data_exchange.imports.summary_failed"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:189
+#: src/pages/admin/data-exchange/imports/[id].astro:230
 msgid "admin.data_exchange.imports.summary_invalid"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:185
+#: src/pages/admin/data-exchange/imports/[id].astro:226
 msgid "admin.data_exchange.imports.summary_skipped"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:179
+#: src/pages/admin/data-exchange/imports/[id].astro:220
 msgid "admin.data_exchange.imports.summary_totals"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:183
+#: src/pages/admin/data-exchange/imports/[id].astro:224
 msgid "admin.data_exchange.imports.summary_updated"
 msgstr ""
 
@@ -6226,11 +6226,11 @@ msgstr ""
 msgid "common.no"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:160
+#: src/pages/admin/data-exchange/imports/[id].astro:201
 msgid "common.not_found_body"
 msgstr ""
 
-#: src/pages/admin/data-exchange/imports/[id].astro:159
+#: src/pages/admin/data-exchange/imports/[id].astro:200
 msgid "common.not_found_title"
 msgstr ""
 

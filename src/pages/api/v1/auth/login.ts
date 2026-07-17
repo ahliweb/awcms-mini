@@ -119,19 +119,51 @@ type LoginAuditFailureReason = LoginDenyReason | "internal_error";
  * the trail of the one field that answers "which account is being attacked?",
  * defeating the purpose of auditing failures at all. The enumeration
  * guarantee this issue asks for is about what an *unauthenticated caller* can
- * infer, and that is unaffected: the HTTP responses below are byte-identical
- * regardless of whether the identity exists.
+ * infer, and setting `resourceId` here does not affect that either way: the
+ * audit row is never part of a response.
+ *
+ * That is deliberately NOT a claim that the responses below are
+ * indistinguishable — they are not, and this comment used to say they were
+ * (PR #839 security review). Two branches, both reachable only once the
+ * identity has resolved, are observably different from the
+ * `"Invalid login identifier or password."` 401 an unknown identifier gets:
+ * `locked` answers 401 with `"Account is temporarily locked."`, and
+ * `password_login_disabled` answers 403. An unauthenticated caller can
+ * therefore still infer that a given identifier exists. That oracle predates
+ * this change and is tracked separately in Issue #840 (the `fail()` calls it
+ * concerns are deliberately untouched here); do not read this comment as
+ * evidence it is closed.
  */
 async function recordLoginFailure(
   tx: Bun.SQL,
   input: {
     tenantId: string;
+    tenantExists: boolean;
     identityId?: string;
     reason: LoginAuditFailureReason;
     audit: LoginAuditContext;
     correlationId?: string;
   }
 ): Promise<void> {
+  // `awcms_mini_audit_events.tenant_id` is `NOT NULL REFERENCES
+  // awcms_mini_tenants (id)`, so there is no tenant-scoped audit row to write
+  // for a tenant that does not exist — attempting it violates the FK, aborts
+  // the transaction, and turns this endpoint's intended 403 into a 500. A
+  // well-formed but unknown tenant header is reachable by any unauthenticated
+  // caller, so that would be a trivial way to force 500s.
+  //
+  // The attempt is not lost: it goes to the structured log instead, which is
+  // not tenant-scoped. Nothing tenant-scoped can be recorded here by
+  // definition — there is no tenant.
+  if (!input.tenantExists) {
+    log("warning", "identity_access.login_failed.unknown_tenant", {
+      reason: input.reason,
+      correlationId: input.correlationId,
+      ...input.audit
+    });
+    return;
+  }
+
   await recordAuditEvent(tx, {
     tenantId: input.tenantId,
     moduleKey: "identity_access",
@@ -177,8 +209,15 @@ async function recordLoginFailureOutOfBand(
 ): Promise<void> {
   try {
     await withTenant(sql, input.tenantId, async (tx) => {
+      // Re-checked here rather than threaded in: this runs after the login
+      // transaction unwound, so nothing it computed can be trusted to still
+      // hold. Without it an unknown-tenant header would trip the audit table's
+      // tenant FK and this recovery write would fail for the wrong reason.
+      const rows =
+        await tx`SELECT 1 FROM awcms_mini_tenants WHERE id = ${input.tenantId}`;
       await recordLoginFailure(tx, {
         tenantId: input.tenantId,
+        tenantExists: rows.length > 0,
         reason: "internal_error",
         audit: input.audit,
         correlationId: input.correlationId
@@ -354,6 +393,7 @@ export const POST: APIRoute = async ({
       // before it commits.
       await recordLoginFailure(tx, {
         tenantId,
+        tenantExists: tenantRows.length > 0,
         identityId: identityRow?.id,
         reason: result.reason,
         audit: auditContext,

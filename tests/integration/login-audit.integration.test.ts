@@ -331,4 +331,28 @@ suite("login audit trail (Issue #821)", () => {
       `;
     }
   });
+
+  // PR #839 review finding. `awcms_mini_audit_events.tenant_id` is
+  // `NOT NULL REFERENCES awcms_mini_tenants (id)`, so writing a `login_failed`
+  // row for a tenant that does not exist violates the FK, aborts the
+  // transaction, and turns the intended 403 into a 500 — reachable by any
+  // unauthenticated caller with a well-formed but unknown tenant header, i.e.
+  // a trivial way to force 500s. Verified against the real defect: with the
+  // guard removed, this returns 500.
+  test("an unknown-but-well-formed tenant is denied 403, not 500 (audit FK)", async () => {
+    const unknownTenantId = "00000000-0000-4000-8000-0000000000ff";
+
+    const admin = getAdminSql();
+    const rows = await admin`
+      SELECT 1 FROM awcms_mini_tenants WHERE id = ${unknownTenantId}
+    `;
+    expect(rows).toHaveLength(0);
+
+    const status = await attemptLogin(unknownTenantId, {
+      loginIdentifier: "nobody@example.test",
+      password: "whatever-not-a-real-password"
+    });
+
+    expect(status).toBe(403);
+  });
 });

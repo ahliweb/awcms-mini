@@ -53,6 +53,31 @@ describe("hashClientIp", () => {
   });
 
   /**
+   * PR #839 security review, HIGH 2. This used to be `process.env
+   * .AUTH_JWT_SECRET ?? ""` — with the key removed, the HMAC silently
+   * degrades to a bare `sha256(ip)` over a 2^32 keyspace, i.e. every audit
+   * `ipHash` ever written becomes reversible, with no error anywhere. The
+   * variable was simultaneously marked `deprecated` with `removalVersion:
+   * "1.0.0"`, so that degradation was actually SCHEDULED. Refusing loudly is
+   * the only safe behaviour; the deprecation was lifted in the same change.
+   */
+  test.each([
+    ["unset", undefined],
+    ["empty", ""]
+  ])(
+    "throws rather than degrading to an unkeyed digest (%s)",
+    (_label, value) => {
+      if (value === undefined) {
+        delete process.env.AUTH_JWT_SECRET;
+      } else {
+        process.env.AUTH_JWT_SECRET = value;
+      }
+
+      expect(() => hashClientIp("203.0.113.10")).toThrow(/AUTH_JWT_SECRET/);
+    }
+  );
+
+  /**
    * The whole reason this helper exists: `ip`/`clientIp`/`ipAddress` are
    * redaction keys (Issue #687), so a raw IP under any of those names would be
    * blanked out of the audit trail. `ipHash` must survive the same redactor

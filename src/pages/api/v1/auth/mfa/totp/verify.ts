@@ -15,6 +15,7 @@ import {
   resolveClientIp
 } from "../../../../../../lib/security/rate-limit";
 import { verifyMfaChallenge } from "../../../../../../modules/identity-access/application/mfa";
+import { log } from "../../../../../../lib/logging/logger";
 import { recordAuditEvent } from "../../../../../../modules/logging/application/audit-log";
 import {
   hashClientIp,
@@ -128,6 +129,29 @@ export const POST: APIRoute = async ({
       // resolve to an identity (`verifyMfaChallenge` returns none on the `!ok`
       // path), and the token itself must never be persisted. `result.code` is
       // a fixed enum, not caller-controlled text.
+      // `awcms_mini_audit_events.tenant_id` is `NOT NULL REFERENCES
+      // awcms_mini_tenants (id)`. A well-formed but unknown tenant header
+      // reaches here, and writing this row for a tenant that does not exist
+      // violates that FK, aborts the transaction, and replaces the intended
+      // 401 with a 500. There is no tenant-scoped audit trail to write for a
+      // tenant that does not exist; the structured log (not tenant-scoped)
+      // keeps the attempt visible.
+      const tenantRows =
+        await tx`SELECT 1 FROM awcms_mini_tenants WHERE id = ${tenantId}`;
+      if (tenantRows.length === 0) {
+        log("warning", "identity_access.mfa_challenge_failed.unknown_tenant", {
+          moduleKey: "identity_access",
+          reason: result.code
+        });
+        return fail(
+          status,
+          result.code,
+          result.code === "MFA_MISCONFIGURED"
+            ? "Multi-factor authentication is misconfigured on this server."
+            : "This MFA challenge is invalid, expired, or already used."
+        );
+      }
+
       await recordAuditEvent(tx, {
         tenantId,
         moduleKey: "identity_access",

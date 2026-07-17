@@ -65,10 +65,14 @@ import { GET as getReconciliation } from "../../src/pages/api/v1/data-exchange/r
 
 import { hashPassword } from "../../src/lib/auth/password";
 import { hashSessionToken } from "../../src/lib/auth/session-token";
+import { fetchGrantedPermissionKeys } from "../../src/modules/identity-access/application/auth-context";
 import { getDatabaseClient } from "../../src/lib/database/client";
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { runDataExchangeWorkerPassForTenant } from "../../src/modules/data-exchange/application/data-exchange-worker";
-import { authorizeExchangeDescriptorPermission } from "../../src/modules/data-exchange/application/descriptor-authorization";
+import {
+  authorizeExchangeDescriptorPermission,
+  isDescriptorPermissionGranted
+} from "../../src/modules/data-exchange/application/descriptor-authorization";
 import { findReferenceItemByCode } from "../../src/modules/data-exchange/application/reference-items-directory";
 import { referenceItemsImportAdapter } from "../../src/modules/data-exchange/application/reference-items-exchange-adapter";
 import {
@@ -1303,6 +1307,109 @@ suite("data_exchange integration", () => {
         )
       );
       expect(allowResult.allowed).toBe(true);
+    });
+
+    /**
+     * PR #839 security review, HIGH 1. `src/pages/admin/data-exchange/
+     * imports/[id].astro` does not go through any of the six routes — it
+     * queries and projects staged rows itself — and made this decision
+     * NOWHERE, so a descriptor's `requiredPermission` was enforced by every
+     * API surface and by nothing in the UI.
+     *
+     * The page cannot reuse `authorizeExchangeDescriptorPermission` (it has
+     * a permission set from `resolveSsrContext`, not a bearer token), so the
+     * risk is that the two gates drift apart again. This pins them TOGETHER
+     * against one real subject and one real database: the SSR decision must
+     * equal the route decision, before and after the grant.
+     */
+    test("the SSR page gate agrees with the route gate for the same real subject", async () => {
+      const owner = await bootstrap();
+      const limited = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" }
+      ]);
+
+      const syntheticDescriptor: ExchangeDescriptor = {
+        key: "data_exchange.synthetic_test_descriptor",
+        ownerModuleKey: "data_exchange",
+        direction: "both",
+        formats: ["csv"],
+        schemaVersion: "1.0",
+        limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
+        adapterRegistryKey: "reference_items",
+        requiredPermission: "identity_access.user_management.read",
+        // An EMPTY sensitiveFields policy: the exploit shape. The page's
+        // raw-value gate treats this as "nothing sensitive" and renders
+        // values unmasked, so `requiredPermission` is the ONLY thing
+        // standing between this subject and the owning module's data.
+        sensitiveFields: { fieldNames: [] },
+        description:
+          "synthetic descriptor for the SSR-vs-route gate parity test"
+      };
+
+      const appSql = getDatabaseClient();
+      const limitedTokenHash = hashSessionToken(limited.token);
+
+      // The exact permission set `src/lib/auth/ssr-session.ts` puts on
+      // `Astro.locals.ssrContext` — same function, same tenant scope.
+      const ssrPermissions = await withTenant(appSql, owner.tenantId, (tx) =>
+        fetchGrantedPermissionKeys(tx, owner.tenantId, limited.tenantUserId)
+      );
+
+      // The subject really does hold the broad gate the page checks first —
+      // otherwise this test would pass for the wrong reason.
+      expect(ssrPermissions.has("data_exchange.imports.read")).toBe(true);
+
+      expect(
+        isDescriptorPermissionGranted(
+          ssrPermissions,
+          syntheticDescriptor.requiredPermission
+        )
+      ).toBe(false);
+
+      const routeDeny = await withTenant(appSql, owner.tenantId, (tx) =>
+        authorizeExchangeDescriptorPermission(
+          tx,
+          owner.tenantId,
+          limitedTokenHash,
+          new Date(),
+          syntheticDescriptor
+        )
+      );
+      expect(routeDeny.allowed).toBe(false);
+
+      const admin = getAdminSql();
+      await admin`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        SELECT ${owner.tenantId}, r.id, p.id
+        FROM awcms_mini_roles r, awcms_mini_permissions p
+        WHERE r.tenant_id = ${owner.tenantId} AND r.role_code = 'limited'
+          AND p.module_key = 'identity_access' AND p.activity_code = 'user_management' AND p.action = 'read'
+      `;
+
+      const grantedPermissions = await withTenant(
+        appSql,
+        owner.tenantId,
+        (tx) =>
+          fetchGrantedPermissionKeys(tx, owner.tenantId, limited.tenantUserId)
+      );
+
+      expect(
+        isDescriptorPermissionGranted(
+          grantedPermissions,
+          syntheticDescriptor.requiredPermission
+        )
+      ).toBe(true);
+
+      const routeAllow = await withTenant(appSql, owner.tenantId, (tx) =>
+        authorizeExchangeDescriptorPermission(
+          tx,
+          owner.tenantId,
+          limitedTokenHash,
+          new Date(),
+          syntheticDescriptor
+        )
+      );
+      expect(routeAllow.allowed).toBe(true);
     });
 
     // Issue #820 Cacat 3: this test used to pass `null` (an unresolvable
