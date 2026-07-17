@@ -1,0 +1,101 @@
+/**
+ * Issue #821 — unit tests for the audit-safe source fingerprint used by the
+ * auth routes' `login_succeeded`/`login_failed`/`mfa_challenge_failed` rows.
+ */
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+
+import {
+  hashClientIp,
+  summarizeUserAgent
+} from "../src/lib/security/client-fingerprint";
+import { redactSensitiveAttributes } from "../src/modules/_shared/redaction";
+
+const SECRET = "unit-test-ip-hash-secret";
+
+describe("hashClientIp", () => {
+  let originalSecret: string | undefined;
+
+  beforeEach(() => {
+    originalSecret = process.env.AUTH_JWT_SECRET;
+    process.env.AUTH_JWT_SECRET = SECRET;
+  });
+
+  afterEach(() => {
+    if (originalSecret === undefined) {
+      delete process.env.AUTH_JWT_SECRET;
+    } else {
+      process.env.AUTH_JWT_SECRET = originalSecret;
+    }
+  });
+
+  test("is stable for the same address, so audit rows are groupable by source", () => {
+    expect(hashClientIp("203.0.113.10")).toBe(hashClientIp("203.0.113.10"));
+  });
+
+  test("distinguishes different addresses", () => {
+    expect(hashClientIp("203.0.113.10")).not.toBe(hashClientIp("203.0.113.11"));
+  });
+
+  test("never contains the address it hashes", () => {
+    expect(hashClientIp("203.0.113.10")).not.toContain("203.0.113.10");
+    expect(hashClientIp("2001:db8::1")).not.toContain("2001:db8");
+  });
+
+  test("is keyed, not a bare digest — a rotated secret changes the output", () => {
+    const before = hashClientIp("203.0.113.10");
+    process.env.AUTH_JWT_SECRET = "a-different-secret";
+
+    expect(hashClientIp("203.0.113.10")).not.toBe(before);
+  });
+
+  test("emits a labelled, fixed-width sha256 hex value", () => {
+    expect(hashClientIp("203.0.113.10")).toMatch(/^hmac-sha256:[0-9a-f]{64}$/);
+  });
+
+  /**
+   * The whole reason this helper exists: `ip`/`clientIp`/`ipAddress` are
+   * redaction keys (Issue #687), so a raw IP under any of those names would be
+   * blanked out of the audit trail. `ipHash` must survive the same redactor
+   * the audit writer runs — if this ever regresses, every auth audit row
+   * silently loses its source attribution.
+   */
+  test("survives audit redaction under the `ipHash` key", () => {
+    const value = hashClientIp("203.0.113.10");
+    const redacted = redactSensitiveAttributes({ ipHash: value });
+
+    expect(redacted?.ipHash).toBe(value);
+  });
+
+  test("a raw IP under a conventional key would NOT survive — the premise holds", () => {
+    const redacted = redactSensitiveAttributes({ clientIp: "203.0.113.10" });
+
+    expect(redacted?.clientIp).toBe("[REDACTED]");
+  });
+});
+
+describe("summarizeUserAgent", () => {
+  function requestWithUserAgent(userAgent?: string): Request {
+    return new Request("https://example.test/api/v1/auth/login", {
+      headers: userAgent === undefined ? {} : { "user-agent": userAgent }
+    });
+  }
+
+  test("returns the header value when present", () => {
+    expect(summarizeUserAgent(requestWithUserAgent("Mozilla/5.0"))).toBe(
+      "Mozilla/5.0"
+    );
+  });
+
+  test("returns undefined when absent or blank, so the key is omitted", () => {
+    expect(summarizeUserAgent(requestWithUserAgent())).toBeUndefined();
+    expect(summarizeUserAgent(requestWithUserAgent("   "))).toBeUndefined();
+  });
+
+  test("truncates an attacker-sized header before it reaches jsonb", () => {
+    const summarized = summarizeUserAgent(
+      requestWithUserAgent("A".repeat(10_000))
+    );
+
+    expect(summarized).toHaveLength(256);
+  });
+});
