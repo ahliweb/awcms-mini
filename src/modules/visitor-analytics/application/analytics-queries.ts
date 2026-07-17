@@ -212,12 +212,15 @@ export async function fetchAnalyticsSummary(
 
   const counts = countRows[0];
 
-  const [topPaths, topBrowsers, topDevices, topCountries] = await Promise.all([
-    fetchTopPaths(tx, tenantId, start, 10),
-    fetchTopBrowsers(tx, tenantId, start, 10),
-    fetchTopDevices(tx, tenantId, start, 10),
-    fetchTopCountries(tx, tenantId, start, 10)
-  ]);
+  // Sequential, NOT `Promise.all` — all four calls issue queries on the SAME
+  // transaction/connection (`tx`), and one Postgres connection serves one query
+  // at a time; running them concurrently produced a real hang in this repo (see
+  // `reporting/application/projection-reconciliation.ts:89-94`). Four awaits
+  // cost three extra round trips and nothing else.
+  const topPaths = await fetchTopPaths(tx, tenantId, start, 10);
+  const topBrowsers = await fetchTopBrowsers(tx, tenantId, start, 10);
+  const topDevices = await fetchTopDevices(tx, tenantId, start, 10);
+  const topCountries = await fetchTopCountries(tx, tenantId, start, 10);
 
   return {
     range,

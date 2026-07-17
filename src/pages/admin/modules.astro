@@ -10,9 +10,13 @@
  * filtering over the already-rendered rows — only 10 modules exist in this
  * base, so a server round-trip per filter change would be pure overhead.
  *
- * Health is computed for every module in parallel (`Promise.all`) — each
- * check is individually cheap/bounded (#520's own design goal), and this
- * list only renders on an explicit admin page load, never a hot path.
+ * Health for every module comes from `fetchModuleHealthReports` — a single
+ * batch that prefetches its shared context once and then resolves each module
+ * SEQUENTIALLY on the one `tx` this page opens. It is deliberately not
+ * `Promise.all`: concurrent queries on a single Postgres connection produced a
+ * real hang in this repo (see
+ * `reporting/application/projection-reconciliation.ts:89-94`). The cost win is
+ * the batched context (four queries total, Issue #824), never concurrency.
  */
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import StateNotice from "../../components/ui/StateNotice.astro";
