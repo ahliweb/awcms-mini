@@ -3,7 +3,7 @@ import { fail, ok } from "../../../../modules/_shared/api-response";
 import { evaluateLoginAttempt } from "../../../../modules/identity-access/domain/login-policy";
 import { getDatabaseClient } from "../../../../lib/database/client";
 import { withTenant } from "../../../../lib/database/tenant-context";
-import { verifyPassword } from "../../../../lib/auth/password";
+import { verifyPasswordOrDummy } from "../../../../lib/auth/password";
 import {
   generateSessionToken,
   hashSessionToken
@@ -122,17 +122,16 @@ type LoginAuditFailureReason = LoginDenyReason | "internal_error";
  * infer, and setting `resourceId` here does not affect that either way: the
  * audit row is never part of a response.
  *
- * That is deliberately NOT a claim that the responses below are
- * indistinguishable — they are not, and this comment used to say they were
- * (PR #839 security review). Two branches, both reachable only once the
- * identity has resolved, are observably different from the
- * `"Invalid login identifier or password."` 401 an unknown identifier gets:
- * `locked` answers 401 with `"Account is temporarily locked."`, and
- * `password_login_disabled` answers 403. An unauthenticated caller can
- * therefore still infer that a given identifier exists. That oracle predates
- * this change and is tracked separately in Issue #840 (the `fail()` calls it
- * concerns are deliberately untouched here); do not read this comment as
- * evidence it is closed.
+ * The responses below ARE now indistinguishable across every identity-
+ * dependent deny reason (Issue #840, which closed the `locked` /
+ * `password_login_disabled` oracle this comment previously documented as
+ * open). That is enforced by tests, not by this comment — see
+ * tests/integration/login-enumeration.integration.test.ts, which asserts
+ * status, error code, and message are byte-identical for a known vs an
+ * unknown identifier, and that the two cost the same argon2id work.
+ *
+ * Keep that property in mind before adding a deny reason: a new `fail()`
+ * here that varies with whether `identityRow` resolved silently re-opens it.
  */
 async function recordLoginFailure(
   tx: Bun.SQL,
@@ -330,9 +329,15 @@ export const POST: APIRoute = async ({
         }
       | undefined;
 
-    const passwordMatches = identityRow
-      ? await verifyPassword(password, identityRow.password_hash)
-      : false;
+    // Issue #840 — always pays the argon2id verify, even when no identity
+    // resolved. Skipping it for an unknown identifier answered in ~4 ms vs
+    // ~80 ms for a known one, a ~19x timing oracle that enumerated accounts
+    // in a single request regardless of how uniform the response bodies
+    // below are. See `verifyPasswordOrDummy`.
+    const passwordMatches = await verifyPasswordOrDummy(
+      password,
+      identityRow?.password_hash ?? null
+    );
 
     let tenantUserStatus: "active" | "inactive" | null = null;
 
@@ -400,26 +405,52 @@ export const POST: APIRoute = async ({
         correlationId: locals.correlationId
       });
 
+      // `tenant_inactive` is decided from the tenant header alone, before any
+      // identity is looked at, and is returned identically for every
+      // identifier — known, unknown, or absent. It therefore discloses a fact
+      // the caller already supplied (that this tenant id is not active) and
+      // never anything about which identifiers exist, so it stays distinct.
       if (result.reason === "tenant_inactive") {
         return fail(403, "ACCESS_DENIED", "Tenant is not active.");
       }
 
-      if (result.reason === "locked") {
-        return fail(
-          401,
-          "AUTH_INVALID_CREDENTIALS",
-          "Account is temporarily locked."
-        );
-      }
-
-      if (result.reason === "password_login_disabled") {
-        return fail(
-          403,
-          "PASSWORD_LOGIN_DISABLED",
-          "Password login is disabled for this account. Use single sign-on instead."
-        );
-      }
-
+      // Issue #840 — every remaining deny reason answers with ONE response.
+      //
+      // `locked` and `password_login_disabled` are reachable only once
+      // `identityRow` has resolved (see `login-policy.ts`: both branches are
+      // guarded by `input.identity`), so any response that distinguishes them
+      // from the `invalid_credentials` an unknown identifier gets is an
+      // account enumeration oracle for an unauthenticated caller — OWASP ASVS
+      // V2.2.1 / WSTG-IDNT-04. `locked` was previously reachable in ~6
+      // requests on a DEFAULT deployment (trip `AUTH_LOGIN_MAX_ATTEMPTS`,
+      // then read the message back), which made this the practical one.
+      //
+      // Note the collapse is message-only for `locked`: it already answered
+      // `401 AUTH_INVALID_CREDENTIALS` and only the human-readable message
+      // gave it away.
+      //
+      // `password_login_disabled` (Issue #591) additionally leaked which
+      // identities are the tenant's BREAK-GLASS identities: with the tenant's
+      // `password_login_enabled = false`, a `403` meant "exists and is not
+      // break-glass" while a `401` meant "unknown, or is break-glass" —
+      // fingerprinting exactly the accounts that retain password access, i.e.
+      // the highest-value targets in that configuration. Collapsing closes
+      // both leaks at once.
+      //
+      // Rejected alternative: keep the `403` but decide it from tenant policy
+      // alone (return it for unknown identifiers too). That removes the
+      // existence leak, but a break-glass identity must still be able to
+      // authenticate, so its wrong-password answer would have to differ —
+      // re-opening the break-glass fingerprint — unless break-glass users are
+      // also told "password login is disabled" when they merely typo their
+      // password, which is a worse failure mode for the one account that
+      // exists for emergencies.
+      //
+      // Cost, accepted deliberately: a genuinely locked user, and a user at
+      // an SSO-required tenant, both now get the generic message with no hint
+      // about why. Those hints belong on channels that cannot be probed
+      // anonymously — a verified-email notification, and tenant-wide SSO
+      // discovery on the login page (neither exists yet; see the changeset).
       return fail(
         401,
         "AUTH_INVALID_CREDENTIALS",
