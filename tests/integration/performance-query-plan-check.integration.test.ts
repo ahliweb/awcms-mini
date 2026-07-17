@@ -164,6 +164,11 @@ suite(
         const query = QUERY_PLAN_QUERIES.find((q) => q.id === budgetId)!;
         const budget = QUERY_PLAN_BUDGETS.find((b) => b.id === budgetId)!;
 
+        // Migration 077's own definition, as PostgreSQL normalized it —
+        // the exact thing the `finally` block below must put back.
+        const originalDef = await indexDefinition(indexName);
+        expect([indexName, originalDef === null]).toEqual([indexName, false]);
+
         // Both sides of the gate, in one test: green BEFORE the drop...
         const before = evaluateQueryPlan(
           await explainQuery(getTestSql(), tenantId, query),
@@ -184,10 +189,10 @@ suite(
           // Assert the setup ACTUALLY took effect before believing any
           // number that follows it — a silently-skipped DROP would make
           // this test pass for the wrong reason forever.
-          const stillThere = (await getAdminSql().unsafe(
-            `SELECT count(*)::int AS n FROM pg_indexes WHERE indexname = '${indexName}'`
-          )) as { n: number }[];
-          expect([indexName, stillThere[0]!.n]).toEqual([indexName, 0]);
+          expect([indexName, await indexDefinition(indexName)]).toEqual([
+            indexName,
+            null
+          ]);
 
           regressed = evaluateQueryPlan(
             await explainQuery(getTestSql(), tenantId, query),
@@ -239,19 +244,67 @@ suite(
         // `audit-events-tenant-activity-reporting`), so it would go red the
         // moment the ANALYZE starts working.
 
-        // ...and green again once restored, proving the `finally` above
-        // really did put the schema back for every later test.
-        const after = evaluateQueryPlan(
-          await explainQuery(getTestSql(), tenantId, query),
-          budget
-        );
-        expect([budgetId, "after", after.ok, after.findings]).toEqual([
-          budgetId,
-          "after",
-          true,
-          []
-        ]);
+        // ...and the index is physically back afterwards, proving the
+        // `finally` above really did put the schema back for every later
+        // test in this database.
+        //
+        // This is asserted STRUCTURALLY (the index's own definition in
+        // pg_indexes) rather than by re-running EXPLAIN and expecting the
+        // green plan to return. Re-EXPLAINing looks like the stronger
+        // check but is actually unsound HERE, and it was measured, not
+        // guessed — the restored plan legitimately comes back as
+        // `Limit -> Sort -> Result -> Index Scan(..._tenant_deleted_idx)`
+        // at cost 8.19 vs the index-ordered plan's 8.3. The two candidate
+        // plans are TIED to within ~1%, and the planner picks the
+        // marginally cheaper one:
+        //
+        //   pg_class state                          | plan                       | cost
+        //   ----------------------------------------|----------------------------|------
+        //   reltuples=-1 (pristine, never analyzed) | Index Scan(tenant_updated) |  8.3
+        //   reltuples=2000, ZERO column statistics  | Sort + Scan(tenant_deleted)|  8.19
+        //   fully ANALYZEd (any real database)      | Index Scan(tenant_updated) | 57.17
+        //
+        // The middle row is the state THIS test creates and nothing else
+        // does: `CREATE INDEX` updates `pg_class.reltuples`/`relpages` as
+        // a side effect (-1/0 -> 2000/334), so the planner suddenly knows
+        // the real row count while still having NO column statistics at
+        // all (`pg_statistic` = 0 rows, `last_autoanalyze` = null — see
+        // Issue #849: this suite's ANALYZE is a silent no-op because the
+        // app role does not own these tables). That half-informed state
+        // does not exist in any real deployment, where autovacuum's
+        // ANALYZE produces the third row — index-ordered, no sort, which
+        // is exactly what this budget encodes and what Issue #830's own
+        // EXPLAIN evidence showed.
+        //
+        // Restoring the index is a SCHEMA fact, so assert the schema. The
+        // plan-shape guarantee is already covered by `before` above, and
+        // deliberately NOT re-asserted here against a statistics regime
+        // this suite does not have. (Fixing it by ANALYZEing in the
+        // `finally` is rejected on purpose: CI runs `bun test` and
+        // `performance:query-plan:check` against the SAME database, so
+        // ANALYZEing `awcms_mini_blog_posts` from inside a test would make
+        // the pre-existing `blog-posts-fulltext-search` budget — latently
+        // red at 939.5 vs its approved 800 — fail in the later script run.
+        // Also tracked in Issue #849.)
+        const restoredDef = await indexDefinition(indexName);
+
+        // Not merely "an index with that name exists" — PostgreSQL's own
+        // normalized `indexdef` must be byte-identical to what migration
+        // 077 had created before this test dropped it (captured at the top
+        // of this test). Same table, same key, same DESC, same partial
+        // predicate — a round trip, with no brittle SQL normalization.
+        expect([budgetId, restoredDef]).toEqual([budgetId, originalDef]);
       }, 30_000);
+    }
+
+    /** PostgreSQL's own normalized definition for one index, or null if it does not exist. */
+    async function indexDefinition(indexName: string): Promise<string | null> {
+      const rows = (await getAdminSql().unsafe(
+        `SELECT indexdef FROM pg_indexes WHERE indexname = $1`,
+        [indexName]
+      )) as { indexdef: string }[];
+
+      return rows[0]?.indexdef ?? null;
     }
 
     async function countAuditEvents(forTenantId: string): Promise<number> {
