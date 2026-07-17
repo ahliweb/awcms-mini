@@ -33,6 +33,16 @@ di repo dengan tenant domain routing. Docblock fungsi itu sendiri mengklaim
 - Tidak ada kehilangan event pada shutdown normal: antrean di-flush pada
   SIGTERM/SIGINT/`beforeExit` (adapter `@astrojs/node` standalone tidak
   memasang handler sinyal apa pun, jadi tanpa ini event pending hilang).
+  Handler itu dipasang **hanya dari `src/middleware.ts`** (satu-satunya jalur
+  yang membuktikan proses ini benar-benar HTTP server), tidak pernah otomatis
+  dari `enqueueVisitorTelemetry`: memasang signal handler adalah keputusan
+  lifecycle proses milik application entry, bukan efek samping panggilan
+  data-plane. Versi pertama memasangnya lazily saat enqueue, sehingga setiap
+  proses yang pernah mengantre satu event telemetri — termasuk `bun test` —
+  ikut mewarisi handler SIGTERM; `tests/unit/job-runner.test.ts` yang sah
+  memanggil `process.emit("SIGTERM")` untuk menguji cancellation-nya lalu
+  memicu handler itu, yang me-`process.kill` seluruh test runner (~1 detik,
+  nol hasil test, terlihat seperti suite menggantung).
 - Invalidasi cache dipasang di endpoint tenant-domain (create/update/verify/
   delete) **setelah** transaksi commit, bukan di dalamnya.
 

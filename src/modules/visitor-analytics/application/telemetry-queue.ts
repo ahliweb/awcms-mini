@@ -144,22 +144,46 @@ function drain(): void {
 }
 
 /**
- * Installs the shutdown flush lazily — on first enqueue, never at import
- * time. Registering process-wide signal handlers as an import side effect
- * would leak into every test runner and CLI script that transitively
- * imports this module, and would change those processes' termination
- * behavior for no reason.
+ * Installs the shutdown flush. **Must be called by the application entry
+ * point that actually serves requests** (`src/middleware.ts`'s `onRequest`)
+ * — never automatically from `enqueueVisitorTelemetry`, and never at import
+ * time. Idempotent, so calling it per request costs one boolean check.
+ *
+ * **Why this is explicit rather than automatic (regression, found by the
+ * epic #818 wave-2 integration run — the fix must not be undone).** The
+ * first version of this module installed these handlers lazily on first
+ * `enqueue`. That made a *data-plane* call silently rewrite the whole
+ * PROCESS's termination semantics, which is not a library's decision to
+ * make: any process that ever queued one telemetry event — a test runner, a
+ * CLI script, a job worker — inherited a SIGTERM handler it never asked
+ * for.
+ *
+ * The concrete failure: `tests/unit/job-runner.test.ts` legitimately does
+ * `process.emit("SIGTERM")` to exercise `runJob`'s own cancellation path. A
+ * handler here CANNOT distinguish that synthetic, in-process `emit()` from
+ * a real OS signal — so it flushed and then re-raised a REAL SIGTERM at the
+ * process (below), killing the entire `bun test` runner ~1s in, with no
+ * results printed. Running either file alone passed; only the pair failed,
+ * and it read as "the suite hangs" rather than "the suite kills itself".
+ *
+ * Gating installation on the HTTP entry point fixes it at the root: a real
+ * server process is the only place that both needs the flush AND owns
+ * process lifecycle. `bun test` never evaluates `src/middleware.ts` (it
+ * imports the `astro:middleware` virtual module, which only Astro's own
+ * pipeline provides), so no test process can ever acquire these handlers,
+ * by construction rather than by convention.
  *
  * Signal handling detail that matters: installing ANY SIGTERM/SIGINT
- * listener suppresses the default "terminate now" behavior, so this must
- * take responsibility for finishing the job. `process.once` means the
+ * listener suppresses the default "terminate now" behavior, so whoever
+ * installs one MUST take responsibility for finishing the job — there is no
+ * "flush but leave termination alone" option. `process.once` means the
  * listener removes itself before we re-raise the same signal, which then
- * hits the default handler and terminates with the correct
- * signal-derived exit code — rather than `process.exit(0)`, which would
- * report a clean exit for what was actually a signal, and would skip any
- * other cleanup an operator or future adapter has registered.
+ * hits the default handler and terminates with the correct signal-derived
+ * exit code — rather than `process.exit(0)`, which would report a clean
+ * exit for what was actually a signal, and would skip any other cleanup an
+ * operator or future adapter has registered.
  */
-function ensureShutdownHook(): void {
+export function installVisitorTelemetryShutdownHook(): void {
   if (shutdownHookInstalled) {
     return;
   }
@@ -189,8 +213,9 @@ function ensureShutdownHook(): void {
  * response does not wait for this.
  */
 export function enqueueVisitorTelemetry(task: VisitorTelemetryTask): void {
-  ensureShutdownHook();
-
+  // Deliberately does NOT install the shutdown hook — see
+  // `installVisitorTelemetryShutdownHook`'s docblock. A data-plane call must
+  // never rewrite the process's termination semantics as a side effect.
   if (queue.length >= MAX_QUEUE_DEPTH) {
     recordCounter("visitor_analytics_queue_dropped_total");
     log("warning", "visitor_analytics.queue.overflow", {
