@@ -1280,5 +1280,15 @@ components:
                 type: string
             rawValuePermission:
               type: string
+            naturalKeyField:
+              type: string
+              description: >-
+                The parsed-row field name the owning module's adapter derives a
+                staged row's naturalKey from. When this name also appears in
+                fieldNames, naturalKey is masked alongside fields -- masking
+                previously assumed naturalKey was never sensitive, but the dedup
+                key IS commonly the sensitive identifier (an email or a national
+                ID). Declared per descriptor; the default
+                data_exchange.reference_items descriptor sets it to "code".
         description:
           type: string
