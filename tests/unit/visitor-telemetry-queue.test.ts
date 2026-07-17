@@ -45,9 +45,23 @@ describe("enqueueVisitorTelemetry — never blocks the caller", () => {
   });
 
   test("is synchronous — it returns void, not an awaitable the caller could re-block on", () => {
-    const returned = enqueueVisitorTelemetry(async () => {});
+    // Asserted at the TYPE level, not by reading the return value back.
+    //
+    // The contract that matters is that a caller CANNOT await this and put the
+    // telemetry write back on the response path — the whole TTFB fix. A type
+    // assertion enforces exactly that at compile time, so a signature change to
+    // `Promise<void>` fails `bun run typecheck` for every caller at once,
+    // rather than only wherever a test happened to look. Reading the value back
+    // at runtime also trips CodeQL's returnless-function rule, correctly: doing
+    // so is the very mistake this contract exists to prevent, so the test
+    // should not model it.
+    type EnqueueReturn = ReturnType<typeof enqueueVisitorTelemetry>;
+    const returnsVoid: EnqueueReturn extends void ? true : false = true;
 
-    expect(returned).toBeUndefined();
+    expect(returnsVoid).toBe(true);
+
+    // And the call itself stays statement-position, never expression-position.
+    enqueueVisitorTelemetry(async () => {});
   });
 });
 
