@@ -233,9 +233,55 @@ signatures, unknown/gibberish), `-human-classifier.test.ts`,
 ## Collector (Issue #620, `application/collector.ts` + `src/middleware.ts`)
 
 The only writer of `awcms_mini_visitor_sessions`/`awcms_mini_visit_events`.
-`src/middleware.ts` calls `collectVisitorTelemetry` after `next()` resolves
-(on both its pre-admin and `/admin/*` branches), so the response status
-code is already known.
+`src/middleware.ts` collects after `next()` resolves (on both its pre-admin
+and `/admin/*` branches), so the response status code is already known.
+
+### The write path is two-stage and batched (Issue #832, Issue #846)
+
+The middleware does NOT write inline, and does not write per event:
+
+1. **Stage 1 — `application/telemetry-queue.ts` (Issue #832).**
+   `enqueueVisitorTelemetry` takes the work off the response path (it
+   returns `void` by design — a caller must not be able to `await` the
+   write back onto the response). Bounded (`MAX_QUEUE_DEPTH`), fail-open,
+   drops loudly. The task resolves the tenant (usually a cache hit).
+2. **Stage 2 — `application/visit-event-batcher.ts` (Issue #846).**
+   `enqueueVisitEvent` buffers the record per tenant; a batch flushes at
+   `MAX_BATCH_SIZE` (50), after `BATCH_LINGER_MS` (200ms), or on demand.
+   `writeVisitEventBatch` then persists the whole batch in ONE transaction.
+
+`flushVisitorTelemetryQueue()` drains **both** stages and is wired to
+SIGTERM/SIGINT/`beforeExit` from `src/middleware.ts` only — never from a
+data-plane call (see that file's docblock for the `bun test` runner it
+killed when it was automatic).
+
+**Why batch the transaction rather than the INSERT.** Issue #846 originally
+proposed batching the per-event `visit_event` INSERT. Measured through a
+round-trip-counting TCP proxy against a real Postgres, a visit cost **5.2
+round trips** — BEGIN, SET LOCAL, SELECT session, INSERT event, COMMIT (plus
+an amortized 0.2 for the 30s-throttled session UPDATE). The INSERT was only
+~19% of that; the per-event transaction scaffolding was ~58%. So the unit
+batched is the transaction. Result: **5.2 round trips per event → 0.18**
+(~29x fewer), and 28.9ms → 1.38ms per event with 2ms/hop latency injected.
+On loopback the same change looks like only 1.43ms → 0.28ms, which is why
+the claim is measured with injected latency rather than on loopback.
+
+**What batching costs, and why it is acceptable here.** Records live in
+memory until their batch flushes, so a **hard** crash (SIGKILL/OOM/panic)
+can lose up to `BATCH_LINGER_MS` of traffic per tenant. A graceful SIGTERM
+loses nothing: the flush writes PARTIAL batches and never waits for a batch
+to fill. This trade is acceptable for visitor analytics specifically —
+already lossy by design (bounded queue drops, flush timeout, fail-open
+collector) and aggregate statistical data. **It does not transfer to any
+ledger/audit/posted-transaction write.**
+
+`occurred_at` is captured on the response path and INSERTed explicitly
+rather than left to the column's `now()` default — otherwise batching would
+silently smear every event's timestamp onto its flush instant.
+
+`collectVisitorTelemetry` remains as an immediate, awaited batch-of-one over
+the same `writeVisitEventBatch`. There is deliberately no second single-row
+SQL path that could drift from the batched one.
 
 **`VISITOR_ANALYTICS_RAW_USER_AGENT_ENABLED` is currently a no-op**:
 `collector.ts` never reads it, and neither `awcms_mini_visitor_sessions`
