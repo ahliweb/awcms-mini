@@ -26,6 +26,10 @@ import {
   fetchOperationalLocationById,
   updateOperationalLocation
 } from "../../../../../modules/organization-structure/application/operational-location-directory";
+import {
+  mergeOperationalLocationPatch,
+  parseOperationalLocationPatch
+} from "../../../../../modules/organization-structure/domain/patch-input";
 
 const IDEMPOTENCY_SCOPE = "organization_structure_location_delete";
 
@@ -44,11 +48,6 @@ const DELETE_GUARD = {
   activityCode: "locations",
   action: "delete" as const
 };
-
-function parseNumberOrNull(value: unknown): number | null {
-  if (typeof value === "number" && !Number.isNaN(value)) return value;
-  return null;
-}
 
 export const GET: APIRoute = async ({ request, cookies, params }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
@@ -102,19 +101,21 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
   const body = bodyRead.value ?? {};
 
-  const input = {
-    name: typeof body.name === "string" ? body.name : "",
-    addressLine1:
-      typeof body.addressLine1 === "string" ? body.addressLine1 : null,
-    addressLine2:
-      typeof body.addressLine2 === "string" ? body.addressLine2 : null,
-    city: typeof body.city === "string" ? body.city : null,
-    region: typeof body.region === "string" ? body.region : null,
-    postalCode: typeof body.postalCode === "string" ? body.postalCode : null,
-    countryCode: typeof body.countryCode === "string" ? body.countryCode : null,
-    latitude: parseNumberOrNull(body.latitude),
-    longitude: parseNumberOrNull(body.longitude)
-  };
+  // True partial-PATCH semantics (Issue #837): an omitted field keeps its
+  // stored value, an explicit `null` clears a nullable one, and `name` rejects
+  // `null` (`NOT NULL`). The pre-#837 route rebuilt the full input with
+  // per-field defaults, so any one-field PATCH silently reset the whole address
+  // (and the geo coordinates) to null.
+  const parsed = parseOperationalLocationPatch(body);
+  if (!parsed.ok) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      parsed.errors
+        .map((error) => `${error.field}: ${error.message}`)
+        .join("; ")
+    );
+  }
 
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
@@ -131,12 +132,20 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
+    const existing = await fetchOperationalLocationById(
+      tx,
+      tenantId,
+      locationId
+    );
+    if (!existing)
+      return fail(404, "NOT_FOUND", "Operational location not found.");
+
     const result = await updateOperationalLocation(
       tx,
       tenantId,
       auth.context.tenantUserId,
       locationId,
-      input,
+      mergeOperationalLocationPatch(existing, parsed.patch),
       correlationId
     );
 

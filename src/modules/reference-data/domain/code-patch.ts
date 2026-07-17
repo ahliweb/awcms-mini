@@ -178,6 +178,20 @@ export function parseReferenceCodePatchInput(
 }
 
 /**
+ * A patch that carries no field at all is the documented `{}` no-op (see the
+ * OpenAPI request-body note for both code routes): merging it onto the stored
+ * record reproduces the record unchanged, so the caller must skip the write,
+ * the audit event and the domain event entirely. Kept here — beside parse and
+ * merge — so the "how many fields did the caller send" decision lives in ONE
+ * place and can never be re-derived (and drift) at a call site. (Issue #843.)
+ */
+export function isEmptyReferenceCodePatch(
+  patch: ReferenceCodePatchInput
+): boolean {
+  return Object.keys(patch).length === 0;
+}
+
+/**
  * Apply a parsed partial patch onto the stored record's current mutable
  * attributes. Fields absent from the patch are carried over verbatim.
  */

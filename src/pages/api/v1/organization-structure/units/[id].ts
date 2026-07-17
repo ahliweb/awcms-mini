@@ -26,6 +26,10 @@ import {
   fetchOrganizationUnitById,
   updateOrganizationUnit
 } from "../../../../../modules/organization-structure/application/organization-unit-directory";
+import {
+  mergeOrganizationUnitPatch,
+  parseOrganizationUnitPatch
+} from "../../../../../modules/organization-structure/domain/patch-input";
 
 const IDEMPOTENCY_SCOPE = "organization_structure_unit_delete";
 
@@ -90,18 +94,21 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
   const body = bodyRead.value ?? {};
 
-  const input = {
-    name: typeof body.name === "string" ? body.name : "",
-    legalEntityId:
-      typeof body.legalEntityId === "string" ? body.legalEntityId : null,
-    unitTypeId: typeof body.unitTypeId === "string" ? body.unitTypeId : null,
-    effectiveFrom:
-      typeof body.effectiveFrom === "string"
-        ? new Date(body.effectiveFrom)
-        : new Date(),
-    effectiveTo:
-      typeof body.effectiveTo === "string" ? new Date(body.effectiveTo) : null
-  };
+  // True partial-PATCH semantics (Issue #837): an omitted field keeps its
+  // stored value, an explicit `null` clears a nullable one, and `name`/
+  // `effectiveFrom` reject `null` (both are `NOT NULL`). The pre-#837 route
+  // rebuilt the full input with per-field defaults, so any one-field PATCH
+  // silently reset `name`/`effectiveFrom`/`effectiveTo`/FKs.
+  const parsed = parseOrganizationUnitPatch(body);
+  if (!parsed.ok) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      parsed.errors
+        .map((error) => `${error.field}: ${error.message}`)
+        .join("; ")
+    );
+  }
 
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
@@ -118,12 +125,16 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
+    const existing = await fetchOrganizationUnitById(tx, tenantId, unitId);
+    if (!existing)
+      return fail(404, "NOT_FOUND", "Organization unit not found.");
+
     const result = await updateOrganizationUnit(
       tx,
       tenantId,
       auth.context.tenantUserId,
       unitId,
-      input,
+      mergeOrganizationUnitPatch(existing, parsed.patch),
       correlationId
     );
 

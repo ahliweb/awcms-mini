@@ -28,13 +28,17 @@ import {
   validateDeprecateTenantReferenceCodeInput,
   validateUpdateTenantReferenceCodeInput,
   type CreateTenantReferenceCodeInput,
-  type DeprecateTenantReferenceCodeInput,
-  type UpdateTenantReferenceCodeInput
+  type DeprecateTenantReferenceCodeInput
 } from "../domain/tenant-code";
 import type {
   ReferenceCodeLabelInput,
   ReferenceCodeValidationError
 } from "../domain/code";
+import {
+  isEmptyReferenceCodePatch,
+  mergeReferenceCodePatchInput,
+  type ReferenceCodePatchInput
+} from "../domain/code-patch";
 import type { ReferenceValueSetOverridePolicy } from "../domain/value-set";
 
 const MODULE_KEY = "reference_data";
@@ -280,18 +284,40 @@ export async function createTenantReferenceCode(
 }
 
 export type UpdateTenantReferenceCodeResult =
-  | { ok: true; tenantCode: TenantReferenceCodeRow }
+  | { ok: true; tenantCode: TenantReferenceCodeRow; noop: boolean }
   | { ok: false; reason: "validation"; errors: ReferenceCodeValidationError[] }
   | { ok: false; reason: "not_found" };
 
+/**
+ * Apply a partial `PATCH` to a tenant reference code.
+ *
+ * Takes the caller's already-fetched `existing` row plus the raw
+ * {@link ReferenceCodePatchInput} and owns EVERY decision that depends on the
+ * patch shape — the deprecated-row refusal AND the documented empty-`{}` no-op
+ * — so a caller can never re-derive one of them and drift (Issue #843). A
+ * deprecated row is `not_found` here (mirroring the `AND deprecated_at IS NULL`
+ * filter the real UPDATE carries), checked BEFORE the no-op short-circuit so an
+ * empty patch on a deprecated code stays a `404`, never a live-looking `200`
+ * (#839 round 3). A genuine no-op returns the row verbatim with `noop: true`
+ * and performs NO write or audit event.
+ */
 export async function updateTenantReferenceCode(
   tx: Bun.SQL,
   tenantId: string,
   actorTenantUserId: string,
-  tenantCodeId: string,
-  input: UpdateTenantReferenceCodeInput,
+  existing: TenantReferenceCodeRow,
+  patch: ReferenceCodePatchInput,
   correlationId?: string
 ): Promise<UpdateTenantReferenceCodeResult> {
+  if (existing.deprecatedAt !== null) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  if (isEmptyReferenceCodePatch(patch)) {
+    return { ok: true, tenantCode: existing, noop: true };
+  }
+
+  const input = mergeReferenceCodePatchInput(existing, patch);
   const errors = validateUpdateTenantReferenceCodeInput(input);
   if (errors.length > 0) {
     return { ok: false, reason: "validation", errors };
@@ -302,7 +328,7 @@ export async function updateTenantReferenceCode(
     SET sort_order = ${input.sortOrder}, metadata = ${input.metadata},
         valid_from = ${input.validFrom}, valid_to = ${input.validTo},
         updated_by = ${actorTenantUserId}, updated_at = now()
-    WHERE tenant_id = ${tenantId} AND id = ${tenantCodeId} AND deprecated_at IS NULL
+    WHERE tenant_id = ${tenantId} AND id = ${existing.id} AND deprecated_at IS NULL
     RETURNING id, tenant_id, value_set_id, base_code_id, code, sort_order, metadata, valid_from,
       valid_to, deprecated_at, created_at, updated_at
   `) as TenantCodeDbRow[];
@@ -328,7 +354,7 @@ export async function updateTenantReferenceCode(
     correlationId
   });
 
-  return { ok: true, tenantCode };
+  return { ok: true, tenantCode, noop: false };
 }
 
 export type DeprecateTenantReferenceCodeResult =
