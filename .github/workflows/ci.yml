@@ -103,6 +103,29 @@ jobs:
       - name: API spec + route + AsyncAPI contract check
         run: bun run api:spec:check
 
+      # Issue #823 (epic #818): the five checks below were in `bun run check`
+      # but had never been mirrored here — the FOURTH recurrence of the
+      # "CI silently runs a subset of `bun run check`" class (#685/#740/#745/
+      # #746/#750). All five passed at the time they were wired in, so this
+      # was latent risk, not active drift. The parity test added in the same
+      # issue (tests/unit/ci-check-parity.test.ts) now fails loudly when a new
+      # `check` step is added without mirroring it here, which is what
+      # actually kills the class — this list alone has drifted four times.
+      - name: API reference docs check
+        run: bun run api:docs:check
+
+      - name: Repo inventory check
+        run: bun run repo:inventory:check
+
+      - name: i18n POT catalog check
+        run: bun run i18n:pot:check
+
+      - name: Config/env docs check
+        run: bun run config:docs:check
+
+      - name: Logging lint check
+        run: bun run logging:lint:check
+
       - name: Module dependency graph check
         run: bun run modules:dag:check
 
