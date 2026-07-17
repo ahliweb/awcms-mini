@@ -72,6 +72,31 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
+    // Replay BEFORE the descriptor-state checks below — same reasoning as
+    // `commit.ts`: a replay re-runs no adapter, so the gates guarding the
+    // write cannot meaningfully gate it, and letting mutable descriptor state
+    // decide a replay breaks `_shared/idempotency.ts`'s stated contract
+    // ("same key + same request hash -> replay the stored response").
+    // (Review finding, PR #839.)
+    const existingIdempotency = await findIdempotencyRecord(
+      tx,
+      tenantId,
+      IDEMPOTENCY_SCOPE,
+      idempotencyKey
+    );
+    if (existingIdempotency) {
+      if (existingIdempotency.requestHash !== requestHash) {
+        return fail(
+          409,
+          "IDEMPOTENCY_CONFLICT",
+          "Idempotency-Key was already used with a different request."
+        );
+      }
+      return jsonResponse(existingIdempotency.responseBody, {
+        status: existingIdempotency.responseStatus
+      });
+    }
+
     const existingBatch = await getImportBatchById(tx, tenantId, batchId);
     // A missing batch answers 404 further below (via `requestImportRetry`).
     // An EXISTING batch whose importKey no longer resolves, however, is the
@@ -95,25 +120,6 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
         retryDescriptor
       );
       if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
-    }
-
-    const existingIdempotency = await findIdempotencyRecord(
-      tx,
-      tenantId,
-      IDEMPOTENCY_SCOPE,
-      idempotencyKey
-    );
-    if (existingIdempotency) {
-      if (existingIdempotency.requestHash !== requestHash) {
-        return fail(
-          409,
-          "IDEMPOTENCY_CONFLICT",
-          "Idempotency-Key was already used with a different request."
-        );
-      }
-      return jsonResponse(existingIdempotency.responseBody, {
-        status: existingIdempotency.responseStatus
-      });
     }
 
     const result = await requestImportRetry(

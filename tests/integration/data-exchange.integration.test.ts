@@ -1940,6 +1940,76 @@ suite("data_exchange integration", () => {
       expect(preview.body.data).toBeUndefined();
     });
 
+    /**
+     * The Cacat 3 fail-closed branch above must not swallow an idempotent
+     * REPLAY. `_shared/idempotency.ts` states the contract outright ("same key
+     * + same request hash -> replay the stored response"), and a replay runs
+     * no adapter — so gating it on the descriptor's CURRENT state prevents
+     * nothing while making one key+hash answer differently over time, which is
+     * the one thing idempotency exists to prevent. (Review finding, PR #839.)
+     */
+    test("REGRESSION (PR #839): a commit retried with the SAME Idempotency-Key after the module is disabled REPLAYS the stored response instead of the fail-closed 409", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "replay-key-1");
+
+      const commitKey = "replay-commit-key-1";
+      const firstCommit = await invoke<{ data: unknown }>(commitImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+        params: { id: batchId },
+        headers: authHeaders(owner, commitKey)
+      });
+      expect(firstCommit.status).toBe(200);
+
+      // The module is disabled AFTER the commit already succeeded.
+      const admin = getAdminSql();
+      await admin`
+        UPDATE awcms_mini_data_exchange_import_batches
+        SET import_key = 'data_exchange.retired_descriptor'
+        WHERE tenant_id = ${owner.tenantId} AND id = ${batchId}
+      `;
+
+      // Same key, same request hash -> the stored response, verbatim.
+      const replay = await invoke<{ data: unknown }>(commitImport, {
+        method: "POST",
+        path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+        params: { id: batchId },
+        headers: authHeaders(owner, commitKey)
+      });
+
+      expect(replay.status).toBe(firstCommit.status);
+      expect(replay.body).toEqual(firstCommit.body);
+    });
+
+    test("REGRESSION (PR #839): the Cacat 3 fail-closed 409 still fires for a FRESH key on a disabled module -- the replay reorder must not have disabled the gate itself", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "replay-key-2");
+
+      const admin = getAdminSql();
+      await admin`
+        UPDATE awcms_mini_data_exchange_import_batches
+        SET import_key = 'data_exchange.retired_descriptor'
+        WHERE tenant_id = ${owner.tenantId} AND id = ${batchId}
+      `;
+
+      // A key with no stored record cannot replay, so it must reach the
+      // descriptor gate and be refused. Without this half, deleting the gate
+      // outright would still pass the replay test above.
+      const fresh = await invoke<{ data?: unknown; error?: { code: string } }>(
+        commitImport,
+        {
+          method: "POST",
+          path: `/api/v1/data-exchange/imports/${batchId}/commit`,
+          params: { id: batchId },
+          headers: authHeaders(owner, "replay-fresh-key-1")
+        }
+      );
+
+      expect(fresh.status).toBe(409);
+      expect(fresh.body.error?.code).toBe("INVALID_STATE");
+      expect(fresh.body.data).toBeUndefined();
+    });
+
     test("a deep offset is clamped instead of reaching Postgres verbatim (Issue #831)", async () => {
       const owner = await bootstrap();
       const batchId = await stageAndValidate(owner, "guard-key-5");
