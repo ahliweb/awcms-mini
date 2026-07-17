@@ -567,6 +567,43 @@ organization-structure-wiring.integration.test.ts` (create at a parent
 different subject's assignment at a child unit through THIS chokepoint —
 now `403 SOD_CONFLICT`, recorded with `trigger_context: "high_risk_decision"`).
 
+### SoD detection performance (Issue #833, epic #818)
+
+`detectSoDConflicts` runs once per permission the assigned role grants
+(100-200 for an admin role) INSIDE the assignment transaction, and used to
+rescan every rule's key list, then `subjectFacts` in full, then
+`relatedScopes` nested inside that — `O(P×R×K×F×S)`. `createSoDConflictEvaluator`
+(`domain/sod-conflict-evaluation.ts`) now builds three indexes ONCE per
+request (rules by trigger key, facts by permission key, `relatedScopes` as a
+`Set`), making `detect` `O(matchingRules)` per permission key.
+`business-scope-assignment-service.ts` MUST hoist the evaluator outside its
+permission loop; building one per key would reintroduce the original cost.
+`detectSoDConflicts` remains as a single-shot wrapper for
+`high-risk-sod-guard.ts`, which only ever evaluates one key.
+
+The per-match `findValidSoDConflictException` N+1 (one query per detected
+match, inside the transaction) is now one `rule_key = ANY(...)` batch via
+`findValidSoDConflictExceptionsByRuleKeys`; the single-key function
+delegates to it, so both call sites share one statement and one validity
+rule.
+
+**This is a data-structure change only — the matching semantics are
+deliberately identical**, and must stay that way: an "optimization" that
+changes WHICH conflicts are detected is a security hole, not a speedup
+(this module's #794/#800/#802 history is exactly that class of defect).
+`tests/unit/sod-conflict-evaluation-index-equivalence.test.ts` pins the
+implementation against a literal transcription of the pre-#833 version over
+~4000 randomized inputs; do not let that oracle share code with the
+production function.
+
+Measured cost for the registry as it actually stands (3 rules, K=2), P=150,
+F=1000, S=20: **7,203 element visits / ~0.067 ms per assignment** — the
+issue's "~6 million visits, seconds of CPU" framing is a worst-case bound
+that assumes every permission triggers every rule, which the
+`conflictingPermissionKeys.includes(...)` short-circuit prevents. The win is
+in how it SCALES (8.8x at 50 rules; 24.4x at 50 rules + 5000 facts + 200
+related scopes), not in a latency crisis today.
+
 ### ABAC extension (`domain/access-control.ts`)
 
 Purely additive to the existing default-deny chain (ADR-0004): a new
