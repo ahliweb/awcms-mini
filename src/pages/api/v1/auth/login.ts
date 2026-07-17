@@ -119,8 +119,20 @@ type LoginAuditFailureReason = LoginDenyReason | "internal_error";
  * the trail of the one field that answers "which account is being attacked?",
  * defeating the purpose of auditing failures at all. The enumeration
  * guarantee this issue asks for is about what an *unauthenticated caller* can
- * infer, and that is unaffected: the HTTP responses below are byte-identical
- * regardless of whether the identity exists.
+ * infer, and setting `resourceId` here does not affect that either way: the
+ * audit row is never part of a response.
+ *
+ * That is deliberately NOT a claim that the responses below are
+ * indistinguishable — they are not, and this comment used to say they were
+ * (PR #839 security review). Two branches, both reachable only once the
+ * identity has resolved, are observably different from the
+ * `"Invalid login identifier or password."` 401 an unknown identifier gets:
+ * `locked` answers 401 with `"Account is temporarily locked."`, and
+ * `password_login_disabled` answers 403. An unauthenticated caller can
+ * therefore still infer that a given identifier exists. That oracle predates
+ * this change and is tracked separately in Issue #840 (the `fail()` calls it
+ * concerns are deliberately untouched here); do not read this comment as
+ * evidence it is closed.
  */
 async function recordLoginFailure(
   tx: Bun.SQL,

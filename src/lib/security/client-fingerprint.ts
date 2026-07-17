@@ -27,20 +27,41 @@ const IP_HASH_PREFIX = "hmac-sha256:";
  * Reuses `AUTH_JWT_SECRET` (already a *required* env var — see
  * `scripts/validate-env.ts`'s required list) rather than introducing another
  * secret to provision, rotate, and validate for a purely internal
- * pseudonymization key.
+ * pseudonymization key. Key separation would be sound in the abstract, but
+ * there is nothing here to separate FROM: `AUTH_JWT_SECRET` signs nothing
+ * (sessions are opaque random tokens; `src/lib/auth/jwt-verify.ts` verifies
+ * provider ID tokens with RS256 against published JWKS), so no
+ * cross-protocol reuse exists — and a brand-new required secret would break
+ * every already-provisioned deployment for no security gain.
  *
- * Falls back to an empty key when unset so that unit tests and local
- * throwaway runs still produce a stable, well-formed value instead of
- * throwing inside an auth path. That degrades the hash to an effectively
- * unsalted digest, which is acceptable *only* because `validate-env` refuses
- * to start any real deployment without `AUTH_JWT_SECRET` — never rely on this
- * fallback in production.
+ * Because this IS now that variable's only consumer, its `deprecated` +
+ * `removalVersion: "1.0.0"` marking in `src/lib/config/registry.ts` was
+ * lifted (PR #839 security review): a variable scheduled for removal must
+ * never be load-bearing for a security control.
+ *
+ * Throws rather than falling back to an empty key. An empty key degrades
+ * this HMAC to a bare `sha256(ip)` — and the IPv4 space is 2^32, so every
+ * persisted `ipHash` would become trivially reversible, silently, with no
+ * error anywhere. A hard failure inside the auth path is strictly preferable
+ * to an auth trail that quietly becomes a log of plaintext addresses.
+ * `scripts/validate-env.ts` (`checkRequiredVars` +
+ * `checkAuthJwtSecretNotDefault`) rejects both an unset value and the
+ * documented placeholder at boot, so a correctly validated deployment never
+ * reaches this throw.
  *
  * Read per call, not cached at module load, so a test (or a rotated secret)
  * that changes `process.env.AUTH_JWT_SECRET` takes effect immediately.
  */
 function resolveIpHashKey(): string {
-  return process.env.AUTH_JWT_SECRET ?? "";
+  const key = process.env.AUTH_JWT_SECRET;
+
+  if (key === undefined || key.length === 0) {
+    throw new Error(
+      "AUTH_JWT_SECRET is required: it keys the audit `ipHash` HMAC (src/lib/security/client-fingerprint.ts). Refusing to fall back to an unkeyed digest, which would make every persisted ipHash reversible."
+    );
+  }
+
+  return key;
 }
 
 /**

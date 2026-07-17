@@ -129,6 +129,17 @@ const REDACTED_VALUE = "[REDACTED]";
  * round for the very adapters this base exists to host: a profile import's
  * dedup key IS the email/NIK. Masking the `fields` copy while echoing the
  * same value back as `naturalKey` would have masked nothing at all.
+ *
+ * `validationWarnings` and `commitError` are dropped for that same reason
+ * (PR #839 security review). Both are FREE TEXT produced by the owning
+ * module's adapter — a warning like `"email x@y.com is already registered"`,
+ * or an `outcome.reason` quoting the offending value — so both are channels
+ * the masked value comes straight back through. `maskAllFields` already
+ * dropped `validationWarnings` on exactly this reasoning ("a warning is free
+ * text an adapter may have interpolated a raw value into"); that reasoning
+ * was always equally true here, and `commitError` was kept on BOTH paths.
+ * `validationErrors` stay: they carry a field name plus a fixed message, not
+ * a value.
  */
 export function maskSensitiveFields(
   row: StagedRowRow,
@@ -155,7 +166,9 @@ export function maskSensitiveFields(
     naturalKey:
       naturalKeyIsSensitive && row.naturalKey !== null
         ? REDACTED_VALUE
-        : row.naturalKey
+        : row.naturalKey,
+    validationWarnings: row.validationWarnings === null ? null : [],
+    commitError: row.commitError === null ? null : REDACTED_VALUE
   };
 }
 
@@ -171,8 +184,12 @@ export function maskSensitiveFields(
  * some other path).
  *
  * `validationErrors` are kept — they carry a field name and a message, not
- * a value — but `validationWarnings` are dropped, since a warning is free
- * text an adapter may have interpolated a raw value into.
+ * a value — but `validationWarnings` and `commitError` are dropped, since
+ * both are free text an adapter may have interpolated a raw value into
+ * (`commitError` is the adapter's own `outcome.reason`). `commitError`
+ * becomes the redaction marker rather than `null` so the row still reports
+ * THAT it failed, just not with what value (PR #839 security review: it was
+ * previously passed through verbatim even on this default-deny path).
  */
 export function maskAllFields(row: StagedRowRow): StagedRowRow {
   const maskedFields: Record<string, unknown> = {};
@@ -184,6 +201,7 @@ export function maskAllFields(row: StagedRowRow): StagedRowRow {
     ...row,
     fields: maskedFields,
     naturalKey: row.naturalKey === null ? null : REDACTED_VALUE,
-    validationWarnings: row.validationWarnings === null ? null : []
+    validationWarnings: row.validationWarnings === null ? null : [],
+    commitError: row.commitError === null ? null : REDACTED_VALUE
   };
 }

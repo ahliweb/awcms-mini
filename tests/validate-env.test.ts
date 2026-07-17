@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   checkAppEnvValue,
+  checkAuthJwtSecretNotDefault,
   checkEmailConfig,
   checkGoogleOidcConfig,
   checkNewsMediaR2AllowedMimeTypesKnown,
@@ -52,6 +53,55 @@ describe("checkRequiredVars", () => {
     const failed = results.find((result) => result.name === "APP_ENV");
 
     expect(failed?.status).toBe("fail");
+  });
+});
+
+/**
+ * PR #839 security review, HIGH 2. `AUTH_JWT_SECRET` keys the audit-log
+ * `ipHash` HMAC (`src/lib/security/client-fingerprint.ts`), so the
+ * placeholder `.env.example` ships is a published HMAC key — every `ipHash`
+ * written under it is reversible. `checkRequiredVars` only proves non-empty,
+ * and the placeholder is non-empty, so it sailed straight through: this is
+ * the `checkSyncHmacSecretNotDefault` gate applied to the one other secret
+ * whose default `.env.example` carries.
+ */
+describe("checkAuthJwtSecretNotDefault", () => {
+  const PLACEHOLDER = "change-me-in-production";
+
+  test("fails on the exact placeholder .env.example ships", () => {
+    const result = checkAuthJwtSecretNotDefault({
+      ...VALID_ENV,
+      AUTH_JWT_SECRET: PLACEHOLDER
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("fail");
+  });
+
+  test("the placeholder it rejects is the one .env.example actually ships", async () => {
+    const envExample = await Bun.file(".env.example").text();
+
+    expect(envExample).toContain(`AUTH_JWT_SECRET=${PLACEHOLDER}`);
+  });
+
+  test("passes for a real secret", () => {
+    const result = checkAuthJwtSecretNotDefault(VALID_ENV);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("defers the unset case to checkRequiredVars rather than double-failing", () => {
+    const result = checkAuthJwtSecretNotDefault({
+      ...VALID_ENV,
+      AUTH_JWT_SECRET: undefined
+    } as NodeJS.ProcessEnv);
+
+    expect(result.status).toBe("pass");
+  });
+
+  test("does not echo a real secret into its own detail text", () => {
+    const result = checkAuthJwtSecretNotDefault(VALID_ENV);
+
+    expect(result.detail).not.toContain(VALID_ENV.AUTH_JWT_SECRET as string);
   });
 });
 
@@ -873,6 +923,37 @@ describe("runEnvValidation", () => {
 
     const results = runEnvValidation(env);
     expect(results.every((result) => result.status === "pass")).toBe(true);
+  });
+
+  /**
+   * The boot gate itself, not just the check in isolation — PR #839: a
+   * deployment must not start with the audit ipHash HMAC keyed by a value
+   * published in this repo.
+   */
+  test("fails end-to-end when AUTH_JWT_SECRET is left at the placeholder", () => {
+    const env = {
+      ...VALID_ENV,
+      AUTH_JWT_SECRET: "change-me-in-production",
+      AWCMS_MINI_SYNC_ENABLED: "false",
+      R2_ENABLED: "false",
+      EMAIL_ENABLED: "false"
+    } as NodeJS.ProcessEnv;
+
+    const results = runEnvValidation(env);
+    expect(results.some((result) => result.status === "fail")).toBe(true);
+  });
+
+  test("fails end-to-end when AUTH_JWT_SECRET is unset", () => {
+    const env = {
+      ...VALID_ENV,
+      AUTH_JWT_SECRET: undefined,
+      AWCMS_MINI_SYNC_ENABLED: "false",
+      R2_ENABLED: "false",
+      EMAIL_ENABLED: "false"
+    } as NodeJS.ProcessEnv;
+
+    const results = runEnvValidation(env);
+    expect(results.some((result) => result.status === "fail")).toBe(true);
   });
 
   test("fails end-to-end when TENANT_DOMAIN_DNS_PROVIDER=cloudflare is missing its required vars", () => {

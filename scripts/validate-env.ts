@@ -179,6 +179,7 @@
  * sync.
  */
 import { checkSyncHmacSecretNotDefault } from "./security-readiness";
+import { findConfigVarEntry } from "../src/lib/config/registry";
 import {
   EMAIL_MAILKETING_REQUIRED_WHEN_SELECTED,
   EMAIL_REQUIRED_WHEN_ENABLED,
@@ -398,6 +399,51 @@ export function checkRequiredVars(
       detail: `${name} is required but missing or empty.`
     };
   });
+}
+
+/**
+ * `AUTH_JWT_SECRET` keys the audit-log `ipHash` HMAC
+ * (`src/lib/security/client-fingerprint.ts`), so leaving it at the
+ * placeholder `.env.example` ships makes that HMAC's key public knowledge —
+ * every persisted `ipHash` becomes reversible by anyone who can read this
+ * repo. `checkRequiredVars` only proves the variable is non-empty, and the
+ * placeholder is non-empty, so it sails straight through: this is the same
+ * gap `checkSyncHmacSecretNotDefault` closes for the sync secret, applied to
+ * the one other secret whose default is shipped in `.env.example`.
+ *
+ * The placeholder is read from the registry entry's own `default` rather
+ * than re-typed here, so it cannot drift from `.env.example`
+ * (`config:docs:check` already pins those two to each other).
+ */
+export function checkAuthJwtSecretNotDefault(
+  env: NodeJS.ProcessEnv = process.env
+): EnvCheckResult {
+  const name = "AUTH_JWT_SECRET is not left at its documented placeholder";
+  const placeholder = findConfigVarEntry("AUTH_JWT_SECRET")?.default;
+  const secret = env.AUTH_JWT_SECRET;
+
+  if (!isSet(secret)) {
+    // `checkRequiredVars` already reports the unset case; don't double-fail.
+    return {
+      name,
+      status: "pass",
+      detail: "AUTH_JWT_SECRET is unset — reported by the required-vars check."
+    };
+  }
+
+  if (placeholder !== undefined && secret === placeholder) {
+    return {
+      name,
+      status: "fail",
+      detail: `AUTH_JWT_SECRET is still the documented placeholder ("${placeholder}"). It keys the audit ipHash HMAC — set a high-entropy secret.`
+    };
+  }
+
+  return {
+    name,
+    status: "pass",
+    detail: "AUTH_JWT_SECRET has been changed from its documented placeholder."
+  };
 }
 
 export function checkSyncConfig(
@@ -1491,6 +1537,7 @@ export function runEnvValidation(
   return [
     ...checkRequiredVars(env),
     checkAppEnvValue(env),
+    checkAuthJwtSecretNotDefault(env),
     checkSyncConfig(env),
     ...checkR2Config(env),
     ...checkEmailConfig(env),
