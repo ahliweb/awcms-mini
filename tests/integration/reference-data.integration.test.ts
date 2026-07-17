@@ -2130,4 +2130,111 @@ describe("reference-data PATCH no-op and body-shape handling", () => {
       auditsBefore + 1
     );
   });
+
+  /**
+   * The empty-patch short-circuit bypasses `update*`, so every refusal that
+   * `update*` applies has to be re-applied on the no-op path too — otherwise
+   * the endpoint's ANSWER depends on how many fields the caller happened to
+   * send, which is exactly the bug class the short-circuit introduced.
+   *
+   * These pin each refusal axis against the REAL update path rather than
+   * against a hardcoded expectation, so the two cannot drift apart silently.
+   * The two routes legitimately differ here (tenant codes filter
+   * `deprecated_at`, global codes do not but guard `managed_by_descriptor`),
+   * which is precisely why each is asserted against its own update path.
+   */
+  test("REGRESSION (PR #839 round 3, tenant-codes PATCH): `PATCH {}` on a DEPRECATED code must 404 exactly like a real patch does -- updateTenantReferenceCode's UPDATE carries `AND deprecated_at IS NULL`, so a no-op that skips it would report a deprecated row back as a live 200", async () => {
+    const owner = await bootstrap();
+    const tenantCodeId = await createTenantCodeFixture(owner);
+
+    const deprecated = await invoke(deprecateTenantCode, {
+      method: "DELETE",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+      params: { id: tenantCodeId },
+      headers: authHeaders(owner, idKey()),
+      body: { reason: "retired for this test" }
+    });
+    expect(deprecated.status).toBe(200);
+
+    // A REAL patch on the deprecated row -- establishes the update path's own
+    // answer instead of assuming it.
+    const realPatch = await invoke<{ error: { code: string } }>(
+      updateTenantCode,
+      {
+        method: "PATCH",
+        path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+        params: { id: tenantCodeId },
+        headers: authHeaders(owner, idKey()),
+        body: { sortOrder: 3 }
+      }
+    );
+    expect(realPatch.status).toBe(404);
+
+    const noopPatch = await invoke<{ error: { code: string } }>(
+      updateTenantCode,
+      {
+        method: "PATCH",
+        path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+        params: { id: tenantCodeId },
+        headers: authHeaders(owner, idKey()),
+        body: {}
+      }
+    );
+
+    // The parity claim itself: same row, same permission, same endpoint --
+    // only the patch size differs, so the answer must not.
+    expect(noopPatch.status).toBe(realPatch.status);
+    expect(noopPatch.body.error.code).toBe(realPatch.body.error.code);
+  });
+
+  test("REGRESSION (PR #839 round 3, value-sets/codes PATCH): `PATCH {}` on a DEPRECATED global code must match its real-patch answer -- updateReferenceCode deliberately does NOT filter deprecated_at, so this asymmetry with tenant codes is pinned rather than assumed", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+    const created = await invoke(createCode, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/currency/codes",
+      params: { key: "currency" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        code: "OLD",
+        labels: [{ locale: "en", label: "Old" }],
+        sortOrder: 1,
+        metadata: {},
+        validFrom: "2026-01-01T00:00:00.000Z",
+        validTo: null
+      }
+    });
+    expect(created.status).toBe(200);
+
+    const deprecated = await invoke(deprecateCode, {
+      method: "DELETE",
+      path: "/api/v1/reference-data/value-sets/currency/codes/OLD",
+      params: { key: "currency", code: "OLD" },
+      headers: authHeaders(owner, idKey()),
+      body: { reason: "retired for this test" }
+    });
+    expect(deprecated.status).toBe(200);
+
+    const realPatch = await invoke(updateCode, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency/codes/OLD",
+      params: { key: "currency", code: "OLD" },
+      headers: authHeaders(owner, idKey()),
+      body: { sortOrder: 4 }
+    });
+
+    const noopPatch = await invoke(updateCode, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency/codes/OLD",
+      params: { key: "currency", code: "OLD" },
+      headers: authHeaders(owner, idKey()),
+      body: {}
+    });
+
+    expect(noopPatch.status).toBe(realPatch.status);
+  });
 });
