@@ -65,12 +65,25 @@ export const GET: APIRoute = async ({ request, cookies }) => {
     }
 
     const menus = await listMenus(tx, tenantId);
-    const withItems = await Promise.all(
-      menus.map(async (menu) => ({
+
+    // Sequential loop, NOT `Promise.all(menus.map(async …))` — every iteration
+    // issues a query on the SAME transaction/connection (`tx`), and one Postgres
+    // connection serves one query at a time; running them concurrently produced
+    // a real hang in this repo (see
+    // `reporting/application/projection-reconciliation.ts:89-94`). This fan-out
+    // was also UNBOUNDED — one concurrent query per menu the tenant has.
+    const withItems: Array<
+      (typeof menus)[number] & {
+        items: Awaited<ReturnType<typeof fetchMenuItems>>;
+      }
+    > = [];
+
+    for (const menu of menus) {
+      withItems.push({
         ...menu,
         items: await fetchMenuItems(tx, tenantId, menu.id)
-      }))
-    );
+      });
+    }
 
     return ok({ menus: withItems });
   });

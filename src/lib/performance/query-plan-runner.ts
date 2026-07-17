@@ -149,6 +149,51 @@ export const QUERY_PLAN_QUERIES: QueryPlanQueryDefinition[] = [
       `,
       values: [tenantId]
     })
+  },
+  {
+    // Issue #838. Mirrors `listBlogPostsForAdmin`'s real shape INCLUDING
+    // its three optional filters bound to NULL — that is the actual
+    // default admin list view (no filter applied), and the
+    // `$n IS NULL OR ...` branches are part of the query the planner sees,
+    // so dropping them would gate a query this repo never runs.
+    id: "blog-posts-admin-list",
+    build: (tenantId) => ({
+      text: `
+        SELECT p.id, p.tenant_id, p.title, p.slug, p.status, p.visibility, p.locale,
+               p.author_tenant_user_id, p.published_at, p.updated_at
+        FROM awcms_mini_blog_posts p
+        WHERE p.tenant_id = $1 AND p.deleted_at IS NULL
+          AND ($2::text IS NULL OR p.status = $2)
+          AND ($3::text IS NULL OR p.title ILIKE '%' || $3 || '%')
+          AND (
+            $4::uuid IS NULL
+            OR EXISTS (
+              SELECT 1 FROM awcms_mini_blog_post_terms pt
+              WHERE pt.tenant_id = p.tenant_id AND pt.post_id = p.id AND pt.term_id = $4
+            )
+          )
+        ORDER BY p.updated_at DESC
+        LIMIT 20 OFFSET 0
+      `,
+      values: [tenantId, null, null, null]
+    })
+  },
+  {
+    id: "blog-pages-admin-list",
+    build: (tenantId) => ({
+      text: `
+        SELECT id, tenant_id, title, slug, status, visibility, page_type,
+               parent_page_id, menu_order, locale, updated_at
+        FROM awcms_mini_blog_pages
+        WHERE tenant_id = $1 AND deleted_at IS NULL
+          AND ($2::text IS NULL OR status = $2)
+          AND ($3::text IS NULL OR page_type = $3)
+          AND ($4::text IS NULL OR title ILIKE '%' || $4 || '%')
+        ORDER BY updated_at DESC
+        LIMIT 20 OFFSET 0
+      `,
+      values: [tenantId, null, null, null]
+    })
   }
 ];
 

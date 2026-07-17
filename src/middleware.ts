@@ -33,9 +33,10 @@ import {
 import { resolveAnalyticsClientIp } from "./modules/visitor-analytics/domain/client-ip";
 import { resolveGeoEnrichment } from "./modules/visitor-analytics/domain/geo-enrichment";
 import {
-  collectVisitorTelemetry,
+  buildVisitEventRecord,
   shouldCollectRequest
 } from "./modules/visitor-analytics/application/collector";
+import { enqueueVisitEvent } from "./modules/visitor-analytics/application/visit-event-batcher";
 import {
   enqueueVisitorTelemetry,
   installVisitorTelemetryShutdownHook
@@ -297,6 +298,14 @@ export function collectRequestAnalytics(
             publicResolutionConfig.trustProxy
           );
 
+    // Captured on the response path, deliberately (Issue #846). The write
+    // now lands up to `BATCH_LINGER_MS` later, and `occurred_at` must be
+    // when the request HAPPENED, not when its batch flushed — otherwise
+    // batching would quietly smear every event's timestamp onto its flush
+    // instant. Reading the clock is free; the derivation itself still runs
+    // off the response path, below.
+    const occurredAt = new Date();
+
     enqueueVisitorTelemetry(async () => {
       let tenantId = adminTenantId;
 
@@ -315,22 +324,32 @@ export function collectRequestAnalytics(
 
       if (!tenantId) return;
 
-      await collectVisitorTelemetry({
-        sql,
-        tenantId,
-        correlationId,
-        config,
-        method,
-        rawPath,
-        statusCode,
-        visitorKey,
-        ipAddress,
-        userAgent,
-        referrerHeader,
-        isAuthenticated,
-        identityId,
-        geo
-      });
+      // Pure derivation (hashes, UA parse, path sanitization) — no database.
+      const record = buildVisitEventRecord(
+        {
+          correlationId,
+          config,
+          method,
+          rawPath,
+          statusCode,
+          visitorKey,
+          ipAddress,
+          userAgent,
+          referrerHeader,
+          isAuthenticated,
+          identityId,
+          geo
+        },
+        occurredAt
+      );
+
+      if (!record) return;
+
+      // Hands the record to the per-tenant batcher rather than opening a
+      // transaction per event: N concurrent visits now share ONE
+      // transaction. Synchronous and never throws — a batch's write is the
+      // batcher's problem, not this task's.
+      enqueueVisitEvent(sql, tenantId, record);
     });
   } catch (error) {
     log("warning", "visitor_analytics.middleware.failed", {

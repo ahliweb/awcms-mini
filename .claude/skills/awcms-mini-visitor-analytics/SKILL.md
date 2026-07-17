@@ -241,8 +241,67 @@ tablet/13 signature bot/unknown).
 ### Collector (Issue #620, `application/collector.ts` + `src/middleware.ts`)
 
 Satu-satunya writer `awcms_mini_visitor_sessions`/`awcms_mini_visit_events`.
-`src/middleware.ts` memanggilnya setelah `next()` resolve (di kedua
+`src/middleware.ts` mengoleksi setelah `next()` resolve (di kedua
 cabang pre-admin dan `/admin/*`), jadi `response.status` sudah diketahui.
+
+#### Jalur tulis: DUA TAHAP dan DI-BATCH (Issue #832, Issue #846)
+
+Middleware **tidak** menulis inline, dan **tidak** menulis per-event.
+Jangan tambahkan jalur tulis single-row ketiga — nanti drift.
+
+1. **Tahap 1 — `application/telemetry-queue.ts` (#832)**:
+   `enqueueVisitorTelemetry` mengembalikan **void** (sengaja — caller tidak
+   boleh bisa `await` dan mengembalikan tulisan ke jalur respons; ada
+   type-level assertion). Bounded (`MAX_QUEUE_DEPTH`), fail-open, drop
+   nyaring. Task-nya me-resolve tenant (biasanya cache hit).
+2. **Tahap 2 — `application/visit-event-batcher.ts` (#846)**:
+   `enqueueVisitEvent` menampung record **per tenant**; flush saat
+   `MAX_BATCH_SIZE` (50), setelah `BATCH_LINGER_MS` (200ms), atau on-demand.
+   `writeVisitEventBatch` menulis seluruh batch dalam SATU transaksi.
+
+`flushVisitorTelemetryQueue()` menguras **kedua** tahap. Hook SIGTERM/SIGINT
+hanya dipasang dari `src/middleware.ts` — **jangan pernah** dari panggilan
+data-plane (dulu membunuh runner `bun test`; ada regression guard).
+
+**Premis #846 awalnya SALAH — sudah diukur.** Isu meminta "batch INSERT
+per-event". Diukur lewat TCP proxy penghitung round trip ke Postgres nyata:
+satu kunjungan = **5,2 round trip** (BEGIN, SET LOCAL, SELECT session,
+INSERT event, COMMIT; +0,2 UPDATE session yang di-throttle 30s). INSERT-nya
+cuma ~19%; **scaffolding transaksi per-event ~58%**. Jadi yang di-batch
+adalah **transaksi**, bukan INSERT. Hasil: 5,2 → **0,18 round trip/event**
+(~29x), dan 28,9ms → 1,38ms per event dengan latensi 2ms/hop disuntik.
+Di loopback perubahan yang sama cuma terlihat 1,43ms → 0,28ms — **loopback
+menyembunyikan kemenangan round-trip**, jangan klaim angka dari loopback.
+
+**Trade batching (sadar, jangan dilonggarkan):** record hidup di memori
+sampai batch-nya flush, jadi crash KERAS (SIGKILL/OOM/panic) bisa kehilangan
+≤ `BATCH_LINGER_MS` traffic per tenant. SIGTERM normal **tidak kehilangan
+apa pun**: flush menulis batch **PARSIAL**, tidak pernah menunggu batch
+penuh. Ini hanya bisa diterima untuk analytics (sudah lossy by design +
+data agregat) — **jangan tiru untuk ledger/audit/transaksi posted.**
+
+**Trap yang terbukti hidup di bentuk batched:**
+
+- `occurred_at` **wajib** di-INSERT eksplisit (di-capture di jalur respons).
+  Kalau dibiarkan default `now()`, batching menggeser timestamp tiap event
+  ke waktu flush — analytics-nya rusak diam-diam.
+- **jsonb**: bentuk bulk yang "alami" — `unnest(..., tx.array(rows.map(r =>
+JSON.stringify(r.geo)), "jsonb"))` — **memunculkan lagi bug #623**
+  (terbukti empiris: SELECT balik jadi `string`, bukan objek). Pakai row
+  helper `tx(rows)` dengan objek polos → balik jadi `object`.
+- Array **wajib** `tx.array(values, "type")`; `${array}::type[]` gagal.
+- **Jangan** `Promise.all` di atas satu `tx` (hang nyata). `Promise.allSettled`
+  di `flushVisitEventBatches` aman karena tiap batch = transaksi/koneksi
+  tenant yang BERBEDA.
+
+**Pelajaran mutation-test (jangan diulang):** dua test sempat LOLOS padahal
+bug-nya nyata — (a) test "12 event satu visitor → 1 session" tetap hijau saat
+lookup session existing dirusak total (satu batch memang collapse jadi satu
+group; butuh test dua batch TERPISAH), dan (b) **bulk UPDATE session
+(unnest 13 array) tidak dijalankan test mana pun** — dan karena ia di dalam
+`catch` fail-open, syntax error di situ akan ditelan diam-diam selamanya.
+Kalau menyentuh `resolveSessionIds`, pastikan test yang menyeed session basi
+(> throttle 30s, < online window) tetap ada.
 
 - **Gate**: `shouldCollectRequest` (pure, unit-tested) — cek
   `config.enabled` → `isTrackablePath` → flag per-area

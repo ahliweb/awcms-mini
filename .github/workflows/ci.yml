@@ -126,6 +126,13 @@ jobs:
       - name: Logging lint check
         run: bun run logging:lint:check
 
+      # Issue #842 (epic #818): static gate for `Promise.all` over a single
+      # transaction handle — a hang that recurred FOUR times and that the test
+      # suite passed through every time (it is load-dependent, so functional
+      # tests are not a gate for this class).
+      - name: Transaction concurrency lint check
+        run: bun run tx:lint:check
+
       - name: Module dependency graph check
         run: bun run modules:dag:check
 

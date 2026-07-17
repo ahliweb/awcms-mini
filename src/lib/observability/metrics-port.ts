@@ -477,6 +477,32 @@ export const METRIC_DEFINITIONS = {
     allowedLabelKeys: [],
     approxCardinality: "Exactly 1 — unlabeled.",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  // Stage 2 of the same pipeline (Issue #846, `visit-event-batcher.ts`):
+  // records are grouped per tenant so N visits cost ONE transaction instead
+  // of N. Batching widens the window in which events exist only in memory,
+  // so its own lossy path and its saturation signal get the same
+  // first-class visibility as stage 1's above — a quieter contract for the
+  // newer, lossier stage would be exactly backwards. Unlabeled: a tenant id
+  // here would be the high-cardinality, visitor-identifying label this port
+  // exists to prevent.
+  visitor_analytics_batch_dropped_total: {
+    name: "visitor_analytics_batch_dropped_total",
+    type: "counter",
+    description:
+      "Count of visitor telemetry records dropped without being written because the per-tenant batcher was holding MAX_PENDING_EVENTS across all tenants (backpressure). Distinct from visitor_analytics_queue_dropped_total, which counts drops at the earlier task-queue stage — separating them tells operators WHICH stage is saturated.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  visitor_analytics_batch_pending: {
+    name: "visitor_analytics_batch_pending",
+    type: "gauge",
+    description:
+      "Total visitor telemetry records buffered across all per-tenant batches, sampled at enqueue and at flush. This is the population that a hard crash (SIGKILL/OOM) would lose — a graceful SIGTERM flushes partial batches — so sustained growth is both a saturation signal and the size of the crash-loss window.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   }
 } as const satisfies Record<string, MetricDefinition>;
 

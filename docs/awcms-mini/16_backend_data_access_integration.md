@@ -97,6 +97,49 @@ async function withTenant<T>(
 5. **Jangan** memanggil provider eksternal di dalam transaction (WA/email/R2/AI).
 6. Statement timeout untuk mencegah transaksi menggantung.
 7. Deadlock retry aman karena idempotency (doc 10).
+8. **Satu `tx` = satu koneksi = satu query pada satu waktu. JANGAN pernah
+   `Promise.all` di atas satu transaction handle** (Issue #842) — lihat
+   §Konkurensi di atas satu transaction di bawah.
+
+### Konkurensi di atas satu transaction — dilarang (Issue #842)
+
+Satu koneksi Postgres melayani **satu query pada satu waktu**, dan `tx` terikat
+ke tepat satu koneksi. Maka:
+
+```ts
+// SALAH — menghang sungguhan, bukan sekadar kehilangan paralelisme.
+const [a, b] = await Promise.all([fetchA(tx), fetchB(tx)]);
+
+// BENAR — await berurutan.
+const a = await fetchA(tx);
+const b = await fetchB(tx);
+```
+
+Kegagalannya jahat: koneksi yang tersangkut lalu merusak `resetDatabase()`
+**setiap test sesudahnya**, jadi gejalanya muncul jauh dari penyebabnya. Catatan
+empiris kanoniknya ada di
+`src/modules/reporting/application/projection-reconciliation.ts:89-94`.
+
+**Tidak ada performa yang hilang.** Yang mahal adalah **jumlah** query, bukan
+serialisasinya — kemenangan Issue #824 adalah meruntuhkan ≈92 query per render
+menjadi 4, dan await berurutan mempertahankannya utuh. Jangan menukar risiko hang
+demi paralelisme yang bukan sumber kemenangannya.
+
+**Konkurensi di atas POOL (`sql`) tetap legal** — pool memberi koneksi terpisah
+per query (lihat `src/lib/performance/**`, yang memang sengaja membangkitkan
+beban konkuren). Yang dilarang khusus adalah konkurensi di atas satu `tx`.
+
+Kelas ini sudah kambuh **empat kali**, dan **test suite lolos setiap kali**:
+sifatnya load-dependent, sehingga test fungsional bukan gate untuk kelas ini.
+Gate-nya statis: `bun run tx:lint:check`
+(`scripts/tx-concurrency-lint-check.ts`, bagian dari `bun run check` dan
+`ci.yml`). Gate itu membaca **token**, bukan teks mentah — komentar dan literal
+string/template di-blank lebih dulu, karena setiap perbaikan #842 menaruh
+komentar yang menyebut `Promise.all` + `tx` tepat di atas kode yang sudah benar.
+
+Bila sebuah `Promise.all` memang aman karena argumennya tidak menyentuh `tx`
+(mis. map murni, atau `fetch` HTTP dari client script seperti
+`admin/analytics.astro`), gate tidak menandainya dan tidak ada yang perlu diubah.
 
 ### Posting POS (integrasi end-to-end)
 

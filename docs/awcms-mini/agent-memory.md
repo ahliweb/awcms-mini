@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 80.**
+**Jumlah memory saat snapshot terakhir: 86.**
 
 ## Sengaja TIDAK disertakan
 
@@ -42,85 +42,116 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 `````markdown
 # Memory index
 
-- [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory hidup di luar repo & hilang saat pindah device; jalankan `bun run memory:docs:sync` tiap kali memory berubah, `memory:docs:restore` di device baru
-- [Verify a perf issue's premise](perf-issue-premise-verify-before-trusting.md) — #833 klaim "~6 juta kunjungan/detik-detikan CPU" nyatanya 7.203 kunjungan/0,067ms (meleset ~800x); big-O di judul issue = worst-case, short-circuit membatalkannya — HITUNG input nyata dulu. Klaim "perilaku identik" di jalur keamanan wajib mutation-test (2 mutasi lolos = celah test nyata: predikat subject & tenant)
-- [Unicode escape emits raw NUL](unicode-escape-emits-raw-nul.md) — menulis `\u0000` lewat Write/Edit menghasilkan BYTE NUL asli; grep lalu anggap file biner & diam (exit 1) padahal Read menampilkan barisnya normal; perbaiki via script Bun `String.fromCharCode(0)`
-- [Audit issue numbers unreliable](audit-issue-numbers-unreliable.md) — diagnosis struktural audit #818 kuat tapi ANGKA & RESEPnya salah di 5 issue; resep #834 malah bug keamanan, saran #832 merusak analytics; pisahkan observasi terverifikasi dari hipotesis
-- [Short-circuit must replicate every guard](short-circuit-must-replicate-every-guard.md) — fast-path yang melompati helper wajib ulangi SETIAP refusal-nya; gagal 2x dalam satu PR (#839); assert fast-path TERHADAP slow-path, bukan status hardcoded; Issue #843
-- [Promise.all on single tx = hang](promise-all-on-single-tx-hang.md) — 3x di repo ini, test suite LOLOS tiap kali (load-dependent); sapu KELASnya (grep `Promise.all` + `tx`), pisahkan pre-existing dari regresi PR; Issue #842
-- [Audit count assertion vacuous](audit-count-assertion-vacuous.md) — nama action karangan → bandingkan 0 dgn 0, lolos vakum selamanya; action generik (create/update/...), `resource_type` diskriminatornya; selalu assert sisi sebaliknya
-- [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (redactor #687); pakai `ipHash` HMAC via `src/lib/security/client-fingerprint.ts`, jangan rename key
-- [main branch protection AKTIF](main-branch-protection-active.md) — sejak 2026-07-17: 6 required check, 0 approval, enforce_admins false; jangan wajibkan `CodeQL` polos (bisa "skipping" → PR deadlock)
-- [Library must not own process signals](library-must-not-own-process-signals.md) — `job-runner.test.ts` pakai `process.emit("SIGTERM")` sintetis; listener SIGTERM apa pun di proses `bun test` ikut menyala dan (bila re-raise/exit) MEMBUNUH runner ~1s exit 143 — terlihat seperti "suite hang", ukur elapsed untuk membedakan. Install hook hanya dari app entry (`middleware.ts`), jangan dari `enqueue()`. Bisect `-t` menyembunyikan pemicu lintas-file. Issue #832
-- [Deferring work must split by dependency](deferring-work-must-split-by-dependency.md) — `void fn()` di call site merusak diam-diam: Astro men-serialize `context.cookies` begitu middleware return, cookie fire-and-forget hilang → semua visitor session pecah. Split by dependensi; antrean wajib bounded + handle rejection + flush di SIGTERM (adapter node standalone tak punya handler sinyal). Issue #832
-- [Perf claims need adversarial benchmark](perf-claims-need-adversarial-benchmark.md) — loopback Postgres menyembunyikan kemenangan round-trip (3.94→2.65ms); suntik `pg_sleep` trigger untuk mengisolasi jalur kritis (55.65→2.10ms). `docker exec` tanpa `-i` diam-diam melewati heredoc — assert setup-nya ada sebelum percaya angka
-- [SSR admin pages skip module-enabled](ssr-admin-pages-skip-module-enabled.md) — 54/55 halaman admin merender data modul yang di-disable padahal route-nya 403; nav filter kosmetik; Issue #841. Taruh gate DI DALAM helper, bukan call site
-- [Shared visited set multi-source walk](shared-visited-set-multisource-walk.md) — walk single-seed dipanggil per seed = O(S x depth)/O(U²) karena `visited` dialokasi ulang tiap panggilan; 4383ms→0,83ms @10k unit. Buktikan linearitas dengan MENGHITUNG lookup, bukan timing
-- [Shrink work inside lock, not the lock](shrink-work-inside-lock-not-the-lock.md) — bulk read full-tenant di dalam advisory lock: baca hanya yang validator benar-benar baca (rantai ancestor), jangan sentuh lock atau pindah baca ke luar; recursive CTE pertama repo, sengaja, jangan cargo-cult
-- [Post-audit hardening epic #818](post-audit-hardening-epic-818.md) — audit menyeluruh 2026-07-17 v0.24.0 → epic #818/#819-#835; fetchModuleMatrix flake akarnya 92 query/render (bukan flake infra), main tanpa branch protection, nol tag `v*` pernah ada, cycle hidup yang lolos 2 gate
-- [Audit doc rename by date](audit-doc-rename-by-date.md) — AUDIT_STANDAR_PENGEMBANGAN_<tgl>.md itu dokumen HIDUP: git mv ke tanggal perubahan + update ~15 rujukan (kecuali CHANGELOG), jangan bikin file audit baru
-- [Release pipeline never triggered, gaps](release-pipeline-never-triggered-gaps.md) — release.yml never actually fired in repo history; changeset:tag silently skipped the private package AND the `release` GitHub Environment had zero protection rules, both fixed 2026-07-15
-- [SoD hierarchy-aware matching Issue #794](sod-hierarchy-aware-matching-issue-794.md) — CLOSED via PR #800 2026-07-15; fixed same_scope_only exact-match gap by reusing an already-fetched hierarchy resolution; residual checkHighRiskSoDConflicts gap (zero telemetry) tracked as follow-up Issue #802 (open)
-- [Idempotency hash missing resource id, recurring](idempotency-hash-missing-resource-id-recurring.md) — Issue #750/PR #783 (3 rounds) + Issue #795/PRs #798,#799,#801 (all 3 needed a 2nd fix round except #799) FULLY CLOSED 2026-07-15; grep ALL computeRequestHash( call sites in the FULL assigned tree every time, never trust a named endpoint list as exhaustive
-- [SQL tokenizer regex vs state machine](sql-tokenizer-regex-vs-state-machine.md) — 6-round review on PR #723's migration scanner; regex alternation can't express nesting/stateful escapes, escalate to a hand-written state machine after round 2's second bypass
-- [Open epics 2026-07-12 survey](open-epics-2026-07-12-survey.md) — 3 clusters after #679 closed: news-portal/social-publishing (ready: #638/#639/#640/#642), master-data wilayah (strictly sequential #655-#664), hermes-agent (highest blast radius, #669 arch doc should run alone first)
-- [GitGuardian scans full PR history](gitguardian-scans-full-pr-history.md) — a later commit fixing a flagged secret-shaped fixture doesn't clear the check; also flags famous public example secrets (jwt.io's tutorial JWT) as real
-- [Filter assertion timing, bidirectional](filter-assertion-timing-bidirectional.md) — assert a status filter's include-side BEFORE the fixture transitions out of that state, not after alongside the exclude-side; caught by reviewer on PR #808
-- [GitHub secret-scanning alert resolution](github-secret-scanning-alert-resolution.md) — `secret-scanning/alerts` API (distinct from CodeQL/GitGuardian), 280-char resolution_comment cap, famous-public-example secrets (Telegram docs token) get flagged like jwt.io's JWT
-- [Bulk branch delete needs named list](bulk-branch-delete-needs-named-list.md) — classifier blocks a scripted mass git-branch-delete even after solid PR-status verification; get explicit AskUserQuestion confirmation on the exact list first
+## Cara kerja & jebakan proses
 
+- [Session limit kills agents, work survives](session-limit-kills-agents-work-survives.md) — kuota habis = semua agent mati serentak & terlihat gagal; worktree + perubahan uncommitted SELAMAT, lanjutkan via SendMessage (jangan relaunch)
+- [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory hidup di luar repo & hilang saat pindah device; `bun run memory:docs:sync` tiap memory berubah, `memory:docs:restore` di device baru
+- [Create feature branch before commit](create-feature-branch-before-commit.md) — 3x commit langsung ke main setelah merge PR sebelumnya; `git checkout -b` segera setelah sync, cek `git branch --show-current` sebelum tiap commit
+- [Bulk branch delete needs named list](bulk-branch-delete-needs-named-list.md) — classifier memblokir hapus-massal branch walau verifikasi PR sudah kuat; minta konfirmasi AskUserQuestion atas daftar persisnya
+- [Agent shared working-dir checkout](agent-shared-working-dir-checkout.md) — agent latar berbagi checkout orchestrator (tanpa isolasi worktree); `git checkout main` satu agent bisa memindahkanmu dari branch fitur
+- [Shared checkout branch-switch near-miss](shared-checkout-branch-switch-near-miss.md) — `git checkout main` di dir bersama diam-diam membawa serta kerja uncommitted branch lain; cek `git status` dulu
+- [Subagent background-notification stall](subagent-background-notification-stall.md) — subagent yang mem-background `bun run check` sendiri lalu menunggu notifikasi macet selamanya (hanya orchestrator yang menerimanya)
+- [awcms-mini-coder self-delegation trap](awcms-mini-coder-self-delegation-trap.md) — deskripsi agent bisa terbaca sebagai instruksi diri → rantai spawn rekursif no-op; verifikasi via git/gh sebelum percaya laporan "sudah diluncurkan"
+- [ScheduleWakeup unreliable for CI waits](schedulewakeup-unreliable-ci-wait.md) — delay tak memetakan wall-clock nyata; pakai Bash run_in_background + until-loop
+
+## Menilai issue & klaim
+
+- [Oracle issue: check timing dimension](oracle-issue-check-timing-dimension.md) — #840 lapor oracle di response body; oracle TIMING yang tak disebut ~19x lebih besar (4,13ms vs 80,13ms, 1 request vs 6) — pola `identityRow ? await verifyPassword(...) : false`; perbaiki body saja = security theater. Dummy hash wajib dari `hashPassword()` sendiri, bukan literal. `403 PASSWORD_LOGIN_DISABLED` juga menyidik-jari break-glass
+- [Grep for marker cannot prove absence](grep-for-marker-cannot-prove-absence.md) — verifikasi "kerja agent selamat" via grep penanda fix hanya membuktikan file yang PUNYA penanda; yang perbaikannya hilang diam-diam keluar dari hasil; bandingkan `git diff --stat` per file terhadap daftar yang diharapkan
+- [Audit issue numbers unreliable](audit-issue-numbers-unreliable.md) — diagnosis struktural audit #818 kuat tapi ANGKA & RESEPnya salah di 5 issue; pisahkan observasi terverifikasi dari hipotesis
+- [Bulk insert jsonb unnest trap](bulk-insert-jsonb-unnest-trap.md) — `unnest(..., tx.array(map(JSON.stringify),"jsonb"))` MEMUNCULKAN LAGI bug #623 (SELECT balik jadi string); hanya `tx(rows)` objek polos yang fidel + dukung RETURNING/null/inet; `unnest` tetap benar utk bulk UPDATE & `(a,b) IN (SELECT * FROM unnest($1,$2))`; `count(DISTINCT xmin)` butuh `::text`
+- [xmin proves batching](xmin-proves-batching.md) — klaim "N event = 1 transaksi" diassert lewat `count(DISTINCT xmin::text)`, deterministik & loopback-safe, TANPA timing; kalau perubahan perf punya sidik jari struktural di data, assert sidik jarinya, bukan jam
+- [fail-open catch hides untested SQL](failopen-catch-hides-untested-sql.md) — #846: bulk UPDATE 13-array tak disentuh test mana pun DAN ada di dalam catch fail-open → syntax error ditelan selamanya, nol test gagal; mutation test menangkap 2 celah di test buatan sendiri; stash tak membuktikan apa pun utk modul BARU (import error) — mutasi satu-satunya red-verification
+- [Verify a perf issue's premise](perf-issue-premise-verify-before-trusting.md) — #833 klaim "~6 juta kunjungan" nyatanya 7.203/0,067ms (meleset ~800x); big-O judul = worst-case, short-circuit membatalkannya — HITUNG input nyata
+- [Perf claims need adversarial benchmark](perf-claims-need-adversarial-benchmark.md) — loopback Postgres menyembunyikan kemenangan round-trip; suntik `pg_sleep` untuk isolasi jalur kritis; `docker exec` tanpa `-i` melewati heredoc → angka palsu
+- [Validator exists but unwired = Critical](validator-exists-but-unwired-critical-pattern.md) — validator teruji rapi tapi tak pernah dipanggil di jalur tulis nyata; telusuri validator MUNDUR dari tiap write path, bukan maju dari test-nya
+- [Cycle detector fed an incomplete graph](cycle-detector-fed-incomplete-graph.md) — gate BENAR yang disuapi `dependencies` tulisan tangan tak bisa gagal pada edge tak-terdeklarasi; audit INPUT gate, bukan algoritmanya
+
+## Test: cara gagal yang menipu
+
+- [Audit count assertion vacuous](audit-count-assertion-vacuous.md) — nama action karangan → bandingkan 0 dgn 0, lolos vakum selamanya; action generik (create/update/…), `resource_type` diskriminatornya; assert sisi sebaliknya
+- [Filter assertion timing, bidirectional](filter-assertion-timing-bidirectional.md) — assert sisi-include filter status SEBELUM fixture keluar dari state itu, bukan sesudahnya bersama sisi-exclude
+- [Short-circuit must replicate every guard](short-circuit-must-replicate-every-guard.md) — fast-path yang melompati helper wajib ulangi SETIAP refusal-nya; assert fast-path TERHADAP slow-path, bukan status hardcoded; Issue #843
+- [bun test expect().resolves/.rejects hang](bun-test-expect-resolves-rejects-hang.md) — hang selamanya pada promise Bun.SQL mentah apa pun; selalu await-lalu-assert atau try/catch manual
+- [bun test rejects.toThrow() hang](bun-test-rejects-tothrow-hang.md) — `.rejects.toThrow()` pada promise Bun.SQL memutar proses 100% CPU selamanya
+- [bun run check skips integration tests](bun-check-skips-integration-tests.md) — tanpa DATABASE_URL, *.integration.test.ts diam-diam dilewati; jalankan suite penuh lawan Postgres nyata sebelum push perubahan migration/schema
+- [bun test DB warmup flake](bun-test-db-warmup-flake.md) — gagal integration palsu tepat setelah `docker start awcms-mini-pg-515`; re-run sekali sebelum meragukan laporan
+- [Concurrent check DB contention](concurrent-check-db-contention.md) — dua `bun run check` paralel lawan dev Postgres bersama = 50-300+ gagal palsu; re-run terisolasi sebelum percaya
+- [Idle-in-transaction hang](idle-in-transaction-hang.md) — proses test terlantar bisa mengunci koneksi idle-in-transaction, benar-benar MENGHANG TRUNCATE test lain; diagnosa via pg_stat_activity, re-run TIDAK menolong
+- [Dev server smoke-test process leak](dev-server-smoke-test-process-leak.md) — `pkill -f "astro dev --port N"` bisa meleset; server bocor = 50+ timeout 5000ms palsu yang selamat dari restart container DB
+- [Shared DB migration schema drift](shared-db-migration-schema-drift.md) — migration dari satu worktree mengubah schema hidup untuk semua worktree yang berbagi Postgres; branch tak terkait bisa gagal sampai catch up
+
+## Database & Bun
+
+- [Promise.all on single tx = hang](promise-all-on-single-tx-hang.md) — 3x di repo ini, test LOLOS tiap kali (load-dependent); sapu KELASnya (grep `Promise.all` + `tx`), pisahkan pre-existing dari regresi PR; Issue #842
+- [Bun SQL array binding](bun-sql-array-binding.md) — `${array}::type[]` gagal; pakai `tx.array(values, "type")` untuk `= ANY(...)`
+- [Bun.SQL jsonb stringify trap](bun-sql-jsonb-stringify-trap.md) — `JSON.stringify(x)::jsonb` menyimpan byte identik tapi tiap SELECT balikkan STRING bukan objek; selalu bind objek polos
+- [Migration checksum strips transaction wrapper](migration-checksum-strips-transaction-wrapper.md) — db-migrate.ts hash `stripOptionalTransactionWrapper(rawSql)` bukan byte mentah; `sha256sum` polos terlihat seperti drift & menimpanya merusak baris yang benar
+- [Shared DB ledger stale migration names](shared-db-ledger-stale-migration-names.md) — ledger `awcms_mini_schema_migrations` di dev Postgres bersama menyimpan nama file SAAT ITU; renumbering upstream membuatnya basi permanen
+- [Local Postgres connection details](local-postgres-connection-details.md) — container dev dengar di port non-5432 (cek `ps aux` untuk `-c port=`); DATABASE_URL harus role superuser
+- [Postgres 18 volume mount](postgres18-volume-mount.md) — postgres:18+ butuh volume compose di `/var/lib/postgresql` (bukan `/data`)
+- [Shrink work inside lock, not the lock](shrink-work-inside-lock-not-the-lock.md) — bulk read full-tenant di dalam advisory lock: baca hanya yang validator benar-benar baca; jangan sentuh lock/pindah baca ke luar
+- [Shared visited set multi-source walk](shared-visited-set-multisource-walk.md) — walk single-seed dipanggil per seed = O(U²) karena `visited` dialokasi ulang; 4383ms→0,83ms @10k unit; buktikan linearitas dgn MENGHITUNG lookup bukan timing
+
+## Astro / arsitektur
+
+- [.astro files escape typecheck](astro-files-escape-typecheck.md) — `tsc --noEmit` tak memeriksa .astro & build pun lolos; ubah signature = grep `src/pages --include=*.astro` manual; .astro bisa punya salinan logika independen (#820)
+- [Astro layout frontmatter order](astro-layout-frontmatter-order.md) — frontmatter halaman jalan sebelum layout-nya; selesaikan nilai lintas-potong (locale, dll) di middleware bukan layout
+- [Astro middleware next(request) is a real rewrite](astro-middleware-next-request-rewrite.md) — memicu tryRewrite/route re-match, bukan transform transparan; jangan pakai untuk menukar body stream terpusat
+- [Deferring work must split by dependency](deferring-work-must-split-by-dependency.md) — `void fn()` merusak diam-diam: Astro men-serialize `context.cookies` saat middleware return → cookie hilang; antrean wajib bounded + handle rejection + flush di SIGTERM; Issue #832
+- [Library must not own process signals](library-must-not-own-process-signals.md) — listener SIGTERM apa pun di proses `bun test` ikut menyala & MEMBUNUH runner ~1s exit 143, terlihat seperti "hang" (ukur elapsed); install hook hanya dari `middleware.ts`; Issue #832
+- [SSR admin pages skip module-enabled](ssr-admin-pages-skip-module-enabled.md) — 54/55 halaman admin merender data modul yang disabled padahal route-nya 403; nav filter kosmetik; taruh gate DI DALAM helper; Issue #841
+- [Module key vs directory name divergence](module-key-vs-directory-name-divergence.md) — `workflow_approval` sebenarnya berkunci `workflow`; jangan turunkan key dari nama direktori, baca `listBaseModules()` — key turunan diam-diam tak cocok apa pun
+
+## Keamanan
+
+- [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (#687); pakai `ipHash` HMAC via `src/lib/security/client-fingerprint.ts`, jangan rename key
+- [Secret detection prefix exemption anchored bypass](secret-detection-prefix-exemption-anchored-bypass.md) — allow-list "prefix rujukan dikenal" wajib strip-and-recheck sisanya, jangan bebaskan seluruh string, atau `env:<secret asli>` lolos
+- [Idempotency hash missing resource id, recurring](idempotency-hash-missing-resource-id-recurring.md) — #750/#795 (banyak ronde) CLOSED 2026-07-15; grep SEMUA call site `computeRequestHash(` tiap kali, jangan percaya daftar endpoint bernama
+- [SoD hierarchy-aware matching Issue #794](sod-hierarchy-aware-matching-issue-794.md) — CLOSED via PR #800; celah sisa checkHighRiskSoDConflicts (nol telemetri) → Issue #802 (open)
+- [Document-infrastructure #787 confidentiality gating](document-infrastructure-issue-787-confidentiality-mutation-gating.md) — #751/#787: `confidentiality_level` disimpan tapi tak pernah ditegakkan di endpoint mutasi/evidence/reservation; gating diperluas ke sana
+- [mdEscape backslash bug recurs](mdescape-backslash-bug-recurs.md) — escaper `|`-saja tanpa urutan backslash-dulu = bug CodeQL incomplete-sanitization; shipped 3x di generator docs independen; selalu ketahuan CodeQL bukan test/review
+- [SQL tokenizer regex vs state machine](sql-tokenizer-regex-vs-state-machine.md) — alternasi regex tak bisa mengungkap nesting/escape stateful; naik ke state machine tulisan tangan setelah bypass kedua
+- [GitGuardian scans full PR history](gitguardian-scans-full-pr-history.md) — commit perbaikan berikutnya TIDAK membersihkan check; juga menandai secret contoh publik terkenal (JWT tutorial jwt.io) sebagai asli
+- [GitHub secret-scanning alert resolution](github-secret-scanning-alert-resolution.md) — API `secret-scanning/alerts` (beda dari CodeQL/GitGuardian), cap 280 char resolution_comment
+
+## CI / rilis / tooling
+
+- [main branch protection AKTIF](main-branch-protection-active.md) — sejak 2026-07-17: 6 required check, 0 approval, enforce_admins false; jangan wajibkan `CodeQL` polos (bisa "skipping" → deadlock)
+- [PR branch conflict blocks CI trigger](pr-branch-conflict-blocks-ci-trigger.md) — mergeStateStatus CONFLICTING bisa diam-diam menghentikan SEMUA run pull_request pada push baru; merge/rebase base branch untuk pulih
+- [PR body missing Closes keyword](pr-body-missing-closes-keyword.md) — PR merged di sini sering tak auto-close issue-nya; cross-check `gh pr list --merged` sebelum percaya `gh issue list --state open`
+- [gh pr merge transient 502](gh-pr-merge-transient-502.md) — bisa gagal di klien tapi sukses di server; cek `mergedAt` sebelum retry membabi buta
+- [changesets:policy:check false negative](changeset-policy-check-false-negative.md) — PASS palsu bila dijalankan SEBELUM commit (mendiff ke origin/main, tak lihat file untracked); jalankan setelah commit
+- [Prettier check on docs-only PRs](prettier-check-docs-only-prs.md) — `bun run lint` (bukan cuma `check:docs`/`build`) wajib sebelum push bahkan untuk perubahan .md murni
+- [Release pipeline never triggered, gaps](release-pipeline-never-triggered-gaps.md) — release.yml tak pernah benar-benar jalan; changeset:tag diam-diam melewati paket private & Environment `release` nol proteksi; keduanya diperbaiki 2026-07-15
+- [Bun + Playwright E2E setup](bun-playwright-e2e-setup.md) — wajib `bun --bun playwright test`; `playwright test`/`bunx` polos diam-diam jalan di Node.js asli, melanggar AGENTS.md #14
+- [Bun shell globstar trap](bun-shell-globstar-trap.md) — shell `bun run` tak mengembangkan `**` rekursif; script ber-glob diam-diam jalan pada subset
+- [TypeScript 7 JSDoc backtick-fence bug](typescript-7-jsdoc-backtick-fence-bug.md) — triple-backtick tak berpasangan di komentar `/** */` menelan tiap `@param` sesudahnya → implicit-any; reword, jangan tambah escape
+- [Unicode escape emits raw NUL](unicode-escape-emits-raw-nul.md) — menulis escape NUL (backslash-u-0000) via Write/Edit menghasilkan BYTE NUL asli; grep anggap file biner & diam (exit 1) padahal Read normal; perbaiki via script Bun `String.fromCharCode(0)`
+- [Docker host port blocked](docker-host-port-blocked.md) — publish bridge NAT selalu macet (bahkan di browser); pakai override `network_mode: host`
+- [Docker manual container root ownership](docker-manual-container-root-ownership.md) — `docker run` bind-mount repo tanpa `--user` meninggalkan file milik root; pakai `--user $(id -u):$(id -g)`
+- [Sandbox dir permission lockdown](sandbox-dir-permission-lockdown.md) — dir repo bisa ter-chmod 0700 oleh sandbox, merusak bind mount docker (EACCES); chmod 755 lalu ulangi
+- [Manual admin UI smoke test](manual-admin-ui-smoke-test.md) — tak ada tooling browser; resep berbasis curl untuk login sebagai user nyata & menelusuri halaman `/admin/*`
+
+## Dokumen & konvensi repo
+
+- [Audit doc rename by date](audit-doc-rename-by-date.md) — AUDIT_STANDAR_PENGEMBANGAN_<tgl>.md itu dokumen HIDUP: git mv ke tanggal perubahan + update ~15 rujukan (kecuali CHANGELOG), jangan bikin file audit baru
+- [Skill/doc drift recurring](skill-doc-drift-recurring.md) — kejadian ke-6 2026-07-17 (#829): 5 modul tanpa skill sama sekali, 4 di antaranya sumber temuan audit itu sendiri; kini di-gate tests/unit/module-skill-coverage.test.ts
+- [ADR numbering race extends migration pattern](adr-numbering-race-extends-migration-pattern.md) — tabrakan file ADR pertama (#789 vs #784); git merge TIDAK menandainya karena nama file beda — diff `docs/adr/` manual; index README hand-merged
 - [AWPOS standard refactor](awpos-standard-refactor.md) — awcms-mini = base modular monolith standar (2026-07-04); sumber standar `/home/data/dev_bun/awpos/docs/awpos/`; legacy di branch `legacy/pre-awpos-standard`
-- [Docker host port blocked](docker-host-port-blocked.md) — bridge NAT publish always stalls (even in browser); use `network_mode: host` override
-- [Bun shell globstar trap](bun-shell-globstar-trap.md) — `bun run` shell doesn't expand `**` recursively; globbed scripts silently run a subset
-- [Postgres 18 volume mount](postgres18-volume-mount.md) — postgres:18+ needs the compose volume at `/var/lib/postgresql` (not `/data`) or it won't start
-- [Bun SQL array binding](bun-sql-array-binding.md) — `${array}::type[]` fails; use `tx.array(values, "type")` for `= ANY(...)` queries
-- [bun run check skips integration tests](bun-check-skips-integration-tests.md) — no DATABASE_URL means *.integration.test.ts silently skipped; run full suite against real Postgres before pushing migration/schema changes
-- [.astro files escape typecheck](astro-files-escape-typecheck.md) — `tsc --noEmit` tidak memeriksa .astro & build pun lolos; ubah signature = grep `src/pages --include=*.astro` manual. Halaman .astro juga bisa punya salinan logika independen (#820)
-- [Astro layout frontmatter order](astro-layout-frontmatter-order.md) — page frontmatter runs before its layout's; resolve cross-cutting values (locale, etc.) in middleware, not the layout
-- [awcms-mini-coder self-delegation trap](awcms-mini-coder-self-delegation-trap.md) — agent's own description can be misread as self-instruction, causing a no-op recursive spawn chain; verify with git/gh before trusting "launched" reports
-- [Sandbox dir permission lockdown](sandbox-dir-permission-lockdown.md) — repo dir can get chmod'd 0700 by the sandbox, breaking docker bind mounts (EACCES on package.json); chmod 755 and retry
-- [Docker manual container root ownership](docker-manual-container-root-ownership.md) — `docker run` bind-mounting the repo without `--user` leaves root-owned node_modules/dist files, breaking the next local `bun run build`; pass `--user $(id -u):$(id -g)` or chown/rm afterward
-- [bun test rejects.toThrow() hang](bun-test-rejects-tothrow-hang.md) — asserting a rejected Bun.SQL/postgres promise with `.rejects.toThrow()` spins the process at 100% CPU forever; use `.rejects.toBeInstanceOf(Error)` or try/catch instead
-- [Create feature branch before commit](create-feature-branch-before-commit.md) — recurring mistake (3x): committing straight to main after merging the previous PR; always `git checkout -b` for the next issue immediately after syncing main, and check `git branch --show-current` before every commit
-- [Blog content epic progress](blog-content-epic-progress.md) — epic #536 (#537-#543) FULLY COMPLETE 2026-07-08 (PR #545-#551); module status now `active`
-- [PR body missing Closes keyword](pr-body-missing-closes-keyword.md) — merged PRs here often don't auto-close their issue; cross-check `gh pr list --merged` before trusting `gh issue list --state open`
-- [Skill/doc drift recurring](skill-doc-drift-recurring.md) — 6th occurrence 2026-07-17 (Issue #829): 5 modules had NO skill at all, 4 of them were the audit's own finding sources; now GATED by tests/unit/module-skill-coverage.test.ts (first automated check for this class)
-- [Module key vs directory name divergence](module-key-vs-directory-name-divergence.md) — `workflow_approval` is really keyed `workflow`; never derive a module key from its directory name, always read `listBaseModules()` — a derived key silently matches nothing (no-op, not an error)
-- [Tenant domain routing epic progress](tenant-domain-routing-epic-progress.md) — epic #555 FULLY COMPLETE + CLOSED 2026-07-09 (PR #568-#585); #564/#565/#566 design notes still load-bearing
-- [changesets:policy:check false negative](changeset-policy-check-false-negative.md) — memberi PASS palsu bila dijalankan SEBELUM commit (mendiff ke origin/main, tak lihat file untracked); jalankan setelah commit
-- [Prettier check on docs-only PRs](prettier-check-docs-only-prs.md) — `bun run lint` (not just `check:docs`/`build`) must run before push even for pure .md changes, or CI's Prettier check fails
-- [Local Postgres connection details](local-postgres-connection-details.md) — dev container listens on a non-5432 port (check `ps aux` for `-c port=`), DATABASE_URL must be the superuser role (harness repoints to app role itself)
-- [Manual admin UI smoke test](manual-admin-ui-smoke-test.md) — no browser tooling here; curl-based recipe to log in as a real user and click-through-equivalent an `/admin/*` page against a real dev server + Postgres
-- [Bun + Playwright E2E setup](bun-playwright-e2e-setup.md) — must use `bun --bun playwright test` (PR #576); plain `playwright test`/`bunx playwright test` silently runs under real Node.js, violating AGENTS.md rule #14
-- [gh pr merge transient 502](gh-pr-merge-transient-502.md) — can fail client-side but succeed server-side; check `mergedAt` before blindly retrying, avoid duplicate merge race
-- [Auth online hardening epic progress](auth-online-hardening-epic-progress.md) — epic #587-#593 + ALL follow-ups (#601/#603/#605/#610/#612) FULLY COMPLETE 2026-07-10; zero open issues/CodeQL alerts
-- [ScheduleWakeup unreliable for CI waits](schedulewakeup-unreliable-ci-wait.md) — delays don't reliably map to real wall-clock time; use Bash run_in_background with an until-loop instead
-- [bun test DB warmup flake](bun-test-db-warmup-flake.md) — spurious integration failures right after `docker start awcms-mini-pg-515`; always re-run once before distrusting a report
-- [Agent shared working-dir checkout](agent-shared-working-dir-checkout.md) — background agents share the orchestrator's git checkout (no worktree isolation by default); one agent's `git checkout main` can silently switch you off your feature branch
-- [Dev server smoke-test process leak](dev-server-smoke-test-process-leak.md) — `pkill -f "astro dev --port N"` can miss the real process; leaked server causes 50+ spurious 5000ms test timeouts that survive a DB container restart
-- [Bun.SQL jsonb stringify trap](bun-sql-jsonb-stringify-trap.md) — `JSON.stringify(x)::jsonb` stores identical bytes to `${x}::jsonb` but every later SELECT returns a raw string, not an object; always bind the plain object, never pre-stringify
-- [Visitor analytics epic progress](visitor-analytics-epic-progress.md) — epic #617-#624 FULLY COMPLETE 2026-07-10 (PR #648 closed #622+#624); reviewer+security-auditor both clean
-- [News-portal + social-publishing epic progress](news-portal-social-publishing-epic-progress.md) — both epics FULLY COMPLETE 2026-07-13, 18/18 issues merged (#631-649); #636 needed 4 attempts at a tenant-state signal, cross-PR verify-endpoint collision in wave 5
-- [Platform hardening epic progress](platform-hardening-epic-progress.md) — epic #679 FULLY COMPLETE + CLOSED 2026-07-12 (PR #701-#722, 22/22 issues); 2 parallel waves (5-agent then 3-agent) surfaced real hazards
-- [mdEscape backslash bug recurs](mdescape-backslash-bug-recurs.md) — a `|`-only escaper without backslash-first ordering is a CodeQL incomplete-sanitization bug; shipped 3x across independent docs generators (#694/#700/#688), always caught by CodeQL not tests/review
-- [Astro middleware next(request) is a real rewrite](astro-middleware-next-request-rewrite.md) — triggers pipeline.tryRewrite/route re-match, not a transparent per-request transform; don't use it to swap body streams centrally
-- [bun test expect().resolves/.rejects hang](bun-test-expect-resolves-rejects-hang.md) — hangs forever on ANY raw Bun.SQL query promise (not just .rejects.toThrow()); always await-then-assert or manual try/catch instead
-- [Concurrent check DB contention](concurrent-check-db-contention.md) — two parallel `bun run check` runs against the shared dev Postgres produce 50-300+ spurious fails; re-run in isolation before trusting a failure count
-- [PR branch conflict blocks CI trigger](pr-branch-conflict-blocks-ci-trigger.md) — CONFLICTING mergeStateStatus can silently stop ALL pull_request-triggered workflow runs on new pushes; merge/rebase base branch in to restore
-- [Shared checkout branch-switch near-miss](shared-checkout-branch-switch-near-miss.md) — `git checkout main` in the shared orchestrator dir silently carries another branch's uncommitted work along; always check `git status` first
-- [Shared DB migration schema drift](shared-db-migration-schema-drift.md) — a migration applied via one worktree permanently changes the live schema for every other worktree sharing that Postgres; unrelated branches can fail with real constraint errors until they merge/catch up — doesn't resolve by re-running in isolation
-- [Subagent background-notification stall](subagent-background-notification-stall.md) — subagents that background their own bun run check and wait for a notification stall forever (only the orchestrator gets those); a separate DB name per agent avoids data collisions but not server-wide connection exhaustion
-- [Idle-in-transaction hang](idle-in-transaction-hang.md) — an abandoned test process can leave a Postgres connection stuck idle-in-transaction holding a lock, genuinely HANGING every other test's TRUNCATE fixture reset (not just slowing it down); diagnose via pg_stat_activity, re-running does NOT fix it, get user confirmation before pg_terminate_backend
-- [Migration checksum strips transaction wrapper](migration-checksum-strips-transaction-wrapper.md) — db-migrate.ts hashes stripOptionalTransactionWrapper(rawSql), not raw bytes; plain sha256sum falsely looks like drift and overwriting the ledger with it corrupts a correct row
-- [Secret detection prefix exemption anchored bypass](secret-detection-prefix-exemption-anchored-bypass.md) — a "known reference prefix" allow-list on a secret-shape heuristic must strip-and-recheck the remainder, never exempt the whole string, or `env:<real secret>` sails past every anchored check
-- [Master-data + hermes-agent deferred 2026-07-13](master-data-hermes-agent-deferred-2026-07-13.md) — owner closed #658-664 and #669-678 as temporary NOT_PLANNED holds mid-session; do NOT resume either cluster until explicitly reopened
-- [Platform-evolution epic #738 survey](platform-evolution-epic-738-survey.md) — 17-issue epic (#739-755) FULLY COMPLETE + CLOSED 2026-07-15 (PR #783 last); spin-offs #795 (idempotency defect in other modules) + #796 (test-coverage gap) filed, not epic scope
-- [Cycle detector fed an incomplete graph](cycle-detector-fed-incomplete-graph.md) — #826: a CORRECT gate fed a hand-declared `dependencies` array can't fail on an undeclared edge; audit a gate's INPUT not its algorithm. A port can't break a cycle whose plugin→runtime edge is a real value import — invert registration, then gate the silent-failure it buys
-- [Validator exists but unwired = Critical](validator-exists-but-unwired-critical-pattern.md) — PR #769/#740: a correctly-tested composition validator was never called on the real DB-write path, letting a colliding module key silently overwrite a base module; trace validators BACKWARD from every write path, not forward from their own tests
-- [TypeScript 7 JSDoc backtick-fence bug](typescript-7-jsdoc-backtick-fence-bug.md) — an unmatched raw triple-backtick anywhere in a `/** */` comment toggles TS7's parser into "in fence", silently swallowing every `@param` after it → implicit-any; reword, don't add more backtick-escaping
-- [gh token workflow scope — OUTDATED](gh-token-lacks-workflow-scope.md) — CORRECTED 2026-07-17: token NOW HAS `workflow` scope, workflow PRs mergeable again; always check `gh auth status` rather than trusting this
-- [fetchModuleMatrix CI timeout — FIXED](fetchmodulematrix-ci-timeout-flake.md) — #824 closed it 2026-07-17 (7278ms→755ms). Diagnosed wrong TWICE: not a flake, and not mainly the 92-query fan-out — dominant cost was a `readYamlCached` stampede parsing 1MB YAML 22× in parallel. Measure cold vs warm separately
-- [ADR numbering race extends migration pattern](adr-numbering-race-extends-migration-pattern.md) — first confirmed ADR-file collision (PR #789 vs #784, both claimed `docs/adr/0019-*.md`); git merge does NOT flag it since filenames differ — must diff `docs/adr/` filenames manually; `docs/adr/README.md`'s index table is hand-merged (not generated) — use python to splice by conflict-marker index when Edit's string-match fails on prettier padding drift
+
+## Riwayat epic (semua CLOSED kecuali disebut)
+
+- [Post-audit hardening epic #818](post-audit-hardening-epic-818.md) — AKTIF: audit 2026-07-17 v0.24.0 → #818/#819-#835; fetchModuleMatrix akarnya 92 query/render, main tanpa branch protection, nol tag `v*`, cycle hidup lolos 2 gate
+- [fetchModuleMatrix CI timeout — FIXED](fetchmodulematrix-ci-timeout-flake.md) — #824 menutupnya (7278→755ms); salah diagnosis 2x: bukan flake, dan bukan fan-out 92 query — biang utamanya stampede `readYamlCached` mem-parse 1MB YAML 22×; ukur cold vs warm terpisah
+- [Platform-evolution epic #738 survey](platform-evolution-epic-738-survey.md) — 17 issue (#739-755) CLOSED 2026-07-15; spin-off #795/#796 difilekan; 6/6 PR Wave-3 hasilkan Critical/High di review pertama — jadikan itu ekspektasi dasar
+- [Platform hardening epic progress](platform-hardening-epic-progress.md) — epic #679 CLOSED 2026-07-12 (PR #701-#722, 22/22); 2 gelombang paralel (5-agent lalu 3-agent) memunculkan bahaya nyata
+- [News-portal + social-publishing epic progress](news-portal-social-publishing-epic-progress.md) — keduanya CLOSED 2026-07-13, 18/18 (#631-649); #636 butuh 4 percobaan sinyal tenant-state; tabrakan verify-endpoint lintas-PR di wave 5
+- [Tenant domain routing epic progress](tenant-domain-routing-epic-progress.md) — epic #555 CLOSED 2026-07-09 (PR #568-#585); catatan desain #564/#565/#566 MASIH load-bearing (identitas 1:1 per tenant, preset enable+disable, rssEnabled bukan di settings.defaults)
+- [Visitor analytics epic progress](visitor-analytics-epic-progress.md) — epic #617-#624 CLOSED 2026-07-10 (PR #648); reviewer+security-auditor sama-sama bersih
+- [Auth online hardening epic progress](auth-online-hardening-epic-progress.md) — epic #587-#593 + semua follow-up CLOSED 2026-07-10; nol issue/alert CodeQL tersisa
+- [Blog content epic progress](blog-content-epic-progress.md) — epic #536 (#537-#543) CLOSED 2026-07-08 (PR #545-#551); status modul kini `active`
+- [Master-data + hermes-agent deferred 2026-07-13](master-data-hermes-agent-deferred-2026-07-13.md) — owner menutup #658-664 & #669-678 sebagai tahan sementara NOT_PLANNED; JANGAN lanjutkan sampai dibuka lagi eksplisit
 `````
 
 <!-- memory-file: adr-numbering-race-extends-migration-pattern.md -->
@@ -213,6 +244,46 @@ Background agents launched without `isolation: "worktree"` operate in the same r
 **Recurred 2026-07-13, worse variant** (epic #738 Wave 1, issue #744 performance-testing): an `awcms-mini-coder` implementation agent (not just a read-only reviewer) did its ENTIRE multi-hour implementation directly in the shared main checkout at `/home/data/dev_react/awcms-mini` — never created its own feature branch, never used a worktree (`git worktree list` showed only 2 of the 4 in-flight Wave-1 agents had worktrees; #744 had none). Discovered only when my own routine post-merge `git checkout main && git pull origin main` (after merging PR #772) showed 7 modified tracked files + 10 untracked new files (a full performance-suite implementation: `scripts/performance-suite.ts`, `src/lib/performance/`, several test files) sitting uncommitted on `main`. `git pull` safely self-aborted ("Please commit your changes or stash them before you merge") rather than clobbering anything, and `git checkout main` was a no-op since I was already on main — no data was lost — but this was luck (a fast-forward pull refuses to overwrite a file with local uncommitted changes; a `git reset --hard` or `git checkout -- .` at the wrong moment would have destroyed a multi-hour agent's entire in-progress work). Root cause: whatever spawned #744 either didn't request `isolation: "worktree"` or the agent itself never ran `git checkout -b` before starting to edit files, unlike its Wave-1 siblings (#741, #745) which did get real worktrees.
 
 **How to apply, updated**: before running ANY git command that touches the working tree or HEAD (`checkout`, `pull`, `merge`, `reset`, `stash`) in the shared orchestrator directory — not just after dispatching a review agent, but as a standing habit any time other agents might be running in the background — run `git status --short` first. If it shows unexpected modified/untracked files while a sibling implementation agent is known to still be in-flight, STOP: do not pull, checkout, reset, or stash. Also run `git worktree list` occasionally when managing several parallel implementation agents to confirm every one of them actually landed in an isolated worktree, not the shared checkout — an agent working the shared checkout can't be safely git-manipulated by the orchestrator until it finishes and either commits+pushes or is confirmed idle.
+`````
+
+<!-- memory-file: analyze-silently-skipped-app-role.md -->
+
+`````markdown
+---
+name: analyze-silently-skipped-app-role
+description: "ANALYZE sebagai peran awcms_mini_app di-SKIP diam-diam (WARNING, bukan error) karena bukan owner tabel — beforeAll integration test perf sudah no-op sejak lama; blog-posts-fulltext-search laten MERAH (939,5 vs budget 800) begitu statistik akurat"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+`tests/integration/performance-query-plan-check.integration.test.ts` punya `beforeAll` yang menjalankan `ANALYZE <tabel>` lewat `getTestSql()` dengan komentar "Fresh planner statistics — stale/absent stats can bias the planner...". **ANALYZE itu tidak pernah berjalan.**
+
+`getTestSql()` = peran least-privilege `awcms_mini_app`, yang **bukan owner** tabel. PostgreSQL **melewati** ANALYZE tabel yang tidak dimiliki peran itu dengan **WARNING, bukan error** — jadi `await sql.unsafe("ANALYZE t")` return sukses dan tidak ada yang curiga. Diverifikasi langsung: `pg_stat_user_tables.last_analyze` **tidak berubah** sebelum vs sesudah.
+
+Ini varian dari catatan yang sudah ada di `fixture-seeder.ts` (TRUNCATE/ANALYZE butuh ownership) — tapi konsekuensinya di test belum pernah ditarik.
+
+**Why:** akibatnya seluruh angka `Total Cost` di suite itu berasal dari statistik basi/absen dan **tidak bermakna**. Konkret: regresi index yang sama = cost 939,88 di DB yang di-`VACUUM FULL ANALYZE` vs **~8** di suite integrasi. Kalau budget hanya bertumpu pada cost, ia tidak menyala di sana sama sekali. Bentuk plan (`Sort`) tetap benar di kedua regime — itu alasan budget `admin_list` memimpin dengan bentuk plan, lih. [[rls-defeats-seq-scan-gates]].
+
+**Bom waktu terukur:** budget PRE-EXISTING `blog-posts-fulltext-search` lulus CI **hanya karena statistik basi**. Terhadap DB skala `safe` yang sudah di-`VACUUM FULL ANALYZE` ia mengukur **939,5 vs `maxTotalCost: 800`** — sama persis kelasnya dengan yang di-root-cause Issue #782 untuk `audit-events-tenant-activity-reporting` (~11 pra-ANALYZE vs ~1088 pasca). Jadi **memperbaiki ANALYZE = wajib rekalibrasi budget itu di perubahan yang sama** (threshold change yang di-approve), jangan dibundel sembarangan; kalau tidak CI langsung merah.
+
+**`CREATE INDEX` memperbaiki statistik SETENGAH — dan itu lebih buruk daripada tidak sama sekali.** Membangun index memperbarui `pg_class.reltuples`/`relpages` sebagai efek samping (terukur di `awcms_mini_blog_pages`: `-1/0` → `2000/334`), jadi planner tahu jumlah baris nyata tapi **tetap nol statistik kolom** (`pg_statistic` = 0, `last_autoanalyze` = null). Untuk blog admin list, justru kondisi setengah-tahu itu satu-satunya yang membuat index-nya kalah:
+
+| kondisi `pg_class` | plan | cost |
+|---|---|---|
+| `reltuples=-1` (belum pernah analyze) | `Index Scan(..._tenant_updated_idx)` | 8,3 |
+| `reltuples` nyata, NOL statistik kolom | `Sort` + `Scan(..._tenant_deleted_idx)` | 8,19 |
+| ter-ANALYZE penuh (DB nyata mana pun) | `Index Scan(..._tenant_updated_idx)` | 57,17 |
+
+Dua plan itu **seri dalam ~1%** → planner ambil yang sedikit lebih murah; lemparan koin, bukan penilaian. Ini yang membuat test `after` (EXPLAIN ulang setelah `finally` CREATE INDEX) MERAH di DB bersih padahal budget-nya benar — baris tengah tak pernah ada di deployment nyata. Gejalanya menyesatkan: `before` hijau + `after` merah dalam run yang SAMA, index definisi identik byte-per-byte. **Memulihkan index itu fakta schema → assert lewat `pg_indexes.indexdef` (round-trip terhadap definisi sebelum drop), jangan lewat bentuk plan.**
+
+**How to apply:**
+- Jangan pernah percaya `EXPLAIN` cost dari suite perf tanpa memeriksa `pg_stat_user_tables.last_analyze` dulu.
+- Beda plan "sebelum vs sesudah" yang selisih costnya **~1%** bukan sinyal — itu seri. Cari beda 10x+ sebelum menyimpulkan planner "memilih" sesuatu.
+- Repro dengan superuser psql **menyembunyikan** kelas bug ini: tanpa RLS, dan sering DB-nya sudah ter-ANALYZE. Reproduksi lewat peran app + RLS + DB bersih (`CREATE DATABASE` baru), bukan DB dev berumur panjang.
+- Butuh ANALYZE beneran di test? pakai `getAdminSql()` (koneksi privileged), **bukan** `getTestSql()`.
+- **Hati-hati efek samping lintas-job**: CI menjalankan `bun test` lalu `performance:query-plan:check` **di database yang sama**. Meng-ANALYZE tabel dari dalam sebuah test akan membuat run skrip berikutnya melihat statistik akurat → `blog-posts-fulltext-search` merah. Sengaja TIDAK dilakukan di #838.
+- `DELETE` tidak pernah mengembalikan halaman fisik, jadi seeding berulang di DB dev yang berumur panjang menggelembungkan cost (`audit-events-tenant-activity-reporting` 170 → 1612 setelah beberapa siklus). `VACUUM FULL ANALYZE` dulu sebelum membandingkan angka apa pun — dan pisahkan pre-existing dari regresi PR dengan `git stash push -- <src>` di DB yang SAMA.
 `````
 
 <!-- memory-file: astro-files-escape-typecheck.md -->
@@ -389,6 +460,8 @@ Audit menyeluruh 2026-07-17 ([[post-audit-hardening-epic-818]]) menghasilkan dia
 - **#833** — magnitudo meleset **~800x** ("~6 juta kunjungan, detik-detikan CPU" → nyatanya 7.203 kunjungan, 0,067 ms). Bound worst-case `O(P×R×K×F×S)` ditulis seolah nilai terukur; nyatanya hanya 3 rule terdaftar + ada short-circuit.
 - **#832** — saran "minimal: `void collectRequestAnalytics(...)`" **merusak analytics diam-diam**: fungsi itu memanggil `context.cookies.set(...)` dan Astro men-serialize cookies begitu middleware return → cookie dibuang tanpa error, tiap request cetak visitor key baru. (Premis blocking-nya sendiri BENAR & terukur.)
 - **#824** (wave 1) — diagnosis "92 query per render" bukan biang utamanya; dominan justru cache stampede `readYamlCached` parsing YAML 1MB 22× paralel. Lih. [[fetchmodulematrix-ci-timeout-flake]].
+- **#828 / dokumen audit itu sendiri** (wave 3) — `AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md` menulis **"24 modul (22 active, 2 experimental)"**, angka yang **tidak pernah benar di commit mana pun** (`git show <commit>:src/modules/index.ts` = 23 entri, 1 experimental). **24 = hitungan DIREKTORI termasuk `_shared`** — persis kesalahan yang [[module-key-vs-directory-name-divergence]] larang, dilakukan oleh audit yang seharusnya menegakkannya. Ironisnya premis issue #828 sendiri ("23 modul") BENAR; yang salah dokumen sumbernya. **Angka di dokumen audit tidak lebih tepercaya daripada angka di issue** — verifikasi dari `listBaseModules()`, jangan dari dokumen audit mana pun, termasuk yang baru.
+- **#838** (wave 3) — premis "index #830 tak terkunci" BENAR, tapi resep implisitnya (tiru 5 budget yang ada: `forbiddenNodeTypes: ["Seq Scan"]`) menghasilkan **gate VAKUM**: RLS selalu menyuntikkan `tenant_id`, jadi `DROP INDEX` sungguhan tak menghasilkan Seq Scan — planner pindah index + `Sort` (62,06 → 939,88, nol Seq Scan). Lih. [[rls-defeats-seq-scan-gates]].
 
 **Why:** diagnosis datang dari membaca kode (andal); angka dan resep datang dari penalaran tanpa eksekusi (tidak andal). Keduanya ditulis dengan nada percaya diri yang sama, jadi pembaca tak bisa membedakan mana yang diukur dan mana yang ditebak. Premis yang tak dikoreksi **jadi justifikasi issue berikutnya**.
 
@@ -784,6 +857,38 @@ list in a prior chat message is not sufficient by itself — get an explicit
 selection/confirmation on record before running the batch delete. Once
 confirmed, the classifier allows it through without further friction (same
 script re-run passed clean).
+`````
+
+<!-- memory-file: bulk-insert-jsonb-unnest-trap.md -->
+
+`````markdown
+# Bulk insert: unnest+tx.array("jsonb") silently reintroduces #623
+
+Issue #846. Batching the visitor telemetry write needed a multi-row INSERT. The
+NATURAL bulk shape is `unnest(${tx.array(vals,"text")}, ${tx.array(rows.map(r =>
+JSON.stringify(r.geo)), "jsonb")})` — and it **reintroduces the Issue #623 bug**:
+stores identical BYTES, but every later SELECT returns a **string**, not an
+object.
+
+Measured empirically (do not reason about this — probe it):
+
+| shape                                        | reads back as |
+| -------------------------------------------- | ------------- |
+| `unnest(..., tx.array(map(JSON.stringify), "jsonb"))` | **string** |
+| `` tx`INSERT INTO t ${tx(rows)}` `` with plain objects | **object** |
+| single-row `${obj}::jsonb` (pre-#846 collector)        | object |
+
+So the existing "bind a plain object, never pre-stringify" memory has a bulk
+corollary: **`tx(rows)` is the only bulk shape that preserves jsonb fidelity.**
+`tx(rows)` also supports `RETURNING`, preserves nulls, `inet`, and explicit
+timestamptz — all verified. Round trips are constant (100 rows = 4 RT).
+
+`unnest` is still correct for a bulk **UPDATE** (no jsonb there) and for
+pair-wise lookup: `WHERE (a,b) IN (SELECT * FROM unnest($1,$2))` matches pairs
+exactly, whereas `a = ANY($1) AND b = ANY($2)` forms a cross product.
+
+Gotcha: `count(DISTINCT xmin)` fails — `xid` has no ordering operator. Cast:
+`count(DISTINCT xmin::text)`.
 `````
 
 <!-- memory-file: bun-check-skips-integration-tests.md -->
@@ -1439,6 +1544,33 @@ consistent with that pattern (even though this PR's own scope is a
 narrower, already-disclosed gap-closure rather than new functionality).
 `````
 
+<!-- memory-file: failopen-catch-hides-untested-sql.md -->
+
+`````markdown
+# fail-open catch + untested SQL = permanently silent bug
+
+Issue #846, found by mutation testing my OWN new tests. Two escapes:
+
+1. Test "12 events from one visitor -> 1 session" stayed **GREEN** when the
+   existing-session lookup (`if (existing && withinSameSession)`) was broken to
+   `if (false)`. One batch collapses to one group, so it inserts one session
+   either way. Cross-batch continuation needs **two separate flushes** to test.
+2. The bulk session UPDATE (13-array unnest) was reached by **NO test at all** —
+   breaking it outright left the WHOLE suite green. It sits inside the
+   collector's fail-open `catch`, so a syntax error there is caught, logged at
+   `warning`, and swallowed **forever**. Nothing fails; sessions just silently
+   stop being refreshed.
+
+Lesson: **fail-open + a code path no test reaches = a bug that can never fail
+anything.** The throttled-UPDATE branch only fires when a session is >30s old
+but <300s (online window) — no natural test hits it; seed a stale
+`last_seen_at` directly.
+
+Method that caught both: mutate each branch, run the named test, assert RED.
+Stashing the source proves nothing for a NEW module (import error). Mutation is
+the only real red-verification for new code.
+`````
+
 <!-- memory-file: fetchmodulematrix-ci-timeout-flake.md -->
 
 `````markdown
@@ -1533,43 +1665,6 @@ metadata:
 **How to apply**: on a `gh pr merge` failure, don't blindly retry in a tight loop. Check `gh pr view <n> --json mergedAt,state` first — if `mergedAt` is still `null` and `state` is `OPEN`, wait (15-30s) and retry; if `mergeStateStatus`/`mergeable` still show `CLEAN`/`MERGEABLE`, the retry is safe. Loop this (check → wait → retry) rather than a single blind retry, since the lock can take a couple of tries to clear. Once `mergedAt` is non-null, stop — don't issue another merge call.
 `````
 
-<!-- memory-file: gh-token-lacks-workflow-scope.md -->
-
-`````markdown
----
-name: gh-token-lacks-workflow-scope
-description: "OUTDATED as of 2026-07-17 — the gh token NOW HAS `workflow` scope; PRs touching .github/workflows/*.yml can be merged again. Kept as history; re-verify with `gh auth status` before assuming either way"
-metadata:
-  type: project
----
-
-**DIKOREKSI 2026-07-17 — batasan ini SUDAH TIDAK BERLAKU.** Verifikasi langsung:
-
-```
-$ gh auth status
-- Token scopes: 'gist', 'read:org', 'repo', 'workflow'
-```
-
-Token **punya** `workflow` scope sekarang. PR yang menyentuh `.github/workflows/*.yml` **bisa** di-merge lewat `gh pr merge`. Jangan lagi menghindari/menunda pekerjaan workflow atau meminta user merge manual atas dasar memory ini.
-
-**How to apply:** cek `gh auth status` **sebelum** menyimpulkan apa pun soal scope — ini state akun yang bisa berubah kapan saja di luar sesi, bukan sifat repo. Memory ini sendiri contoh kenapa: ia benar 2026-07-13, salah 4 hari kemudian, dan kalau dipercaya buta akan membuat pekerjaan yang sah ditolak tanpa alasan.
-
----
-
-## Riwayat (2026-07-13, sudah tidak berlaku)
-
-Saat membersihkan batch Dependabot PR (#757-#765), `gh pr merge --squash` gagal konsisten untuk tiap PR yang menyentuh `.github/workflows/*.yml`:
-
-```
-GraphQL: refusing to allow an OAuth App to create or update workflow
-`.github/workflows/release.yml` without `workflow` scope (mergePullRequest)
-```
-
-Ini restriksi server-side GitHub: token tanpa scope `workflow` tak bisa push commit (termasuk squash-merge commit) yang mengubah `.github/workflows/`. PR non-workflow tidak terpengaruh.
-
-Yang tetap berlaku sebagai prinsip: **jangan** akali batasan izin dengan `git push` langsung ke main (melewati branch protection/review) atau menanggalkan file workflow dari merge commit (diam-diam membuang perubahannya) — keduanya menyubversi maksud restriksi, bukan memperoleh izin secara sah. Terkait: [[typescript-7-jsdoc-backtick-fence-bug]].
-`````
-
 <!-- memory-file: gitguardian-scans-full-pr-history.md -->
 
 `````markdown
@@ -1660,6 +1755,51 @@ confirm it was never present anywhere else in history in a way that looks
 like an accidental real credential later scrubbed. Only then resolve via
 the API — this is a security-relevant decision on a public-facing page,
 worth the extra verification pass even when the answer seems obvious.
+`````
+
+<!-- memory-file: grep-for-marker-cannot-prove-absence.md -->
+
+`````markdown
+---
+name: grep-for-marker-cannot-prove-absence
+description: "Memverifikasi \"kerja agent selamat\" dengan grep penanda perbaikan hanya membuktikan file yang PUNYA penanda; file yang perbaikannya hilang diam-diam keluar dari hasil grep — ketiadaan tak terlihat"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+Saat memulihkan 5 agent wave 3 (epic #818) setelah session limit, saya
+memverifikasi kerja agent #842 selamat dengan `grep -rn "Promise.all" src/`
+dan melihat 10 file memuat komentar perbaikannya ("Sequential, NOT
+`Promise.all`"). Saya laporkan ke agent: **"perbaikanmu SELAMAT"**.
+
+**Salah.** `module-matrix.ts` perbaikannya SUDAH HILANG (`git stash push --
+<file>` mengembalikannya ke HEAD, membuang fix agent itu sendiri, bukan hanya
+mutasi uji cobanya). Agent yang mengoreksi saya, bukan sebaliknya.
+
+**Why:** grep-untuk-kehadiran hanya membuktikan file yang punya penanda. File
+yang perbaikannya ter-revert TIDAK punya penanda, jadi ia **diam-diam keluar
+dari result set** — ketiadaannya tak terlihat kecuali kamu tahu daftar lengkap
+yang seharusnya ada. Saya bahkan MELIHAT `module-matrix.ts:118` masih
+`Promise.all` di output yang sama dan menandainya sebagai "putuskan BUG atau
+AMAN" — lalu tetap menulis kesimpulan "selamat" yang menyeluruh. Dua
+pernyataan itu bertabrakan dan saya tak menyadarinya.
+
+**How to apply:**
+1. Untuk membuktikan kerja selamat, bandingkan terhadap **daftar yang
+   diharapkan** (mis. `git diff --stat` per file), bukan grep penanda.
+   `git diff --stat HEAD -- <file>` kosong = fix hilang, dan itu terlihat.
+2. Kalau memberi kesimpulan menyeluruh ("semua selamat"), pastikan tak ada
+   baris di bukti yang sama yang membantahnya.
+3. `git stash push -- <file>` mengembalikan file ke **HEAD** — kalau fix-mu
+   belum di-commit, ia ikut terbuang bersama mutasi uji. Untuk verifikasi
+   merah pada fix yang belum di-commit, commit dulu fix-nya, ATAU stash lalu
+   pop dan cek per-file bahwa fix-nya kembali. Lihat [[session-limit-kills-agents-work-survives]].
+4. Sampaikan hasil verifikasi ke agent sebagai **data, bukan vonis** — agent
+   punya konteks per-file yang tak kamu punya dan bisa mengoreksimu.
+
+Terkait: [[promise-all-on-single-tx-hang]], [[audit-count-assertion-vacuous]]
+(kelas yang sama: bukti yang tak bisa membedakan "benar" dari "tak terperiksa").
 `````
 
 <!-- memory-file: idempotency-hash-missing-resource-id-recurring.md -->
@@ -2432,8 +2572,8 @@ internals learned the hard way this session.
 `````markdown
 ---
 name: module-key-vs-directory-name-divergence
-description: "A module's registered `key` in src/modules/*/module.ts can silently diverge from its directory name and from every doc that names it — `workflow_approval` is really keyed `workflow`; never derive a module key by transforming the directory name, always read listBaseModules()"
-metadata: 
+description: "A module's registered `key` in src/modules/*/module.ts can silently diverge from its directory name and from every doc that names it — `workflow_approval` is really keyed `workflow`; never derive a module key by transforming the directory name, always read listBaseModules(). Also bites as off-by-one COUNTS: the #818 audit's own '24 modul (2 experimental)' was the directory count incl. `_shared`; real = 23/1 via listBaseModules()"
+metadata:
   node_type: memory
   type: project
 ---
@@ -2469,6 +2609,27 @@ error. That's the dangerous shape: it looks like "no findings."
 gate, expect the first run to surface a real divergence rather than pass;
 if a brand-new registry-comparison gate passes green on run one, be
 suspicious that it's comparing the wrong thing.
+
+**CONFIRMED IN THE WILD — the audit itself fell for it (2026-07-17, Issue
+#828).** `AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`'s own repo-size line —
+the summary that seeded epic #818's issues — claimed "**24 modul** (22
+`active`, 2 `experimental`)". Both numbers were **never true**:
+`listBaseModules()` returned **23** at that exact commit (verified via
+`git show dfabecc:src/modules/index.ts`) with exactly **1** experimental
+(`idn_admin_regions`). 24 is `ls -d src/modules/*/ | wc -l` — the
+**directory** count, which includes `_shared` (contracts/helpers, not a
+registered module). So the failure mode isn't only "derived key matches
+nothing"; it's also **off-by-one counts** that read as authoritative and
+then propagate into every downstream doc. Ironically issue #828's own
+title ("23 modul nyata") was right while the audit doc that spawned it was
+wrong — verify BOTH, they can disagree.
+
+**Counting recipe (use this, not `ls`/`wc`):** run a throwaway Bun script
+importing `listBaseModules()` from `src/modules/index.ts` and print
+`.length` + each `.key`/`.status`. `ls src/modules/` overcounts by
+`_shared` (+1) and tells you nothing about `status`. To reconstruct a
+past claim, `git show <commit>:src/modules/index.ts` and count entries in
+the `baseModules` array.
 
 **Not fixed, deliberately.** Renaming the key to `workflow_approval` would
 move its whole `workflow.*` permission namespace (granted rows, ABAC
@@ -2958,194 +3119,105 @@ subagents launched per PR, merge only after CI passes and findings are
 addressed).
 `````
 
-<!-- memory-file: open-epics-2026-07-12-survey.md -->
+<!-- memory-file: oracle-issue-check-timing-dimension.md -->
 
 `````markdown
 ---
-name: open-epics-2026-07-12-survey
-description: "Survey of open GitHub issues in awcms-mini as of 2026-07-12 after epic #679; updated 2026-07-13 after wave 5 fully merged (social-publishing #643-#646 ALL done, only #647 docs left; master-data at #657/10) — next up #647/#658/#669"
-metadata: 
+name: oracle-issue-check-timing-dimension
+description: "Issue #840 melaporkan oracle enumerasi di RESPONSE BODY login; oracle timing yang tak disebut ternyata ~19x lebih besar (4,13ms vs 80,13ms) dan jauh lebih murah dieksploitasi. Pola `identityRow ? await verifyPassword(...) : false` = KDF dilewati untuk identifier tak dikenal. Perbaiki body saja = security theater. Ukur dimensi timing SEBELUM menutup issue oracle apa pun."
+metadata:
   node_type: memory
-  type: project
+  type: pattern
 ---
 
-After epic #679 (platform-hardening) closed 2026-07-12, `gh issue list --state open`
-showed 33 open issues across 3 clusters (no open issues outside these
-three). This is the ground-truth dependency graph as of that date —
-re-verify with `gh issue view <n> --json body` before trusting it if much
-time has passed, since issues can be edited.
+# Issue oracle: selalu ukur dimensi TIMING, bukan hanya body (Issue #840)
 
-## Cluster 1: news-portal + social-publishing (18 issues, IN PROGRESS)
-See [[news-portal-social-publishing-epic-progress]] for full history.
-#631-#637 already merged/closed before this survey. Remaining open at
-survey time: #638, #639, #640, #641, #642, #649 (news-portal) + #643,
-#644, #645, #646, #647 (social-publishing).
+Issue #840 melaporkan oracle enumerasi akun di `POST /api/v1/auth/login` lewat
+**respons**: `locked` → `"Account is temporarily locked."`, dan
+`password_login_disabled` → `403`. **Kesimpulannya BENAR** (keduanya memang
+hanya tercapai bila `identityRow` ada — `login-policy.ts` menjaga dua cabang
+itu dengan `input.identity`), tapi diagnosisnya **tidak lengkap dan sebagian
+terbalik**:
 
-True dependency graph (from each issue's own "Depends on:" line, NOT the
-epic's own suggested order which memory previously had slightly wrong —
-#637 shipped without waiting on #640 despite an earlier note implying
-otherwise):
-- **Ready immediately** (deps #631-636, all merged): #638 (ad placement
-  presets), #639 (video_news block), #640 (content quality checklist),
-  #642 (public share buttons).
-- #641 (auto internal tag linking) needs #640.
-- #643 (social-publishing outbox foundation) needs #640.
-- #649 (SEO/social preview metadata) needs #640 AND #642.
-- #644/#645/#646 (Meta/LinkedIn/Telegram adapters) each need #643.
-- #647 (social-publishing docs) needs everything — genuinely last.
+| Klaim issue                                       | Terukur/terbaca                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Tabelnya menyiratkan `locked` beda respons         | Status **dan** error code sudah identik (`401 AUTH_INVALID_CREDENTIALS`); **hanya `message`** yang beda |
+| "`locked` mungkin melewati verifikasi password ⇒ oracle waktu" | **Terbalik.** `verifyPassword` jalan SEBELUM `evaluateLoginAttempt`, jadi `locked` TIDAK melewatinya |
+| (tak disebut sama sekali)                          | **Identifier tak dikenal melewati argon2id sepenuhnya: 4,13 ms vs 80,13 ms (~19x)** |
 
-**Conflict-risk note for the ready-4**: #639 and #640 both touch
-`src/modules/blog-content/domain/content-block-media-references.ts` /
-`content-block-rendering.ts` (the shared content-block validation
-surface) — #639 adds a new `video_news` block case, #640 adds checklist
-rules calling into the existing verified-media-reference validation.
-Real but modest overlap risk; #638 (ads, separate `awcms_mini_blog_ads`
-table) and #642 (public page + OG meta) are lower-risk / more isolated.
+Oracle timing itu **jauh lebih praktis** daripada yang dilaporkan: 1 request vs
+~6 (`locked` perlu memicu `AUTH_LOGIN_MAX_ATTEMPTS` dulu), tanpa efek samping
+mengunci user asli, konfigurasi default, semua deployment. **Menutup body saja
+= security theater**: tujuan issue ("penyerang bisa memastikan identifier
+terdaftar") tetap tak tercapai.
 
-## Cluster 2: master-data wilayah administratif Indonesia (10 issues, NOT YET STARTED before this survey)
-Epic #654, issues #655-#664. Third-party dataset:
-`cahyadsn/wilayah` (MIT license), Indonesia administrative regions.
-Unlike news-portal, these issues have NO explicit "Depends on:" lines —
-the numbering itself IS the dependency order, a strictly SEQUENTIAL
-pipeline, not parallel-friendly:
-`#655 scaffold module → #656 vendor dataset source/license → #657 schema
-→ #658 parser/normalizer → #659 repo validation gate → #660 import into
-Postgres → #661 rollback/diff → #662 read-only lookup API → #663 admin
-UI → #664 docs/SOP`.
-Module descriptor per #655: `key: idn_admin_regions`, `type: "base"`,
-deps `identity_access`/`logging`/`module_management`. 5 permissions:
-`idn_admin_regions.{region.read,dataset.read,dataset.import,
-dataset.activate,dataset.rollback}`.
-**How to apply**: only ever run ONE issue at a time from this cluster,
-in strict numeric order — do not parallelize within this epic (but it's
-fine to run it ALONGSIDE unrelated clusters' issues in the same wave,
-since it's a separate module/files). #655 was launched 2026-07-12 as
-part of a 5-agent wave alongside 4 news-portal issues — **merged,
-closed** (PR #723, commit `d244482`, 2026-07-12). Went through 6 full
-reviewer/security-auditor rounds on one incidental fix
-(`scripts/db-migrate.ts`'s transaction-control scanner) — see
-[[sql-tokenizer-regex-vs-state-machine]] for the full account; the
-module scaffold itself was clean from round 1. One operational
-aftershock: #655's migration `048_awcms_mini_idn_admin_regions_
-permissions.sql` collided with a sibling news-portal PR (#638) that
-had independently picked migration number 048 — since #655 merged
-first, #638 had to rename its own file to 049 during its next merge-
-conflict resolution, including renaming an already-applied row in the
-shared dev Postgres's migration ledger (checksum-verified identical
-content, user-confirmed via AskUserQuestion since it's a direct mutation
-of shared state) — a recipe worth reusing if this collision pattern
-recurs. **#656 merged, closed** (PR #728, commit `9c96fd2`, 2026-07-12)
-— vendored real upstream data (commit
-`cae306278e5be616c83ba2d8096b00767f45b5fe`, confirmed live against
-GitHub independently by both the coder agent and the reviewer/security-
-auditor via fresh `git clone`/`git ls-remote`, checksums verified byte-
-identical). Clean single-round review: reviewer Approve, security-
-auditor PASS, only 2 informational notes (upstream `wilayah.sql` has
-MySQL-only `ENGINE=MyISAM` DDL that won't parse as Postgres — expected,
-deferred to #658's parser/normalizer; checksum-only integrity has no
-signature, explicitly out of scope for a same-repo trust model). Next
-in this cluster: **#657** (versioned PostgreSQL schema) — run solo
-within the cluster, safe to bundle into the same parallel wave as other
-clusters' issues.
+Sesudah `verifyPasswordOrDummy`: 90,46 vs 90,29 ms (rasio 1,002). Query
+identity-scoped yang tetap dilewati (~1-2 ms loopback Postgres) **tidak muncul
+di atas noise** — jadi jangan overkill menyamakan tiap query; samakan biaya
+dominan (KDF), lalu ukur dan laporkan residunya apa adanya.
 
-## Cluster 3: hermes-agent (10 issues, NOT YET STARTED, highest blast radius)
-Epic #668, issues #669-#678. A tenant-aware AI agent management platform
-with Telegram bot integration, an "AWCMS module tool gateway" (agent
-calls into other AWCMS modules), and an operations dashboard. Issue
-order strongly suggests: #669 (control-plane architecture, ADR, threat
-model — a DOCS-ONLY architecture-definition issue, same pattern as
-news-portal's #631) should run FIRST and ALONE before any code-writing
-issue in this epic (#670 scaffold+schema+RLS+RBAC+registry API, #671
-deployment profile, #672 authenticated Hermes client, #673 Telegram
-identity/chat/access-policy, #674 module tool gateway, #675
-AWCMS-originated agent runs + human approval, #676 ops dashboard, #677
-usage rollups/budget/alerts/retention jobs, #678 deployment/ops docs).
-This is the highest-blast-radius of the 3 clusters (new external bot
-integration, new AI-agent trust boundary, module tool gateway implies a
-new privilege-escalation surface) — has NOT been started yet as of this
-survey. Recommend running #669 alone first (mirroring #631's role for
-news-portal) before considering any parallelization within this epic,
-and likely worth a brief user check-in given the novel trust-boundary
-(agent-initiated actions against other tenant modules) before deep
-implementation, even though the standing parallel-wave authorization
-technically covers "continue working on open issues."
+## Cara pakai
 
-## Status update 2026-07-12 (end of wave 5, master-data half)
-**#657 merged, closed** (PR #732, commit `541d605`, 2026-07-12) — schema
-for `awcms_mini_idn_region_datasets`/`awcms_mini_idn_admin_regions`
-(both global, no tenant_id/RLS by design). Clean single-round review
-(reviewer Approve, security-auditor PASS, only minor non-blocking
-notes: `ALLOWED_GLOBAL_TABLE_GRANTS` entries were redundant-but-harmless
-since the runtime role gets zero grants either way, and the
-`normalized_name` search index is a plain btree not `pg_trgm`/GIN —
-flagged forward for #662's lookup API, not a defect here). Confirmed
-this cluster has a SECOND independent RLS-exemption allowlist
-(`RLS_EXEMPT_TABLES` in `scripts/repo-inventory-generate.ts`, separate
-from `security-readiness.ts`'s `RLS_FREE_TABLES`) that any future
-global/non-tenant-scoped table in this repo must also register in.
-Single-active-dataset enforced via a genuine DB-level partial unique
-index (`WHERE status = 'active'`), not just application convention.
-Also fixed, as an unrelated side-finding, a stale skill doc (PR #733,
-merged) — `.claude/skills/awcms-mini-new-migration/SKILL.md`'s own
-migration template still taught wrapping migrations in
-`BEGIN;`/`COMMIT;`, which `scripts/db-migrate.ts`'s
-`assertNoTransactionControl` has rejected as a hard error for a while
-now (confirmed no recently-merged migration 045-053 uses the wrapper
-either) — anyone following that skill's template literally would have
-had their first `bun run db:migrate` fail immediately. Next in this
-cluster: **#658** (parser/normalizer) — run solo within the cluster.
+- **Pola bau yang harus di-grep** pada tiap endpoint auth publik:
+  `x ? await verify(...) : false` / `if (!row) return fail(...)` sebelum kerja
+  mahal. Setiap "short-circuit karena row tak ada" di jalur pre-auth adalah
+  kandidat oracle timing.
+- **Ukur dulu, jangan nalar saja.** Probe throwaway (median 8-12 sampel,
+  interleaved supaya drift beban mesin kena dua sisi sama rata) di
+  `tests/integration/` pakai harness yang ada — 10 menit, dan angkanya yang
+  mengubah keputusan. Rasio sebelum 0,052 vs sesudah 1,002: threshold test 0,5
+  aman di antara keduanya, tak flaky.
+- **Dummy hash WAJIB diproduksi `hashPassword()` sendiri**, bukan literal
+  yang di-pin: biaya verify = fungsi dari parameter yang ter-encode di hash,
+  jadi literal diam-diam berhenti cocok saat default Bun bergerak. Mutation
+  `memoryCost: 4, timeCost: 1` terbukti lolos semua test lain **kecuali** test
+  timing — itulah yang menjaganya.
+- Buang hasil verify di jalur dummy (`return false` tanpa syarat), dan pastikan
+  **hanya `hash === null`** yang memilih jalur itu — jangan pernah properti
+  dari input attacker.
 
-## Status update 2026-07-12 (end of wave 4)
-Wave 3 (#638/#639/#640/#642 news-portal + #655 master-data) and wave 4
-(#641/#643/#649 news-portal/social-publishing + #656 master-data) are
-BOTH fully merged and closed. News-portal (#631-#642/#649) is entirely
-done. Master-data is at #656/10 (sequential, next is #657). Social-
-publishing's foundation (#643) is done after a notable 3-round security
-saga — see [[secret-detection-prefix-exemption-anchored-bypass]] and
-[[news-portal-social-publishing-epic-progress]]. Remaining open work:
-**#644/#645/#646** (Meta/LinkedIn/Telegram adapters, each depend on
-#643 — now unblocked, could run as a 3-issue parallel wave since they
-touch different provider-adapter files) then **#647** (social-
-publishing docs, needs everything, genuinely last); **#657-664**
-(master-data, strictly sequential, one at a time); hermes-agent's
-**#669** (architecture doc, run solo first).
+## Residu cold-start: yang menentukan itu ARAH skew, bukan besarnya
 
-## Status update 2026-07-13 (end of wave 5)
-Wave 5 (#644 Meta + #645 LinkedIn + #646 Telegram + #657 master-data)
-is fully merged and closed. Social-publishing epic is now #643-#646
-COMPLETE — only #647 (docs) remains, now unblocked. Master-data is at
-#657/10 (schema landed), next is #658 (parser/normalizer). This wave
-surfaced a genuinely new hazard class not seen in waves 1-4: two
-sibling PRs (#644, #646) independently built the same not-yet-existing
-shared endpoint with incompatible designs — see
-[[news-portal-social-publishing-epic-progress]]'s "Cross-PR
-design-collision lesson" for the resolution pattern (decide canonical
-design, merge it first, have siblings delete-and-adopt rather than
-merge-conflict-resolve). Also: #645 (LinkedIn) had the hardest security
-review of the whole session so far — BLOCKED then PASS across 2 rounds,
-full account in [[secret-detection-prefix-exemption-anchored-bypass]].
+Dummy hash yang lazy-memoized bikin request unknown **pertama tiap proses**
+bayar hash + verify: terukur **254,7 ms vs 94,3 ms warm (~2,7x)**, dibanding
+96,4 ms untuk known. Terlihat menakutkan, **bukan kebocoran** — dan yang
+menyelamatkannya bukan "cuma 2,7x" melainkan **arahnya**: cold-unknown lebih
+LAMBAT dari known, sedangkan sinyal yang dieksploitasi adalah "unknown menjawab
+CEPAT". Sekali per proses (`??=` menugaskan promise sinkron ⇒ burst konkuren
+berbagi satu hash; probe pertama attacker sendiri yang menghangatkan), dan satu
+outlier tak terbedakan dari GC pause.
 
-## CRITICAL UPDATE 2026-07-13: master-data and hermes-agent DEFERRED, do not resume
-The repo owner closed #658-664 (master-data) and #669-678 (hermes-agent)
-as temporary `NOT_PLANNED` holds shortly after wave 5 merged — full
-account in [[master-data-hermes-agent-deferred-2026-07-13]]. **Do not
-launch any wave touching either cluster** until the user explicitly
-reopens one. As of this update, `gh issue list --state open` returns
-only **#647** repo-wide. Re-verify with a fresh `gh issue list --state
-open` before trusting even this — issue state can change between
-sessions, as this exact incident demonstrates.
+Saat menilai residu timing, tanya berurutan: (1) **arahnya** menguatkan atau
+membalik sinyal attacker? (2) per-request atau sekali-per-proses? (3) bisa
+diatribusikan attacker ke sebab yang benar? Besarnya rasio pertanyaan terakhir.
 
-## How to apply overall (superseded for master-data/hermes-agent, see above)
-~~Given the standing authorization to work non-conflicting issues in
-parallel (max 5), the natural next wave is: #647 (social-publishing
-docs, now unblocked, run alone) + #658 (master-data, next in its solo
-sequence). hermes-agent's #669 gets its own solo wave once cluster 1/2
-quiet down.~~ Only #647 is actually workable now — run it solo (no
-other open issue exists to parallelize with).
+**Tolak eager warm** untuk menambalnya: top-level `await` menahan evaluasi modul
+bagi tiap importer (test/seed/scripts/CLI) yang cuma butuh `hashPassword`, dan
+`void warm()` di module scope membakar argon2id di semua proses itu + butuh
+penanganan rejection. Menukar biaya nyata tiap-proses demi skew sekali-proses
+yang arahnya sudah tidak berbahaya. **Dokumentasikan angkanya di JSDoc** —
+pembaca berikutnya yang mengukur cold start akan melihat 2,7x dan mengira
+perbaikannya bocor.
 
-See also [[platform-hardening-epic-progress]] (the epic this repo just
-finished) and [[create-feature-branch-before-commit]] for the
-established per-issue branch/PR workflow.
+## Kolaps respons: jangan berhenti di "bocor keberadaan"
+
+`403 PASSWORD_LOGIN_DISABLED` (#591) ternyata bocor **dua** hal: identifier ini
+ada, DAN identitas ini **bukan break-glass** (403 = "ada & bukan break-glass",
+401 = "tak dikenal, atau break-glass") — menyidik-jari persis akun yang masih
+boleh password-login saat `password_login_enabled=false`. Alternatif "putuskan
+403 dari policy tenant saja" **tidak menyelamatkan**: break-glass tetap harus
+bisa login, jadi jawaban wrong-password-nya wajib beda ⇒ sidik jari terbuka
+lagi. Kolaps penuh satu-satunya yang menutup dua-duanya.
+
+Yang **tidak** perlu dikolaps: deny yang diputuskan **sebelum** identitas
+dilihat (`tenant_inactive` dari header tenant) — identik untuk semua
+identifier, jadi tak bisa mengenumerasi. Assert itu sebagai guard, bukan
+dihapus.
+
+Test anti-vakum di kelas ini: bandingkan respons known vs unknown **satu sama
+lain**, jangan ke status hardcoded — lalu **pin sisi server** (audit
+`login_failed.reason` benar-benar `locked`/`password_login_disabled`) supaya
+perbandingan tak lolos vakum saat cabangnya ternyata tak pernah menyala.
 `````
 
 <!-- memory-file: perf-claims-need-adversarial-benchmark.md -->
@@ -5489,7 +5561,7 @@ Always run `bun run lint` (or `prettier --write` on the touched files) locally b
 `````markdown
 ---
 name: promise-all-on-single-tx-hang
-description: "Promise.all beberapa query di atas SATU tx = hang nyata (bukan sekadar lambat); sudah 3x di repo ini, test suite LOLOS tiap kali. Sapu kelasnya (grep semua Promise.all yang argumennya pakai tx), jangan instansnya. Issue #842"
+description: "Promise.all beberapa query di atas SATU tx = hang nyata (bukan sekadar lambat); sudah 4x di repo ini, test suite LOLOS tiap kali. Kini dijaga gate `bun run tx:lint:check` — pakai itu, jangan grep manual. Issue #842 selesai (11 site, bukan 2)."
 metadata: 
   node_type: memory
   type: project
@@ -5497,18 +5569,24 @@ metadata:
 
 Satu koneksi Postgres melayani **satu query pada satu waktu**. `Promise.all([q1(tx), q2(tx)])` di atas `tx` yang sama **menghang sungguhan** — bukan sekadar hilang paralelismenya. Terdokumentasi eksplisit di `src/modules/reporting/application/projection-reconciliation.ts:89-94`: hang-nya meninggalkan koneksi tersangkut yang lalu merusak `resetDatabase()` **setiap test sesudahnya**, jadi gejalanya muncul jauh dari penyebabnya (lih. [[idle-in-transaction-hang]]).
 
-**Sudah 3+ kejadian**, dan **test suite lolos setiap kali** — sifatnya load-dependent:
+**Sudah 4 kejadian**, dan **test suite lolos setiap kali** — sifatnya load-dependent.
 
-1. `projection-reconciliation.ts` — ditemukan empiris, kini jadi catatan rujukan repo.
-2. `health-registry.ts` `prepareModuleHealthContext` (4 query) — regresi dari perbaikan Issue #824, ketahuan review bot PR #839, bukan oleh test.
-3. `module-matrix.ts:118` + `data-exchange/imports/[id]/preview.ts:185` (2 query each) — pre-existing dari #579/#782 → **Issue #842**.
+## Sekarang ADA GATE — pakai, jangan grep manual
 
-**How to apply:**
-- Melihat `Promise.all` di file yang menyentuh DB? **Cek apakah argumennya memakai `tx` yang sama.** Kalau ya, jadikan await berurutan.
-- Setelah menemukan satu instans, **grep kelasnya di seluruh tree** (`Promise.all` + `tx`), jangan berhenti di yang dilaporkan. Sapuan itulah yang memunculkan #842.
-- Pisahkan yang **pre-existing** dari **regresi PR ini** via `git log -L`/`git diff origin/main...HEAD` sebelum ikut memperbaiki — filekan yang lama sebagai issue terpisah agar PR tidak melebar diam-diam.
-- Optimasi fan-out query **tidak butuh konkurensi**: kemenangan #824 adalah meruntuhkan ≈92 query per render jadi 4 query total. Await berurutan mempertahankan itu sepenuhnya. Jangan tukar hang-risk demi paralelisme yang bukan sumber kemenangannya.
-- `Promise.all` di atas map **murni** (tanpa query) aman — mis. `module-matrix.ts:152`. Jangan ikut "diperbaiki".
+`bun run tx:lint:check` (`scripts/tx-concurrency-lint-check.ts`, terpasang di `check` + `ci.yml`, Issue #842). Zero-tolerance, tanpa allow-list. Konkurensi di atas **POOL (`sql`) tetap legal** (pool memberi koneksi terpisah per query) — yang dilarang hanya di atas `tx`. Rule doc: doc 16 §Konkurensi di atas satu transaction.
+
+**Issue #842 SELESAI** (branch `fix/842-promise-all-tx`): sapuan kelas penuh menemukan **11 site, bukan 2** seperti klaim badan isu — semua pre-existing (2026-07-07 s.d. 2026-07-15), **nol regresi PR**. Yang terlebar: `admin/modules/[moduleKey].astro` (~8 query balapan) dan `api/v1/blog/menus/index.ts` (fan-out **tak terbatas**, 1 query/menu).
+
+## Pelajaran yang mahal
+
+- **Grep satu-baris melewatkan kelasnya.** `Promise.all([` hampir selalu multi-baris → `grep -rn "Promise.all" | grep tx` cuma menemukan **komentar**. Wajib `grep -rn -A 8 "Promise\.all"` lalu tinjau tiap hit. Inilah sebab badan isu cuma menyebut 2 dari 11.
+- **"Aman" bisa berarti "aman karena satu argumen".** `module-matrix.ts:152` dilabeli aman ("map murni tanpa query") oleh isu **dan oleh memory ini sendiri** — **salah**: body-nya `await fetchModuleHealthReport(tx, …)`. Aman HANYA karena `healthContext` ter-prefetch dioper (membuat call itu no-query). Satu argumen hilang → 23 iterasi x 4 query konkuren di satu `tx`. Diubah jadi for-loop agar keamanannya **struktural**. **Verifikasi ALASAN "aman", jangan terima labelnya** — termasuk label yang kamu tulis sendiri.
+- **Gate berbasis substring = cacat**, dan di sini spesifik berbahaya: tiap perbaikan menaruh komentar "Sequential, NOT `Promise.all` … `tx`" TEPAT di atas kode yang diperbaiki → scanner naif menandai kode yang justru sudah benar. Blank komentar/string dulu via state machine (lih. [[sql-tokenizer-regex-vs-state-machine]]). `ci-check-parity.test.ts` shipped dengan cacat ini (diperbaiki PR #839).
+- **Mutation-test scanner-nya**, jangan percaya "20 pass". Test regex-literal saya **lolos padahal penanganan regex dimatikan total** — vakum, karena regex-nya saya taruh di baris TERPISAH dari `Promise.all`-nya sementara pemindai string berhenti di newline (jadi kutip yatim cuma menelan sisa barisnya sendiri). Yang benar-benar diskriminatif: kutip yatim **di baris yang sama**, dan **backtick di dalam regex** (pemindai template TIDAK berhenti di newline → membutakan scanner sampai EOF). Lih. [[audit-count-assertion-vacuous]].
+- **Buktikan gate MERAH terhadap defect historis nyata**, bukan cuma fixture sintetis: `git stash push -- src/` → jalankan gate → exit 1 + 12 temuan → `git stash pop`. Bukti terkuat yang tersedia, dan gratis.
+- **`git stash push -- <file>` mengembalikan file ke HEAD** — jadi ia membuang **perbaikanmu sendiri**, bukan cuma mutasi uji coba yang mau kamu batalkan. Untuk membatalkan mutasi sementara: `cp` salinan ke scratchpad lalu `cp` balik. Saya kehilangan perbaikan `module-matrix.ts` persis begini dan harus mengulangnya. (Orchestrator sempat melapor "perbaikanmu selamat" — benar untuk 10 file, salah untuk yang satu ini; `git status` per-file yang memutuskan, bukan laporan.)
+- **Optimasi fan-out query tidak butuh konkurensi**: kemenangan #824 adalah meruntuhkan ≈92 query/render jadi 4 query total. Await berurutan mempertahankannya penuh. Jangan tukar risiko hang demi paralelisme yang bukan sumber kemenangannya.
+- **`Promise.all` di client script `.astro` aman** — mis. `admin/analytics.astro:839/:970` itu `fetchJson` HTTP di dalam `<script>` browser; file itu **nol akses DB** (tanpa `tx`/`withTenant`/`getDatabaseClient`). Tiap request HTTP dapat koneksi sendiri. Bukan temuan, jangan "diperbaiki".
 `````
 
 <!-- memory-file: release-pipeline-never-triggered-gaps.md -->
@@ -5598,6 +5676,38 @@ a similar Changesets + tag-triggered-workflow setup, check (a)
 `environment:` name referenced in workflow files that gate a real publish
 step, confirming each one actually has `protection_rules` configured, not
 just that the workflow YAML *references* an environment name.
+`````
+
+<!-- memory-file: rls-defeats-seq-scan-gates.md -->
+
+`````markdown
+---
+name: rls-defeats-seq-scan-gates
+description: "RLS + index (tenant_id, ...) membuat DROP INDEX TIDAK menghasilkan Seq Scan melainkan index lain + Sort — budget query-plan 'forbid Seq Scan' lolos vakum pada regresi yang jadi alasannya dibuat (Issue #838); pilih sinyal dari plan yang benar-benar berubah"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+Issue #838: mendaftarkan query-plan budget untuk mengunci index `(tenant_id, updated_at DESC)` dari #830. Godaan terbesar: **menyalin bentuk lima budget yang sudah ada** (`forbiddenNodeTypes: ["Seq Scan"]`, `requiredNodeTypesAny: ["Index Scan", "Bitmap Heap Scan", ...]`). Itu akan jadi **gate vakum**.
+
+Terukur dengan `DROP INDEX` sungguhan pada skala fixture `safe`:
+
+| | Plan | Cost |
+|---|---|---|
+| index ada | `Limit -> Index Scan` | 62,06 |
+| index di-DROP | `Limit -> Sort -> Bitmap Heap Scan -> Bitmap Index Scan` | 939,88 |
+
+**Nol Seq Scan pada regresinya.** Sebabnya struktural di repo ini: RLS selalu menyuntikkan `tenant_id = current_setting(...)`, dan hampir setiap tabel RLS punya index ber-leading `(tenant_id, ...)` lain (di sini `..._tenant_deleted_idx`). Planner tinggal pindah index lalu menambah `Sort` — dan budget naif LULUS pada plan 15x lebih mahal itu.
+
+**Why:** `Seq Scan` adalah sinyal yang benar untuk budget #744 (predikat tak ter-index), tapi salah untuk budget `ORDER BY ... LIMIT`. Sinyal yang benar = **apa yang sebenarnya dibeli index itu**: urutan. Kalau ada `Sort`/`Incremental Sort`, ORDER BY tidak lagi dilayani index — apa pun penyebabnya (index terhapus, kolom ORDER BY berubah, filter mengalahkan predikat partial). Menyalin bentuk gate lain tanpa mengukur = cargo cult.
+
+**How to apply:**
+- Sebelum mendaftarkan budget: **DROP INDEX beneran lalu EXPLAIN ulang** (di `finally`/rollback). **Assert setup-nya terjadi** (`SELECT count(*) FROM pg_indexes WHERE indexname = ...` = 0) sebelum percaya angkanya — drop yang diam-diam gagal bikin test lolos selamanya karena alasan salah.
+- **Mutation-test gate-nya**: ganti budget jadi varian naif, pastikan test integrasi MERAH. Di sini terbukti: varian "Seq Scan saja" meloloskan regresi → assertion `Sort` load-bearing, bukan hiasan.
+- **Jangan bertumpu pada `maxTotalCost` sebagai sinyal utama.** Terukur: regresi yang sama = cost 939,88 di DB ber-statistik akurat tapi **~8** di suite integrasi — sementara node `Sort` muncul di **keduanya**. Bentuk plan bertahan pada regime statistik buruk; cost tidak.
+- **Budget di atas tabel kosong = gate vakum** — Postgres Seq Scan tabel 0 baris apa pun index-nya. Cek tabel pendorongnya benar-benar di-seed (`scale-profiles.ts`) dulu; `awcms_mini_blog_pages` tidak di-seed sama sekali sebelum #838.
+- Lihat juga [[audit-count-assertion-vacuous]] (kelas yang sama: assertion yang tidak bisa gagal) dan [[perf-issue-premise-verify-before-trusting]].
 `````
 
 <!-- memory-file: sandbox-dir-permission-lockdown.md -->
@@ -5727,6 +5837,44 @@ strip-then-exempt-outright. See [[sql-tokenizer-regex-vs-state-machine]]
 for a structurally similar "don't stop at round 1, resume the same
 reviewer to actively try to break the NEW mechanism" lesson from a
 different subsystem in this same repo.
+`````
+
+<!-- memory-file: session-limit-kills-agents-work-survives.md -->
+
+`````markdown
+---
+name: session-limit-kills-agents-work-survives
+description: "Session limit membunuh SEMUA agent paralel serentak; kerja di worktree SELAMAT (uncommitted) dan agent bisa dilanjutkan via SendMessage dari transkrip — jangan relaunch"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+Saat kuota sesi API habis, **semua** agent paralel mati serentak dengan
+`status: failed` — terlihat seperti kegagalan kerja, padahal murni kuota.
+Terjadi pada 5 agent wave 3 epic #818 (2026-07-17, reset 20:20 WIB).
+
+**Yang selamat:** worktree tiap agent utuh, perubahan file tetap ada sebagai
+uncommitted, `git stash list` kosong. Tidak ada yang hilang.
+
+**Cara lanjut yang benar:** `SendMessage` ke agentId → dilanjutkan dari
+transkripnya dengan konteks utuh. JANGAN relaunch agent baru — itu membuang
+konteks dan berisiko mengulang/menimpa kerja yang sudah ada.
+
+**Why:** notifikasi `failed` + `<result>` yang terpotong di tengah kalimat
+membuat kerja terlihat hancur. Reaksi refleks (relaunch dari nol, atau
+membuang worktree) justru menghancurkan kerja yang sebenarnya selamat. Satu
+agent bahkan melaporkan kekhawatiran `git stash push` menelan perbaikannya —
+setelah diperiksa, 10 file perbaikannya masih lengkap.
+
+**How to apply:**
+1. `date` dulu — cek apakah limit sudah reset sebelum apa pun.
+2. Periksa TIAP worktree: `git branch --show-current`, `git status --porcelain | wc -l`, `git stash list | wc -l`.
+3. Verifikasi klaim kekhawatiran agent terhadap file NYATA (grep perbaikannya), jangan percaya narasi terakhirnya — transkrip terpotong di tengah pikiran.
+4. Lanjutkan via `SendMessage`, dan **sertakan hasil verifikasimu** ("perbaikanmu selamat, cek `git status` dulu, jangan ulangi") supaya agent tidak mengulang kerja.
+5. Cek agent yang belum sempat `git checkout -b` — bisa tertinggal di `worktree-agent-*`; lihat [[create-feature-branch-before-commit]].
+
+Terkait: [[agent-shared-working-dir-checkout]], [[subagent-background-notification-stall]].
 `````
 
 <!-- memory-file: shared-checkout-branch-switch-near-miss.md -->
@@ -5980,8 +6128,8 @@ cek EXPLAIN, jangan asumsikan index mana yang dipakai).
 `````markdown
 ---
 name: skill-doc-drift-recurring
-description: "Skills, module READMEs, and cross-cutting docs (AGENTS.md, ADRs, doc 13/18/20/21) in this repo drift from code as new modules/permissions land — a recurring class of bug, 6 confirmed occurrences now; scale audit fan-out to repo size (up to 7-way at 23 modules) and always update skill-index/catalog files whenever a fix batch creates a new skill; since #829 tests/unit/module-skill-coverage.test.ts finally GATES module-to-skill coverage plus catalog wiring — the first automated check for any of this class"
-metadata: 
+description: "Skills, module READMEs, and cross-cutting docs (AGENTS.md, ADRs, doc 01/02/13/18/20/21) in this repo drift from code as new modules/permissions land — a recurring class of bug, 7 confirmed occurrences now; scale audit fan-out to repo size (up to 7-way at 23 modules) and always update skill-index/catalog files whenever a fix batch creates a new skill; TWO gates now exist: #829 tests/unit/module-skill-coverage.test.ts (module->skill + catalog wiring) and #828 tests/unit/module-doc-reconciliation.test.ts (doc 01/13/21 module TABLES + every sql/ migration attributed) — both parse rows/maps, never source.includes()"
+metadata:
   node_type: memory
   type: project
 ---
@@ -6072,6 +6220,7 @@ module READMEs, skills batch 1, skills batch 2, cross-cutting/ADRs/
 AGENTS.md) since the repo had grown too large for a 3-way split to stay
 fast. New sub-patterns found this round, worth checking every future
 pass:
+
 - **A whole module can ship with zero README** — `social-publishing`
   (11 permissions, 3 nav entries, 3 provider adapters, real routes) had
   NO `README.md` at all, unlike all 15 other modules. Check
@@ -6092,7 +6241,7 @@ pass:
 - **A module-count/entity-count typo can propagate to 5+ files from one
   root cause** — "14 modules" (stale after `idn_admin_regions` +
   `social_publishing` landed) appeared in doc 21, `docs/awcms-mini/
-  README.md`, ADR-0012, `new-module` skill, and `module-management`
+README.md`, ADR-0012, `new-module` skill, and `module-management`
   skill simultaneously. When you find one instance, grep the WHOLE repo
   for the same stale number before considering it fixed.
 - **A skill can describe a feature that was deliberately descoped, not
@@ -6105,7 +6254,7 @@ pass:
   it), rewrite it to redirect correctly.
 - **A doc can contain large blocks of pre-implementation fictional
   content that predates the real build** — `13_final_master_index_
-  traceability.md` had an entire "Matrix Modul vs Migration" table
+traceability.md` had an entire "Matrix Modul vs Migration" table
   citing migration filenames for a POS/retail system
   (`sales-pos-schema.sql`, `catalog-inventory-schema.sql`) that was
   never built in this generic-repo scope. This is qualitatively worse
@@ -6169,7 +6318,7 @@ module READMEs split old-vs-newest-epic, (4)+(5) skills batch 1/2, (6)
 package.json scripts vs docs, (7) actually RUN every generated-doc `:check`
 script live and diff against reality rather than just reading the doc (this
 alone caught `docs/awcms-mini/github/README.md`'s issue-count snapshot
-being 3 days stale, 35→0 open issues). Agent (5) (25 skills assigned) 
+being 3 days stale, 35→0 open issues). Agent (5) (25 skills assigned)
 spontaneously self-organized into 5 further sub-agents and returned before
 they finished — the sub-agent results arrived as separate background
 task-notifications that had to be manually collected; if delegating a large
@@ -6214,7 +6363,7 @@ no code change needed. Issue #805 auto-closed via the squash-merge's
 
 **Recurred a 6th time, 2026-07-17** (Issue #829 → branch
 `docs/829-module-skills`, part of post-audit epic #818) — this time the
-audit found the drift as a *structural hole* rather than stale prose:
+audit found the drift as a _structural hole_ rather than stale prose:
 FIVE active modules (`data_exchange`, `organization_structure`,
 `reference_data`, `reporting`, `domain_event_runtime`) had **no project
 skill at all**, while 18 others did. Four of the five were also the SOURCE
@@ -6227,7 +6376,7 @@ module have a skill?" as a first-class audit question, not a nice-to-have.
 
 **The important change is the GATE, not the five skill files.** Every prior
 round of this memory ends with advice ("always update the catalogs", "check
-module count vs README count") — i.e. *more discipline*, which is exactly
+module count vs README count") — i.e. _more discipline_, which is exactly
 what had already failed five times. #829 finally added enforcement:
 `tests/unit/module-skill-coverage.test.ts` (runs under `bun test`, already
 in `bun run check`) requires every module in `listBaseModules()` to be
@@ -6242,6 +6391,7 @@ to catch by hand: each mapped skill's `SKILL.md` must exist, its frontmatter
 points to now fails CI instead of a reviewer.
 
 Design notes worth reusing for the next registry-driven gate here:
+
 - **Hand-maintained map, not a string transform.** 4 of 23 mappings aren't
   mechanical (`tenant_domain` -> `-tenant-domain-routing`, `logging` ->
   `-observability`, `sync_storage` -> `-sync-hmac`, plus the `workflow` key
@@ -6260,6 +6410,56 @@ Design notes worth reusing for the next registry-driven gate here:
   `docs/awcms-mini/repo-inventory.md` hardcodes a test-file count ("336 test
   files under `tests/`"), so a new gate test needs
   `bun run repo:inventory:generate` at integration time. Expected, not a bug.
+
+---
+
+## Occurrence 7 — Issue #828 (2026-07-17): the planning docs (01/02/13/21)
+
+Same root cause, new surface: **nothing compared the hand-written module
+tables against the registry they claimed to describe.** Doc 01's "Modul
+utama (base)" had **11 rows against a 23-module registry** and asserted
+_"modul domain ... bukan bagian base ini"_ while `src/modules/index.ts`
+registers `blog_content`/`news_portal`/`social_publishing` as base — doc 01
+directly contradicted doc 21 AND the code. Doc 13's migration matrix
+stopped at `055` while `sql/` held 77 files, omitting 7 modules, even
+though its own preamble claimed to cover them all. Doc 21 §8 was headed
+"Peta 23 modul" and carried 22 rows (missing `idn_admin_regions`) while
+openly admitting "22 dari 23" — an acknowledged gap nobody closed.
+
+**Doc prose that ADMITS a gap is not a fix.** Both doc 13's preamble and
+doc 21's total line documented their own incompleteness and still rotted.
+Only a gate closed them.
+
+**Verify the issue's numbers too, in BOTH directions.** #828's "23 modul"
+was RIGHT (rare — 4/5 wave-2 agents found the issue's premise wrong), but
+its "76 migration" was stale (77 by then), its "39 skill" claim was
+already fixed (50), and its list of fictional endpoints/tables was
+**incomplete**. Sweeping every claim to source found fakes the issue never
+mentioned: `/profiles/resolve`, `awcms_mini_log_events`, `/logs/recent`,
+`/ui/navigation`, `/reports/sales/daily`, `awcms_mini_db_pool_*`, and
+**14 doc-06 issue IDs** (`3.x`/`4.x`/`5.x`/`7.x`/`8.2`/`9.2`) that never
+existed — doc 06 only ever had 18 issues. Don't stop at the issue's list.
+
+**Cheap verification recipes** (each found real fakes in seconds):
+
+- table exists? `grep -rq "CREATE TABLE IF NOT EXISTS <name>\b" sql/`
+- endpoint exists? test for the route file under `src/pages/api/v1/`
+  (watch singular/plural: doc said `/workflow/tasks/{id}/decision`, real is
+  `/workflows/tasks/{id}/decisions` — wrong on _both_ counts)
+- doc-06 issue ID exists? `grep -q "^## Issue <id> " docs/awcms-mini/06_*.md`
+
+**Kill the drift source, don't reset the counter.** Where a number is
+copied prose, delete it rather than re-typing today's value: doc 13's
+"base selesai, v0.23.5" became "versi ada di package.json/CHANGELOG.md".
+A hardcoded version is always one release from wrong.
+
+**Point-in-time docs need a different rule.** `AUDIT_STANDAR_PENGEMBANGAN_
+<date>.md` says "ukuran repo **saat audit**", so its 76-migration/46-skill
+figures were correct at observation time and must NOT be "fixed" to
+today's — but "24 modul (2 experimental)" was _never_ true at any commit
+(it was the `_shared`-inclusive directory count; real 23/1), so that got
+corrected + annotated. Distinguish "stale snapshot" from "never true"
+before editing a dated doc. It was already dated today, so no `git mv`.
 `````
 
 <!-- memory-file: sod-hierarchy-aware-matching-issue-794.md -->
@@ -6846,6 +7046,27 @@ Key non-obvious things worth remembering if this module is touched again:
 
 See also [[blog-content-epic-progress]] and [[tenant-domain-routing-epic-progress]]
 for the same "epic closure" memory pattern in this repo.
+`````
+
+<!-- memory-file: xmin-proves-batching.md -->
+
+`````markdown
+# Prove batching with xmin, not with timing
+
+Issue #846. "N events cost ONE transaction" is a perf claim, but it does NOT
+need a benchmark to guard: Postgres stamps every row with the inserting
+transaction id. `SELECT count(DISTINCT xmin::text) FROM t WHERE tenant_id = $1`
+returns 1 if batched, N if per-event — **deterministic, loopback-safe, no
+timing**. A regression to per-event transactions fails the test outright.
+
+(`xid` has no ordering operator, so DISTINCT needs the `::text` cast.)
+
+Also useful: `INTERSECT` on xmin::text across two tenants proves their rows were
+NOT written by the same transaction (per-tenant isolation of a batch).
+
+Generalizes: when a perf change has a *structural* signature in the data, assert
+the signature, not the clock. Timing assertions are what make perf tests flaky;
+this one cannot flake.
 `````
 
 <!-- END GENERATED MEMORY -->

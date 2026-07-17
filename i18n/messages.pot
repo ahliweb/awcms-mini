@@ -989,7 +989,7 @@ msgstr ""
 msgid "admin.blog.posts.apply_filters_button"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:326
+#: src/pages/admin/blog/posts/[id].astro:333
 msgid "admin.blog.posts.archive_button"
 msgstr ""
 
@@ -1005,11 +1005,11 @@ msgstr ""
 msgid "admin.blog.posts.author_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:303
+#: src/pages/admin/blog/posts/[id].astro:310
 msgid "admin.blog.posts.author_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:278
+#: src/pages/admin/blog/posts/[id].astro:285
 msgid "admin.blog.posts.back_to_list"
 msgstr ""
 
@@ -1025,7 +1025,7 @@ msgstr ""
 msgid "admin.blog.posts.create_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:331
+#: src/pages/admin/blog/posts/[id].astro:338
 msgid "admin.blog.posts.delete_button"
 msgstr ""
 
@@ -1045,7 +1045,7 @@ msgstr ""
 msgid "admin.blog.posts.featured_media_hint"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:530
+#: src/pages/admin/blog/posts/[id].astro:537
 msgid "admin.blog.posts.field_auto_internal_tag_links_disabled"
 msgstr ""
 
@@ -1053,7 +1053,7 @@ msgstr ""
 msgid "admin.blog.posts.field_canonical_url"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:458
+#: src/pages/admin/blog/posts/[id].astro:465
 msgid "admin.blog.posts.field_categories"
 msgstr ""
 
@@ -1065,11 +1065,11 @@ msgstr ""
 msgid "admin.blog.posts.field_content_text"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:395
+#: src/pages/admin/blog/posts/[id].astro:402
 msgid "admin.blog.posts.field_excerpt"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:438
+#: src/pages/admin/blog/posts/[id].astro:445
 msgid "admin.blog.posts.field_featured_media_id"
 msgstr ""
 
@@ -1081,11 +1081,11 @@ msgstr ""
 msgid "admin.blog.posts.field_meta_description"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:446
+#: src/pages/admin/blog/posts/[id].astro:453
 msgid "admin.blog.posts.field_seo_image_media_id"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:453
+#: src/pages/admin/blog/posts/[id].astro:460
 msgid "admin.blog.posts.field_seo_image_media_id_hint"
 msgstr ""
 
@@ -1093,15 +1093,15 @@ msgstr ""
 msgid "admin.blog.posts.field_seo_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:385
+#: src/pages/admin/blog/posts/[id].astro:392
 msgid "admin.blog.posts.field_slug"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:480
+#: src/pages/admin/blog/posts/[id].astro:487
 msgid "admin.blog.posts.field_tags"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:375
+#: src/pages/admin/blog/posts/[id].astro:382
 msgid "admin.blog.posts.field_title"
 msgstr ""
 
@@ -1153,7 +1153,7 @@ msgstr ""
 msgid "admin.blog.posts.new_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:460
+#: src/pages/admin/blog/posts/[id].astro:467
 msgid "admin.blog.posts.no_categories"
 msgstr ""
 
@@ -1161,19 +1161,19 @@ msgstr ""
 msgid "admin.blog.posts.no_posts"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:543
+#: src/pages/admin/blog/posts/[id].astro:550
 msgid "admin.blog.posts.no_revisions"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:482
+#: src/pages/admin/blog/posts/[id].astro:489
 msgid "admin.blog.posts.no_tags"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:277
+#: src/pages/admin/blog/posts/[id].astro:284
 msgid "admin.blog.posts.not_found_body"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:276
+#: src/pages/admin/blog/posts/[id].astro:283
 msgid "admin.blog.posts.not_found_title"
 msgstr ""
 
@@ -1185,7 +1185,7 @@ msgstr ""
 msgid "admin.blog.posts.pagination_aria_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:316
+#: src/pages/admin/blog/posts/[id].astro:323
 msgid "admin.blog.posts.publish_button"
 msgstr ""
 
@@ -1201,7 +1201,7 @@ msgstr ""
 msgid "admin.blog.posts.published_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:341
+#: src/pages/admin/blog/posts/[id].astro:348
 msgid "admin.blog.posts.purge_button"
 msgstr ""
 
@@ -1245,7 +1245,7 @@ msgstr ""
 msgid "admin.blog.posts.reset_filters_link"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:336
+#: src/pages/admin/blog/posts/[id].astro:343
 msgid "admin.blog.posts.restore_button"
 msgstr ""
 
@@ -1257,23 +1257,23 @@ msgstr ""
 msgid "admin.blog.posts.restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:555
+#: src/pages/admin/blog/posts/[id].astro:562
 msgid "admin.blog.posts.revision_actions_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:553
+#: src/pages/admin/blog/posts/[id].astro:560
 msgid "admin.blog.posts.revision_created_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:552
+#: src/pages/admin/blog/posts/[id].astro:559
 msgid "admin.blog.posts.revision_note_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:549
+#: src/pages/admin/blog/posts/[id].astro:556
 msgid "admin.blog.posts.revision_number_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:575
+#: src/pages/admin/blog/posts/[id].astro:582
 msgid "admin.blog.posts.revision_restore_button"
 msgstr ""
 
@@ -1285,19 +1285,19 @@ msgstr ""
 msgid "admin.blog.posts.revision_restore_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:551
+#: src/pages/admin/blog/posts/[id].astro:558
 msgid "admin.blog.posts.revision_status_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:550
+#: src/pages/admin/blog/posts/[id].astro:557
 msgid "admin.blog.posts.revision_title_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:541
+#: src/pages/admin/blog/posts/[id].astro:548
 msgid "admin.blog.posts.revisions_title"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:534
+#: src/pages/admin/blog/posts/[id].astro:541
 msgid "admin.blog.posts.save_button"
 msgstr ""
 
@@ -1305,7 +1305,7 @@ msgstr ""
 msgid "admin.blog.posts.save_success"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:321
+#: src/pages/admin/blog/posts/[id].astro:328
 msgid "admin.blog.posts.schedule_button"
 msgstr ""
 
@@ -1341,7 +1341,7 @@ msgstr ""
 msgid "admin.blog.posts.status_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:311
+#: src/pages/admin/blog/posts/[id].astro:318
 msgid "admin.blog.posts.submit_review_button"
 msgstr ""
 
@@ -1353,7 +1353,7 @@ msgstr ""
 msgid "admin.blog.posts.term_filter_label"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:251
+#: src/pages/admin/blog/posts/[id].astro:258
 msgid "admin.blog.posts.title"
 msgstr ""
 
@@ -1361,7 +1361,7 @@ msgstr ""
 msgid "admin.blog.posts.title_column"
 msgstr ""
 
-#: src/pages/admin/blog/posts/[id].astro:304
+#: src/pages/admin/blog/posts/[id].astro:311
 msgid "admin.blog.posts.unknown_author"
 msgstr ""
 
@@ -3365,11 +3365,11 @@ msgstr ""
 msgid "admin.layout.theme_toggle_aria_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:203
+#: src/pages/admin/modules/[moduleKey].astro:209
 msgid "admin.modules.access_denied_body"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:202
+#: src/pages/admin/modules/[moduleKey].astro:208
 msgid "admin.modules.access_denied_title"
 msgstr ""
 
@@ -3377,47 +3377,47 @@ msgstr ""
 msgid "admin.modules.actions_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:496
+#: src/pages/admin/modules/[moduleKey].astro:502
 msgid "admin.modules.audit_action_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:488
+#: src/pages/admin/modules/[moduleKey].astro:494
 msgid "admin.modules.audit_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:498
+#: src/pages/admin/modules/[moduleKey].astro:504
 msgid "admin.modules.audit_message_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:497
+#: src/pages/admin/modules/[moduleKey].astro:503
 msgid "admin.modules.audit_severity_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:499
+#: src/pages/admin/modules/[moduleKey].astro:505
 msgid "admin.modules.audit_time_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:224
+#: src/pages/admin/modules/[moduleKey].astro:230
 msgid "admin.modules.back_to_list"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:255
+#: src/pages/admin/modules/[moduleKey].astro:261
 msgid "admin.modules.core_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:262
+#: src/pages/admin/modules/[moduleKey].astro:268
 msgid "admin.modules.dependencies_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:223
+#: src/pages/admin/modules/[moduleKey].astro:229
 msgid "admin.modules.detail_not_found_body"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:222
+#: src/pages/admin/modules/[moduleKey].astro:228
 msgid "admin.modules.detail_not_found_title"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:306
+#: src/pages/admin/modules/[moduleKey].astro:312
 msgid "admin.modules.disable_button"
 msgstr ""
 
@@ -3429,11 +3429,11 @@ msgstr ""
 msgid "admin.modules.disable_success"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:288
+#: src/pages/admin/modules/[moduleKey].astro:294
 msgid "admin.modules.disabled_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:299
+#: src/pages/admin/modules/[moduleKey].astro:305
 msgid "admin.modules.enable_button"
 msgstr ""
 
@@ -3441,7 +3441,7 @@ msgstr ""
 msgid "admin.modules.enable_success"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:287
+#: src/pages/admin/modules/[moduleKey].astro:293
 msgid "admin.modules.enabled_label"
 msgstr ""
 
@@ -3449,7 +3449,7 @@ msgstr ""
 msgid "admin.modules.filter_all"
 msgstr ""
 
-#: src/pages/admin/modules.astro:144
+#: src/pages/admin/modules.astro:148
 msgid "admin.modules.filter_health_label"
 msgstr ""
 
@@ -3465,7 +3465,7 @@ msgstr ""
 msgid "admin.modules.filters_aria_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:481
+#: src/pages/admin/modules/[moduleKey].astro:487
 msgid "admin.modules.health_check_button"
 msgstr ""
 
@@ -3477,7 +3477,7 @@ msgstr ""
 msgid "admin.modules.health_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:446
+#: src/pages/admin/modules/[moduleKey].astro:452
 msgid "admin.modules.health_legend"
 msgstr ""
 
@@ -3485,23 +3485,23 @@ msgstr ""
 msgid "admin.modules.invalid_settings"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:416
+#: src/pages/admin/modules/[moduleKey].astro:422
 msgid "admin.modules.job_command_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:419
+#: src/pages/admin/modules/[moduleKey].astro:425
 msgid "admin.modules.job_offline_lan_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:417
+#: src/pages/admin/modules/[moduleKey].astro:423
 msgid "admin.modules.job_purpose_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:418
+#: src/pages/admin/modules/[moduleKey].astro:424
 msgid "admin.modules.job_schedule_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:408
+#: src/pages/admin/modules/[moduleKey].astro:414
 msgid "admin.modules.jobs_legend"
 msgstr ""
 
@@ -3529,35 +3529,35 @@ msgstr ""
 msgid "admin.modules.module_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:382
+#: src/pages/admin/modules/[moduleKey].astro:388
 msgid "admin.modules.nav_label_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:384
+#: src/pages/admin/modules/[moduleKey].astro:390
 msgid "admin.modules.nav_order_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:383
+#: src/pages/admin/modules/[moduleKey].astro:389
 msgid "admin.modules.nav_path_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:385
+#: src/pages/admin/modules/[moduleKey].astro:391
 msgid "admin.modules.nav_permission_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:374
+#: src/pages/admin/modules/[moduleKey].astro:380
 msgid "admin.modules.navigation_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:490
+#: src/pages/admin/modules/[moduleKey].astro:496
 msgid "admin.modules.no_audit_events"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:264
+#: src/pages/admin/modules/[moduleKey].astro:270
 msgid "admin.modules.no_dependencies"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:410
+#: src/pages/admin/modules/[moduleKey].astro:416
 msgid "admin.modules.no_jobs"
 msgstr ""
 
@@ -3565,23 +3565,23 @@ msgstr ""
 msgid "admin.modules.no_modules"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:376
+#: src/pages/admin/modules/[moduleKey].astro:382
 msgid "admin.modules.no_navigation"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:349
+#: src/pages/admin/modules/[moduleKey].astro:355
 msgid "admin.modules.no_permissions"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:342
+#: src/pages/admin/modules/[moduleKey].astro:348
 msgid "admin.modules.permission_action_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:341
+#: src/pages/admin/modules/[moduleKey].astro:347
 msgid "admin.modules.permission_activity_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:336
+#: src/pages/admin/modules/[moduleKey].astro:342
 msgid "admin.modules.permissions_legend"
 msgstr ""
 
@@ -3589,19 +3589,19 @@ msgstr ""
 msgid "admin.modules.protected_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:323
+#: src/pages/admin/modules/[moduleKey].astro:329
 msgid "admin.modules.settings_hint"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:318
+#: src/pages/admin/modules/[moduleKey].astro:324
 msgid "admin.modules.settings_json_label"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:314
+#: src/pages/admin/modules/[moduleKey].astro:320
 msgid "admin.modules.settings_legend"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:327
+#: src/pages/admin/modules/[moduleKey].astro:333
 msgid "admin.modules.settings_save_button"
 msgstr ""
 
@@ -3609,23 +3609,23 @@ msgstr ""
 msgid "admin.modules.settings_save_success"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:456
+#: src/pages/admin/modules/[moduleKey].astro:462
 msgid "admin.modules.signal_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:458
+#: src/pages/admin/modules/[moduleKey].astro:464
 msgid "admin.modules.signal_detail_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:457
+#: src/pages/admin/modules/[moduleKey].astro:463
 msgid "admin.modules.signal_status_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:247
+#: src/pages/admin/modules/[moduleKey].astro:253
 msgid "admin.modules.status_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:278
+#: src/pages/admin/modules/[moduleKey].astro:284
 msgid "admin.modules.tenant_enablement_legend"
 msgstr ""
 
@@ -3633,11 +3633,11 @@ msgstr ""
 msgid "admin.modules.tenant_status_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:251
+#: src/pages/admin/modules/[moduleKey].astro:257
 msgid "admin.modules.type_column"
 msgstr ""
 
-#: src/pages/admin/modules/[moduleKey].astro:243
+#: src/pages/admin/modules/[moduleKey].astro:249
 msgid "admin.modules.version_column"
 msgstr ""
 
@@ -6272,7 +6272,7 @@ msgid "error.access_denied"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:95
+#: src/lib/i18n/error-messages.ts:102
 msgid "error.ad_placement_reference_invalid"
 msgstr ""
 
@@ -6292,7 +6292,7 @@ msgid "error.break_glass_required"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:107
+#: src/lib/i18n/error-messages.ts:114
 msgid "error.checksum_mismatch"
 msgstr ""
 
@@ -6302,7 +6302,7 @@ msgid "error.concurrent_update"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:96
+#: src/lib/i18n/error-messages.ts:103
 msgid "error.content_quality_checklist_blocked"
 msgstr ""
 
@@ -6352,12 +6352,12 @@ msgid "error.google_token_exchange_failed"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:94
+#: src/lib/i18n/error-messages.ts:101
 msgid "error.homepage_section_key_conflict"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:92
+#: src/lib/i18n/error-messages.ts:99
 msgid "error.homepage_section_reference_invalid"
 msgstr ""
 
@@ -6382,7 +6382,7 @@ msgid "error.internal_error"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:106
+#: src/lib/i18n/error-messages.ts:113
 msgid "error.invalid_state"
 msgstr ""
 
@@ -6432,17 +6432,17 @@ msgid "error.mfa_required"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:91
+#: src/lib/i18n/error-messages.ts:98
 msgid "error.news_media_reference_invalid"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:90
+#: src/lib/i18n/error-messages.ts:97
 msgid "error.password_login_disabled"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:105
+#: src/lib/i18n/error-messages.ts:112
 msgid "error.payload_too_large"
 msgstr ""
 
@@ -6477,7 +6477,7 @@ msgid "error.resource_not_found"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:97
+#: src/lib/i18n/error-messages.ts:104
 msgid "error.social_account_unsupported_type"
 msgstr ""
 
@@ -6577,7 +6577,7 @@ msgid "error.turnstile_required"
 msgstr ""
 
 #. referenced dynamically via ERROR_CODE_KEYS (translateErrorCode / buildClientErrorMessages)
-#: src/lib/i18n/error-messages.ts:111
+#: src/lib/i18n/error-messages.ts:118
 msgid "error.unsupported_media_type"
 msgstr ""
 

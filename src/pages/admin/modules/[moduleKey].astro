@@ -135,32 +135,38 @@ if (CAN_READ_MODULES) {
           return null;
         }
 
-        const [
-          tenantModuleEntries,
-          settings,
-          permissionReport,
-          health,
-          auditSummary
-        ] = await Promise.all([
-          CAN_READ_TENANT_MODULES
-            ? fetchTenantModuleEntries(tx, context.tenantId)
-            : Promise.resolve([]),
-          CAN_READ_SETTINGS
-            ? fetchModuleSettingsView(tx, context.tenantId, moduleKey)
-            : Promise.resolve(null),
-          CAN_READ_PERMISSIONS
-            ? fetchModulePermissionSyncReport(tx, moduleKey)
-            : Promise.resolve(null),
-          CAN_READ_HEALTH
-            ? fetchModuleHealthReport(
-                tx,
-                context.tenantId,
-                moduleKey,
-                Astro.locals.correlationId
-              )
-            : Promise.resolve(null),
-          fetchModuleAuditSummary(tx, context.tenantId, moduleKey)
-        ]);
+        // Sequential, NOT `Promise.all` — every call below issues queries on the
+        // SAME transaction/connection (`tx`), and one Postgres connection serves
+        // one query at a time; running them concurrently produced a real hang in
+        // this repo (see
+        // `reporting/application/projection-reconciliation.ts:89-94`). This was
+        // the widest instance in the repo: `fetchModuleHealthReport` is called
+        // WITHOUT a prefetched context here, so it alone issues four more
+        // queries — up to eight racing on one connection. The permission gates
+        // are preserved exactly: a denied read still issues no query at all and
+        // keeps its fallback.
+        const tenantModuleEntries = CAN_READ_TENANT_MODULES
+          ? await fetchTenantModuleEntries(tx, context.tenantId)
+          : [];
+        const settings = CAN_READ_SETTINGS
+          ? await fetchModuleSettingsView(tx, context.tenantId, moduleKey)
+          : null;
+        const permissionReport = CAN_READ_PERMISSIONS
+          ? await fetchModulePermissionSyncReport(tx, moduleKey)
+          : null;
+        const health = CAN_READ_HEALTH
+          ? await fetchModuleHealthReport(
+              tx,
+              context.tenantId,
+              moduleKey,
+              Astro.locals.correlationId
+            )
+          : null;
+        const auditSummary = await fetchModuleAuditSummary(
+          tx,
+          context.tenantId,
+          moduleKey
+        );
 
         const descriptor = listModules().find((d) => d.key === moduleKey);
 

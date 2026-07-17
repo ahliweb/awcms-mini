@@ -96,15 +96,20 @@ the full safety-interlock flowchart — it applies identically here.
 | `standard` |      20 |                       10x |           60s | manual investigation                      |
 | `large`    |      50 |                       15x |          600s | `--full` scheduled/manual lane            |
 
-Every profile seeds seven representative tables per tenant — audit
+Every profile seeds eight representative tables per tenant — audit
 (`awcms_mini_audit_events`), ABAC decisions
 (`awcms_mini_abac_decision_logs`), analytics
 (`awcms_mini_visitor_sessions`), outbox/delivery
 (`awcms_mini_sync_outbox`), sync queue
 (`awcms_mini_object_sync_queue`), idempotency
-(`awcms_mini_idempotency_keys`), and a representative tenant-scoped
+(`awcms_mini_idempotency_keys`), a representative tenant-scoped
 business/content table (`awcms_mini_blog_posts`, also the full-text-search
-query-plan budget's driving table). The LAST tenant in every profile is
+and admin-post-list query-plan budgets' driving table), and its sibling
+content table (`awcms_mini_blog_pages`, the admin-page-list budget's
+driving table — added by Issue #838, which could not otherwise register
+that budget: **a query-plan budget over an empty table is a vacuous gate**,
+since PostgreSQL Seq Scans a 0-row relation regardless of which indexes
+exist). The LAST tenant in every profile is
 the designated noisy-neighbor tenant, whose row counts are multiplied —
 never an accident of scale, always the same deterministic position for a
 given seed.
@@ -174,10 +179,12 @@ the real, already-shipped 503+`Retry-After` behavior.
 
 ## Query-plan regression budgets
 
-`query-plan-budgets.ts` is the versioned governance artifact — six real
-production query shapes, one per category the issue names (RLS-scoped
+`query-plan-budgets.ts` is the versioned governance artifact — eight real
+production query shapes: one per category Issue #744 names (RLS-scoped
 pagination, full-text search, outbox claim, retention-purge batch,
-reporting aggregate — plus a second RLS-pagination example), each with:
+reporting aggregate — plus a second RLS-pagination example), and the two
+`admin_list` budgets Issue #838 added for the blog admin post/page lists.
+Each carries:
 
 - `forbiddenNodeTypes`/`requiredNodeTypesAny` — plan SHAPE assertions
   (e.g. "must never contain a Seq Scan", "must contain an Index/Bitmap
@@ -228,6 +235,96 @@ ILIKE` predicate on top of an indexed `tenant_id` filter — empirically,
    table here has a `(tenant_id, ...)`-leading index. Forcing the planner
    GUCs is the correct, honest way to reproduce "index missing/disabled",
    not a workaround for a flaky test.)
+
+### Choosing a budget's signal: plan SHAPE first, cost second (Issue #838)
+
+The five original budgets all forbid `Seq Scan`, so a new budget is
+tempting to copy from them. Issue #838 measured what actually happens and
+found that would have registered a **gate that passes the very regression
+it exists to catch**:
+
+| Blog admin post list, `safe` scale | Plan                                                     | Root cost |
+| ---------------------------------- | -------------------------------------------------------- | --------- |
+| `..._tenant_updated_idx` present   | `Limit -> Index Scan`                                    | 62.06     |
+| index genuinely `DROP`ped          | `Limit -> Sort -> Bitmap Heap Scan -> Bitmap Index Scan` | 939.88    |
+
+There is **no Seq Scan in the regression**. RLS always injects
+`tenant_id = current_setting(...)`, and these tables have other
+`(tenant_id, ...)`-leading indexes, so the planner just picks a different
+index and adds a `Sort`. A `forbiddenNodeTypes: ["Seq Scan"]` +
+`requiredNodeTypesAny: [..., "Bitmap Heap Scan"]` budget passes that plan
+happily.
+
+So an `admin_list` budget's primary signal is `Sort`/`Incremental Sort`
+being **forbidden**: these queries exist to have their `ORDER BY` served
+by the index's own order, and a sort node means that stopped being true —
+whatever the cause (index dropped, `ORDER BY` column changed, a filter
+defeating the partial predicate). `maxTotalCost` is the second,
+independent line of defence, not the first.
+
+`tests/unit/performance-query-plan-budgets.test.ts` pins this down against
+the real measured plans above, **including an explicit assertion that the
+naive Seq-Scan-only budget does NOT fire on the regression** — so the
+budgets cannot be "simplified" back into vacuity. The paired integration
+test goes further and performs the real `DROP INDEX` (restoring it in a
+`finally`), which is the check Issue #838's own Definition of Done asks
+for.
+
+### Known limitation: the budgets' cost bound rides on stale statistics
+
+The `EXPLAIN` cost a budget compares against is only meaningful if
+PostgreSQL's planner statistics are accurate, and in this suite they
+generally are **not**:
+
+- Both scripts and the integration harness run as the least-privilege
+  `awcms_mini_app` role, which does not own these tables. PostgreSQL
+  **skips** an `ANALYZE` of a table the role does not own with a WARNING,
+  not an error — so `beforeAll`'s `ANALYZE` in
+  `performance-query-plan-check.integration.test.ts` is a silent no-op
+  (verified against `pg_stat_user_tables.last_analyze`, which never
+  changes).
+- Issue #782 already root-caused the same class of problem for
+  `audit-events-tenant-activity-reporting` (~11 pre-ANALYZE vs ~1088 once
+  autovacuum catches up).
+
+Consequences worth knowing before trusting or recalibrating any number
+here:
+
+- Plan-SHAPE assertions survive a bad statistics regime; cost assertions
+  do not. Measured: with the index dropped, the same regression costs
+  939.88 against an accurately-ANALYZEd database but ~8 in the integration
+  suite — while the `Sort` node is present in **both**. This is the
+  concrete reason `admin_list` budgets lead with shape.
+- **`CREATE INDEX` half-fixes the statistics, and that is worse than not
+  fixing them.** Building an index updates `pg_class.reltuples`/`relpages`
+  as a side effect (measured on `awcms_mini_blog_pages`: `-1/0` →
+  `2000/334`), so the planner suddenly knows the real row count while
+  still having **zero** column statistics. For the blog admin lists that
+  half-informed state is the only one in which the budget's own index
+  loses:
+
+  | `pg_class` state                          | plan                                    | cost  |
+  | ----------------------------------------- | --------------------------------------- | ----- |
+  | `reltuples=-1` (pristine, never analyzed) | `Index Scan(..._tenant_updated_idx)`    | 8.3   |
+  | `reltuples` real, ZERO column statistics  | `Sort` + `Scan(..._tenant_deleted_idx)` | 8.19  |
+  | fully `ANALYZE`d (any real deployment)    | `Index Scan(..._tenant_updated_idx)`    | 57.17 |
+
+  The two plans are tied to within ~1%, so the planner takes the
+  marginally cheaper one — a coin flip, not a judgement. The middle row
+  does not occur in any real database (autovacuum's ANALYZE produces the
+  third), and it is the reason the `DROP INDEX` proof asserts its
+  restoration against `pg_indexes.indexdef` rather than by re-running
+  `EXPLAIN`: restoring an index is a schema fact, so it is asserted as
+  one.
+
+- `blog-posts-fulltext-search` currently passes CI only because of this.
+  Against a `VACUUM FULL ANALYZE`d database at the same `safe` scale it
+  measures **939.5 against its approved `maxTotalCost` of 800** — i.e. it
+  is latently red and would fail the moment the statistics become
+  accurate. Fixing the no-op `ANALYZE` therefore requires recalibrating
+  that budget in the same reviewed change (an approved threshold change,
+  per the governance rule above) and is deliberately NOT bundled into
+  Issue #838.
 
 ## Machine-readable + human report artifacts
 
