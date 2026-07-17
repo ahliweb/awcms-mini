@@ -154,7 +154,10 @@ Lalu daftarkan adapter-nya di
 yang direview, bentuk sama dengan
 `domain-event-runtime/infrastructure/consumer-registry.ts`) dengan kunci
 yang sama persis dengan `adapterRegistryKey`. Parity descriptor↔kontrak
-dijaga `tests/unit/data-exchange-descriptor-contract-parity.test.ts`.
+dijaga oleh gate response-vs-schema umum
+`tests/unit/response-contract-validation.test.ts` (Issue #844) yang
+memvalidasi response nyata `GET /api/v1/data-exchange/descriptors` terhadap
+schema OpenAPI yang dipublikasikan.
 
 `requiredPermission` (permission tambahan modul pemilik) dicek di SETIAP
 route yang me-resolve descriptor: stage, preview, commit, retry,
