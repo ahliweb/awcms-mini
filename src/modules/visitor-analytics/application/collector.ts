@@ -5,11 +5,11 @@
  * invoked after `next()` so the real response (including its status
  * code) is already known.
  *
- * BINDING (fail-open, acceptance criterion): `collectVisitorTelemetry`
- * never throws — every failure is caught, logged as a `warning` with
- * `correlationId` and no sensitive data, and the request's real response
- * is always returned regardless. Analytics must never become a critical
- * availability dependency (security note, `withTenant`'s own
+ * BINDING (fail-open, acceptance criterion): the collector never throws —
+ * every failure is caught, logged as a `warning` with `correlationId` and
+ * no sensitive data, and the request's real response is always returned
+ * regardless. Analytics must never become a critical availability
+ * dependency (security note, `withTenant`'s own
  * `workClass: "background_sync"` reinforces this — the lowest-priority
  * DB work class, doc 16, so a saturated pool queues real interactive/
  * reporting work ahead of telemetry writes, never the reverse).
@@ -19,11 +19,61 @@
  * must always be the caller's own server-derived authenticated identity
  * (`ssrContext.identityId` for `/admin/*`, `null` for every public
  * request) — never a client-supplied value — and `visitor_session_id` is
- * always resolved from a session row this function itself just found or
+ * always resolved from a session row this module itself just found or
  * created inside its own tenant-scoped transaction, never from a raw
  * client-supplied UUID. Neither FK is ever fed a client-controlled value
  * directly, closing the cross-tenant existence-oracle risk that audit
  * flagged ahead of time.
+ *
+ * ## Shape: pure derivation, then one batched write (Issue #846)
+ *
+ * This module is split in two:
+ *
+ * - `buildVisitEventRecord` — **pure**. Turns request-scoped inputs into a
+ *   self-contained `VisitEventRecord` of plain values (hashes, parsed UA,
+ *   sanitized path, `occurredAt`). No database, no `APIContext`, so it is
+ *   safe to hold in a queue and unit-testable without Postgres.
+ * - `writeVisitEventBatch` — the **single** write path. Takes N records for
+ *   ONE tenant and persists them in ONE transaction.
+ *
+ * `collectVisitorTelemetry` is retained as a batch-of-one convenience so
+ * that a caller wanting an immediate, awaited write (the integration
+ * suite) and the production batcher share the exact same writer — there is
+ * deliberately no second, "simple" single-row SQL path that could drift
+ * away from the batched one.
+ *
+ * ### Why batching, and why NOT just the INSERT (measured, Issue #846)
+ *
+ * Issue #846 proposed batching the per-event `visit_event` INSERT. Measured
+ * against a real Postgres through a round-trip-counting TCP proxy, the
+ * per-event cost decomposed as **5.2 round trips**:
+ *
+ * | round trip            | count | share |
+ * | --------------------- | ----- | ----- |
+ * | BEGIN                 | 1     | 19%   |
+ * | SET LOCAL tenant      | 1     | 19%   |
+ * | SELECT session        | 1     | 19%   |
+ * | INSERT visit_event    | 1     | 19%   |
+ * | COMMIT                | 1     | 19%   |
+ * | UPDATE session (amortized by the 30s throttle) | 0.2 | 4% |
+ *
+ * So the INSERT the issue named was never the dominant cost — it is one
+ * round trip in five. The transaction scaffolding around it (BEGIN + SET
+ * LOCAL + COMMIT) is ~58%, and it exists *per event*. Batching only the
+ * INSERT would have removed at most ~19% and is in any case impossible in
+ * isolation: the INSERT needs `visitor_session_id`, which the SELECT in the
+ * same transaction produces.
+ *
+ * The unit that actually had to be batched is therefore the **transaction**,
+ * not the INSERT: N events for one tenant now cost ~5-7 round trips in
+ * total instead of 5.2 *each*, because the session lookup, the session
+ * writes, and the event insert are each expressed once, set-at-a-time, for
+ * the whole batch.
+ *
+ * This only shows up under real network latency. On loopback the baseline
+ * measured 1.43ms/event; with 2ms/hop injected it measured 28.9ms/event —
+ * a 20x difference that is pure round-trip cost, i.e. exactly the cost a
+ * loopback benchmark hides and batching removes.
  */
 import { withTenant } from "../../../lib/database/tenant-context";
 import { log } from "../../../lib/logging/logger";
@@ -97,242 +147,467 @@ export type CollectVisitorTelemetryInput = {
   geo: GeoEnrichment;
 };
 
-type SessionRow = { id: string; last_seen_at: string };
+/**
+ * One request's telemetry, fully derived and independent of any
+ * request-scoped object. Everything here is a plain value, so a record may
+ * be held in a queue and written long after the response was sent.
+ *
+ * `occurredAt` is captured at BUILD time, not at write time, and is
+ * INSERTed explicitly rather than left to the column's `now()` default.
+ * Under batching the write can land a few hundred milliseconds after the
+ * request; letting `now()` win would silently smear every event's timestamp
+ * to its flush instant and quietly corrupt the analytics this module
+ * exists to produce.
+ */
+export type VisitEventRecord = {
+  occurredAt: Date;
+  correlationId: string;
+  method: string;
+  statusCode: number | null;
+  area: RequestArea;
+  pathSanitized: string;
+  referrerDomain: string | null;
+  visitorKeyHash: string;
+  ipHash: string | null;
+  rawIpAddress: string | null;
+  userAgentHash: string | null;
+  parsedUserAgent: ParsedUserAgent;
+  humanStatus: string;
+  sessionIsHuman: boolean;
+  sessionBotReason: string | null;
+  isAuthenticated: boolean;
+  identityId: string | null;
+  onlineWindowSeconds: number;
+  geo: GeoEnrichment;
+};
 
 /**
- * Known, benign limitation (noted in PR #628's review): two concurrent
- * requests from the same visitor that both observe "no session yet" (or
- * both observe one that just fell outside the online window) can each
- * `INSERT` a new row — session-count fragmentation, not a
- * correctness/security bug (tenant isolation and RLS are unaffected,
- * `visit_events` FK integrity holds either way). Not worth a
- * `SELECT ... FOR UPDATE`/advisory-lock fix for an analytics table where
- * an occasional extra session row has no functional consequence.
+ * Pure: derives everything the write needs from one request's inputs.
+ * Returns `null` when the path is not trackable (defense in depth — callers
+ * should already have consulted `shouldCollectRequest`).
  */
-async function upsertVisitorSession(
-  tx: Bun.SQL,
-  input: {
-    tenantId: string;
-    area: RequestArea;
-    visitorKeyHash: string;
-    pathSanitized: string;
-    ipHash: string | null;
-    rawIpAddress: string | null;
-    userAgentHash: string | null;
-    parsedUserAgent: ParsedUserAgent;
-    isHuman: boolean;
-    botReason: string | null;
-    isAuthenticated: boolean;
-    identityId: string | null;
-    onlineWindowSeconds: number;
-    geo: GeoEnrichment;
-  }
-): Promise<string> {
-  const existingRows = (await tx`
-    SELECT id, last_seen_at FROM awcms_mini_visitor_sessions
-    WHERE tenant_id = ${input.tenantId}
-      AND visitor_key_hash = ${input.visitorKeyHash}
-      AND area = ${input.area}
-    ORDER BY last_seen_at DESC
-    LIMIT 1
-  `) as SessionRow[];
+export function buildVisitEventRecord(
+  input: Omit<CollectVisitorTelemetryInput, "sql" | "tenantId">,
+  occurredAt: Date = new Date()
+): VisitEventRecord | null {
+  if (!isTrackablePath(input.rawPath)) return null;
 
-  const existing = existingRows[0];
-  const nowMs = Date.now();
-  const lastSeenMs = existing
-    ? new Date(existing.last_seen_at).getTime()
-    : null;
-  const withinSameSession =
-    lastSeenMs !== null &&
-    nowMs - lastSeenMs <= input.onlineWindowSeconds * 1000;
+  const area = determineArea(input.rawPath.split("?")[0] ?? input.rawPath);
+  const parsedUserAgent = parseUserAgent(input.userAgent);
+  const humanStatus = classifyHumanStatus({
+    isAuthenticated: input.isAuthenticated,
+    parsedUserAgent
+  });
+  const sessionHumanity = classifySessionHumanity({
+    isAuthenticated: input.isAuthenticated,
+    parsedUserAgent
+  });
 
-  if (existing && withinSameSession) {
-    const dueForWrite =
-      lastSeenMs === null || nowMs - lastSeenMs >= SESSION_UPDATE_THROTTLE_MS;
+  return {
+    occurredAt,
+    correlationId: input.correlationId,
+    method: input.method,
+    statusCode: input.statusCode,
+    area,
+    pathSanitized: sanitizePath(input.rawPath),
+    referrerDomain: extractReferrerDomain(input.referrerHeader),
+    visitorKeyHash: hashVisitorKey(input.visitorKey, input.config.hashSalt),
+    ipHash: input.ipAddress
+      ? hashIpAddress(input.ipAddress, input.config.hashSalt)
+      : null,
+    rawIpAddress: input.config.rawIpEnabled ? input.ipAddress : null,
+    userAgentHash: input.userAgent
+      ? hashUserAgent(input.userAgent, input.config.hashSalt)
+      : null,
+    parsedUserAgent,
+    humanStatus,
+    sessionIsHuman: sessionHumanity.isHuman,
+    sessionBotReason: sessionHumanity.botReason,
+    isAuthenticated: input.isAuthenticated,
+    identityId: input.identityId,
+    onlineWindowSeconds: input.config.onlineWindowSeconds,
+    geo: input.geo
+  };
+}
 
-    if (dueForWrite) {
-      await tx`
-        UPDATE awcms_mini_visitor_sessions
-        SET last_seen_at = now(),
-            current_path = ${input.pathSanitized},
-            is_human = ${input.isHuman},
-            bot_reason = ${input.botReason},
-            browser_name = ${input.parsedUserAgent.browserName},
-            browser_version_major = ${input.parsedUserAgent.browserVersionMajor},
-            os_name = ${input.parsedUserAgent.osName},
-            device_type = ${input.parsedUserAgent.deviceType},
-            country_code = ${input.geo.countryCode},
-            region = ${input.geo.region},
-            city = ${input.geo.city},
-            timezone = ${input.geo.timezone},
-            updated_at = now()
-        WHERE id = ${existing.id}
-      `;
-    }
+type SessionRow = {
+  id: string;
+  visitor_key_hash: string;
+  area: string;
+  last_seen_at: string;
+};
 
-    return existing.id;
-  }
-
-  // No recent session for this visitor+area — start a new one.
-  // login_identifier_snapshot is deliberately always null here (see
-  // README §Domain helpers/§Not yet available): it's a nullable display
-  // convenience, not a functional requirement, and populating it would
-  // need an extra identities lookup on every new session — deferred
-  // rather than added speculatively (never populated for anonymous
-  // visitors either way, satisfying the binding privacy rule either way).
-  const insertedRows = (await tx`
-    INSERT INTO awcms_mini_visitor_sessions
-      (tenant_id, visitor_key_hash, identity_id, login_identifier_snapshot,
-       is_authenticated, area, current_path, ip_hash, ip_address,
-       user_agent_hash, browser_name, browser_version_major, os_name,
-       device_type, is_human, bot_reason, country_code, region, city, timezone)
-    VALUES (
-      ${input.tenantId}, ${input.visitorKeyHash}, ${input.identityId}, null,
-      ${input.isAuthenticated}, ${input.area}, ${input.pathSanitized},
-      ${input.ipHash}, ${input.rawIpAddress}, ${input.userAgentHash},
-      ${input.parsedUserAgent.browserName}, ${input.parsedUserAgent.browserVersionMajor},
-      ${input.parsedUserAgent.osName}, ${input.parsedUserAgent.deviceType},
-      ${input.isHuman}, ${input.botReason}, ${input.geo.countryCode},
-      ${input.geo.region}, ${input.geo.city}, ${input.geo.timezone}
-    )
-    RETURNING id
-  `) as { id: string }[];
-
-  return insertedRows[0]!.id;
+/** Identifies one visitor session: a (visitor_key_hash, area) pair. */
+function sessionKeyOf(record: VisitEventRecord): string {
+  return `${record.visitorKeyHash} ${record.area}`;
 }
 
 /**
- * Writes one `awcms_mini_visit_events` row and creates/refreshes the
- * matching `awcms_mini_visitor_sessions` row. Never throws — see the
- * file header's fail-open note. Callers should still check
- * `shouldCollectRequest` first (cheap, no DB) to avoid the function-call
- * overhead for requests that will be skipped anyway, but this function
- * re-checks `isTrackablePath` itself as defense in depth.
+ * Groups a batch by session key, preserving the two records that carry
+ * different meaning:
+ *
+ * - `earliest` decides session CONTINUATION (is this still the same visit,
+ *   per `onlineWindowSeconds`?) — that is the decision the first of these
+ *   requests would have made had it been written per-event.
+ * - `latest` supplies the session's STATE (current_path, humanity, UA, geo)
+ *   — matching the per-event behavior where the last write wins.
  */
-export async function collectVisitorTelemetry(
-  input: CollectVisitorTelemetryInput
+function groupBySession(
+  records: VisitEventRecord[]
+): Map<string, { earliest: VisitEventRecord; latest: VisitEventRecord }> {
+  const groups = new Map<
+    string,
+    { earliest: VisitEventRecord; latest: VisitEventRecord }
+  >();
+
+  for (const record of records) {
+    const key = sessionKeyOf(record);
+    const existing = groups.get(key);
+
+    if (!existing) {
+      groups.set(key, { earliest: record, latest: record });
+      continue;
+    }
+
+    if (record.occurredAt.getTime() < existing.earliest.occurredAt.getTime()) {
+      existing.earliest = record;
+    }
+
+    if (record.occurredAt.getTime() >= existing.latest.occurredAt.getTime()) {
+      existing.latest = record;
+    }
+  }
+
+  return groups;
+}
+
+/**
+ * Resolves one session id per distinct (visitor_key_hash, area) in the
+ * batch, creating and refreshing rows set-at-a-time.
+ *
+ * Round trips: 1 SELECT + at most 1 INSERT + at most 1 UPDATE, for the
+ * WHOLE batch — replacing the per-event SELECT + UPDATE/INSERT.
+ *
+ * Known, benign limitation (unchanged from the per-event version, noted in
+ * PR #628's review): two concurrent writers that both observe "no session
+ * yet" can each INSERT a row — session-count fragmentation, not a
+ * correctness/security bug (tenant isolation and RLS are unaffected,
+ * `visit_events` FK integrity holds either way). Batching narrows this in
+ * practice, since events that used to race each other one-by-one now
+ * resolve a single shared session id inside one transaction.
+ */
+async function resolveSessionIds(
+  tx: Bun.SQL,
+  tenantId: string,
+  groups: Map<string, { earliest: VisitEventRecord; latest: VisitEventRecord }>
+): Promise<Map<string, string>> {
+  const keys = [...groups.keys()];
+  const hashes = keys.map((key) => groups.get(key)!.latest.visitorKeyHash);
+  const areas = keys.map((key) => groups.get(key)!.latest.area);
+
+  // `(a, b) IN (SELECT * FROM unnest($1, $2))` matches the pairs exactly —
+  // a naive `a = ANY($1) AND b = ANY($2)` would form a cross product and
+  // pull in sessions this batch never mentioned. Arrays MUST go through
+  // `tx.array(values, "type")`; `${array}::text[]` does not bind in Bun.SQL.
+  const existingRows = (await tx`
+    SELECT DISTINCT ON (visitor_key_hash, area)
+      id, visitor_key_hash, area, last_seen_at
+    FROM awcms_mini_visitor_sessions
+    WHERE tenant_id = ${tenantId}
+      AND (visitor_key_hash, area) IN (
+        SELECT * FROM unnest(
+          ${tx.array(hashes, "text")},
+          ${tx.array(areas, "text")}
+        )
+      )
+    ORDER BY visitor_key_hash, area, last_seen_at DESC
+  `) as SessionRow[];
+
+  const existingByKey = new Map<string, SessionRow>();
+  for (const row of existingRows) {
+    existingByKey.set(`${row.visitor_key_hash} ${row.area}`, row);
+  }
+
+  const resolved = new Map<string, string>();
+  const toInsert: Record<string, unknown>[] = [];
+  const insertKeys: string[] = [];
+  const updates: { id: string; latest: VisitEventRecord }[] = [];
+
+  for (const [key, group] of groups) {
+    const { earliest, latest } = group;
+    const existing = existingByKey.get(key);
+    const lastSeenMs = existing
+      ? new Date(existing.last_seen_at).getTime()
+      : null;
+    const withinSameSession =
+      lastSeenMs !== null &&
+      earliest.occurredAt.getTime() - lastSeenMs <=
+        earliest.onlineWindowSeconds * 1000;
+
+    if (existing && withinSameSession) {
+      resolved.set(key, existing.id);
+
+      if (
+        lastSeenMs === null ||
+        latest.occurredAt.getTime() - lastSeenMs >= SESSION_UPDATE_THROTTLE_MS
+      ) {
+        updates.push({ id: existing.id, latest });
+      }
+
+      continue;
+    }
+
+    // No recent session for this visitor+area — start a new one.
+    // login_identifier_snapshot is deliberately always null here (see
+    // README §Domain helpers/§Not yet available): it's a nullable display
+    // convenience, not a functional requirement, and populating it would
+    // need an extra identities lookup on every new session — deferred
+    // rather than added speculatively (never populated for anonymous
+    // visitors either way, satisfying the binding privacy rule regardless).
+    insertKeys.push(key);
+    toInsert.push({
+      tenant_id: tenantId,
+      visitor_key_hash: latest.visitorKeyHash,
+      identity_id: latest.identityId,
+      login_identifier_snapshot: null,
+      is_authenticated: latest.isAuthenticated,
+      area: latest.area,
+      current_path: latest.pathSanitized,
+      first_seen_at: earliest.occurredAt,
+      last_seen_at: latest.occurredAt,
+      ip_hash: latest.ipHash,
+      ip_address: latest.rawIpAddress,
+      user_agent_hash: latest.userAgentHash,
+      browser_name: latest.parsedUserAgent.browserName,
+      browser_version_major: latest.parsedUserAgent.browserVersionMajor,
+      os_name: latest.parsedUserAgent.osName,
+      device_type: latest.parsedUserAgent.deviceType,
+      is_human: latest.sessionIsHuman,
+      bot_reason: latest.sessionBotReason,
+      country_code: latest.geo.countryCode,
+      region: latest.geo.region,
+      city: latest.geo.city,
+      timezone: latest.geo.timezone
+    });
+  }
+
+  if (toInsert.length > 0) {
+    // One multi-row INSERT ... RETURNING, then map ids back by pair. Bun.SQL
+    // preserves input order in RETURNING for a values-list insert, but this
+    // maps by (hash, area) rather than by position so it does not depend on
+    // that.
+    const inserted = (await tx`
+      INSERT INTO awcms_mini_visitor_sessions ${tx(toInsert)}
+      RETURNING id, visitor_key_hash, area
+    `) as { id: string; visitor_key_hash: string; area: string }[];
+
+    const insertedByKey = new Map<string, string>();
+    for (const row of inserted) {
+      insertedByKey.set(`${row.visitor_key_hash} ${row.area}`, row.id);
+    }
+
+    for (const key of insertKeys) {
+      const id = insertedByKey.get(key);
+      if (id) resolved.set(key, id);
+    }
+  }
+
+  if (updates.length > 0) {
+    // One set-at-a-time UPDATE joined against the batch's own values.
+    await tx`
+      UPDATE awcms_mini_visitor_sessions AS s
+      SET last_seen_at = u.last_seen_at,
+          current_path = u.current_path,
+          is_human = u.is_human,
+          bot_reason = u.bot_reason,
+          browser_name = u.browser_name,
+          browser_version_major = u.browser_version_major,
+          os_name = u.os_name,
+          device_type = u.device_type,
+          country_code = u.country_code,
+          region = u.region,
+          city = u.city,
+          timezone = u.timezone,
+          updated_at = now()
+      FROM unnest(
+        ${tx.array(
+          updates.map((u) => u.id),
+          "uuid"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.occurredAt.toISOString()),
+          "timestamptz"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.pathSanitized),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.sessionIsHuman),
+          "bool"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.sessionBotReason),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.parsedUserAgent.browserName),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.parsedUserAgent.browserVersionMajor),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.parsedUserAgent.osName),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.parsedUserAgent.deviceType),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.geo.countryCode),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.geo.region),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.geo.city),
+          "text"
+        )},
+        ${tx.array(
+          updates.map((u) => u.latest.geo.timezone),
+          "text"
+        )}
+      ) AS u(id, last_seen_at, current_path, is_human, bot_reason,
+             browser_name, browser_version_major, os_name, device_type,
+             country_code, region, city, timezone)
+      WHERE s.id = u.id
+    `;
+  }
+
+  return resolved;
+}
+
+/**
+ * Persists a batch of records for ONE tenant in ONE transaction. Never
+ * throws — see the file header's fail-open note.
+ *
+ * All statements run sequentially against the single `tx`. They must never
+ * be wrapped in `Promise.all`: concurrent queries on one Bun.SQL
+ * transaction handle deadlock the connection (a repeated, load-dependent
+ * hang in this repo that the test suite does not reliably catch).
+ */
+export async function writeVisitEventBatch(
+  sql: Bun.SQL,
+  tenantId: string,
+  records: VisitEventRecord[]
 ): Promise<void> {
-  const {
-    sql,
-    tenantId,
-    correlationId,
-    config,
-    method,
-    rawPath,
-    statusCode,
-    visitorKey,
-    ipAddress,
-    userAgent,
-    referrerHeader,
-    isAuthenticated,
-    identityId,
-    geo
-  } = input;
+  if (records.length === 0) return;
 
   try {
-    if (!isTrackablePath(rawPath)) return;
-
-    const area = determineArea(rawPath.split("?")[0] ?? rawPath);
-    const pathSanitized = sanitizePath(rawPath);
-    const parsedUserAgent = parseUserAgent(userAgent);
-    const humanStatus = classifyHumanStatus({
-      isAuthenticated,
-      parsedUserAgent
-    });
-    const sessionHumanity = classifySessionHumanity({
-      isAuthenticated,
-      parsedUserAgent
-    });
-    const visitorKeyHash = hashVisitorKey(visitorKey, config.hashSalt);
-    const ipHash = ipAddress ? hashIpAddress(ipAddress, config.hashSalt) : null;
-    const userAgentHash = userAgent
-      ? hashUserAgent(userAgent, config.hashSalt)
-      : null;
-    const rawIpAddress = config.rawIpEnabled ? ipAddress : null;
-    const referrerDomain = extractReferrerDomain(referrerHeader);
-
     await withTenant(
       sql,
       tenantId,
       async (tx) => {
-        const sessionId = await upsertVisitorSession(tx, {
-          tenantId,
-          area,
-          visitorKeyHash,
-          pathSanitized,
-          ipHash,
-          rawIpAddress,
-          userAgentHash,
-          parsedUserAgent,
-          isHuman: sessionHumanity.isHuman,
-          botReason: sessionHumanity.botReason,
-          isAuthenticated,
-          identityId,
-          onlineWindowSeconds: config.onlineWindowSeconds,
-          geo
-        });
+        const groups = groupBySession(records);
+        const sessionIds = await resolveSessionIds(tx, tenantId, groups);
 
-        // Post-review fix (Issue #623): pass a plain JS object as the
-        // query parameter, never a pre-`JSON.stringify`'d string. Bun.SQL
-        // only decodes a `jsonb` column back into a parsed object on
-        // SELECT when the matching INSERT parameter was itself passed as
-        // an object (its own driver auto-serializes it and tags the
-        // round trip accordingly) — `${JSON.stringify(x)}::jsonb` stores
-        // the exact same bytes in Postgres, but every later SELECT of
-        // that column then comes back as a raw JSON **string**, not an
-        // object, breaking `VisitEventRow.user_agent_parsed`/`geo`'s own
-        // `Record<string, unknown>` type (verified empirically — see the
-        // regression tests in
-        // `tests/integration/visitor-analytics-collector.integration.test.ts`).
-        // This was a latent bug in `user_agent_parsed` since Issue #620
-        // (it happened not to matter yet — no endpoint read that column
-        // back before Issue #621's `GET /api/v1/analytics/events`, which
-        // this fix also silently repairs) and would have reproduced for
-        // `geo` the moment this issue wrote a non-empty value to it.
-        const userAgentParsed = {
-          browserName: parsedUserAgent.browserName,
-          browserVersionMajor: parsedUserAgent.browserVersionMajor,
-          osName: parsedUserAgent.osName,
-          deviceType: parsedUserAgent.deviceType
-        };
-        const geoJson = {
-          countryCode: geo.countryCode,
-          region: geo.region,
-          city: geo.city,
-          timezone: geo.timezone
-        };
+        const eventRows = records.map((record) => ({
+          tenant_id: tenantId,
+          visitor_session_id: sessionIds.get(sessionKeyOf(record)) ?? null,
+          identity_id: record.identityId,
+          occurred_at: record.occurredAt,
+          method: record.method,
+          status_code: record.statusCode,
+          area: record.area,
+          path_sanitized: record.pathSanitized,
+          referrer_domain: record.referrerDomain,
+          ip_hash: record.ipHash,
+          user_agent_hash: record.userAgentHash,
+          // Post-review fix (Issue #623), and re-verified for the batched
+          // shape (Issue #846): pass a plain JS object, never a
+          // pre-`JSON.stringify`'d string. Bun.SQL only decodes a `jsonb`
+          // column back into a parsed object on SELECT when the matching
+          // INSERT parameter was itself passed as an object.
+          // `${JSON.stringify(x)}::jsonb` stores the exact same bytes, but
+          // every later SELECT then returns a raw JSON **string**, breaking
+          // `VisitEventRow.user_agent_parsed`/`geo`'s `Record<string,
+          // unknown>` type.
+          //
+          // This trap is LIVE in the batched shape and was measured: the
+          // otherwise-natural bulk form `unnest(..., ${tx.array(rows.map(r
+          // => JSON.stringify(r.geo)), "jsonb")})` reintroduces exactly the
+          // #623 bug — verified empirically to read back as `string`. The
+          // `tx(rows)` row-helper below reads back as `object`, which is why
+          // the batch insert is expressed this way rather than via unnest
+          // like the UPDATE above. Guarded by
+          // `tests/integration/visitor-analytics-collector.integration.test.ts`.
+          user_agent_parsed: {
+            browserName: record.parsedUserAgent.browserName,
+            browserVersionMajor: record.parsedUserAgent.browserVersionMajor,
+            osName: record.parsedUserAgent.osName,
+            deviceType: record.parsedUserAgent.deviceType
+          },
+          geo: {
+            countryCode: record.geo.countryCode,
+            region: record.geo.region,
+            city: record.geo.city,
+            timezone: record.geo.timezone
+          },
+          human_status: record.humanStatus,
+          correlation_id: record.correlationId
+        }));
 
-        await tx`
-          INSERT INTO awcms_mini_visit_events
-            (tenant_id, visitor_session_id, identity_id, method, status_code,
-             area, path_sanitized, referrer_domain, ip_hash, user_agent_hash,
-             user_agent_parsed, geo, human_status, correlation_id)
-          VALUES (
-            ${tenantId}, ${sessionId}, ${identityId}, ${method}, ${statusCode},
-            ${area}, ${pathSanitized}, ${referrerDomain}, ${ipHash}, ${userAgentHash},
-            ${userAgentParsed}::jsonb, ${geoJson}::jsonb, ${humanStatus}, ${correlationId}
-          )
-        `;
+        await tx`INSERT INTO awcms_mini_visit_events ${tx(eventRows)}`;
       },
       // `queueTimeoutMs` deliberately far below `withTenant`'s own 2000ms
-      // default (post-review fix, PR #628): this collector is the first
-      // *synchronous, per-request* caller of `background_sync` in the
-      // codebase — every other user (`object-dispatch.ts`,
-      // `email-dispatch.ts`) runs from a decoupled scheduled job, never
-      // inline in the HTTP request path. Awaiting the 2000ms default here
-      // would mean every collected request could pick up up to two full
-      // seconds of added latency under pool saturation before the
-      // fail-open 503 path even triggers — exactly the "critical
-      // availability dependency" the issue's own security note forbids.
-      // 200ms bounds the worst case to something a caller of `next()`
-      // never notices, while still giving the write a fair shot under
-      // ordinary (non-saturated) load.
+      // default (post-review fix, PR #628). Retained at 200ms even though
+      // Issue #832 moved this write off the response path: it is now the
+      // batcher that waits, and a batch that cannot get a pool slot
+      // promptly should fail open and let the next batch try rather than
+      // pin a `background_sync` slot for two seconds while interactive work
+      // queues behind it (the exact contention Issue #824 measured).
       { workClass: "background_sync", queueTimeoutMs: 200 }
     );
   } catch (error) {
     log("warning", "visitor_analytics.collector.failed", {
-      correlationId,
+      correlationId: records[0]?.correlationId,
       tenantId,
+      moduleKey: "visitor_analytics",
+      batchSize: records.length,
+      error: error instanceof Error ? error.message : "unknown error"
+    });
+  }
+}
+
+/**
+ * Writes one request's telemetry immediately, awaited. A batch of one over
+ * `writeVisitEventBatch` — deliberately NOT a separate single-row SQL path,
+ * so the batched writer production uses is the same code this function's
+ * tests exercise.
+ *
+ * Production (`src/middleware.ts`) does NOT call this: it builds a record
+ * and hands it to `visit-event-batcher.ts`, so that concurrent visits share
+ * one transaction. This entry point remains for callers that want a
+ * synchronous, awaited write.
+ */
+export async function collectVisitorTelemetry(
+  input: CollectVisitorTelemetryInput
+): Promise<void> {
+  try {
+    const record = buildVisitEventRecord(input);
+
+    if (!record) return;
+
+    await writeVisitEventBatch(input.sql, input.tenantId, [record]);
+  } catch (error) {
+    log("warning", "visitor_analytics.collector.failed", {
+      correlationId: input.correlationId,
+      tenantId: input.tenantId,
       moduleKey: "visitor_analytics",
       error: error instanceof Error ? error.message : "unknown error"
     });

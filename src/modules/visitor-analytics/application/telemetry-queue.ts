@@ -38,12 +38,25 @@
  * would lose every pending event on SIGTERM. `flushVisitorTelemetryQueue()`
  * drains pending + in-flight work, and is wired to SIGTERM/SIGINT/
  * `beforeExit` on first use (see `ensureShutdownHook`).
+ *
+ * **Stage 1 of two (Issue #846).** This queue no longer writes. Its tasks
+ * resolve the tenant (usually a cache hit, zero round trips) and hand a
+ * plain record to `visit-event-batcher.ts`, which groups records per tenant
+ * so that N concurrent visits cost ONE transaction instead of N. The write
+ * itself was 5.2 round trips per event, ~58% of it per-event transaction
+ * scaffolding; see `collector.ts`'s header for the measured decomposition.
+ * `flushVisitorTelemetryQueue()` drains BOTH stages, so the no-loss-on-
+ * SIGTERM guarantee above still holds end to end.
  */
 import { log } from "../../../lib/logging/logger";
 import {
   recordCounter,
   recordGauge
 } from "../../../lib/observability/metrics-port";
+import {
+  flushVisitEventBatches,
+  getVisitEventBatcherStats
+} from "./visit-event-batcher";
 
 /**
  * A queued unit of work. Must be fully self-contained — it closes over
@@ -232,14 +245,11 @@ export function enqueueVisitorTelemetry(task: VisitorTelemetryTask): void {
 }
 
 /**
- * Resolves once the queue is empty and no task is in flight. Bounded by
- * `timeoutMs` so a hung database can never hold shutdown open forever — on
- * timeout the remaining events ARE lost, which is why the timeout is logged
- * loudly rather than swallowed.
+ * Resolves once the TASK stage is empty and no task is in flight. Bounded
+ * by `timeoutMs`. Callers want `flushVisitorTelemetryQueue`, which also
+ * flushes the batcher this stage feeds.
  */
-export async function flushVisitorTelemetryQueue(
-  timeoutMs: number = FLUSH_TIMEOUT_MS
-): Promise<void> {
+async function drainTaskStage(timeoutMs: number): Promise<void> {
   drain();
 
   if (queue.length === 0 && inFlight.size === 0) {
@@ -272,6 +282,45 @@ export async function flushVisitorTelemetryQueue(
   } finally {
     if (timer) {
       clearTimeout(timer);
+    }
+  }
+}
+
+/**
+ * Drains BOTH stages: the task queue above, and the per-tenant batches its
+ * tasks buffer (`visit-event-batcher.ts`, Issue #846). Bounded by
+ * `timeoutMs` overall so a hung database can never hold shutdown open
+ * forever — on timeout the remaining events ARE lost, which is why both
+ * stages log the timeout loudly rather than swallowing it.
+ *
+ * Two passes, not one: a stage-1 task's whole job is now to BUFFER a record
+ * into stage 2, so flushing stage 2 before stage 1 is idle would leave the
+ * tail behind — exactly the silent shutdown loss Issue #846 warned against.
+ * Stage 2 never creates stage-1 work, so the passes converge; a second pass
+ * only runs if work actually remains and the budget allows it.
+ *
+ * Batching does NOT weaken this: `flushVisitEventBatches` writes PARTIAL
+ * batches on demand, never waiting for `MAX_BATCH_SIZE` or a linger timer.
+ */
+export async function flushVisitorTelemetryQueue(
+  timeoutMs: number = FLUSH_TIMEOUT_MS
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const remaining = (): number => Math.max(0, deadline - Date.now());
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    await drainTaskStage(remaining());
+    await flushVisitEventBatches(remaining());
+
+    const taskStageIdle = queue.length === 0 && inFlight.size === 0;
+    const batcherIdle = getVisitEventBatcherStats().pending === 0;
+
+    if (taskStageIdle && batcherIdle) {
+      return;
+    }
+
+    if (remaining() === 0) {
+      return;
     }
   }
 }

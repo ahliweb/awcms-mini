@@ -122,17 +122,43 @@ Every metric this codebase emits is declared in `METRIC_DEFINITIONS`
 | `provider_circuit_state`                       | gauge     | `provider`                             | ~10 bound                | Same. Encoded `0=closed, 1=half_open, 2=open`.                                                                  |
 | `visitor_analytics_queue_dropped_total`        | counter   | (none)                                 | exactly 1                | Unlabeled (Issue #832). A tenant id here would be precisely the visitor-identifying label this port forbids.    |
 | `visitor_analytics_queue_depth`                | gauge     | (none)                                 | exactly 1                | Unlabeled (Issue #832).                                                                                         |
+| `visitor_analytics_batch_dropped_total`        | counter   | (none)                                 | exactly 1                | Unlabeled (Issue #846). Stage 2 of the same pipeline; same reasoning as the stage-1 pair above.                 |
+| `visitor_analytics_batch_pending`              | gauge     | (none)                                 | exactly 1                | Unlabeled (Issue #846).                                                                                         |
 
-**The one metric that signals real data loss**:
-`visitor_analytics_queue_dropped_total` (Issue #832). Visitor telemetry is
-written off the response path through a bounded in-process queue
-(`visitor-analytics/application/telemetry-queue.ts`), so the response never
-waits on it. Backpressure is the price: once the queue reaches
-`MAX_QUEUE_DEPTH` the newest event is dropped rather than growing memory
-without bound. Any non-zero value here therefore means visit events are
-genuinely being lost — alert on it, and read `visitor_analytics_queue_depth`
-as the leading indicator (sustained growth toward the cap precedes the first
-drop). Both are unlabeled on purpose: the natural label would be `tenantId`,
+**The metrics that signal real data loss**:
+`visitor_analytics_queue_dropped_total` (Issue #832) and
+`visitor_analytics_batch_dropped_total` (Issue #846). Visitor telemetry is
+written off the response path through a **two-stage** pipeline, and each
+stage is bounded, so each has its own drop counter:
+
+1. **Stage 1 — the task queue**
+   (`visitor-analytics/application/telemetry-queue.ts`). Defers the work off
+   the response path, so the response never waits on it. Backpressure is the
+   price: once the queue reaches `MAX_QUEUE_DEPTH` the newest event is
+   dropped rather than growing memory without bound. Leading indicator:
+   `visitor_analytics_queue_depth`.
+2. **Stage 2 — the per-tenant batcher**
+   (`visitor-analytics/application/visit-event-batcher.ts`, Issue #846).
+   Groups records per tenant so N visits cost ONE transaction instead of N
+   (the write was 5.2 round trips per event, ~58% of it per-event
+   transaction scaffolding). Once `MAX_PENDING_EVENTS` records are buffered
+   across all tenants the newest is dropped. Leading indicator:
+   `visitor_analytics_batch_pending`.
+
+Any non-zero value on either counter means visit events are genuinely being
+lost — alert on both. They are deliberately **separate** counters rather
+than one: they tell an operator WHICH stage is saturated, and the remedies
+differ (stage 1 saturating means tenant resolution is slow; stage 2
+saturating means the database is).
+
+`visitor_analytics_batch_pending` carries a second meaning the stage-1 gauge
+does not: it is the exact population that a **hard** crash (SIGKILL, OOM,
+panic) would lose, because those records exist only in memory until their
+batch flushes. A graceful SIGTERM loses nothing — the shutdown hook flushes
+partial batches. See `visit-event-batcher.ts`'s header for why that trade is
+acceptable for this data specifically and for nothing else.
+
+All four are unlabeled on purpose: the natural label would be `tenantId`,
 which is exactly the visitor-identifying, per-tenant-unbounded label this
 port exists to keep out.
 
