@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 62.**
+**Jumlah memory saat snapshot terakhir: 63.**
 
 ## Sengaja TIDAK disertakan
 
@@ -71,6 +71,7 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 - [PR body missing Closes keyword](pr-body-missing-closes-keyword.md) — merged PRs here often don't auto-close their issue; cross-check `gh pr list --merged` before trusting `gh issue list --state open`
 - [Skill/doc drift recurring](skill-doc-drift-recurring.md) — 5th occurrence 2026-07-15 (Issue #805/PR #806); scale audit to 7 parallel agents at 23-module size, always wire new skills into AGENTS.md + skills/README.md catalogs
 - [Tenant domain routing epic progress](tenant-domain-routing-epic-progress.md) — epic #555 FULLY COMPLETE + CLOSED 2026-07-09 (PR #568-#585); #564/#565/#566 design notes still load-bearing
+- [changesets:policy:check false negative](changeset-policy-check-false-negative.md) — memberi PASS palsu bila dijalankan SEBELUM commit (mendiff ke origin/main, tak lihat file untracked); jalankan setelah commit
 - [Prettier check on docs-only PRs](prettier-check-docs-only-prs.md) — `bun run lint` (not just `check:docs`/`build`) must run before push even for pure .md changes, or CI's Prettier check fails
 - [Local Postgres connection details](local-postgres-connection-details.md) — dev container listens on a non-5432 port (check `ps aux` for `-c port=`), DATABASE_URL must be the superuser role (harness repoints to app role itself)
 - [Manual admin UI smoke test](manual-admin-ui-smoke-test.md) — no browser tooling here; curl-based recipe to log in as a real user and click-through-equivalent an `/admin/*` page against a real dev server + Postgres
@@ -903,6 +904,28 @@ accumulate multiple runaway containers.
 See also [[docker-host-port-blocked]] (the other Docker/Postgres
 networking gotcha in this environment) and
 [[docker-manual-container-root-ownership]].
+`````
+
+<!-- memory-file: changeset-policy-check-false-negative.md -->
+
+`````markdown
+---
+name: changeset-policy-check-false-negative
+description: "`bun run changesets:policy:check` memberi PASS palsu bila dijalankan SEBELUM commit — ia mendiff terhadap origin/main, jadi file yang baru di-stage/untracked tak terlihat; CI menangkapnya"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+`bun run changesets:policy:check` mendiff terhadap `origin/main` (`CHANGESET_POLICY_BASE_REF`), **bukan** working tree. Menjalankannya **sebelum commit** memberi **PASS palsu**: file baru yang masih untracked/staged tidak terlihat olehnya, lalu CI gagal setelah push.
+
+**Why:** kena 2026-07-17 di PR #836 — lokal melaporkan "hanya mengubah docs/agent-tooling, changeset tidak wajib", CI menolak dengan benar karena `package.json` + `scripts/sync-agent-memory.ts` + `.prettierignore` **bukan** docs. Kesalahannya bukan pada gate-nya; pada waktu menjalankannya.
+
+**How to apply:** jalankan `changesets:policy:check` **setelah `git commit`**, sebelum push. Kalau menjalankannya lebih awal untuk mengintip, jangan percayai hasil PASS-nya — hanya hasil FAIL yang bermakna saat itu.
+
+**Klasifikasi yang dipakainya**: `docs/`+agent-tooling = exempt; `package.json`, `scripts/*`, `.prettierignore`, `src/*` = butuh changeset. Menambah script npm saja sudah cukup untuk memicunya.
+
+Terkait: [[prettier-check-docs-only-prs]] (kelas yang sama — gate yang disangka tak relevan untuk perubahan "docs saja"), [[pr-body-missing-closes-keyword]].
 `````
 
 <!-- memory-file: concurrent-check-db-contention.md -->
