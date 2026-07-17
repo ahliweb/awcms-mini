@@ -49,7 +49,7 @@ Dokumen ini menetapkan standar coding AWCMS-Mini untuk TypeScript/Bun/Astro/Post
 - **Bin dengan shebang `#!/usr/bin/env node`** (mis. `astro`, `vite`): panggil lewat **`bun --bun`** (mis. `bun --bun astro build`, `bun --bun astro dev`) agar Bun yang mengeksekusi, bukan binary `node` yang mungkin terpasang di mesin. Tanpa `--bun`, `bun run` mengikuti shebang dan bisa jatuh ke Node.
 - **SSR Astro**: Astro belum punya adapter Bun first-party. Dua opsi tersanksi:
   1. **Rekomendasi** — pisahkan seam: API/backend di `Bun.serve` (+Hono) native; Astro hanya untuk frontend/SSR.
-  2. Pakai `@astrojs/node` (standalone) **dijalankan di atas Bun** (`bun ./dist/server/entry.mjs`) dan build via `bun --bun astro build`. Ini satu-satunya pemakaian paket ber-nama "node" yang diizinkan (runtime tetap Bun); catat sebagai pengecualian di `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` bila dipakai.
+  2. Pakai `@astrojs/node` (standalone) **dijalankan di atas Bun** (`bun ./dist/server/entry.mjs`) dan build via `bun --bun astro build`. Ini satu-satunya pemakaian paket ber-nama "node" yang diizinkan (runtime tetap Bun); catat sebagai pengecualian di `AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md` bila dipakai.
 
 ## Aliran request antar layer
 

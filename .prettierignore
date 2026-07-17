@@ -5,3 +5,7 @@ bun.lock
 CHANGELOG.md
 .changeset/*.md
 .claude/worktrees/
+# Generated verbatim dari memory agent (`bun run memory:docs:sync`). Prettier
+# memformat ulang header-nya sehingga `memory:docs:check` selalu gagal setelah
+# lint, dan reformat isi memory = kehilangan fidelitas round-trip `restore`.
+docs/awcms-mini/agent-memory.md

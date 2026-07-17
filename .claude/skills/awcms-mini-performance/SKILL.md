@@ -46,6 +46,39 @@ Sumber kebenaran: **`docs/awcms-mini/16_backend_data_access_integration.md`** (l
 - Uji beban ringan: query saturasi kelas pool → `503`, mengering ke 0 (bukti backpressure, seperti verifikasi Issue 10.2).
 - Tak ada N+1 baru; tak ada `OFFSET` besar; index cocok dengan predikat.
 
+## Perangkap terverifikasi (audit repo 2026-07-17, epic #818)
+
+Temuan berulang dari audit menyeluruh v0.24.0. Cek dulu ke sini sebelum mengaudit dari nol.
+
+### Pola bug yang benar-benar muncul di repo ini
+
+- **Klamp separuh** — `limit`/`pageSize` diklamp benar, `offset`/`page` di sebelahnya **tidak**. Muncul di dua tempat independen (#819 `boundedPage`, #831 preview offset), keduanya dengan klamp yang benar **satu baris di bawahnya**. Saat menyentuh pagination, klamp **kedua** sisi + jaga `NaN`/`Infinity` (`Number("abc")` → `NaN` → `Math.max(NaN,1)` → `NaN` → `OFFSET NaN` → **500**).
+- **Signal invariant di dalam loop per-modul** — #824: `migrationsAppliedSignal` **tidak menerima `moduleKey`** (hasil identik untuk 23 modul) tapi dijalankan 23× lengkap dengan `readdir` + full-table scan ⇒ ≈92 query/render. **Kalau fungsi tidak menerima parameter loop-nya, hasilnya invariant — hoist keluar.** Cache `readdir`/YAML di module scope; preseden: `readYamlCached` (`health-registry.ts:220-232`).
+- **API batch-shaped, implementasi N+1** — #835: `resolveMediaReferences` menerima banyak ref sekaligus, caller membatch dengan benar, implementasinya query satu-satu. Pemanggil yang menulis kode benar tetap membayar N query. Periksa implementasi, jangan percaya signature.
+- **Kerja berat di dalam critical section** — #834: `readEdgeMap` full-tenant dipanggil **setelah** `pg_advisory_xact_lock` ⇒ throughput turun linear terhadap ukuran tenant, bukan kedalaman. Ambil data **sebelum** lock, revalidasi di dalam.
+- **Rescan di dalam loop** — #833: `subjectFacts.filter(...)` per rule per key ⇒ O(P×R×K×F×S) ≈ 6M kunjungan per POST, di dalam transaksi. Hoist `Map`/`Set` sekali per request.
+- **`FOR UPDATE` tanpa `LIMIT` + I/O eksternal sambil memegang lock** — #835: job scheduled-publish mengunci semua row yang match lalu memanggil port social-publishing. Pakai `LIMIT n` + `FOR UPDATE SKIP LOCKED` per batch; jangan tarik kolom terlebar (`content_*`) di query _pemilihan_.
+- **Telemetri di jalur kritis** — #832: `await collectRequestAnalytics(...)` memblokir tiap request publik (4-6 RTT masuk TTFB). Telemetri fail-open tidak boleh di-await sebelum response.
+- **Resolusi nyaris-statis tanpa cache** — #832: host→tenant di-resolve tiap request padahal berubah hitungan hari.
+- **`ORDER BY` tanpa index pendukung** — #830: `ORDER BY updated_at DESC` pada blog posts/pages, tanpa index `updated_at` sama sekali. Index `(tenant_id, status, published_at DESC)` **tidak** menolong. Cek index untuk kolom `ORDER BY`, bukan hanya kolom `WHERE`.
+- **Leading wildcard mematikan GIN** — `title ILIKE '%x%'` melumpuhkan index `search_vector` yang sudah ada. Pakai `search_vector @@`.
+
+### Sudah benar — JANGAN "diperbaiki"
+
+Diverifikasi optimal; menyentuhnya = regresi atau kerja sia-sia.
+
+- `workflow-graph.ts` `detectCycle` (:803-856) — DFS `visiting`/`visited` Set = **O(V+E)**, optimal. `MAX_NODES = 64` membatasi semuanya. 949 barisnya adalah validasi bentuk per-node, **bukan** algoritma.
+- `module-dependency-graph.ts:167-181` — Kahn naif O(V×(V+E)), tapi V≈23 statis & **build-time only**. Tidak pernah menggigit.
+- `evaluateAccess` (`access-control.ts:301`) — murni, Set-based, O(1).
+- Keyset pagination **sudah** dipakai tepat: `visitor-analytics`, `blog-search`, `email`, `tenant-domain`, `sync-*` via `_shared/keyset-pagination.ts`.
+- `data-lifecycle/archive-purge-job.ts:199` — `SELECT *` **legit** (archiver generik lintas tabel arbitrer); keyset cursor loop benar.
+- i18n catalog sudah di-cache (`catalog.ts:15`).
+- **57 FK non-leading** dalam `(tenant_id, x)` **tidak perlu** index tambahan — setiap query memfilter `tenant_id` eksplisit per doc 16. Menambahnya = biaya tulis tanpa manfaat. (Beda dengan **32 FK tanpa index sama sekali**, #830 — itu nyata.)
+
+### Karakter arsitektural yang perlu diketahui
+
+Repo ini **tidak punya recursive CTE sama sekali** dan **tidak punya per-level query loop**. Pola hierarki selalu: satu bulk query muat seluruh adjacency tenant → walk in-memory. Untuk tenant kecil ini tepat, dan kegagalannya adalah **kebalikan N+1** (satu query terlalu besar, bukan terlalu banyak query). `organization-structure` (#834) satu-satunya tempat recursive CTE benar-benar berbayar.
+
 ## Performance suite representatif (Issue #744)
 
 Untuk audit performa yang butuh bukti lebih dari sekadar `EXPLAIN` manual —

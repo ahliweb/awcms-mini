@@ -5,6 +5,23 @@ description: Jalankan proses rilis AWCMS-Mini dengan Changesets. Gunakan saat di
 
 # AWCMS-Mini — Release (Changesets)
 
+> ## ⚠️ RUSAK per 2026-07-17 — jangan percaya alur di bawah sampai #825 selesai
+>
+> **Pipeline rilis ini belum pernah menghasilkan satu rilis pun.** `package.json` ada di **v0.24.0**; repo **tidak punya satu pun tag `v*`** (`git tag` → hanya `awcms-mini@0.0.1..0.0.3`).
+>
+> **Akarnya — dua mekanisme saling meniadakan:**
+>
+> | Sisi                                  | Nilai                                                                                                       |
+> | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+> | `.changeset/config.json:11`           | `"privatePackages": { "version": true, "tag": true }` → `changeset tag` memancarkan **`awcms-mini@0.24.0`** |
+> | `.github/workflows/release.yml:31-33` | trigger `push: tags: ["v*.*.*"]`                                                                            |
+>
+> `awcms-mini@0.24.0` **tidak akan pernah** cocok `v*.*.*`. Jadi **langkah 6 di bawah salah**: `changeset:tag` **tidak** memicu `release.yml`. Hanya `git tag vX.Y.Z` manual (`release-process.md:22`) yang memicunya.
+>
+> **Akibat kedua**: tahap `sign + attest + publish` **belum pernah dieksekusi end-to-end** — satu-satunya rehearsal (`29461398291`) menggantung >26 jam menunggu `required_reviewers` environment `release`. Jadi cosign/provenance/publish di langkah 6 adalah **klaim yang belum terbukti**, bukan fakta.
+>
+> Sebelum merilis apa pun: selesaikan **#825**, lalu perbarui skill ini + `release-process.md` sesuai mekanisme final.
+
 Ikuti `docs/awcms-mini/09_roadmap_repository_commit.md` §Versioning dan `.changeset/README.md`. Sejak Issue #692 (epic #679, platform-hardening), langkah dari "push tag" sampai "GitHub Release + image + SBOM + signature + provenance" **sudah otomatis** lewat `.github/workflows/release.yml` — lihat [`docs/awcms-mini/release-process.md`](../../../docs/awcms-mini/release-process.md) untuk detail lengkap (SBOM tool, keyless signing, attestation, environment approval, dry-run/rehearsal, verifikasi konsumen, rollback/yank). Skill ini tetap mendokumentasikan langkah lokal (changeset → version bump → tag) yang masih manual.
 
 ## Alur rilis
@@ -28,7 +45,7 @@ flowchart LR
 3. `bun run changeset:version` — konsumsi changeset → bump `package.json` + entri `CHANGELOG.md`.
 4. Review diff; pastikan versi cocok peta doc 09 (0.1.0 Foundation … 1.0.0 production MVP).
 5. Commit: `chore(release): vX.Y.Z` (sertakan CHANGELOG + package.json + penghapusan file changeset), push ke `main`.
-6. `bun run changeset:tag` lalu `git push --tags`. Ini **memicu** `.github/workflows/release.yml`: guard ancestor-of-`main`, `bun run release:verify` (versi/CHANGELOG/changeset tersisa harus konsisten), full quality gate, lalu — setelah disetujui lewat `release` environment (lihat doc `release-process.md` §Environment approval) — build image, dua SBOM CycloneDX (source + image), checksums, `cosign sign` keyless, `actions/attest-build-provenance`/`attest-sbom`, push `ghcr.io/ahliweb/awcms-mini`, dan `gh release create` dengan asset terlampir.
+6. `bun run changeset:tag` lalu `git push --tags`. **⚠️ Lihat peringatan di atas — langkah ini TIDAK memicu `release.yml` hari ini** (format tag tidak cocok, #825). Setelah #825 selesai, ini seharusnya **memicu** `.github/workflows/release.yml`: guard ancestor-of-`main`, `bun run release:verify` (versi/CHANGELOG/changeset tersisa harus konsisten), full quality gate, lalu — setelah disetujui lewat `release` environment (lihat doc `release-process.md` §Environment approval) — build image, dua SBOM CycloneDX (source + image), checksums, `cosign sign` keyless, `actions/attest-build-provenance`/`attest-sbom`, push `ghcr.io/ahliweb/awcms-mini`, dan `gh release create` dengan asset terlampir.
 7. **Jangan** lagi menjalankan `gh release create` manual — itu sekarang bagian dari `release.yml`; menjalankannya manual sebelum workflow selesai akan bentrok dengan asset yang coba di-attach otomatis.
 
 ## Aturan

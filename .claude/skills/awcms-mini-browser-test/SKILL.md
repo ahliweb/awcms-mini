@@ -125,7 +125,7 @@ test:e2e` (atau `bunx playwright test`) diam-diam menjalankan proses
    Bun tertentu (mis. Windows), itu kegagalan yang sudah diketahui
    kelasnya — jangan buru-buru ganti balik ke Node tanpa mengikuti proses
    pengecualian AGENTS.md #14 (izin maintainer + entry di
-   `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`); coba dulu
+   `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`); coba dulu
    versi Bun yang lebih baru.
 3. **Satu `page.goto` per skenario nyata, assert lewat `getByRole`/`#id`
    selector yang stabil** — hindari selector berbasis teks visible yang

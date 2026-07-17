@@ -164,4 +164,4 @@ Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/
 
 ## Lisensi
 
-Dilisensikan di bawah lisensi **MIT** — lihat [`LICENSE`](LICENSE). Audit standar pengembangan terakhir: [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md).
+Dilisensikan di bawah lisensi **MIT** — lihat [`LICENSE`](LICENSE). Audit standar pengembangan terakhir: [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md).
