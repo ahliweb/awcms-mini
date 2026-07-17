@@ -41,7 +41,6 @@ import {
 } from "../../src/pages/api/v1/organization-structure/unit-types/index";
 import {
   DELETE as deleteUnitType,
-  GET as getUnitTypeById,
   PATCH as updateUnitType
 } from "../../src/pages/api/v1/organization-structure/unit-types/[id]";
 import { POST as restoreUnitType } from "../../src/pages/api/v1/organization-structure/unit-types/[id]/restore";
@@ -61,7 +60,6 @@ import {
 } from "../../src/pages/api/v1/organization-structure/locations/index";
 import {
   DELETE as deleteLocation,
-  GET as getLocationById,
   PATCH as updateLocation
 } from "../../src/pages/api/v1/organization-structure/locations/[id]";
 import { POST as restoreLocation } from "../../src/pages/api/v1/organization-structure/locations/[id]/restore";
