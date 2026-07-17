@@ -239,6 +239,8 @@ Setiap route handler dibungkus `try/catch` di level teratas: error asli di-log l
 
 Index dan arsip kategori/tag pakai `?page=` (1-indexed) + `LIMIT`/`OFFSET` sederhana, bukan keyset — ini halaman publik yang dibaca pengunjung manusia (ekspektasi UX "halaman 1, 2, 3", bukan cursor buram), beda dari admin search (Issue #539) yang keyset-paginated. `pageSize` diambil dari `awcms_mini_blog_settings.posts_per_page` (Issue #537, default 10) lewat `fetchPublicBlogSettings`. RSS/sitemap tidak dipaginasi sama sekali — flat, dibatasi 50 post terbaru (`FEED_ITEM_LIMIT`), karena konsumennya mesin (feed reader/crawler), bukan pengunjung yang mengklik "next".
 
+`?page=` di-normalisasi lewat `parsePageParam`/`boundedPageNumber` (`src/modules/_shared/offset-pagination.ts`, Issue #819) — **bukan** `Number(param)` langsung. Route ini publik tanpa auth, jadi `page` wajib terklamp di kedua ujung: `?page=1e8` dulu jadi `OFFSET 1e9` (Postgres tetap memindai lalu membuang satu miliar baris sambil menahan satu koneksi pool — DoS satu-request), dan `?page=abc` jadi `OFFSET NaN` → 500. Sekarang nilai non-numerik/`NaN`/`±Infinity`/negatif jatuh ke halaman 1, pecahan di-truncate, dan batas atas `MAX_PAGE_NUMBER` = 10.000. Junk dinormalisasi ke halaman 1, bukan 400: ini route arsip HTML — `?page=` rusak harus merender halaman pertama, bukan error yang ikut terindeks crawler. Nilai terklamp itu juga yang dipakai untuk merender nav pagination, supaya `?page=abc` tidak pernah menghasilkan link `NaN`. Daftar admin (`listBlogPostsForAdmin`/`listBlogPagesForAdmin`) memakai helper yang sama.
+
 ## Public routes `/news` (Issue #560, epic #555)
 
 `src/pages/news/` — tenant-code-free counterpart of `/blog/{tenantCode}`

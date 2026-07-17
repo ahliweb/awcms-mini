@@ -9,6 +9,7 @@ import {
   serverErrorHtmlResponse
 } from "../../../lib/html/error-responses";
 import { log } from "../../../lib/logging/logger";
+import { parsePageParam } from "../../../modules/_shared/offset-pagination";
 import {
   fetchPublicBlogSettings,
   listPublicBlogPosts
@@ -55,8 +56,7 @@ export const GET: APIRoute = async ({ params, url }) => {
       return notFoundHtmlResponse();
     }
 
-    const pageParam = url.searchParams.get("page");
-    const page = pageParam ? Number(pageParam) : 1;
+    const page = parsePageParam(url.searchParams.get("page"));
 
     return await withTenant(sql, tenant.tenantId, async (tx) => {
       if (!(await isLegacyTenantRouteEnabled(tx, tenant.tenantId))) {

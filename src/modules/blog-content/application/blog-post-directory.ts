@@ -6,6 +6,10 @@ import type {
   CreateBlogPostInput,
   UpdateBlogPostInput
 } from "../domain/blog-post-validation";
+import {
+  boundedPageNumber,
+  boundedPageSize
+} from "../../_shared/offset-pagination";
 
 /**
  * Read/write query module for `awcms_mini_blog_posts` (Issue #537 scaffolded
@@ -225,8 +229,9 @@ export async function listBlogPosts(
   tenantId: string,
   filter: ListBlogPostsFilter = {}
 ): Promise<BlogPostSummary[]> {
-  const limit = Math.min(
-    Math.max(filter.limit ?? DEFAULT_LIST_LIMIT, 1),
+  const limit = boundedPageSize(
+    filter.limit,
+    DEFAULT_LIST_LIMIT,
     MAX_LIST_LIMIT
   );
 
@@ -430,11 +435,12 @@ export async function listBlogPostsForAdmin(
   tenantId: string,
   filter: ListBlogPostsForAdminFilter = {}
 ): Promise<ListBlogPostsForAdminResult> {
-  const pageSize = Math.min(
-    Math.max(filter.pageSize ?? DEFAULT_ADMIN_LIST_PAGE_SIZE, 1),
+  const pageSize = boundedPageSize(
+    filter.pageSize,
+    DEFAULT_ADMIN_LIST_PAGE_SIZE,
     MAX_ADMIN_LIST_PAGE_SIZE
   );
-  const page = Math.max(filter.page ?? 1, 1);
+  const page = boundedPageNumber(filter.page);
   const offset = (page - 1) * pageSize;
   const search = filter.search?.trim() || null;
   const status = filter.status ?? null;
