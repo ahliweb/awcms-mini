@@ -37,7 +37,16 @@ export type HierarchyValidationError = {
     | "max_depth_exceeded";
 };
 
-const MAX_ANCESTOR_WALK = 500;
+/**
+ * Hard bound on how many hops any upward walk may take before it declares
+ * the graph corrupted. Exported because `application/organization-unit-
+ * hierarchy-service.ts`'s ancestor-chain recursive CTE must fetch AT LEAST
+ * this many levels — if the SQL cap were tighter than this in-memory cap,
+ * the walk would silently see a truncated chain and MISS a cycle instead of
+ * reporting `max_depth_exceeded` (a false "no cycle" = hierarchy corruption,
+ * which is exactly what `validateReparent` exists to prevent).
+ */
+export const MAX_ANCESTOR_WALK = 500;
 
 /**
  * Walks UP from `startUnitId` following `edges` (unit -> current parent)
@@ -75,7 +84,24 @@ export type ValidateReparentInput = {
   unitId: string;
   /** `null` means "move to top-level, directly under the tenant". */
   candidateParentId: string | null;
-  /** Current (as-of "now") unit -> parent adjacency map for the WHOLE tenant, read fresh under the tenant-wide advisory lock. */
+  /**
+   * Current (as-of "now") unit -> parent adjacency map, read fresh AFTER
+   * the tenant-wide advisory lock is held.
+   *
+   * MINIMUM CONTRACT (Issue #834): this map must contain the complete
+   * current ancestor chain of `candidateParentId`, up to at least
+   * `MAX_ANCESTOR_WALK` hops. It may contain the whole tenant (read paths
+   * still pass a full map, which trivially satisfies this) but does NOT
+   * have to — `isAncestorOf` below only ever walks UPWARD from
+   * `candidateParentId`, so entries outside that chain are never read.
+   * `reparentUnit` exploits this to pass an ancestor-chain-only map fetched
+   * with a recursive CTE, keeping the advisory lock's critical section
+   * O(depth) instead of O(tenant size). A map that violates this contract
+   * by truncating the chain early would make the walk terminate at a
+   * missing entry and report NO cycle — the exact corruption this validator
+   * exists to prevent — which is why the SQL depth cap is derived from
+   * `MAX_ANCESTOR_WALK` rather than hardcoded independently.
+   */
   currentEdges: HierarchyEdgeMap;
 };
 
@@ -156,14 +182,28 @@ export function computeAncestorChain(
   return chain;
 }
 
-/** Computes every descendant (any depth) of `unitId` from a current adjacency map, given as a children-lookup (`parentId -> childIds[]`). */
-export function computeDescendants(
+/**
+ * MULTI-SOURCE downward closure: every unit in `seedUnitIds`, plus every
+ * unit reachable downward from any of them at any depth — computed in ONE
+ * traversal with a SINGLE SHARED `visited` set.
+ *
+ * The shared set is the whole point (Issue #834). The previous shape —
+ * calling a single-seed `computeDescendants` once per seed — allocated a
+ * FRESH `visited` set per call, so overlapping subtrees were re-walked once
+ * per seed above them: O(S x depth), degenerating to O(U^2) on a deep chain
+ * where every unit is a seed (a legal entity whose units are nested inside
+ * one another — see `application/organization-structure-hierarchy-port-
+ * adapter.ts`'s `resolveLegalEntityScope`, the caller that motivated this).
+ * Sharing the set makes every node cost O(1) exactly once: O(U + E) total,
+ * regardless of how many seeds there are or how they overlap.
+ */
+export function computeDescendantClosure(
   childrenByParent: ReadonlyMap<string, readonly string[]>,
-  unitId: string
+  seedUnitIds: Iterable<string>
 ): string[] {
   const result: string[] = [];
-  const stack = [...(childrenByParent.get(unitId) ?? [])];
   const visited = new Set<string>();
+  const stack = [...seedUnitIds];
 
   while (stack.length > 0) {
     const next = stack.pop()!;
@@ -178,6 +218,23 @@ export function computeDescendants(
   }
 
   return result;
+}
+
+/**
+ * Every descendant (any depth) of `unitId`, EXCLUDING `unitId` itself, from
+ * a current adjacency map given as a children-lookup (`parentId ->
+ * childIds[]`). Thin single-seed wrapper over `computeDescendantClosure`:
+ * seeding with `unitId`'s direct children yields exactly its strict
+ * descendants.
+ */
+export function computeDescendants(
+  childrenByParent: ReadonlyMap<string, readonly string[]>,
+  unitId: string
+): string[] {
+  return computeDescendantClosure(
+    childrenByParent,
+    childrenByParent.get(unitId) ?? []
+  );
 }
 
 /** Maximum depth of the whole tenant's hierarchy forest (root = depth 0) — used for the `organization_structure_hierarchy_max_depth` metric. */
