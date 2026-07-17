@@ -641,6 +641,8 @@ When full-online auth security hardening is active (`AUTH_ONLINE_SECURITY_ENABLE
 
 When the same gate is active AND `AUTH_MFA_ENABLED=true` (Issue #589) AND the identity has an active TOTP factor enrolled, a password-valid login does NOT create a session — it returns `401 MFA_REQUIRED` with `error.details.mfaChallengeToken` instead (see `LoginMfaRequiredResponse`). Complete the login by calling `POST /auth/mfa/totp/verify` with that token and a TOTP/recovery code. Identities that have never enrolled MFA are unaffected even when the feature is enabled (opt-in per identity, not tenant-wide).
 
+Account-enumeration resistance (Issue #840, OWASP ASVS V2.2.1 / WSTG-IDNT-04): every denial that depends on whether `loginIdentifier` matched a real identity answers with the SAME `401 AUTH_INVALID_CREDENTIALS` and the same message — an unknown identifier, a wrong password, an inactive identity, a locked account, and (Issue #591) an identity whose tenant has password login disabled are indistinguishable to an unauthenticated caller. Clients MUST NOT branch on these; the real reason is recorded server-side in the audit trail. This endpoint also spends the same argon2id verification cost on an unknown identifier as on a known one, so response time does not disclose existence either. Only `403 ACCESS_DENIED` (inactive tenant) stays distinct, because it is decided from the tenant header alone before any identity is looked up and is returned identically for every identifier.
+
 **Parameters**
 
 | Name               | In     | Required | Type   | Description                                 |
