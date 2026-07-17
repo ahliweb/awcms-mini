@@ -415,6 +415,28 @@ BREAK_GLASS_REQUIRED` and never persisted. `login.ts` itself only
   local/offline/LAN deployment that never flips the #591 gate on runs
   zero extra queries and has zero behavior change, exactly like every
   other feature in this epic.
+- **Penolakannya TIDAK lagi terlihat dari response (Issue #840).** Dulu
+  `403 PASSWORD_LOGIN_DISABLED` ("Use single sign-on instead"); sekarang
+  `401 AUTH_INVALID_CREDENTIALS` dengan pesan yang persis sama dengan
+  identifier tak dikenal. Alasannya: cabang itu hanya tercapai bila
+  identitas ADA, jadi 403-nya membocorkan (a) identifier ini terdaftar
+  dan (b) identitas ini BUKAN break-glass — yaitu sidik jari tepat pada
+  akun-akun yang masih boleh password-login (target paling berharga saat
+  `password_login_enabled=false`). Enforcement-nya sendiri tidak berubah:
+  identitas non-break-glass tetap tidak dapat sesi, dan `login_failed`
+  tetap mencatat `reason: "password_login_disabled"` di audit trail.
+  **Konsekuensi UX yang diterima sadar:** user SSO-only yang mencoba
+  password kini dapat pesan generik. Sinyal "pakai SSO" harus datang dari
+  kanal yang tidak bisa diprobe anonim — discovery provider tenant-wide di
+  halaman login (BELUM ADA; kandidat follow-up). Jangan "perbaiki" ini
+  dengan mengembalikan 403-nya.
+- **Ditolak sebagai alternatif (jangan diulang):** menjaga 403 tapi
+  memutuskannya dari policy tenant saja (403 juga untuk identifier tak
+  dikenal). Itu menutup kebocoran keberadaan, tapi break-glass tetap harus
+  bisa login, sehingga jawaban wrong-password-nya wajib berbeda — membuka
+  lagi sidik jari break-glass; kecuali break-glass pun dibalas "password
+  login disabled" saat sekadar salah ketik, yang justru mode gagal
+  terburuk untuk satu-satunya akun darurat.
 - **Auto-link by email, two independent fail-closed layers** (domain:
   `tenant-sso-policy.ts`'s `isAutoLinkAllowedForProvider`): the
   PROVIDER's own `allowed_email_domains` (mirrors

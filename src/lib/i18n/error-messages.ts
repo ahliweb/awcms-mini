@@ -87,6 +87,13 @@ export const ERROR_CODE_KEYS: Record<string, string> = {
   SSO_PROVIDER_KEY_CONFLICT: "error.sso_provider_key_conflict",
   SSO_PROVIDER_LIMIT_EXCEEDED: "error.sso_provider_limit_exceeded",
   BREAK_GLASS_REQUIRED: "error.break_glass_required",
+  // Issue #840: no endpoint emits this any more — `POST /auth/login` used to,
+  // but its `403 PASSWORD_LOGIN_DISABLED` let an unauthenticated caller
+  // enumerate identifiers (and fingerprint break-glass identities), so that
+  // denial now collapses into `AUTH_INVALID_CREDENTIALS`. The mapping and its
+  // catalog entry are retained as vocabulary, NOT as a live code: do not wire
+  // a UI branch to it, and do not take its presence here as licence to
+  // reintroduce a distinguishable password-login-disabled response.
   PASSWORD_LOGIN_DISABLED: "error.password_login_disabled",
   NEWS_MEDIA_REFERENCE_INVALID: "error.news_media_reference_invalid",
   HOMEPAGE_SECTION_REFERENCE_INVALID:

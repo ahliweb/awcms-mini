@@ -1055,8 +1055,17 @@ suite("Generic tenant OIDC SSO flow (Issue #591)", () => {
         },
         cookies: createCookieJar()
       });
-      expect(otherLogin.status).toBe(403);
-      expect(otherLogin.body.error.code).toBe("PASSWORD_LOGIN_DISABLED");
+      // Issue #840: the denial is real but deliberately UNDISTINGUISHABLE
+      // from an unknown identifier or a wrong password — the old
+      // `403 PASSWORD_LOGIN_DISABLED` told an unauthenticated caller both
+      // that this identifier exists and that it is not break-glass. What is
+      // still enforced (and is what this test is about) is that the identity
+      // gets no session; that the denial reason survives server-side in the
+      // audit trail, and that the response is identical to an unknown
+      // identifier's, are asserted in
+      // tests/integration/login-enumeration.integration.test.ts.
+      expect(otherLogin.status).toBe(401);
+      expect(otherLogin.body.error.code).toBe("AUTH_INVALID_CREDENTIALS");
 
       // ...but the break-glass owner identity can still log in with password.
       const ownerLogin = await invoke<{ data: { token: string } }>(authLogin, {
