@@ -44,6 +44,21 @@ import type { SocialPublishingPort } from "../../_shared/ports/social-publishing
  * see `social-publishing/domain/social-publishing-config.ts`) behaves
  * exactly as before this issue.
  */
+/**
+ * Per-run safety bound for the due-post selection (Issue #835 §6). The
+ * previous query took `FOR UPDATE` on EVERY matching row with no `LIMIT`,
+ * so a large backlog (job paused, a bulk campaign) locked and loaded the
+ * whole set into one transaction and, worse, made a second concurrent runner
+ * BLOCK on those locks. This bound + `FOR UPDATE SKIP LOCKED` (below) caps
+ * the work/locks per run and lets a concurrent runner pick up a disjoint
+ * batch instead of waiting. A backlog larger than this is finished on
+ * subsequent scheduled runs (the job is periodic and idempotent) — reported
+ * via `result.partial`, the same "partial this run, remainder next run"
+ * convention `audit-log-purge.ts`/news-media reconciliation already use.
+ * Ordered `scheduled_at ASC` so the longest-overdue posts publish first.
+ */
+export const SCHEDULED_PUBLISH_BATCH_LIMIT = 200;
+
 export type PublishDueScheduledPostsOptions = {
   now?: Date;
   correlationId?: string;
@@ -54,6 +69,14 @@ export type PublishDueScheduledPostsResult = {
   publishedPostIds: string[];
   blockedCount: number;
   blockedPostIds: string[];
+  /**
+   * `true` when this run selected a full `SCHEDULED_PUBLISH_BATCH_LIMIT`
+   * batch, i.e. there may be more due posts a later run will pick up. Callers
+   * that must drain the whole backlog immediately can loop until this is
+   * `false`; the periodic worker (`scripts/blog-scheduled-publish.ts`) does
+   * not need to, since it runs again on a schedule.
+   */
+  partial: boolean;
 };
 
 type DuePostRow = {
@@ -89,8 +112,12 @@ export async function publishDueScheduledPosts(
         WHERE tenant_id = ${tenantId} AND status = 'scheduled'
           AND scheduled_at IS NOT NULL AND scheduled_at <= ${now}
           AND deleted_at IS NULL
-        FOR UPDATE
+        ORDER BY scheduled_at ASC
+        LIMIT ${SCHEDULED_PUBLISH_BATCH_LIMIT}
+        FOR UPDATE SKIP LOCKED
       `) as DuePostRow[];
+
+      const partial = due.length === SCHEDULED_PUBLISH_BATCH_LIMIT;
 
       if (due.length === 0) {
         await recordAuditEvent(tx, {
@@ -107,7 +134,8 @@ export async function publishDueScheduledPosts(
           publishedCount: 0,
           publishedPostIds: [],
           blockedCount: 0,
-          blockedPostIds: []
+          blockedPostIds: [],
+          partial: false
         };
       }
 
@@ -263,7 +291,8 @@ export async function publishDueScheduledPosts(
         publishedCount: publishedPostIds.length,
         publishedPostIds,
         blockedCount: blockedPostIds.length,
-        blockedPostIds
+        blockedPostIds,
+        partial
       };
     },
     { workClass: "maintenance" }
