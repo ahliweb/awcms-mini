@@ -42,7 +42,8 @@ const TINY_PROFILE = {
     syncOutbox: 10,
     objectSyncQueue: 10,
     idempotencyKeys: 5,
-    blogPosts: 5
+    blogPosts: 5,
+    blogPages: 5
   },
   noisyNeighborMultiplier: 4
 };
@@ -86,6 +87,79 @@ suite("performance fixture seeder (Issue #744) — real Postgres", () => {
 
       expect(count).toBe(tenant.rowCounts.auditEvents);
     }
+  });
+
+  /**
+   * Issue #838. `insertBlogPages` uses `ON CONFLICT DO NOTHING` like every
+   * other insert here, so `summary.rowCounts.blogPages` reports what the
+   * GENERATOR produced, not what the database accepted — a broken INSERT
+   * (bad column list, CHECK-constraint violation swallowed by a conflict
+   * clause) would leave the summary looking perfectly correct while the
+   * `blog-pages-admin-list` query-plan budget silently ran against an
+   * empty table. This counts the rows PostgreSQL actually holds.
+   */
+  test("blog pages are physically written for every tenant (not just counted in the summary)", async () => {
+    const plan = buildFixturePlan(TINY_PROFILE, "seeder-it-blog-pages");
+    const summary = await seedPerformanceFixtures(getTestSql(), plan);
+
+    const expectedTotal =
+      TINY_PROFILE.rowsPerTenant.blogPages * (TINY_PROFILE.tenantCount - 1) +
+      TINY_PROFILE.rowsPerTenant.blogPages *
+        TINY_PROFILE.noisyNeighborMultiplier;
+
+    expect(summary.rowCounts.blogPages).toBe(expectedTotal);
+
+    for (const tenant of plan.tenants) {
+      const row = await withTenant(
+        getTestSql(),
+        tenant.tenantId,
+        async (tx) => {
+          const rows = (await tx`
+            SELECT count(*)::int AS row_count,
+                   count(DISTINCT updated_at)::int AS distinct_updated_at
+            FROM awcms_mini_blog_pages
+            WHERE tenant_id = ${tenant.tenantId}
+          `) as { row_count: number; distinct_updated_at: number }[];
+          return rows[0]!;
+        },
+        { workClass: "interactive" }
+      );
+
+      expect([tenant.tenantCode, row.row_count]).toEqual([
+        tenant.tenantCode,
+        tenant.rowCounts.blogPages
+      ]);
+      // The generator's `updated_at` spread must survive the INSERT — if
+      // the column were dropped from the insert list it would silently
+      // fall back to `DEFAULT now()`, collapsing to ONE value per seeding
+      // transaction and making the admin-list ORDER BY budget meaningless.
+      expect([tenant.tenantCode, row.distinct_updated_at]).toEqual([
+        tenant.tenantCode,
+        tenant.rowCounts.blogPages
+      ]);
+    }
+  });
+
+  test("blog posts' updated_at spread survives the INSERT (Issue #838 — not collapsed to the column DEFAULT)", async () => {
+    const plan = buildFixturePlan(TINY_PROFILE, "seeder-it-blog-posts-updated");
+    await seedPerformanceFixtures(getTestSql(), plan);
+    const tenant = plan.tenants[0]!;
+
+    const distinct = await withTenant(
+      getTestSql(),
+      tenant.tenantId,
+      async (tx) => {
+        const rows = (await tx`
+          SELECT count(DISTINCT updated_at)::int AS distinct_updated_at
+          FROM awcms_mini_blog_posts
+          WHERE tenant_id = ${tenant.tenantId}
+        `) as { distinct_updated_at: number }[];
+        return rows[0]!.distinct_updated_at;
+      },
+      { workClass: "interactive" }
+    );
+
+    expect(distinct).toBe(tenant.rowCounts.blogPosts);
   });
 
   test("the noisy-neighbor tenant (last in the plan) has visibly more rows than a normal tenant", async () => {

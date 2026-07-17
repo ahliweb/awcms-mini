@@ -23,7 +23,9 @@ export type QueryPlanBudgetCategory =
   | "search"
   | "outbox_claim"
   | "retention_purge"
-  | "reporting";
+  | "reporting"
+  /** Admin list screens: tenant-scoped `ORDER BY <col> DESC LIMIT/OFFSET` whose ordering MUST be served by an index, never a sort (Issue #838). */
+  | "admin_list";
 
 export type QueryPlanBudgetApproval = {
   approvedBy: string;
@@ -189,6 +191,77 @@ export const QUERY_PLAN_BUDGETS: QueryPlanBudget[] = [
       approvedAt: "2026-07-14",
       reason:
         "Issue #782 (data-exchange) CI investigation: recalibrated from 700 to 1300 after empirically proving (including a matching reproduction on main at 5b58e2f) that ~1088-1132 is this query's real, timing-independent cost once PostgreSQL has accurately analyzed the table at the volume CI's own job structure (performance-suite.ts's seed immediately followed by this check's own seed, same database, no reset) legitimately produces — the original 700 reflected a lucky pre-ANALYZE snapshot, not a real ceiling. See this budget's own `description`-adjacent comment for the full investigation."
+    }
+  },
+  // -------------------------------------------------------------------------
+  // Issue #838 (epic #818) — lock in Issue #830's blog admin-list indexes.
+  //
+  // WHY `Sort` IS THE FORBIDDEN NODE HERE AND `Seq Scan` ALONE IS NOT
+  // ENOUGH — measured, not assumed. Every budget above forbids `Seq Scan`,
+  // so the obvious move was to copy that shape. It would have been a
+  // VACUOUS GATE. Dropping `awcms_mini_blog_posts_tenant_updated_idx`
+  // (migration 077 §1) at the `safe` fixture scale does NOT produce a Seq
+  // Scan: the RLS policy and this query both filter `tenant_id`, and the
+  // table still has `awcms_mini_blog_posts_tenant_deleted_idx`, so the
+  // planner simply falls back to THAT index and adds a `Sort` node —
+  //
+  //   index present: Limit -> Index Scan                                   cost 62.06
+  //   index dropped: Limit -> Sort -> Bitmap Heap Scan -> Bitmap Index Scan cost 939.88
+  //
+  // — a plan a `forbiddenNodeTypes: ["Seq Scan"]` /
+  // `requiredNodeTypesAny: ["Index Scan", "Bitmap Heap Scan", ...]` budget
+  // would have happily PASSED, exactly the "gate exists but does not cover
+  // what matters" class Issue #838 was filed about in the first place.
+  // `tests/unit/performance-query-plan-budgets.test.ts` pins this
+  // reasoning down with the real measured regression plan, including an
+  // explicit assertion that the naive Seq-Scan-only budget does NOT fire
+  // on it — so nobody "simplifies" these budgets back into vacuity.
+  //
+  // The precise, transferable invariant these indexes buy is therefore:
+  // *the ORDER BY is served by the index's own order, so the plan sorts
+  // nothing at all*. `Sort`/`Incremental Sort` in the tree means the index
+  // stopped covering the ordering — whatever the reason (index dropped,
+  // ORDER BY column changed, a filter defeated the partial predicate).
+  // `maxTotalCost` is the second, independent line of defence.
+  {
+    id: "blog-posts-admin-list",
+    category: "admin_list",
+    description:
+      "blog-content's real admin post list (src/modules/blog-content/application/blog-post-directory.ts, listBlogPostsForAdmin): tenant_id = $1 AND deleted_at IS NULL + optional status/title/term filters ORDER BY updated_at DESC LIMIT 20 OFFSET 0, served by awcms_mini_blog_posts_tenant_updated_idx (migration 077 §1, Issue #830).",
+    forbiddenNodeTypes: ["Seq Scan", "Sort", "Incremental Sort"],
+    requiredNodeTypesAny: ["Index Scan"],
+    // Measured 62.06 with the index present at the `safe` scale; the real
+    // regression (index dropped) measures 939.88, ~15x. 200 leaves ~3x
+    // headroom for planner/statistics drift while still failing hard on
+    // the regression this budget exists to catch.
+    maxTotalCost: 200,
+    // Backstop only, NOT the discriminator: measured 0.055ms (index) vs
+    // 0.35ms (dropped) — both far under any threshold that would not be
+    // pure noise at this fixture scale on loopback. The plan shape above
+    // is what actually gates this query; wall-clock at `safe` scale is
+    // deliberately a loose sanity bound, consistent with every budget above.
+    maxExecutionTimeMs: 50,
+    approval: {
+      approvedBy: "ahliweb",
+      approvedAt: "2026-07-17",
+      reason:
+        "Issue #838 (epic #818): locks in Issue #830's awcms_mini_blog_posts_tenant_updated_idx, which shipped with strong EXPLAIN evidence but no budget guarding it. Calibrated against a measured index-present cost of 62.06 (Limit -> Index Scan) vs a measured index-dropped cost of 939.88 (Limit -> Sort -> Bitmap Heap Scan -> Bitmap Index Scan) at the `safe` fixture scale, verified by actually DROPping the index — see this budget's own preceding comment for why `Sort`, not `Seq Scan`, is the forbidden node."
+    }
+  },
+  {
+    id: "blog-pages-admin-list",
+    category: "admin_list",
+    description:
+      "blog-content's real admin page list (src/modules/blog-content/application/blog-page-directory.ts, listBlogPagesForAdmin — a near-verbatim copy of the post list above, hence the same regression risk): tenant_id = $1 AND deleted_at IS NULL + optional status/page_type/title filters ORDER BY updated_at DESC LIMIT 20 OFFSET 0, served by awcms_mini_blog_pages_tenant_updated_idx (migration 077 §1, Issue #830).",
+    forbiddenNodeTypes: ["Seq Scan", "Sort", "Incremental Sort"],
+    requiredNodeTypesAny: ["Index Scan"],
+    maxTotalCost: 200,
+    maxExecutionTimeMs: 50,
+    approval: {
+      approvedBy: "ahliweb",
+      approvedAt: "2026-07-17",
+      reason:
+        "Issue #838 (epic #818): same rationale and calibration as `blog-posts-admin-list` above, for the sibling pages index. Registering this budget required seeding awcms_mini_blog_pages at all (scale-profiles.ts `blogPages`, new in this change) — the table had no fixture rows, and a budget over an empty table is a vacuous gate: PostgreSQL Seq Scans a 0-row table regardless of which indexes exist."
     }
   }
 ];

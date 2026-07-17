@@ -11,6 +11,7 @@ import {
   buildFixturePlan,
   deriveDeterministicAnchor,
   generateAuditEvents,
+  generateBlogPages,
   generateBlogPosts,
   generateIdempotencyKeys,
   generateObjectSyncQueue
@@ -135,6 +136,81 @@ describe("row generators", () => {
     expect(rows.some((row) => row.contentText.includes("synthetic"))).toBe(
       true
     );
+  });
+
+  test("generateBlogPages produces the tenant's configured row count with unique slugs and valid page types", () => {
+    const rows = generateBlogPages(tenant, plan.seed, anchor);
+
+    expect(rows).toHaveLength(tenant.rowCounts.blogPages);
+    expect(new Set(rows.map((row) => row.slug)).size).toBe(rows.length);
+    // Must satisfy migration 026's page_type CHECK constraint, or seeding
+    // fails at INSERT time rather than in any assertion here.
+    expect(
+      rows.every((row) => ["standard", "landing"].includes(row.pageType))
+    ).toBe(true);
+    expect(rows.every((row) => row.tenantId === tenant.tenantId)).toBe(true);
+  });
+
+  test("generateBlogPages is deterministic for the same seed", () => {
+    expect(generateBlogPages(tenant, plan.seed, anchor)).toEqual(
+      generateBlogPages(tenant, plan.seed, anchor)
+    );
+  });
+
+  test("generateBlogPages generates a slug namespace distinct from generateBlogPosts (they are seeded from different PRNG streams)", () => {
+    const postSlugs = new Set(
+      generateBlogPosts(tenant, plan.seed, anchor).map((row) => row.slug)
+    );
+    const pageSlugs = generateBlogPages(tenant, plan.seed, anchor).map(
+      (row) => row.slug
+    );
+
+    expect(pageSlugs.every((slug) => !postSlugs.has(slug))).toBe(true);
+  });
+
+  /**
+   * Issue #838. The `blog-posts-admin-list`/`blog-pages-admin-list`
+   * query-plan budgets gate `ORDER BY updated_at DESC`. Before this issue
+   * NEITHER generator emitted `updated_at` at all, so every seeded row took
+   * the column's `DEFAULT now()` and a whole seeding transaction shared ONE
+   * value (measured against a real database: 5 distinct `updated_at` values
+   * across 3000 rows). Ordering a constant column is not a meaningful proxy
+   * for the production query, so these assertions COUNT the distinct values
+   * the generator produces rather than measuring anything — a count is
+   * exact and reproducible where a timing is neither.
+   */
+  test("generateBlogPosts spreads updated_at across many distinct values (the admin-list budgets' ORDER BY key)", () => {
+    const rows = generateBlogPosts(tenant, plan.seed, anchor);
+    const distinctUpdatedAt = new Set(
+      rows.map((row) => row.updatedAt.getTime())
+    );
+
+    // Not a "> 1" assertion: that would still pass the degenerate
+    // DEFAULT now() fixture this test exists to prevent regressing to.
+    // Real edit traffic gives essentially one distinct timestamp per row.
+    expect(distinctUpdatedAt.size).toBeGreaterThan(rows.length * 0.9);
+  });
+
+  test("generateBlogPages spreads updated_at across many distinct values", () => {
+    const rows = generateBlogPages(tenant, plan.seed, anchor);
+    const distinctUpdatedAt = new Set(
+      rows.map((row) => row.updatedAt.getTime())
+    );
+
+    expect(distinctUpdatedAt.size).toBeGreaterThan(rows.length * 0.9);
+  });
+
+  test("updated_at is never before created_at for posts or pages (a row cannot be edited before it exists)", () => {
+    const rows = [
+      ...generateBlogPosts(tenant, plan.seed, anchor),
+      ...generateBlogPages(tenant, plan.seed, anchor)
+    ];
+
+    const violations = rows.filter(
+      (row) => row.updatedAt.getTime() < row.createdAt.getTime()
+    );
+
+    expect(violations).toEqual([]);
   });
 });
 

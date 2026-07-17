@@ -32,6 +32,7 @@ import { withTenant } from "../database/tenant-context";
 import type {
   AbacDecisionLogFixtureRow,
   AuditEventFixtureRow,
+  BlogPageFixtureRow,
   BlogPostFixtureRow,
   FixturePlan,
   IdempotencyKeyFixtureRow,
@@ -44,6 +45,7 @@ import {
   deriveDeterministicAnchor,
   generateAbacDecisionLogs,
   generateAuditEvents,
+  generateBlogPages,
   generateBlogPosts,
   generateIdempotencyKeys,
   generateObjectSyncQueue,
@@ -72,6 +74,7 @@ export type FixtureSeedSummary = {
     objectSyncQueue: number;
     idempotencyKeys: number;
     blogPosts: number;
+    blogPages: number;
   };
   durationMs: number;
 };
@@ -407,8 +410,8 @@ async function insertBlogPosts(
   for (const batch of chunk(rows, SEED_CHUNK_SIZE)) {
     await tx`
       INSERT INTO awcms_mini_blog_posts
-        (tenant_id, author_tenant_user_id, title, slug, excerpt, content_json, content_text, status, visibility, locale, published_at, created_at)
-      SELECT t.tenant_id, t.author_tenant_user_id, t.title, t.slug, t.excerpt, t.content_json, t.content_text, t.status, t.visibility, t.locale, t.published_at, t.created_at
+        (tenant_id, author_tenant_user_id, title, slug, excerpt, content_json, content_text, status, visibility, locale, published_at, created_at, updated_at)
+      SELECT t.tenant_id, t.author_tenant_user_id, t.title, t.slug, t.excerpt, t.content_json, t.content_text, t.status, t.visibility, t.locale, t.published_at, t.created_at, t.updated_at
       FROM unnest(
         ${tx.array(
           batch.map((r) => r.tenantId),
@@ -459,8 +462,95 @@ async function insertBlogPosts(
         ${tx.array(
           batch.map((r) => r.createdAt),
           "timestamptz"
+        )},
+        ${tx.array(
+          batch.map((r) => r.updatedAt),
+          "timestamptz"
         )}
-      ) AS t(tenant_id, author_tenant_user_id, title, slug, excerpt, content_json, content_text, status, visibility, locale, published_at, created_at)
+      ) AS t(tenant_id, author_tenant_user_id, title, slug, excerpt, content_json, content_text, status, visibility, locale, published_at, created_at, updated_at)
+      ON CONFLICT DO NOTHING
+    `;
+  }
+}
+
+/**
+ * Issue #838 — mirrors `insertBlogPosts` for `awcms_mini_blog_pages`, the
+ * `blog-pages-admin-list` budget's driving table. Same `unnest(...)` +
+ * `tx.array(...)` bulk pattern as every other insert here.
+ */
+async function insertBlogPages(
+  tx: Bun.TransactionSQL,
+  rows: BlogPageFixtureRow[]
+): Promise<void> {
+  for (const batch of chunk(rows, SEED_CHUNK_SIZE)) {
+    await tx`
+      INSERT INTO awcms_mini_blog_pages
+        (tenant_id, author_tenant_user_id, title, slug, excerpt, content_json, content_text, status, visibility, locale, page_type, menu_order, published_at, created_at, updated_at)
+      SELECT t.tenant_id, t.author_tenant_user_id, t.title, t.slug, t.excerpt, t.content_json, t.content_text, t.status, t.visibility, t.locale, t.page_type, t.menu_order, t.published_at, t.created_at, t.updated_at
+      FROM unnest(
+        ${tx.array(
+          batch.map((r) => r.tenantId),
+          "uuid"
+        )},
+        ${tx.array(
+          batch.map((r) => r.authorTenantUserId),
+          "uuid"
+        )},
+        ${tx.array(
+          batch.map((r) => r.title),
+          "text"
+        )},
+        ${tx.array(
+          batch.map((r) => r.slug),
+          "text"
+        )},
+        ${tx.array(
+          batch.map((r) => r.excerpt),
+          "text"
+        )},
+        ${tx.array(
+          batch.map((r) => JSON.stringify(r.contentJson)),
+          "jsonb"
+        )},
+        ${tx.array(
+          batch.map((r) => r.contentText),
+          "text"
+        )},
+        ${tx.array(
+          batch.map((r) => r.status),
+          "text"
+        )},
+        ${tx.array(
+          batch.map((r) => r.visibility),
+          "text"
+        )},
+        ${tx.array(
+          batch.map((r) => r.locale),
+          "text"
+        )},
+        ${tx.array(
+          batch.map((r) => r.pageType),
+          "text"
+        )},
+        ${tx.array(
+          batch.map((r) => r.menuOrder),
+          "int4"
+        )},
+        ${tx.array(
+          // Same `?? undefined`, never a bare `null`, convention the
+          // sibling inserts above document.
+          batch.map((r) => r.publishedAt ?? undefined),
+          "timestamptz"
+        )},
+        ${tx.array(
+          batch.map((r) => r.createdAt),
+          "timestamptz"
+        )},
+        ${tx.array(
+          batch.map((r) => r.updatedAt),
+          "timestamptz"
+        )}
+      ) AS t(tenant_id, author_tenant_user_id, title, slug, excerpt, content_json, content_text, status, visibility, locale, page_type, menu_order, published_at, created_at, updated_at)
       ON CONFLICT DO NOTHING
     `;
   }
@@ -497,7 +587,8 @@ export async function seedPerformanceFixtures(
     syncOutbox: 0,
     objectSyncQueue: 0,
     idempotencyKeys: 0,
-    blogPosts: 0
+    blogPosts: 0,
+    blogPages: 0
   };
 
   for (const tenant of plan.tenants) {
@@ -514,6 +605,7 @@ export async function seedPerformanceFixtures(
     const objectSyncQueue = generateObjectSyncQueue(tenant, plan.seed, anchor);
     const idempotencyKeys = generateIdempotencyKeys(tenant, plan.seed, anchor);
     const blogPosts = generateBlogPosts(tenant, plan.seed, anchor);
+    const blogPages = generateBlogPages(tenant, plan.seed, anchor);
 
     await withTenant(
       sql,
@@ -527,6 +619,7 @@ export async function seedPerformanceFixtures(
         await insertObjectSyncQueue(tx, objectSyncQueue);
         await insertIdempotencyKeys(tx, idempotencyKeys);
         await insertBlogPosts(tx, blogPosts);
+        await insertBlogPages(tx, blogPages);
       },
       // "maintenance" — bulk fixture seeding is an administrative batch
       // operation, never "interactive" request-serving traffic.
@@ -540,6 +633,7 @@ export async function seedPerformanceFixtures(
     rowCounts.objectSyncQueue += objectSyncQueue.length;
     rowCounts.idempotencyKeys += idempotencyKeys.length;
     rowCounts.blogPosts += blogPosts.length;
+    rowCounts.blogPages += blogPages.length;
   }
 
   return {
@@ -599,6 +693,7 @@ export async function resetPerformanceFixtureRows(sql: Bun.SQL): Promise<void> {
         await tx`DELETE FROM awcms_mini_object_sync_queue WHERE tenant_id = ${tenantId}`;
         await tx`DELETE FROM awcms_mini_idempotency_keys WHERE tenant_id = ${tenantId}`;
         await tx`DELETE FROM awcms_mini_blog_posts WHERE tenant_id = ${tenantId}`;
+        await tx`DELETE FROM awcms_mini_blog_pages WHERE tenant_id = ${tenantId}`;
       },
       // "maintenance" — same class `seedPerformanceFixtures` above uses for
       // this exact kind of administrative batch operation.

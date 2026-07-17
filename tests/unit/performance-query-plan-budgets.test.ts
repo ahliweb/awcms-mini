@@ -13,6 +13,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   evaluateQueryPlan,
+  findBudget,
   QUERY_PLAN_BUDGETS,
   type ExplainResult,
   type QueryPlanBudget
@@ -157,6 +158,140 @@ describe("evaluateQueryPlan — adversarial proof: the gate genuinely fires on a
   });
 });
 
+/**
+ * Issue #838 — the blog admin-list budgets, driven by the plans a REAL
+ * PostgreSQL actually produced at the `safe` fixture scale with the Issue
+ * #830 index present vs genuinely `DROP INDEX`ed (the drop was asserted
+ * against `pg_indexes` before the second plan was captured, so these are
+ * not hypothetical shapes). The integration test
+ * `performance-query-plan-check.integration.test.ts` re-proves the same
+ * thing end-to-end against a live database; this suite pins the REASONING
+ * down as a pure, always-runs-in-CI unit test so the budgets can never be
+ * "simplified" back into a gate that does not fire.
+ */
+const REAL_INDEX_PRESENT_PLAN: ExplainResult = {
+  Plan: {
+    "Node Type": "Limit",
+    "Total Cost": 62.06,
+    Plans: [
+      {
+        "Node Type": "Index Scan",
+        "Relation Name": "awcms_mini_blog_posts",
+        "Index Name": "awcms_mini_blog_posts_tenant_updated_idx",
+        "Total Cost": 62.06
+      }
+    ]
+  },
+  "Execution Time": 0.055
+};
+
+/**
+ * The measured regression: with `awcms_mini_blog_posts_tenant_updated_idx`
+ * dropped, PostgreSQL does NOT fall back to a Seq Scan — it uses the
+ * still-present `awcms_mini_blog_posts_tenant_deleted_idx` and bolts a
+ * `Sort` on top. THIS is why the budget forbids `Sort`.
+ */
+const REAL_INDEX_DROPPED_PLAN: ExplainResult = {
+  Plan: {
+    "Node Type": "Limit",
+    "Total Cost": 939.88,
+    Plans: [
+      {
+        "Node Type": "Sort",
+        "Total Cost": 939.88,
+        Plans: [
+          {
+            "Node Type": "Bitmap Heap Scan",
+            "Relation Name": "awcms_mini_blog_posts",
+            "Total Cost": 931.53,
+            Plans: [
+              {
+                "Node Type": "Bitmap Index Scan",
+                "Index Name": "awcms_mini_blog_posts_tenant_deleted_idx",
+                "Total Cost": 6.36
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "Execution Time": 0.35
+};
+
+describe("Issue #838 — blog admin-list budgets vs the REAL measured index-drop regression", () => {
+  for (const budgetId of ["blog-posts-admin-list", "blog-pages-admin-list"]) {
+    test(`${budgetId} PASSES the real index-present plan (the gate is not simply always-red)`, () => {
+      const budget = findBudget(budgetId)!;
+      const evaluation = evaluateQueryPlan(REAL_INDEX_PRESENT_PLAN, budget);
+
+      expect([budgetId, evaluation.ok, evaluation.findings]).toEqual([
+        budgetId,
+        true,
+        []
+      ]);
+    });
+
+    test(`${budgetId} FAILS the real index-dropped plan (the gate genuinely fires)`, () => {
+      const budget = findBudget(budgetId)!;
+      const evaluation = evaluateQueryPlan(REAL_INDEX_DROPPED_PLAN, budget);
+
+      expect(evaluation.ok).toBe(false);
+      // Both independent lines of defence must fire on this plan, so the
+      // budget still catches the regression if either one is ever relaxed.
+      expect(evaluation.findings.some((f) => f.includes("Sort"))).toBe(true);
+      expect(evaluation.findings.some((f) => f.includes("Total Cost"))).toBe(
+        true
+      );
+    });
+  }
+
+  /**
+   * The vacuity proof, and the whole reason these two budgets do not simply
+   * copy the five that came before them. Copying the obvious
+   * `forbiddenNodeTypes: ["Seq Scan"]` shape would have produced a budget
+   * that PASSES the very regression it was filed to catch.
+   */
+  test("a naive Seq-Scan-only budget would NOT have caught this regression — proving why `Sort` is forbidden", () => {
+    const naiveBudget: QueryPlanBudget = {
+      ...findBudget("blog-posts-admin-list")!,
+      forbiddenNodeTypes: ["Seq Scan"],
+      requiredNodeTypesAny: [
+        "Index Scan",
+        "Index Only Scan",
+        "Bitmap Heap Scan"
+      ],
+      maxTotalCost: 5_000
+    };
+
+    const naiveEvaluation = evaluateQueryPlan(
+      REAL_INDEX_DROPPED_PLAN,
+      naiveBudget
+    );
+    const realEvaluation = evaluateQueryPlan(
+      REAL_INDEX_DROPPED_PLAN,
+      findBudget("blog-posts-admin-list")!
+    );
+
+    // The naive budget sees no Seq Scan and a satisfied "Bitmap Heap Scan"
+    // requirement, so it passes a plan that costs 15x the indexed one...
+    expect(naiveEvaluation.ok).toBe(true);
+    expect(naiveEvaluation.observedNodeTypes).not.toContain("Seq Scan");
+    // ...while the budget actually registered fails it.
+    expect(realEvaluation.ok).toBe(false);
+  });
+
+  test("the registered admin-list budgets require an Index Scan specifically — a Bitmap Heap Scan is not an acceptable substitute for index-ordered access", () => {
+    for (const budgetId of ["blog-posts-admin-list", "blog-pages-admin-list"]) {
+      const budget = findBudget(budgetId)!;
+
+      expect(budget.requiredNodeTypesAny).toEqual(["Index Scan"]);
+      expect(budget.forbiddenNodeTypes).toContain("Sort");
+      expect(budget.forbiddenNodeTypes).toContain("Incremental Sort");
+    }
+  });
+});
+
 describe("QUERY_PLAN_BUDGETS registry", () => {
   test("every budget has a unique id", () => {
     const ids = QUERY_PLAN_BUDGETS.map((budget) => budget.id);
@@ -177,7 +312,7 @@ describe("QUERY_PLAN_BUDGETS registry", () => {
     }
   });
 
-  test("covers every category the issue names (RLS/pagination, search, outbox claim, retention/purge, reporting)", () => {
+  test("covers every category the issues name (Issue #744: RLS/pagination, search, outbox claim, retention/purge, reporting; Issue #838: admin list)", () => {
     const categories = new Set(QUERY_PLAN_BUDGETS.map((b) => b.category));
     expect(categories).toEqual(
       new Set([
@@ -185,8 +320,37 @@ describe("QUERY_PLAN_BUDGETS registry", () => {
         "search",
         "outbox_claim",
         "retention_purge",
-        "reporting"
+        "reporting",
+        "admin_list"
       ])
     );
+  });
+
+  /**
+   * Issue #838: the admin-list budgets deliberately forbid `Sort` as their
+   * PRIMARY signal (see their own comment in `query-plan-budgets.ts` — the
+   * measured index-drop regression produces a Bitmap Heap Scan + Sort, not
+   * a Seq Scan). They still forbid `Seq Scan` too, so the invariant above
+   * holds registry-wide; this asserts the ordering guarantee is never
+   * quietly dropped from an `admin_list` budget while leaving it looking
+   * plausible.
+   */
+  test("every admin_list budget forbids sorting — its whole point is that an index serves the ORDER BY", () => {
+    const adminListBudgets = QUERY_PLAN_BUDGETS.filter(
+      (budget) => budget.category === "admin_list"
+    );
+
+    expect(adminListBudgets.length).toBeGreaterThan(0);
+
+    for (const budget of adminListBudgets) {
+      expect([budget.id, budget.forbiddenNodeTypes.includes("Sort")]).toEqual([
+        budget.id,
+        true
+      ]);
+      expect([
+        budget.id,
+        budget.forbiddenNodeTypes.includes("Incremental Sort")
+      ]).toEqual([budget.id, true]);
+    }
   });
 });
