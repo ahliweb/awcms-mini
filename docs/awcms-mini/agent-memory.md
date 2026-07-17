@@ -114,7 +114,7 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 `````markdown
 ---
 name: adr-numbering-race-extends-migration-pattern
-description: ADR file numbers race exactly like SQL migration numbers do — first confirmed case, PR #789 (#755 erp-extension-readiness) vs #784 (integration-hub), both independently claimed docs/adr/0019-*.md
+description: "ADR file numbers race exactly like SQL migration numbers do — first confirmed case, PR #789 (#755 erp-extension-readiness) vs #784 (integration-hub), both independently claimed docs/adr/0019-*.md"
 metadata:
   type: pattern
 ---
@@ -406,7 +406,7 @@ Even an explicit "do this yourself, do not call the Agent tool" instruction in t
 `````markdown
 ---
 name: awpos-standard-refactor
-description: awcms-mini direfaktor total (2026-07-04) menjadi base modular monolith standar mengikuti paket dokumen /home/data/dev_bun/awpos; legacy di branch legacy/pre-awpos-standard
+description: "awcms-mini direfaktor total (2026-07-04) menjadi base modular monolith standar mengikuti paket dokumen /home/data/dev_bun/awpos; legacy di branch legacy/pre-awpos-standard"
 metadata: 
   node_type: memory
   type: project
@@ -431,7 +431,7 @@ Pada 2026-07-04 repo awcms-mini direfaktor total menjadi **base modular monolith
 `````markdown
 ---
 name: blog-content-epic-progress
-description: Epic
+description: "epic #536 (#537-#543) FULLY COMPLETE 2026-07-08 (PR #545-#551); module status now 'active'"
 metadata: 
   node_type: memory
   type: project
@@ -681,7 +681,7 @@ sub-resources (plain JSON textareas by deliberate scope decision).
 `````markdown
 ---
 name: bulk-branch-delete-needs-named-list
-description: The auto-mode permission classifier blocks a scripted bulk `git branch -D`/`git push --delete` loop even after independently verifying every branch via `gh pr list --state all` and PR ahead/behind counts — it wants the exact branch list to have come from (or been explicitly confirmed by) the user, not just from the agent's own analysis, before a one-shot destructive batch runs
+description: "The auto-mode permission classifier blocks a scripted bulk `git branch -D`/`git push --delete` loop even after independently verifying every branch via `gh pr list --state all` and PR ahead/behind counts — it wants the exact branch list to have come from (or been explicitly confirmed by) the user, not just from the agent's own analysis, before a one-shot destructive batch runs"
 metadata:
   type: feedback
 ---
@@ -824,7 +824,7 @@ expose `.array()` since `TransactionSQL extends SQL`.
 `````markdown
 ---
 name: bun-sql-jsonb-stringify-trap
-description: Bun.SQL only decodes a jsonb column back to a JS object on SELECT if the matching INSERT bound a plain JS object; JSON.stringify(x)::jsonb stores identical bytes but every later read comes back as a raw string
+description: "Bun.SQL only decodes a jsonb column back to a JS object on SELECT if the matching INSERT bound a plain JS object; JSON.stringify(x)::jsonb stores identical bytes but every later read comes back as a raw string"
 metadata: 
   node_type: memory
   type: feedback
@@ -983,7 +983,7 @@ Terkait: [[prettier-check-docs-only-prs]] (kelas yang sama — gate yang disangk
 `````markdown
 ---
 name: concurrent-check-db-contention
-description: Running two `bun run check`/`bun test` full suites concurrently against the shared dev Postgres container produces hundreds of spurious test failures (wrapPostgresError, unrelated suites) that look like a real regression but aren't — always verify by re-running in isolation before trusting a failure count
+description: "Running two `bun run check`/`bun test` full suites concurrently against the shared dev Postgres container produces hundreds of spurious test failures (wrapPostgresError, unrelated suites) that look like a real regression but aren't — always verify by re-running in isolation before trusting a failure count"
 metadata:
   type: feedback
 ---
@@ -1064,7 +1064,7 @@ When manually smoke-testing a change by launching `bun --bun astro dev --port N 
 `````markdown
 ---
 name: docker-host-port-blocked
-description: Di mesin ini docker-proxy/bridge NAT (-p host:container) selalu stall — bahkan browser terintegrasi VSCode kena; pakai network_mode:host
+description: "Di mesin ini docker-proxy/bridge NAT (-p host:container) selalu stall — bahkan browser terintegrasi VSCode kena; pakai network_mode:host"
 metadata:
   node_type: memory
   type: reference
@@ -1167,7 +1167,7 @@ When manually spinning up throwaway containers to verify a feature live (e.g. `d
 `````markdown
 ---
 name: document-infrastructure-issue-787-confidentiality-mutation-gating
-description: Issue
+description: "Issue #787/#751: document_infrastructure confidentiality_level was stored but never enforced on mutation endpoints/evidence/reservations — gating extended there"
 metadata: 
   node_type: memory
   type: project
@@ -1301,7 +1301,7 @@ narrower, already-disclosed gap-closure rather than new functionality).
 `````markdown
 ---
 name: fetchmodulematrix-ci-timeout-flake
-description: fetchModuleMatrix CI timeout — FIXED via Issue #824 (2026-07-17). Was never a flake; dominant cost was a readYamlCached cache stampede parsing a 1MB YAML 22x in parallel, NOT the query fan-out first suspected
+description: "fetchModuleMatrix CI timeout — FIXED via Issue #824 (2026-07-17). Was never a flake; dominant cost was a readYamlCached cache stampede parsing a 1MB YAML 22x in parallel, NOT the query fan-out first suspected"
 metadata:
   type: pattern
 ---
@@ -1337,7 +1337,7 @@ Terkait: [[post-audit-hardening-epic-818]], [[concurrent-check-db-contention]].
 `````markdown
 ---
 name: filter-assertion-timing-bidirectional
-description: When writing an integration test that asserts both the include and exclude side of a status/state filter (e.g. status=active vs status=deprecated) on the same fixture across a state transition, assert the include-side BEFORE the transition, not after — asserting both sides only after the transition silently only proves the exclude side
+description: "When writing an integration test that asserts both the include and exclude side of a status/state filter (e.g. status=active vs status=deprecated) on the same fixture across a state transition, assert the include-side BEFORE the transition, not after — asserting both sides only after the transition silently only proves the exclude side"
 metadata:
   type: feedback
 ---
@@ -1377,7 +1377,7 @@ step.
 `````markdown
 ---
 name: gh-pr-merge-transient-502
-description: gh pr merge can 502/GraphQL-error transiently while actually succeeding server-side — check mergedAt before retrying blindly
+description: "gh pr merge can 502/GraphQL-error transiently while actually succeeding server-side — check mergedAt before retrying blindly"
 metadata: 
   node_type: memory
   type: feedback
@@ -1395,7 +1395,7 @@ metadata:
 `````markdown
 ---
 name: gh-token-lacks-workflow-scope
-description: OUTDATED as of 2026-07-17 — the gh token NOW HAS `workflow` scope; PRs touching .github/workflows/*.yml can be merged again. Kept as history; re-verify with `gh auth status` before assuming either way
+description: "OUTDATED as of 2026-07-17 — the gh token NOW HAS `workflow` scope; PRs touching .github/workflows/*.yml can be merged again. Kept as history; re-verify with `gh auth status` before assuming either way"
 metadata:
   type: project
 ---
@@ -1432,7 +1432,7 @@ Yang tetap berlaku sebagai prinsip: **jangan** akali batasan izin dengan `git pu
 `````markdown
 ---
 name: gitguardian-scans-full-pr-history
-description: GitGuardian's PR check scans every commit in the PR, not just the latest diff — a later commit that removes/fixes a flagged secret-shaped string does NOT clear the check; also flags well-known public example secrets (e.g. jwt.io's canonical example JWT) with no allowance for "famous test data"
+description: "GitGuardian's PR check scans every commit in the PR, not just the latest diff — a later commit that removes/fixes a flagged secret-shaped string does NOT clear the check; also flags well-known public example secrets (e.g. jwt.io's canonical example JWT) with no allowance for \"famous test data\""
 metadata:
   type: feedback
 ---
@@ -1458,7 +1458,7 @@ Discovered 2026-07-12 while merging PR #712 (Issue #687, epic #679): GitGuardian
 `````markdown
 ---
 name: github-secret-scanning-alert-resolution
-description: How to resolve a GitHub native secret-scanning alert (distinct from GitGuardian's PR check) via the REST API — resolution_comment has the same 280-char cap as CodeQL's dismissed_comment, resolution value must be exactly one of a fixed vocabulary, and famous-public-example secrets (Telegram Bot API's own docs example token) get flagged just like jwt.io's tutorial JWT
+description: "How to resolve a GitHub native secret-scanning alert (distinct from GitGuardian's PR check) via the REST API — resolution_comment has the same 280-char cap as CodeQL's dismissed_comment, resolution value must be exactly one of a fixed vocabulary, and famous-public-example secrets (Telegram Bot API's own docs example token) get flagged just like jwt.io's tutorial JWT"
 metadata:
   type: feedback
 ---
@@ -1524,7 +1524,7 @@ worth the extra verification pass even when the answer seems obvious.
 `````markdown
 ---
 name: idempotency-hash-missing-resource-id-recurring
-description: computeRequestHash(body) alone is unsafe whenever the resource being mutated is identified by a PATH param, not the body — a shared request_scope lets a reused Idempotency-Key falsely replay one resource's response onto another; found across reference_data (3 rounds, 11 endpoints), then recurred repo-wide as Issue #795 (document_infrastructure 7 endpoints, organization_structure 10 endpoints, more modules pending) — always audit EVERY computeRequestHash( call site in a module, not just the empty-{}-looking ones, and check create/index.ts POST + body-carries-identity routes are exempt by construction before assuming they're broken too
+description: "computeRequestHash(body) alone is unsafe whenever the resource being mutated is identified by a PATH param, not the body — a shared request_scope lets a reused Idempotency-Key falsely replay one resource's response onto another; found across reference_data (3 rounds, 11 endpoints), then recurred repo-wide as Issue #795 (document_infrastructure 7 endpoints, organization_structure 10 endpoints, more modules pending) — always audit EVERY computeRequestHash( call site in a module, not just the empty-{}-looking ones, and check create/index.ts POST + body-carries-identity routes are exempt by construction before assuming they're broken too"
 metadata:
   type: project
 ---
@@ -1926,7 +1926,7 @@ follow-up, not part of #795 itself.
 `````markdown
 ---
 name: idle-in-transaction-hang
-description: An abandoned test/agent process can leave a Postgres connection stuck in "idle in transaction" indefinitely, holding a lock that blocks every subsequent test's TRUNCATE-based fixture reset — this manifests as a genuinely HUNG bun run check (no progress for an hour+), not just the elevated-failure-count contention pattern; diagnose via pg_stat_activity's wait_event_type='Lock' and state='idle in transaction', not by re-running
+description: "An abandoned test/agent process can leave a Postgres connection stuck in \"idle in transaction\" indefinitely, holding a lock that blocks every subsequent test's TRUNCATE-based fixture reset — this manifests as a genuinely HUNG bun run check (no progress for an hour+), not just the elevated-failure-count contention pattern; diagnose via pg_stat_activity's wait_event_type='Lock' and state='idle in transaction', not by re-running"
 metadata:
   type: feedback
 ---
@@ -1959,7 +1959,7 @@ If the query log/file hasn't advanced in several minutes despite the process sti
 `````markdown
 ---
 name: main-branch-protection-active
-description: main SUDAH diproteksi sejak 2026-07-17 (Issue
+description: "main SUDAH diproteksi sejak 2026-07-17 (Issue #823) — 6 required check, 0 approval, enforce_admins false, strict false; CodeQL polos sengaja tidak diwajibkan karena bisa 'skipping' = deadlock"
 metadata: 
   node_type: memory
   type: project
@@ -1995,7 +1995,7 @@ Terkait: [[main-branch-protection-active]] mengoreksi asumsi lama "main tak dipr
 `````markdown
 ---
 name: manual-admin-ui-smoke-test
-description: How to manually exercise an /admin/* Astro page end-to-end against a real dev server when no browser/Playwright tooling is available
+description: "How to manually exercise an /admin/* Astro page end-to-end against a real dev server when no browser/Playwright tooling is available"
 metadata: 
   node_type: memory
   type: project
@@ -2019,7 +2019,7 @@ This repo has no browser/Playwright automation available in the CLI environment,
 `````markdown
 ---
 name: master-data-hermes-agent-deferred-2026-07-13
-description: The repo owner explicitly closed both the master-data wilayah epic (#654, #658-664 remaining) and the entire hermes-agent epic (#668-678) as temporary holds (stateReason NOT_PLANNED) on 2026-07-13, while wave-5 work was in progress — do not resume either cluster without the user explicitly reopening it
+description: "The repo owner explicitly closed both the master-data wilayah epic (#654, #658-664 remaining) and the entire hermes-agent epic (#668-678) as temporary holds (stateReason NOT_PLANNED) on 2026-07-13, while wave-5 work was in progress — do not resume either cluster without the user explicitly reopening it"
 metadata:
   type: project
 ---
@@ -2161,7 +2161,13 @@ Memory Claude Code hidup di `~/.claude/projects/<slug-cwd>/memory/` — **di lua
 
 **Keamanan (repo ini PUBLIK):** snapshot menyanitasi `originSessionId`, homedir → `~`, dan placeholder password (`<redacted — lihat .env.example>`) agar tak memicu GitGuardian (lih. [[gitguardian-scans-full-pr-history]]). `local-postgres-connection-details` **dikecualikan** (device-specific + berbentuk-kredensial) — jadi `MEMORY.md`/`[[wikilink]]` ke sana menggantung setelah restore; itu disengaja. Tambah pengecualian di `EXCLUDE` pada script, sertakan alasannya.
 
-**Jebakan yang sudah kena sekali:** regex sanitasi `/home/<user>` generik **merusak** path proyek bersama (`/home/data/dev_bun/awpos`, sumber standar AWPOS) → hanya redaksi `os.homedir()` sungguhan. Selalu uji round-trip `--restore` ke `HOME` sementara sebelum percaya — versi pertama `parseGenerated` gagal total ("Snapshot kosong") meski `--sync` terlihat sukses.
+**JANGAN pernah menjalankan `--restore` pada device yang memory-nya sudah terisi.** Restore **menimpa**, dan snapshot **tersanitasi** — menimpanya ke atas memory hidup menanamkan hasil redaksi secara permanen. Sejak 2026-07-17 script **menolak** menimpa tanpa `--force`; guard itu ada karena saya benar-benar merusaknya sendiri: menjalankan `--restore` sekadar untuk "menguji error path" → `<redacted — lihat .env.example>` tertanam di memory hidup, dan **6 file kehilangan description**-nya (4 di antaranya memory lama yang tak berkaitan). Untuk menguji restore, pakai `HOME` sementara: `HOME=/tmp/x bun scripts/sync-agent-memory.ts --restore`.
+
+**Jebakan yang sudah kena:**
+1. **`description:` YAML tanpa kutip terpotong pada `#`.** Memory di sini penuh rujukan issue (`#818`), jadi ini bukan kasus tepi — `description: Epic #818 (issue #819-#835) …` menyusut jadi `description: Epic`. Byte yang ditulis restore identik; yang memotong adalah harness memory saat mem-parse ulang YAML lalu menulis balik. Snapshot kini selalu menerbitkan `description` **dalam kutip ganda** (`quoteDescription`).
+2. Regex sanitasi `/home/<user>` generik **merusak** path proyek bersama (`/home/data/dev_bun/awpos`, sumber standar AWPOS) → hanya redaksi `os.homedir()` sungguhan.
+3. Versi pertama `parseGenerated` gagal total ("Snapshot kosong") meski `--sync` terlihat sukses — **selalu uji round-trip ke `HOME` sementara sebelum percaya**.
+4. `console.error` mentah di script melanggar `logging:lint:check` — pakai `logScriptFailure` dari `src/lib/logging/error-log`.
 
 Ditulis sebagai AGENTS.md aturan #16. Terkait: [[audit-doc-rename-by-date]].
 `````
@@ -2171,7 +2177,7 @@ Ditulis sebagai AGENTS.md aturan #16. Terkait: [[audit-doc-rename-by-date]].
 `````markdown
 ---
 name: migration-checksum-strips-transaction-wrapper
-description: scripts/db-migrate.ts computes a migration's ledger checksum on stripOptionalTransactionWrapper(rawSql), not the raw file bytes — plain `sha256sum` on the file will not match the ledger even for byte-identical DDL, and "fixing" that false mismatch by overwriting the ledger corrupts a previously-correct row
+description: "scripts/db-migrate.ts computes a migration's ledger checksum on stripOptionalTransactionWrapper(rawSql), not the raw file bytes — plain `sha256sum` on the file will not match the ledger even for byte-identical DDL, and \"fixing\" that false mismatch by overwriting the ledger corrupts a previously-correct row"
 metadata:
   type: feedback
 ---
@@ -2709,7 +2715,7 @@ addressed).
 `````markdown
 ---
 name: open-epics-2026-07-12-survey
-description: Survey of open GitHub issues in awcms-mini as of 2026-07-12 after epic #679; updated 2026-07-13 after wave 5 fully merged (social-publishing #643-#646 ALL done, only #647 docs left; master-data at #657/10) — next up #647/#658/#669
+description: "Survey of open GitHub issues in awcms-mini as of 2026-07-12 after epic #679; updated 2026-07-13 after wave 5 fully merged (social-publishing #643-#646 ALL done, only #647 docs left; master-data at #657/10) — next up #647/#658/#669"
 metadata: 
   node_type: memory
   type: project
@@ -2899,7 +2905,7 @@ established per-issue branch/PR workflow.
 `````markdown
 ---
 name: platform-evolution-epic-738-survey
-description: Epic #738 "platform-evolution" (17 issues #739-#755) FULLY COMPLETE + CLOSED 2026-07-15 (all merged, PR #783 last); 2 spin-off follow-ups (#795/#796) filed, NOT part of epic scope
+description: "Epic #738 \"platform-evolution\" (17 issues #739-#755) FULLY COMPLETE + CLOSED 2026-07-15 (all merged, PR #783 last); 2 spin-off follow-ups (#795/#796) filed, NOT part of epic scope"
 metadata:
   type: project
 ---
@@ -4966,7 +4972,7 @@ workflow already established in this repo.
 `````markdown
 ---
 name: post-audit-hardening-epic-818
-description: Epic
+description: "Epic #818 (issue #819-#835) dari audit repo menyeluruh 2026-07-17 v0.24.0 — 3 gap laten data-exchange, main tanpa branch protection, nol rilis pernah terjadi, cycle yang lolos 2 gate"
 metadata: 
   node_type: memory
   type: project
@@ -5027,7 +5033,7 @@ just `docker run` — see [[docker-host-port-blocked]] for reaching the containe
 `````markdown
 ---
 name: pr-body-missing-closes-keyword
-description: This repo's PR descriptions often omit "Closes #NNN", leaving merged issues stuck open — check and close manually as part of epic wrap-up
+description: "This repo's PR descriptions often omit \"Closes #NNN\", leaving merged issues stuck open — check and close manually as part of epic wrap-up"
 metadata:
   type: project
 ---
@@ -5074,7 +5080,7 @@ after the fact each time it recurs.
 `````markdown
 ---
 name: pr-branch-conflict-blocks-ci-trigger
-description: When a PR's mergeStateStatus becomes CONFLICTING/DIRTY with the base branch (usually because a sibling PR merged first and touched the same file, e.g. a shared doc index), new pushes to that PR branch can stop triggering ANY pull_request-based workflow run at all — not just show a stale check, but silently produce zero new runs
+description: "When a PR's mergeStateStatus becomes CONFLICTING/DIRTY with the base branch (usually because a sibling PR merged first and touched the same file, e.g. a shared doc index), new pushes to that PR branch can stop triggering ANY pull_request-based workflow run at all — not just show a stale check, but silently produce zero new runs"
 metadata:
   type: feedback
 ---
@@ -5113,7 +5119,7 @@ Always run `bun run lint` (or `prettier --write` on the touched files) locally b
 `````markdown
 ---
 name: release-pipeline-never-triggered-gaps
-description: The full production release pipeline (release.yml — image build, SBOM, cosign signing, GitHub Release) had apparently NEVER actually fired in this repo's history despite ~24 CHANGELOG versions and a fully-built pipeline (Issue #692/PR #715) — two independent, previously-undiscovered gaps closed 2026-07-15 (Issue #813, PR #814 + manual environment config)
+description: "The full production release pipeline (release.yml — image build, SBOM, cosign signing, GitHub Release) had apparently NEVER actually fired in this repo's history despite ~24 CHANGELOG versions and a fully-built pipeline (Issue #692/PR #715) — two independent, previously-undiscovered gaps closed 2026-07-15 (Issue #813, PR #814 + manual environment config)"
 metadata:
   type: project
 ---
@@ -5220,7 +5226,7 @@ The `/home/data/dev_react/awcms-mini` directory itself (not files inside it) was
 `````markdown
 ---
 name: schedulewakeup-unreliable-ci-wait
-description: ScheduleWakeup delays did not reliably translate into proportional real wall-clock time in this environment; use a Bash run_in_background until-loop to wait for GitHub Actions CI instead.
+description: "ScheduleWakeup delays did not reliably translate into proportional real wall-clock time in this environment; use a Bash run_in_background until-loop to wait for GitHub Actions CI instead."
 metadata: 
   node_type: memory
   type: feedback
@@ -5246,7 +5252,7 @@ See [[bun-test-db-warmup-flake]] for a related CI-flakiness lesson (once you DO 
 `````markdown
 ---
 name: secret-detection-prefix-exemption-anchored-bypass
-description: two distinct misuses of the same looksLikeRawSecretToken heuristic across the social-publishing epic's 3 provider adapters — (1) a "known reference prefix" allow-list must strip-and-recheck the remainder, never exempt the whole string, or a real secret with a prefix glued on bypasses every anchored check; (2) never re-run the same heuristic against an ALREADY-RESOLVED secret value (only the reference string before resolving), or every genuine credential gets rejected as "looks too secret-shaped"
+description: "two distinct misuses of the same looksLikeRawSecretToken heuristic across the social-publishing epic's 3 provider adapters — (1) a \"known reference prefix\" allow-list must strip-and-recheck the remainder, never exempt the whole string, or a real secret with a prefix glued on bypasses every anchored check; (2) never re-run the same heuristic against an ALREADY-RESOLVED secret value (only the reference string before resolving), or every genuine credential gets rejected as \"looks too secret-shaped\""
 metadata:
   type: feedback
 ---
@@ -5331,7 +5337,7 @@ different subsystem in this same repo.
 `````markdown
 ---
 name: shared-checkout-branch-switch-near-miss
-description: git checkout in the shared (non-worktree) orchestrator directory carries uncommitted changes across branches without conflict or warning — switching to main while another branch's work sits uncommitted silently moves that work onto main's tree, and switching back restores it cleanly, but this is a live landmine, not a safe no-op
+description: "git checkout in the shared (non-worktree) orchestrator directory carries uncommitted changes across branches without conflict or warning — switching to main while another branch's work sits uncommitted silently moves that work onto main's tree, and switching back restores it cleanly, but this is a live landmine, not a safe no-op"
 metadata:
   type: feedback
 ---
@@ -5352,7 +5358,7 @@ Discovered 2026-07-12 immediately after merging a PR while a background coder ag
 `````markdown
 ---
 name: shared-db-ledger-stale-migration-names
-description: The shared dev Postgres's own migration ledger (awcms_mini_schema_migrations) can be a permanent casualty of past renumbering — it stores whatever filename was applied AT THE TIME, and if that migration's number later got renumbered upstream (to resolve a collision), db:migrate treats the current-name file as unapplied and fails re-running its DDL against already-existing objects
+description: "The shared dev Postgres's own migration ledger (awcms_mini_schema_migrations) can be a permanent casualty of past renumbering — it stores whatever filename was applied AT THE TIME, and if that migration's number later got renumbered upstream (to resolve a collision), db:migrate treats the current-name file as unapplied and fails re-running its DDL against already-existing objects"
 metadata:
   type: pattern
 ---
@@ -5409,7 +5415,7 @@ ledger's max migration number matches current `origin/main`'s highest
 `````markdown
 ---
 name: shared-db-migration-schema-drift
-description: Applying a new migration to the shared dev Postgres from one worktree/branch (e.g. via bun run db:migrate) permanently changes the live schema for every OTHER worktree connected to that same physical database, even though their checked-out code is on an older, unrelated branch — an older branch's tests can start failing against a newer live schema (e.g. a new CHECK constraint) with no code change of their own
+description: "Applying a new migration to the shared dev Postgres from one worktree/branch (e.g. via bun run db:migrate) permanently changes the live schema for every OTHER worktree connected to that same physical database, even though their checked-out code is on an older, unrelated branch — an older branch's tests can start failing against a newer live schema (e.g. a new CHECK constraint) with no code change of their own"
 metadata:
   type: feedback
 ---
@@ -5464,7 +5470,7 @@ Dua hal tambahan yang memakan waktu:
 `````markdown
 ---
 name: skill-doc-drift-recurring
-description: Skills, module READMEs, and cross-cutting docs (AGENTS.md, ADRs, doc 13/18/20/21) in this repo drift from code as new modules/permissions land — a recurring class of bug, 5 confirmed occurrences now; scale audit fan-out to repo size (up to 7-way at 23 modules) and always update skill-index/catalog files whenever a fix batch creates a new skill
+description: "Skills, module READMEs, and cross-cutting docs (AGENTS.md, ADRs, doc 13/18/20/21) in this repo drift from code as new modules/permissions land — a recurring class of bug, 5 confirmed occurrences now; scale audit fan-out to repo size (up to 7-way at 23 modules) and always update skill-index/catalog files whenever a fix batch creates a new skill"
 metadata:
   type: project
 ---
@@ -5701,7 +5707,7 @@ no code change needed. Issue #805 auto-closed via the squash-merge's
 `````markdown
 ---
 name: sod-hierarchy-aware-matching-issue-794
-description: PR #800/Issue #794 CLOSED 2026-07-15 — fixed detectSoDConflicts' same_scope_only exact-match gap by reusing an already-fetched hierarchy resolution. Follow-up Issue #802 (PR #804, opened 2026-07-15, awaiting review/merge) closed the checkHighRiskSoDConflicts chokepoint gap too via an OPTIONAL lazily-resolved hierarchyPort param — see bottom section.
+description: "PR #800/Issue #794 CLOSED 2026-07-15 — fixed detectSoDConflicts' same_scope_only exact-match gap by reusing an already-fetched hierarchy resolution. Follow-up Issue #802 (PR #804, opened 2026-07-15, awaiting review/merge) closed the checkHighRiskSoDConflicts chokepoint gap too via an OPTIONAL lazily-resolved hierarchyPort param — see bottom section."
 metadata:
   type: pattern
 ---
@@ -5822,7 +5828,7 @@ just one re-run.
 `````markdown
 ---
 name: sql-tokenizer-regex-vs-state-machine
-description: A 6-round adversarial review chain on PR
+description: "A 6-round adversarial review chain on PR #723's migration scanner; regex alternation can't express nesting/stateful escapes — escalate to a hand-written state machine after round 2's second bypass"
 metadata: 
   node_type: memory
   type: feedback
@@ -5913,7 +5919,7 @@ wilayah epic).
 `````markdown
 ---
 name: subagent-background-notification-stall
-description: Coder subagents that launch their own background bash process (e.g. a long bun run check) and then wait for a task-notification to resume will stall forever — only the orchestrator (me) receives harness task-notifications, not subagents themselves. Also, resumed subagents may improvise mitigations like spinning up their own separate database, which reduces data collisions but does NOT reduce shared-Postgres connection-count contention.
+description: "Coder subagents that launch their own background bash process (e.g. a long bun run check) and then wait for a task-notification to resume will stall forever — only the orchestrator (me) receives harness task-notifications, not subagents themselves. Also, resumed subagents may improvise mitigations like spinning up their own separate database, which reduces data collisions but does NOT reduce shared-Postgres connection-count contention."
 metadata:
   type: feedback
 ---
@@ -5936,7 +5942,7 @@ Discovered 2026-07-12 while running a second parallel wave (#624/#693/#698, 3 co
 `````markdown
 ---
 name: tenant-domain-routing-epic-progress
-description: Epic #555 (online public tenant routing, news routes, tenant domain management) is FULLY COMPLETE and CLOSED as of 2026-07-09 — design notes for #564/#565/#566 remain load-bearing for future work in this area
+description: "Epic #555 (online public tenant routing, news routes, tenant domain management) is FULLY COMPLETE and CLOSED as of 2026-07-09 — design notes for #564/#565/#566 remain load-bearing for future work in this area"
 metadata: 
   node_type: memory
   type: project
@@ -5964,7 +5970,7 @@ Epic #555 "online public tenant routing, news routes, and tenant domain manageme
 `````markdown
 ---
 name: typescript-7-jsdoc-backtick-fence-bug
-description: TypeScript 7's stricter JSDoc parser treats any raw run of 3+ backticks inside a /** */ comment as toggling an internal fenced-code-block state; an unmatched one silently swallows every @param tag after it, producing implicit-any errors with no clear cause
+description: "TypeScript 7's stricter JSDoc parser treats any raw run of 3+ backticks inside a /** */ comment as toggling an internal fenced-code-block state; an unmatched one silently swallows every @param tag after it, producing implicit-any errors with no clear cause"
 metadata:
   type: feedback
 ---
@@ -6029,7 +6035,7 @@ change.
 `````markdown
 ---
 name: validator-exists-but-unwired-critical-pattern
-description: A correctly-implemented, correctly-unit-tested validator function that is never actually called on the real write/persistence path is a Critical security finding, not a low-severity gap — PR #769 (issue #740) shipped exactly this, empirically reproduced by the security-auditor
+description: "A correctly-implemented, correctly-unit-tested validator function that is never actually called on the real write/persistence path is a Critical security finding, not a low-severity gap — PR #769 (issue #740) shipped exactly this, empirically reproduced by the security-auditor"
 metadata:
   type: feedback
 ---
@@ -6147,7 +6153,7 @@ it pass even if CI ran it.
 `````markdown
 ---
 name: visitor-analytics-epic-progress
-description: Epic
+description: "epic #617-#624 FULLY COMPLETE 2026-07-10 (PR #648 closed #622+#624); reviewer+security-auditor both clean"
 metadata: 
   node_type: memory
   type: project

@@ -23,6 +23,7 @@
 import { readdir, readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { logScriptFailure } from "../src/lib/logging/error-log";
 
 const DOC_PATH = path.resolve(process.cwd(), "docs/awcms-mini/agent-memory.md");
 const BEGIN =
@@ -57,8 +58,31 @@ const EXCLUDE = new Map<string, string>([
  * Redaksi di sini bersifat defence-in-depth: aturan utamanya tetap "jangan pernah
  * menulis secret nyata ke memory".
  */
+/**
+ * `description:` YAML tanpa kutip akan **terpotong pada `#`** — YAML
+ * memperlakukannya sebagai awal komentar. Memory di repo ini penuh rujukan
+ * issue (`#818`), jadi ini bukan kasus tepi.
+ *
+ * Terjadi sungguhan 2026-07-17: sebuah `--restore` menulis byte yang identik,
+ * lalu harness memory mem-parse ulang YAML-nya dan menulis balik — dan
+ * `description: Epic #818 (issue #819-#835) dari audit…` menyusut jadi
+ * `description: Epic`. Enam file kehilangan deskripsinya, empat di antaranya
+ * memory lama yang sama sekali tak berkaitan dengan pekerjaan saat itu.
+ *
+ * Karena itu snapshot selalu menerbitkan `description` dalam kutip ganda.
+ */
+function quoteDescription(content: string): string {
+  return content.replace(/^description:[ \t]*(.*)$/m, (line, raw: string) => {
+    const value = raw.trim();
+    // Sudah dikutip (dan bukan sekadar diawali kutip di tengah kalimat) → biarkan.
+    if (/^".*"$/s.test(value) || /^'.*'$/s.test(value)) return line;
+    if (value === "") return line;
+    return `description: "${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  });
+}
+
 function sanitize(content: string): string {
-  return (
+  return quoteDescription(
     content
       // UUID sesi personal — tak bermakna di device/sesi lain.
       .replace(/^\s*originSessionId:.*$\n?/gm, "")
@@ -184,7 +208,9 @@ ${renderExclusions()}`;
 }
 
 async function main() {
-  const mode = process.argv[2] ?? "--sync";
+  const args = process.argv.slice(2);
+  const force = args.includes("--force");
+  const mode = args.find((a) => a !== "--force") ?? "--sync";
   const dir = memoryDir();
 
   if (mode === "--restore") {
@@ -193,11 +219,37 @@ async function main() {
     const files = parseGenerated(await readFile(DOC_PATH, "utf8"));
     if (files.size === 0)
       throw new Error("Snapshot kosong — tidak ada yang dipulihkan.");
+
+    // Restore MENIMPA, dan snapshot sudah tersanitasi — memulihkan ke atas
+    // memory hidup menimpa isi asli dengan versi teredaksi, satu arah dan
+    // tak bisa dibatalkan. Terjadi sungguhan 2026-07-17: sebuah `--restore`
+    // yang dijalankan sekadar untuk "menguji error path" menanamkan
+    // `<redacted>` ke memory hidup. Karena itu restore menolak menimpa
+    // kecuali diminta eksplisit.
+    const collisions: string[] = [];
+    for (const name of files.keys()) {
+      if (await exists(path.join(dir, name))) collisions.push(name);
+    }
+    if (collisions.length > 0 && !force) {
+      throw new Error(
+        `Menolak menimpa ${collisions.length} file memory yang sudah ada di ${dir}\n` +
+          `  (mis. ${collisions.slice(0, 3).join(", ")}${collisions.length > 3 ? ", …" : ""})\n\n` +
+          `Restore ditujukan untuk device/checkout BARU yang memory-nya kosong.\n` +
+          `Snapshot ini TERSANITASI (originSessionId dibuang, homedir → ~, placeholder\n` +
+          `password diredaksi) — menimpanya ke atas memory hidup akan menanamkan hasil\n` +
+          `redaksi itu secara permanen.\n\n` +
+          `Bila memory hidup memang lebih baru: jalankan \`bun run memory:docs:sync\`.\n` +
+          `Bila benar-benar ingin menimpa: tambahkan \`--force\`.`
+      );
+    }
+
     await mkdir(dir, { recursive: true });
     for (const [name, content] of files) {
       await writeFile(path.join(dir, name), content, "utf8");
     }
-    console.log(`Memulihkan ${files.size} file memory ke ${dir}`);
+    console.log(
+      `Memulihkan ${files.size} file memory ke ${dir}${force && collisions.length > 0 ? ` (--force: ${collisions.length} ditimpa)` : ""}`
+    );
     return;
   }
 
@@ -237,6 +289,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : err);
+  logScriptFailure("memory:docs sync FAILED", err);
   process.exit(1);
 });
