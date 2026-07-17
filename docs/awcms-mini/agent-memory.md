@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 69.**
+**Jumlah memory saat snapshot terakhir: 70.**
 
 ## Sengaja TIDAK disertakan
 
@@ -43,6 +43,7 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 # Memory index
 
 - [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory hidup di luar repo & hilang saat pindah device; jalankan `bun run memory:docs:sync` tiap kali memory berubah, `memory:docs:restore` di device baru
+- [Short-circuit must replicate every guard](short-circuit-must-replicate-every-guard.md) — fast-path yang melompati helper wajib ulangi SETIAP refusal-nya; gagal 2x dalam satu PR (#839); assert fast-path TERHADAP slow-path, bukan status hardcoded; Issue #843
 - [Promise.all on single tx = hang](promise-all-on-single-tx-hang.md) — 3x di repo ini, test suite LOLOS tiap kali (load-dependent); sapu KELASnya (grep `Promise.all` + `tx`), pisahkan pre-existing dari regresi PR; Issue #842
 - [Audit count assertion vacuous](audit-count-assertion-vacuous.md) — nama action karangan → bandingkan 0 dgn 0, lolos vakum selamanya; action generik (create/update/...), `resource_type` diskriminatornya; selalu assert sisi sebaliknya
 - [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (redactor #687); pakai `ipHash` HMAC via `src/lib/security/client-fingerprint.ts`, jangan rename key
@@ -5516,6 +5517,32 @@ Dua hal tambahan yang memakan waktu:
   melaporkan integration test-nya **ditulis tapi tak terverifikasi** (lih.
   [[bun-check-skips-integration-tests]] — skip-nya senyap). Orchestrator wajib
   menjalankan ulang test itu terhadap DB bersih sebelum percaya DoD-nya.
+`````
+
+<!-- memory-file: short-circuit-must-replicate-every-guard.md -->
+
+`````markdown
+---
+name: short-circuit-must-replicate-every-guard
+description: "Short-circuit yang melompati helper WAJIB mengulang SETIAP refusal helper itu; gagal 2x dalam satu PR (#839 round 2 & 3). Assert jawaban fast-path TERHADAP jawaban slow-path, jangan status hardcoded. Issue #843"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+Menambahkan fast-path yang **melompati** helper (mis. short-circuit `PATCH {}` agar tidak memanggil `update*`) berarti **setiap refusal helper itu harus diulang di call site**. Di PR #839 duplikasi ini **gagal dua kali dalam satu PR**:
+
+- Round 2: `managed_by_descriptor` (#750) terlewat → `PATCH {}` pada code descriptor-managed berubah `409` → `200`. (Saya tangkap sendiri.)
+- Round 3: `deprecated_at IS NULL` di `updateTenantReferenceCode` terlewat → tenant code deprecated terbaca `200` hidup & editable, padahal patch sungguhan `404`. (Review bot yang tangkap.)
+
+**Why:** ini bukan dua kelalaian terpisah — **bentuk perbaikannya yang mengundang kelalaian**. Jawaban endpoint jadi bergantung pada *berapa field yang kebetulan dikirim pemanggil*. Guard **baru** di helper akan tetap diam-diam terlewat di fast-path. Kelas yang sama dengan [[ssr-admin-pages-skip-module-enabled]] (#841) dan [[validator-exists-but-unwired-critical-pattern]]: **gate harus DI DALAM helper**.
+
+**How to apply:**
+- Sebelum menulis fast-path, **baca seluruh badan helper** dan daftarkan **setiap** `return { ok: false, ... }` + setiap predikat di `WHERE` (mis. `AND deprecated_at IS NULL`). Jangan berhenti di guard yang dilaporkan reviewer.
+- **Sapu kedua/semua route sejenis** — mereka bisa **sah berbeda**. Di reference-data: `updateTenantReferenceCode` memfilter `deprecated_at`; `updateReferenceCode` **tidak** (ia menjaga `managed_by_descriptor`). Asimetri itu wajib **dipaku test**, bukan diasumsikan.
+- **Bentuk test yang benar:** assert jawaban fast-path **terhadap jawaban slow-path pada baris yang sama** (`expect(noop.status).toBe(realPatch.status)`), bukan terhadap status hardcoded. Hardcoded hanya menguji sumbu yang sudah kita pikirkan; assert-terhadap-slow-path menangkap drift.
+- Lebih baik lagi: **jangan duplikasi sama sekali** — pindahkan keputusan fast-path ke dalam helper (#843). Jangan menerima flag hasil hitungan pemanggil; itu mengulang cacat yang sama.
+- Verifikasi **merah** dulu dengan melepas guard-nya. Catatan: `git checkout -- <file>` me-revert ke HEAD — kalau fix-nya **belum di-commit**, itu menghapusnya. Pakai `git stash push -- <file>` lalu `stash pop`.
 `````
 
 <!-- memory-file: skill-doc-drift-recurring.md -->
