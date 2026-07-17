@@ -23394,6 +23394,7 @@ components:
         - limits
         - adapterRegistryKey
         - description
+        - sensitiveFields
       additionalProperties: false
       properties:
         key:

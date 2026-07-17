@@ -1238,6 +1238,14 @@ components:
         - limits
         - adapterRegistryKey
         - description
+        # Mandatory since Issue #820 Cacat 1: an ABSENT policy used to make the
+        # preview route return every staged value raw with no raw-value
+        # permission check, so forgetting to declare it OPENED the data. The
+        # registry now rejects a descriptor that omits it -- a module must say
+        # `{ fieldNames: [] }` affirmatively rather than say nothing -- and the
+        # published contract has to agree, or generated clients keep treating
+        # the masking policy as optional.
+        - sensitiveFields
       additionalProperties: false
       properties:
         key:

@@ -35,6 +35,20 @@ export type ParseReferenceCodePatchResult =
 
 const DEFAULT_SORT_ORDER = 0;
 
+/**
+ * The complete set this parser understands. Kept beside the per-field blocks
+ * below so adding a field without listing it here makes that field's own tests
+ * fail immediately (it would be rejected as unknown) rather than silently
+ * ignored — the failure mode this set exists to prevent.
+ */
+const KNOWN_PATCH_FIELDS: ReadonlySet<string> = new Set([
+  "labels",
+  "sortOrder",
+  "metadata",
+  "validFrom",
+  "validTo"
+]);
+
 function hasField(body: Record<string, unknown>, field: string): boolean {
   return Object.prototype.hasOwnProperty.call(body, field);
 }
@@ -67,6 +81,24 @@ export function parseReferenceCodePatchInput(
 ): ParseReferenceCodePatchResult {
   const patch: ReferenceCodePatchInput = {};
   const errors: ReferenceCodeValidationError[] = [];
+
+  // Both PATCH schemas are `additionalProperties: false`, so an unknown key is
+  // a 400 by contract — but this parser reads known keys and ignores the rest,
+  // which turned a client typo (`validUntil` for `validTo`) into an empty
+  // patch. Combined with the empty-patch no-op branch the routes now take,
+  // that typo would answer 200 and change nothing: the request LOOKS accepted
+  // while doing nothing at all, which is worse than either rejecting it or
+  // applying it. Rejecting unknown keys here keeps the parser honest to the
+  // published contract. (Review finding, PR #839.)
+  const unknownFields = Object.keys(body).filter(
+    (key) => !KNOWN_PATCH_FIELDS.has(key)
+  );
+  for (const field of unknownFields) {
+    errors.push({
+      field,
+      message: `Unknown field "${field}". Allowed fields: ${[...KNOWN_PATCH_FIELDS].join(", ")}. Omit a field to keep its stored value.`
+    });
+  }
 
   if (hasField(body, "labels")) {
     const value = body.labels;
