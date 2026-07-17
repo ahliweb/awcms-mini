@@ -24,7 +24,9 @@ Temuan nyata mengelompok di **tiga tempat**:
 
 Empat audit paralel independen (konformansi PRD, keamanan, testing/CI/ops, arsitektur/performa) + satu audit performa/algoritma mendalam. Setiap temuan **diverifikasi ulang langsung terhadap kode**, bukan diterima apa adanya dari laporan agen.
 
-Ukuran repo saat audit: **~180k LOC**, **24 modul** (22 `active`, 2 `experimental`), **76 migration**, **144 tabel**, **~290 route API** (396 operasi OpenAPI), **4610 test / 319 file**, **46 skill**.
+Ukuran repo saat audit: **~180k LOC**, **23 modul** (22 `active`, 1 `experimental`), **76 migration**, **144 tabel**, **~290 route API** (396 operasi OpenAPI), **4610 test / 319 file**, **46 skill**.
+
+> **Koreksi (Issue #828).** Baris di atas semula menulis "**24 modul** (22 `active`, 2 `experimental`)". Angka itu **tidak pernah benar**: `listBaseModules()` mengembalikan **23** modul pada commit audit ini maupun hari ini, dengan tepat **1** modul `experimental` (`idn_admin_regions`). 24 adalah jumlah **direktori** `src/modules/*/` — yang ikut menghitung `_shared`, folder kontrak/helper lintas-modul yang **bukan modul terdaftar**. Persis kelas kesalahan yang dokumen ini sendiri peringatkan: **jangan menurunkan modul/key dari nama direktori**, baca registry (`src/modules/workflow-approval` pun terdaftar sebagai `workflow`, bukan `workflow_approval`). Angka lain di baris ini adalah snapshot **saat observasi** dan sengaja dibiarkan apa adanya (mis. `077` dan lima skill baru mendarat lewat wave 1/#829 setelah observasi, sehingga hari ini `sql/` berisi 77 migration dan `.claude/skills/` berisi 50 skill).
 
 > **Catatan scope**: doc 02 menyatakan **sendiri** bahwa modul retail/POS-nya **ilustratif**. Konformansi dinilai terhadap tabel "Modul utama (base)" doc 01 — bukan terhadap Sales POS/Warehouse/Coretax/AI yang memang tak pernah dibangun di sini.
 

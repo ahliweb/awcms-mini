@@ -69,7 +69,9 @@ flowchart LR
   SEC[Production Security] -.gates.-> ALL
 ```
 
-> Modul domain aplikasi turunan (mis. katalog produk, POS, gudang, pajak, CRM) menambah node-nya sendiri di diagram ketergantungan milik aplikasi tersebut — tidak digambar di sini karena bukan bagian base.
+> **Diagram ini menyederhanakan.** Ia menggambar alur arsitektur inti, **bukan** seluruh 23 modul terdaftar, dan beberapa node-nya (UI Experience, Localization UI, Database Connectivity, Production Security) **bukan modul terdaftar** sama sekali — lihat §"Kapabilitas base yang BUKAN modul terdaftar" di bawah. Ketergantungan yang mengikat secara mesin adalah field `dependencies` di tiap `module.ts`, divalidasi `bun run modules:dag:check`.
+
+> Modul domain aplikasi turunan (mis. katalog produk, POS, gudang, pajak, CRM) menambah node-nya sendiri di diagram ketergantungan milik aplikasi tersebut — tidak digambar di sini karena disumbangkan lewat `src/modules/application-registry.ts`, bukan oleh base.
 
 > Desain teknis implementasi ada di dokumen lanjutan: UI/UX (`14`), frontend & integrasi/offline-first (`15`), backend data access & database (`16`), seed/RBAC/ABAC (`17`), konfigurasi/environment (`18`).
 
@@ -88,21 +90,70 @@ flowchart LR
 
 ## Modul utama (base)
 
-| Modul                 | Fungsi                                             |
-| --------------------- | -------------------------------------------------- |
-| Tenant Admin          | Tenant, office, setup wizard                       |
-| Identity & Access     | Login, tenant user, RBAC, ABAC, decision log       |
-| Central Profile       | Profil user/customer/supplier/contact terpusat     |
-| Sync Storage          | Sync node, outbox/inbox, conflict, R2 object queue |
-| Localization UI       | i18n, locale, theme                                |
-| UI Experience         | Admin shell, navigation registry, theme, i18n      |
-| Observability Logging | Log, audit, security event, troubleshooting        |
-| Database Connectivity | Pooling, queue, PgBouncer profile, health          |
-| Workflow Approval     | Approval high-risk action                          |
-| Management Reporting  | Dashboard dan laporan generik                      |
-| Production Security   | Readiness, finding, go-live gates                  |
+Sumber kebenaran tabel ini adalah **`listBaseModules()`** di
+`src/modules/index.ts` — **23 modul terdaftar**, bukan daftar tulis-tangan.
+Kolom `key` adalah key yang benar-benar didaftarkan; **jangan menurunkannya
+dari nama direktori** (`src/modules/workflow-approval` terdaftar sebagai
+`workflow`). Kolom Kategori mengikuti taksonomi
+[`21_module_admission_governance.md`](21_module_admission_governance.md) §8,
+dan `type`/`status` mengikuti `module.ts` masing-masing. Tabel ini dijaga
+tetap sinkron oleh `tests/unit/module-doc-reconciliation.test.ts` — menambah
+modul ke registry tanpa menambah barisnya di sini akan gagal di CI.
 
-Modul domain (katalog produk, POS, gudang, pajak/Coretax, CRM receipt, AI business analyst, dsb.) **bukan bagian base ini** — ditambahkan aplikasi turunan contoh (mis. AWPOS) di atas base.
+| Modul (`key`)             | Nama                             | Kategori          | Fungsi                                                                                                                |
+| ------------------------- | -------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `tenant_admin`            | Tenant Admin                     | Core              | Tenant, hierarki office, physical location, tenant settings, setup wizard                                             |
+| `identity_access`         | Identity & Access                | Core              | Login, tenant user, RBAC, ABAC, session, decision log                                                                 |
+| `profile_identity`        | Profile Identity                 | Core              | Party (person/organization) terpusat, identifier, entity link                                                         |
+| `module_management`       | Module Management                | System            | Registry modul tenant-aware, enable/disable, settings, permission sync                                                |
+| `logging`                 | Logging & Audit Trail            | System            | Audit trail lintas-modul, structured logging, correlation ID, metrics                                                 |
+| `sync_storage`            | Sync Storage                     | System            | Sync node, outbox/inbox, conflict, R2 object queue, HMAC push/pull                                                    |
+| `email`                   | Email                            | System            | Layanan email provider-neutral: template, recipient, dispatcher outbox                                                |
+| `form_drafts`             | Form Drafts                      | System            | Draft store server-side generik untuk wizard pattern                                                                  |
+| `tenant_domain`           | Tenant Domain                    | System            | Mapping domain/subdomain tenant untuk routing publik online-primary                                                   |
+| `visitor_analytics`       | Visitor Analytics                | System            | Statistik pengunjung privacy-first untuk route admin dan publik                                                       |
+| `reporting`               | Management Reporting             | System            | View & projection laporan manajemen generik, export dispatcher                                                        |
+| `workflow`                | Workflow Approval                | System            | Engine workflow-definition terkelola & berversi untuk approval high-risk                                              |
+| `data_lifecycle`          | Data Lifecycle                   | System            | Registry tabel bervolume tinggi: retensi, partisi, arsip, legal hold, purge                                           |
+| `domain_event_runtime`    | Domain Event Runtime             | System            | Outbox & dispatcher domain event transaksional dan berversi                                                           |
+| `integration_hub`         | Integration Hub                  | System            | Batas integrasi generik provider-neutral (inbound/outbound)                                                           |
+| `idn_admin_regions`       | Indonesia Administrative Regions | System            | Master data wilayah administratif Indonesia (`type: base`, `status: experimental` — scaffold, lihat catatan di bawah) |
+| `blog_content`            | Blog Content                     | Official Optional | Manajemen konten/blog tenant-scoped                                                                                   |
+| `news_portal`             | News Portal                      | Official Optional | Lapisan editorial + media di atas blog_content/tenant_domain                                                          |
+| `social_publishing`       | Social Publishing                | Official Optional | Outbox auto-posting sosial provider-neutral                                                                           |
+| `organization_structure`  | Organization Structure           | Official Optional | Fondasi struktur organisasi tenant-scoped opsional                                                                    |
+| `reference_data`          | Reference Data                   | Official Optional | Fondasi reference data provider-neutral opsional                                                                      |
+| `document_infrastructure` | Document Infrastructure          | Official Optional | Infrastruktur METADATA dokumen generik tenant-scoped                                                                  |
+| `data_exchange`           | Data Exchange                    | Official Optional | Framework import/export CSV/JSON bertahap provider-neutral                                                            |
+
+> **Klarifikasi scope (Issue #828).** Versi sebelumnya dokumen ini
+> menyatakan _"modul domain ... bukan bagian base ini"_. **Klaim itu
+> dicabut**: base repo ini memang mendaftarkan modul berkategori domain
+> (`blog_content`, `news_portal`, `social_publishing`, dan cluster
+> Official Optional lainnya) di `src/modules/index.ts`. Yang benar adalah:
+> modul **Core/System** wajib ada, sedangkan modul **Official Optional**
+> ikut ter-ship di base tapi bisa di-disable per tenant. Modul domain
+> **aplikasi turunan** (katalog produk, POS, gudang, pajak/Coretax, CRM
+> receipt, AI business analyst, dsb.) yang bukan bagian base ini —
+> ditambahkan aplikasi turunan (mis. AWPOS) lewat
+> `src/modules/application-registry.ts` (Issue #740), bukan dengan mengedit
+> registry base.
+
+### Kapabilitas base yang BUKAN modul terdaftar
+
+Empat kapabilitas base di bawah nyata dan berfungsi, tapi **sengaja tidak
+punya folder `src/modules/*` maupun `ModuleDescriptor`** — konsekuensinya
+mereka tidak punya entri permission/navigation/health di registry dan
+**tidak terlihat oleh `bun run modules:dag:check`**. Diagram ketergantungan
+di atas menggambar mereka sebagai node agar alur arsitekturnya terbaca;
+itu **bukan** klaim bahwa mereka modul terdaftar (Issue #828 Temuan 5).
+
+| Kapabilitas           | Rumah sebenarnya di repo                                      | Kenapa bukan modul                                                                |
+| --------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Localization UI       | `i18n/*.po`, `src/lib/i18n/`, middleware resolusi locale      | Lintas-modul murni: setiap modul memakainya, tak satu pun memilikinya             |
+| UI Experience         | `src/lib/ui/`, `src/layouts/`, `src/components/`              | Shell/komponen presentasi bersama, bukan domain dengan tabel/permission sendiri   |
+| Database Connectivity | `src/lib/database/`                                           | Fondasi infrastruktur di bawah semua modul; pool/health-nya bukan resource tenant |
+| Production Security   | `scripts/security-readiness.ts`, `bun run security:readiness` | **Script-only & ephemeral** — lihat catatan di doc 13 §Matrix Modul vs Migration  |
 
 ## Fase pengembangan (base)
 

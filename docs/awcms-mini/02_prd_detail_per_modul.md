@@ -339,6 +339,68 @@ Owner membutuhkan insight bisnis cepat tanpa membuka data mentah sensitif.
 - High-risk action approval.
 - Critical security finding memblokir go-live.
 
+## Modul 14 — Management Reporting
+
+> **Modul base NYATA** (`key: reporting`) — bukan ilustrasi. Section ini
+> ditambahkan oleh Issue #828 Temuan 3: `reporting` adalah modul base di
+> doc 01 dan terdaftar di `listBaseModules()`, tapi doc 02 tak pernah
+> punya requirement/acceptance criteria apa pun untuknya.
+
+### Problem
+
+Owner dan admin butuh melihat kondisi tenant-nya (aktivitas, akses/audit,
+kesehatan sync, pemakaian modul) tanpa harus query database langsung, dan
+tanpa laporan satu tenant pernah membocorkan data tenant lain.
+
+### Scope
+
+- View laporan generik lintas-modul (tenant activity, access/audit
+  summary, sync health, module usage, email health).
+- Projection registry: modul lain mendaftarkan projection-nya sendiri
+  alih-alih modul ini tahu domain mereka.
+- Scheduled export + export run yang bisa diunduh.
+- Semua laporan tenant-aware (RLS + ABAC), read-only.
+
+### Acceptance criteria
+
+- Laporan hanya memuat data tenant aktif; tenant lain tidak pernah bocor
+  walau parameter dimanipulasi.
+- Akses laporan default-deny sampai permission diberikan.
+- Projection milik modul yang di-disable tidak dirender.
+- Export besar tidak memblokir request (dispatcher terpisah).
+- Laporan tidak pernah menampilkan identifier sensitif tanpa masking.
+
+## Modul 15 — Localization UI
+
+> **Kapabilitas base non-modul.** Localization UI adalah modul base di
+> **doc 01 saja**; ia **tidak** punya folder `src/modules/*` maupun
+> `ModuleDescriptor` — rumahnya `i18n/*.po` + `src/lib/i18n/` + middleware
+> resolusi locale (Issue #828 Temuan 5). Section ini melengkapi gap doc 02
+> Temuan 3; lihat [`01_canvas_induk.md`](01_canvas_induk.md)
+> §"Kapabilitas base yang BUKAN modul terdaftar".
+
+### Problem
+
+Base ini dipakai aplikasi turunan di lebih dari satu bahasa. Tanpa
+katalog terpusat, string UI tersebar sebagai literal di komponen dan
+locale baru berarti menyisir ulang seluruh codebase.
+
+### Scope
+
+- Katalog gettext `.po` (default `en`, minimal `en` + `id`).
+- Resolusi locale di middleware (bukan di layout — frontmatter halaman
+  jalan lebih dulu daripada layout-nya).
+- Format angka/mata uang/tanggal per locale.
+- Konvensi field konten multi-bahasa (doc 04).
+- Gate paritas katalog: `bun run i18n:pot:check`, `bun run i18n:parity:check`.
+
+### Acceptance criteria
+
+- String UI baru masuk katalog, bukan literal di komponen.
+- Menambah locale tidak butuh perubahan komponen.
+- Locale yang tak dikenal jatuh ke default tanpa error.
+- Katalog `en`/`id` tetap paritas — dijaga CI, bukan review manual.
+
 ## MVP prioritas
 
 ```mermaid

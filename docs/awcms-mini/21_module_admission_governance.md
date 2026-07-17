@@ -286,14 +286,28 @@ remediasi R3 di bawah.
 | `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `integration_hub`         | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `idn_admin_regions`       | System                   | `base`                  | _(tidak diset)_  | `experimental`   | @ahliweb |
 
-Total: 3 Core + 12 System + 7 Official Optional Module = 22 dari 23 modul
-terdaftar diklasifikasikan di tabel ini, cocok dengan `src/modules/
+Total: 3 Core + 13 System + 7 Official Optional Module = **23 dari 23 modul
+terdaftar** diklasifikasikan di tabel ini, cocok dengan `src/modules/
 index.ts` (`data_lifecycle`/`domain_event_runtime`, Issue #745/#742 epic
 #738 Wave 1, ditambahkan ke tabel ini sebagai bagian PR Issue #750 — baris
 yang sebelumnya hilang dari tabel karena kedua issue itu mengandalkan
 pre-klasifikasi ADR-0013 tanpa menulis ADR/update doc 21 §8 terpisah,
-lihat ADR-0013 §1 catatan penutup). `organization_structure` (Issue #749, epic #738
+lihat ADR-0013 §1 catatan penutup). `idn_admin_regions` (Issue #655, epic
+#654) adalah baris terakhir yang menyusul — tabel ini sebelumnya berjudul
+"Peta 23 modul" tapi hanya memuat 22 baris, dan mengakui sendiri
+ketimpangan itu tanpa menutupnya; ditambahkan oleh Issue #828 dan kini
+dijaga tidak berulang oleh `tests/unit/module-doc-reconciliation.test.ts`.
+Kategorinya **System** (bukan Official Optional Module) mengikuti alasan
+yang sudah tertulis di `module.ts`-nya sendiri: `type: "base"` karena ia
+master data reference yang bisa dipakai setiap aplikasi turunan — "closer
+in spirit to how `logging`/`reporting` are shared platform building
+blocks" — bukan fitur bisnis tenant-facing seperti `blog_content`.
+Statusnya masih `experimental` (satu-satunya modul non-`active` di
+registry): scaffold + schema (`sql/054`) sudah ada, tapi lookup API (#662)
+dan admin UI (#663) belum, dan epic #654 sedang **ditahan**.
+`organization_structure` (Issue #749, epic #738
 `platform-evolution` Wave 2) ditambahkan lewat admission decision
 `docs/adr/0016-organization-structure-module-admission.md` — legal
 entity, unit organisasi tipe-tenant-configurable, hierarki
