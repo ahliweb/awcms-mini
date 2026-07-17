@@ -23,6 +23,7 @@
  */
 import { fail } from "../../_shared/api-response";
 import { authorizeInTransaction } from "../../identity-access/application/access-guard";
+import { resolveModuleEnabled } from "../../identity-access/application/auth-context";
 import type { AccessAction } from "../../identity-access/domain/access-control";
 import type { ExchangeDescriptor } from "../../_shared/module-contract";
 
@@ -30,38 +31,65 @@ export type DescriptorPermissionCheck =
   { allowed: true } | { allowed: false; denied: Response };
 
 /**
- * The same decision as `authorizeDescriptorPermissionKey` below, expressed
- * against an already-resolved permission set instead of a transaction +
- * token hash — for the SSR admin screens, whose `Astro.locals.ssrContext`
- * carries the caller's granted permission keys (`src/lib/auth/ssr-session.ts`
- * builds it with the very same `fetchGrantedPermissionKeys` the bearer-token
- * guard uses) and which have no bearer token to authorize with.
+ * The same decision as `authorizeDescriptorPermissionKey` below, for a caller
+ * that has an already-resolved permission set instead of a bearer token — the
+ * SSR admin screens, whose `Astro.locals.ssrContext` carries the caller's
+ * granted permission keys (`src/lib/auth/ssr-session.ts` builds it with the
+ * very same `fetchGrantedPermissionKeys` the bearer-token guard uses) and
+ * which have no token to authorize with.
  *
  * It exists because `src/pages/admin/data-exchange/imports/[id].astro` does
  * NOT go through the preview route — it queries and projects staged rows
  * itself (see that page's own note) — and so needs its own call site for the
- * descriptor gate. PR #839's security review found the page had replicated
+ * descriptor gates. PR #839's security review found the page had replicated
  * the raw-value decision but never made the `requiredPermission` one at all:
  * a descriptor requiring, say, `hr.payroll.read` was enforced by all six API
  * routes and by nothing in the UI, so a holder of the generic
  * `data_exchange.imports.read` could read the owning module's staged content
  * (natural keys, validation errors, reconciliation) straight off the page.
  *
+ * Takes `tx`/`tenantId` and resolves tenant module state ITSELF rather than
+ * accepting a plain permission set, because a permission set is NOT the whole
+ * route decision and reviewing it as if it were is what went wrong the first
+ * time. `authorizeInTransaction` denies `403 MODULE_DISABLED` on
+ * `resolveModuleEnabled` BEFORE it ever evaluates RBAC, and
+ * `fetchGrantedPermissionKeys` does not filter disabled modules out of its
+ * result — so a subject keeps every permission key of a module that has been
+ * switched off for their tenant. Checking only `permissions.has(key)` made
+ * the SSR page LOOSER than the API on that axis: with the owning module
+ * disabled, preview/commit answered 403 while the page still rendered the
+ * staged rows. Same parity failure as the original finding, different axis;
+ * the module check is therefore inside this function, where neither caller
+ * can forget it, and in the same order as the route (module, then RBAC).
+ *
  * Fails closed identically to the route path: a malformed key is `false`,
  * never "no requirement". `undefined` — a descriptor genuinely declaring no
  * extra requirement — is a legitimate allow, exactly as in
- * `authorizeExchangeDescriptorPermission`.
+ * `authorizeExchangeDescriptorPermission` (there is no module to resolve for
+ * a requirement that was never declared; the page's generic
+ * `data_exchange.*` gate is a separate matter — see this file's footer note).
  */
-export function isDescriptorPermissionGranted(
+export async function isDescriptorPermissionGranted(
+  tx: Bun.SQL,
+  tenantId: string,
   permissions: ReadonlySet<string>,
   permissionKey: string | undefined
-): boolean {
+): Promise<boolean> {
   if (permissionKey === undefined) {
     return true;
   }
 
   const parts = permissionKey.split(".");
   if (parts.length !== 3 || parts.some((part) => part.length === 0)) {
+    return false;
+  }
+
+  const [moduleKey] = parts as [string, string, string];
+
+  // Module state first, exactly as `authorizeInTransaction` orders it: a
+  // permission key belonging to a module this tenant has disabled grants
+  // nothing, however the key itself was obtained.
+  if (!(await resolveModuleEnabled(tx, tenantId, moduleKey))) {
     return false;
   }
 
