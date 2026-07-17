@@ -23,7 +23,7 @@ export type ModuleSettingsView = {
   updatedAt: string | null;
 };
 
-type ModuleSettingsRow = {
+export type ModuleSettingsRow = {
   schema_version: number;
   settings: Record<string, unknown>;
   updated_at: Date;
@@ -80,6 +80,35 @@ export async function fetchModuleSettingsView(
   const row = await fetchSettingsRow(tx, tenantId, moduleKey);
 
   return toView(descriptor, row);
+}
+
+/**
+ * The pure half of `fetchModuleSettingsView` — same view, but fed an
+ * already-fetched row instead of running its own query. Pairs with
+ * `fetchTenantSettingsRowsByModule` so a caller resolving MANY modules at once
+ * (`fetchModuleHealthReports`, Issue #824) pays for one query total.
+ */
+export function buildModuleSettingsView(
+  moduleKey: string,
+  row: ModuleSettingsRow | null
+): ModuleSettingsView | null {
+  const descriptor = findDescriptor(moduleKey);
+
+  return descriptor ? toView(descriptor, row) : null;
+}
+
+/** Every module's override for ONE tenant in a single query, keyed by module key (Issue #824). */
+export async function fetchTenantSettingsRowsByModule(
+  tx: Bun.SQL,
+  tenantId: string
+): Promise<Map<string, ModuleSettingsRow>> {
+  const rows = (await tx`
+    SELECT module_key, schema_version, settings, updated_at
+    FROM awcms_mini_module_settings
+    WHERE tenant_id = ${tenantId}
+  `) as (ModuleSettingsRow & { module_key: string })[];
+
+  return new Map(rows.map((row) => [row.module_key, row]));
 }
 
 export type UpdateModuleSettingsResult =

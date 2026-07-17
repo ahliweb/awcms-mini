@@ -52,7 +52,10 @@ import {
   fetchTenantModuleEntries,
   type TenantModuleListEntry
 } from "./tenant-module-lifecycle";
-import { fetchModuleHealthReport } from "./health-registry";
+import {
+  prepareModuleHealthContext,
+  fetchModuleHealthReport
+} from "./health-registry";
 import { resolveProtectedModuleKeys } from "../domain/module-presets";
 import {
   evaluateModuleDisable,
@@ -126,6 +129,19 @@ export async function fetchModuleMatrix(
     tenantEntries.map((entry) => [entry.moduleKey, entry])
   );
   const protectedKeys = resolveProtectedModuleKeys(allDescriptors);
+
+  // One prefetch shared by every row below, instead of each row's
+  // `fetchModuleHealthReport` running its own four queries — ≈92 queries per
+  // render at 23 modules, growing with every module added, which saturated the
+  // pool and timed this screen out (Issue #824). Still strictly gated on
+  // `includeHealth`: when health wasn't requested, not a single health query runs.
+  const healthContext = options.includeHealth
+    ? await prepareModuleHealthContext(
+        tx,
+        tenantId,
+        options.correlationId ?? undefined
+      )
+    : null;
 
   function resolveTenantState(moduleKey: string): ModuleTenantState {
     return (
@@ -201,13 +217,14 @@ export async function fetchModuleMatrix(
         }
       }
 
-      const healthStatus = options.includeHealth
+      const healthStatus = healthContext
         ? ((
             await fetchModuleHealthReport(
               tx,
               tenantId,
               entry.moduleKey,
-              options.correlationId ?? undefined
+              options.correlationId ?? undefined,
+              healthContext
             )
           )?.status ?? null)
         : null;
