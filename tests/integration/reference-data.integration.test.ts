@@ -1613,4 +1613,279 @@ suite("reference_data integration", () => {
     });
     expect(missingKeyResult.status).toBe(400);
   });
+
+  test("REGRESSION (Issue #822, tenant-codes PATCH): a partial PATCH carrying ONLY `labels` must leave sortOrder/metadata/validFrom/validTo untouched -- pre-fix the route behaved like PUT and silently reset the omitted fields to 0/{}/now()/null", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+
+    const validFrom = "2026-01-01T00:00:00.000Z";
+    const validTo = "2026-12-31T00:00:00.000Z";
+    const created = await invoke<{ data: { tenantCode: { id: string } } }>(
+      createTenantCode,
+      {
+        method: "POST",
+        path: "/api/v1/reference-data/tenant-codes",
+        headers: authHeaders(owner, idKey()),
+        body: {
+          valueSet: "currency",
+          baseCodeId: null,
+          code: "EXT_KEEP",
+          labels: [{ locale: "en", label: "Before" }],
+          sortOrder: 30,
+          metadata: { tujuan: "load-bearing" },
+          validFrom,
+          validTo
+        }
+      }
+    );
+    expect(created.status).toBe(200);
+    const tenantCodeId = created.body.data.tenantCode.id;
+
+    // The normative PATCH a client would send to rename a label and nothing
+    // else. Every other mutable field is ABSENT from the body.
+    const patched = await invoke<{
+      data: {
+        tenantCode: {
+          labels: { label: string }[];
+          sortOrder: number;
+          metadata: Record<string, unknown>;
+          validFrom: string;
+          validTo: string | null;
+        };
+      };
+    }>(updateTenantCode, {
+      method: "PATCH",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+      params: { id: tenantCodeId },
+      headers: authHeaders(owner, idKey()),
+      body: { labels: [{ locale: "en", label: "After" }] }
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.tenantCode.labels[0]!.label).toBe("After");
+    expect(patched.body.data.tenantCode.sortOrder).toBe(30);
+    expect(patched.body.data.tenantCode.metadata).toEqual({
+      tujuan: "load-bearing"
+    });
+    expect(new Date(patched.body.data.tenantCode.validFrom).toISOString()).toBe(
+      validFrom
+    );
+    expect(patched.body.data.tenantCode.validTo).not.toBeNull();
+    expect(new Date(patched.body.data.tenantCode.validTo!).toISOString()).toBe(
+      validTo
+    );
+
+    // Assert the persisted row directly -- the response body is built from the
+    // UPDATE's RETURNING clause, so a stale read would not catch a bad write.
+    const sql = getTestSql();
+    const rows = await withTenant(sql, owner.tenantId, async (tx) => {
+      return (await tx`
+        SELECT sort_order, metadata, valid_from, valid_to
+        FROM awcms_mini_reference_tenant_codes
+        WHERE tenant_id = ${owner.tenantId} AND id = ${tenantCodeId}
+      `) as {
+        sort_order: number;
+        metadata: Record<string, unknown>;
+        valid_from: Date;
+        valid_to: Date | null;
+      }[];
+    });
+    expect(Number(rows[0]!.sort_order)).toBe(30);
+    expect(rows[0]!.metadata).toEqual({ tujuan: "load-bearing" });
+    expect(rows[0]!.valid_from.toISOString()).toBe(validFrom);
+    expect(rows[0]!.valid_to!.toISOString()).toBe(validTo);
+  });
+
+  test("REGRESSION (Issue #822, tenant-codes PATCH): an EXPLICIT `validTo: null` genuinely clears the end of validity -- explicit null means clear, distinct from an absent field meaning keep", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+
+    const created = await invoke<{ data: { tenantCode: { id: string } } }>(
+      createTenantCode,
+      {
+        method: "POST",
+        path: "/api/v1/reference-data/tenant-codes",
+        headers: authHeaders(owner, idKey()),
+        body: {
+          valueSet: "currency",
+          baseCodeId: null,
+          code: "EXT_CLEAR",
+          labels: [{ locale: "en", label: "Clearable" }],
+          sortOrder: 7,
+          validFrom: "2026-01-01T00:00:00.000Z",
+          validTo: "2026-12-31T00:00:00.000Z"
+        }
+      }
+    );
+    expect(created.status).toBe(200);
+    const tenantCodeId = created.body.data.tenantCode.id;
+
+    const patched = await invoke<{
+      data: { tenantCode: { validTo: string | null; sortOrder: number } };
+    }>(updateTenantCode, {
+      method: "PATCH",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+      params: { id: tenantCodeId },
+      headers: authHeaders(owner, idKey()),
+      body: { validTo: null }
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.tenantCode.validTo).toBeNull();
+    // ...and the sibling field omitted from THIS body still survives.
+    expect(patched.body.data.tenantCode.sortOrder).toBe(7);
+
+    const sql = getTestSql();
+    const rows = await withTenant(sql, owner.tenantId, async (tx) => {
+      return (await tx`
+        SELECT valid_to FROM awcms_mini_reference_tenant_codes
+        WHERE tenant_id = ${owner.tenantId} AND id = ${tenantCodeId}
+      `) as { valid_to: Date | null }[];
+    });
+    expect(rows[0]!.valid_to).toBeNull();
+  });
+
+  test("REGRESSION (Issue #822, codes PATCH): a partial PATCH carrying ONLY `labels` must leave sortOrder/metadata/validFrom/validTo untouched, and an explicit `validTo: null` must genuinely clear it", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(owner, "currency", "none");
+
+    const validFrom = "2026-02-01T00:00:00.000Z";
+    const validTo = "2026-11-30T00:00:00.000Z";
+    const created = await invoke(createCode, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/currency/codes",
+      params: { key: "currency" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        code: "IDR",
+        labels: [{ locale: "en", label: "Before" }],
+        sortOrder: 42,
+        metadata: { symbol: "Rp" },
+        validFrom,
+        validTo
+      }
+    });
+    expect(created.status).toBe(200);
+
+    const patched = await invoke<{
+      data: {
+        code: {
+          labels: { label: string }[];
+          sortOrder: number;
+          metadata: Record<string, unknown>;
+          validFrom: string;
+          validTo: string | null;
+        };
+      };
+    }>(updateCode, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency/codes/IDR",
+      params: { key: "currency", code: "IDR" },
+      headers: authHeaders(owner, idKey()),
+      body: { labels: [{ locale: "en", label: "After" }] }
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.code.labels[0]!.label).toBe("After");
+    expect(patched.body.data.code.sortOrder).toBe(42);
+    expect(patched.body.data.code.metadata).toEqual({ symbol: "Rp" });
+    expect(new Date(patched.body.data.code.validFrom).toISOString()).toBe(
+      validFrom
+    );
+    expect(new Date(patched.body.data.code.validTo!).toISOString()).toBe(
+      validTo
+    );
+
+    // Explicit null clears -- proving null and "absent" are NOT conflated.
+    const cleared = await invoke<{
+      data: { code: { validTo: string | null; sortOrder: number } };
+    }>(updateCode, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency/codes/IDR",
+      params: { key: "currency", code: "IDR" },
+      headers: authHeaders(owner, idKey()),
+      body: { validTo: null }
+    });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data.code.validTo).toBeNull();
+    expect(cleared.body.data.code.sortOrder).toBe(42);
+
+    const sql = getTestSql();
+    const rows = await withTenant(sql, owner.tenantId, async (tx) => {
+      return (await tx`
+        SELECT sort_order, metadata, valid_from, valid_to
+        FROM awcms_mini_reference_codes
+        WHERE value_set_id = (
+          SELECT id FROM awcms_mini_reference_value_sets WHERE key = 'currency'
+        ) AND code = 'IDR'
+      `) as {
+        sort_order: number;
+        metadata: Record<string, unknown>;
+        valid_from: Date;
+        valid_to: Date | null;
+      }[];
+    });
+    expect(Number(rows[0]!.sort_order)).toBe(42);
+    expect(rows[0]!.metadata).toEqual({ symbol: "Rp" });
+    expect(rows[0]!.valid_from.toISOString()).toBe(validFrom);
+    expect(rows[0]!.valid_to).toBeNull();
+  });
+
+  test("REGRESSION (Issue #822): a PATCH sending `validFrom: null` is REJECTED (400) rather than silently reset to now() -- valid_from is NOT NULL and load-bearing for downstream documents", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+
+    const validFrom = "2026-01-01T00:00:00.000Z";
+    const created = await invoke<{ data: { tenantCode: { id: string } } }>(
+      createTenantCode,
+      {
+        method: "POST",
+        path: "/api/v1/reference-data/tenant-codes",
+        headers: authHeaders(owner, idKey()),
+        body: {
+          valueSet: "currency",
+          baseCodeId: null,
+          code: "EXT_NN",
+          labels: [{ locale: "en", label: "Not nullable" }],
+          validFrom
+        }
+      }
+    );
+    expect(created.status).toBe(200);
+    const tenantCodeId = created.body.data.tenantCode.id;
+
+    const rejected = await invoke(updateTenantCode, {
+      method: "PATCH",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+      params: { id: tenantCodeId },
+      headers: authHeaders(owner, idKey()),
+      body: { validFrom: null }
+    });
+    expect(rejected.status).toBe(400);
+    expect((rejected.body as { error: { code: string } }).error.code).toBe(
+      "VALIDATION_ERROR"
+    );
+
+    // The stored validFrom is untouched by the rejected request.
+    const unchanged = await invoke<{
+      data: { tenantCode: { validFrom: string } };
+    }>(getTenantCode, {
+      method: "GET",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+      params: { id: tenantCodeId },
+      headers: authHeaders(owner)
+    });
+    expect(
+      new Date(unchanged.body.data.tenantCode.validFrom).toISOString()
+    ).toBe(validFrom);
+  });
 });
