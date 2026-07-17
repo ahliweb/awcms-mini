@@ -32,22 +32,22 @@ merintis fitur dari nol.
 
 ## 2. Ringkasan perbedaan (angka konkret)
 
-| Dimensi                       | **awcms-mini** (fondasi)                   | **awcms** (turunan ERP-scope) |
-| ----------------------------- | ------------------------------------------ | ----------------------------- |
-| Versi                         | 0.24.0                                     | 5.1.1 (melanjutkan legacy major, ADR-0024) |
-| Deskripsi                     | "Modular Monolith Standard"                | "basis/fondasi untuk pengembangan ERP" |
-| Modul di `src/modules/`       | ~23                                        | 4                             |
-| Migrasi `sql/`                | 76 (`awcms_mini_…`)                        | 7 (`awcms_…`)                 |
-| Route `src/pages/api`         | ~290                                       | ~16                           |
-| Path OpenAPI                  | ~289                                       | 16                            |
-| AsyncAPI channels             | ~96                                        | 0 (belum publish event)       |
-| Script `package.json`         | ~73                                        | ~23                           |
-| Gate `bun run check`          | ~22 gate (+ e2e Playwright)                | ~9 gate                       |
-| UI (`components/layouts/pages`) | 15 komponen, 56 halaman admin + portal   | tidak ada (backend/kontrak-only) |
-| Test (`*.test.ts`)            | ~317 (+ Playwright e2e)                     | ~22 (tanpa e2e/UI)            |
-| `.env.example`                | ~540 baris                                 | ~31 baris                     |
-| Docs paket teknis             | `docs/awcms-mini/` (49 file)               | `docs/awcms/` (48 file, sebagian warisan mini sebagai "target") |
-| ADR                           | 22 (`0000`–`0021`)                         | 25 (`0000`–`0024`; +0022 ERP-di-repo-terpisah, +0023 docs bilingual, +0024 penomoran legacy) |
+| Dimensi                         | **awcms-mini** (fondasi)               | **awcms** (turunan ERP-scope)                                                                |
+| ------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Versi                           | 0.24.0                                 | 5.1.1 (melanjutkan legacy major, ADR-0024)                                                   |
+| Deskripsi                       | "Modular Monolith Standard"            | "basis/fondasi untuk pengembangan ERP"                                                       |
+| Modul di `src/modules/`         | ~23                                    | 4                                                                                            |
+| Migrasi `sql/`                  | 76 (`awcms_mini_…`)                    | 7 (`awcms_…`)                                                                                |
+| Route `src/pages/api`           | ~290                                   | ~16                                                                                          |
+| Path OpenAPI                    | ~289                                   | 16                                                                                           |
+| AsyncAPI channels               | ~96                                    | 0 (belum publish event)                                                                      |
+| Script `package.json`           | ~73                                    | ~23                                                                                          |
+| Gate `bun run check`            | ~22 gate (+ e2e Playwright)            | ~9 gate                                                                                      |
+| UI (`components/layouts/pages`) | 15 komponen, 56 halaman admin + portal | tidak ada (backend/kontrak-only)                                                             |
+| Test (`*.test.ts`)              | ~317 (+ Playwright e2e)                | ~22 (tanpa e2e/UI)                                                                           |
+| `.env.example`                  | ~540 baris                             | ~31 baris                                                                                    |
+| Docs paket teknis               | `docs/awcms-mini/` (49 file)           | `docs/awcms/` (48 file, sebagian warisan mini sebagai "target")                              |
+| ADR                             | 22 (`0000`–`0021`)                     | 25 (`0000`–`0024`; +0022 ERP-di-repo-terpisah, +0023 docs bilingual, +0024 penomoran legacy) |
 
 > Catatan: versi awcms **5.1.1 bukan tanda lebih matang** dari mini —
 > penomorannya melanjutkan garis major legacy (ADR-0024 di awcms), bukan hasil
@@ -60,14 +60,14 @@ Modul fondasi yang **sudah ada di kedua repo**: `logging`, `tenant-admin`,
 
 **19 modul awcms-mini yang belum di-port ke awcms:**
 
-| Kategori                | Modul                                                                 |
-| ----------------------- | --------------------------------------------------------------------- |
-| Platform/runtime inti   | `module-management`, `domain-event-runtime`, `sync-storage`           |
-| Governance & alur bisnis | `workflow-approval`, `reporting`, `organization-structure`, `data-lifecycle` |
-| Data & integrasi        | `reference-data`, `data-exchange`, `integration-hub`, `document-infrastructure`, `idn-admin-regions` |
-| Komunikasi/notifikasi   | `email`, `form-drafts`                                                |
-| Konten/portal (CMS)     | `blog-content`, `news-portal`, `social-publishing`, `visitor-analytics` |
-| Tenant online           | `tenant-domain`                                                       |
+| Kategori                 | Modul                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Platform/runtime inti    | `module-management`, `domain-event-runtime`, `sync-storage`                                          |
+| Governance & alur bisnis | `workflow-approval`, `reporting`, `organization-structure`, `data-lifecycle`                         |
+| Data & integrasi         | `reference-data`, `data-exchange`, `integration-hub`, `document-infrastructure`, `idn-admin-regions` |
+| Komunikasi/notifikasi    | `email`, `form-drafts`                                                                               |
+| Konten/portal (CMS)      | `blog-content`, `news-portal`, `social-publishing`, `visitor-analytics`                              |
+| Tenant online            | `tenant-domain`                                                                                      |
 
 Sebagian modul CMS (blog/news/social/visitor-analytics) mungkin **tidak** di-port
 apa adanya ke awcms karena skopnya CMS, bukan fondasi ERP — di awcms ia menjadi
