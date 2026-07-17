@@ -3,6 +3,7 @@ import type { APIRoute } from "astro";
 import { fail, ok } from "../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../lib/database/client";
 import { withTenant } from "../../../../../lib/database/tenant-context";
+import { invalidatePublicTenantHost } from "../../../../../lib/tenant/public-tenant-cache";
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
 import {
   bodyTooLargeResponse,
@@ -131,7 +132,12 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
   const now = new Date();
   const correlationId = locals.correlationId;
 
-  return withTenant(sql, tenantId, async (tx) => {
+  // Issue #832 — this endpoint can set `status` to `suspended`/`failed`,
+  // which stops a hostname resolving. Evicted only after commit; see
+  // `tenant-domain-directory.ts`'s binding note.
+  let mutatedHostname: string | null = null;
+
+  const response = await withTenant(sql, tenantId, async (tx) => {
     const auth = await authorizeInTransaction(
       tx,
       tenantId,
@@ -156,6 +162,8 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
       return fail(404, "RESOURCE_NOT_FOUND", "Tenant domain not found.");
     }
 
+    mutatedHostname = domain.normalizedHostname;
+
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: auth.context.tenantUserId,
@@ -170,6 +178,12 @@ export const PATCH: APIRoute = async ({ request, params, cookies, locals }) => {
 
     return ok(domain);
   });
+
+  if (mutatedHostname) {
+    invalidatePublicTenantHost(mutatedHostname);
+  }
+
+  return response;
 };
 
 /** `DELETE /api/v1/tenant/domains/{id}` (Issue #562) — soft-delete only, `reason` required (master/config data, same precedent as `DELETE /api/v1/email/templates/{id}`). Never hard-deletes; frees the normalized hostname for reuse (migration 031's partial unique index). */
@@ -213,7 +227,12 @@ export const DELETE: APIRoute = async ({
   const now = new Date();
   const correlationId = locals.correlationId;
 
-  return withTenant(sql, tenantId, async (tx) => {
+  // Issue #832 — a soft-deleted domain must stop resolving public traffic
+  // immediately on this instance, not up to a TTL later. Evicted only after
+  // commit; see `tenant-domain-directory.ts`'s binding note.
+  let mutatedHostname: string | null = null;
+
+  const response = await withTenant(sql, tenantId, async (tx) => {
     const auth = await authorizeInTransaction(
       tx,
       tenantId,
@@ -238,6 +257,8 @@ export const DELETE: APIRoute = async ({
       return fail(404, "RESOURCE_NOT_FOUND", "Tenant domain not found.");
     }
 
+    mutatedHostname = deleted;
+
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: auth.context.tenantUserId,
@@ -253,4 +274,10 @@ export const DELETE: APIRoute = async ({
 
     return ok({ id: domainId, deleted: true });
   });
+
+  if (mutatedHostname) {
+    invalidatePublicTenantHost(mutatedHostname);
+  }
+
+  return response;
 };

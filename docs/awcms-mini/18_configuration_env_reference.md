@@ -505,14 +505,15 @@ ada: rute publik hanya lewat `/blog/{tenantCode}` legacy, tanpa resolusi
 tenant dari host — **offline/LAN tetap default, bukan online-first**.
 `scripts/validate-env.ts` (`checkPublicRoutingConfig`) menegakkan tabel ini.
 
-| Var                             | Wajib                                     | Default             | Sensitif | Fungsi                                                                                                   |
-| ------------------------------- | ----------------------------------------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| `PUBLIC_TENANT_RESOLUTION_MODE` | –                                         | – (legacy behavior) | –        | `host_default`/`env_default`/`setup_default`/`tenant_code_legacy` — nilai lain gagal validasi            |
-| `PUBLIC_DEFAULT_TENANT_ID`      | bila env_default (salah satu dengan CODE) | –                   | –        | UUID tenant default dipakai mode `env_default`                                                           |
-| `PUBLIC_DEFAULT_TENANT_CODE`    | bila env_default (salah satu dengan ID)   | –                   | –        | Kode tenant default dipakai mode `env_default`                                                           |
-| `PUBLIC_CANONICAL_BASE_PATH`    | –                                         | `/news`             | –        | Base path publik `/news`; wajib absolute path diawali `/` bila diisi                                     |
-| `PUBLIC_TRUST_PROXY`            | –                                         | `false`             | –        | Percaya header proxy (`X-Forwarded-Host` dkk.) — **hanya** `true` di belakang reverse proxy tepercaya    |
-| `PUBLIC_PLATFORM_ROOT_DOMAIN`   | bila host_default                         | –                   | –        | Root domain platform dipakai resolver host-based (Issue #559) membedakan subdomain tenant dari host lain |
+| Var                             | Wajib                                     | Default             | Sensitif | Fungsi                                                                                                     |
+| ------------------------------- | ----------------------------------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `PUBLIC_TENANT_RESOLUTION_MODE` | –                                         | – (legacy behavior) | –        | `host_default`/`env_default`/`setup_default`/`tenant_code_legacy` — nilai lain gagal validasi              |
+| `PUBLIC_DEFAULT_TENANT_ID`      | bila env_default (salah satu dengan CODE) | –                   | –        | UUID tenant default dipakai mode `env_default`                                                             |
+| `PUBLIC_DEFAULT_TENANT_CODE`    | bila env_default (salah satu dengan ID)   | –                   | –        | Kode tenant default dipakai mode `env_default`                                                             |
+| `PUBLIC_TENANT_CACHE_TTL_MS`    | –                                         | `60000`             | –        | TTL cache in-process host→tenant (Issue #832); batas atas staleness tenant-domain; `0` = nonaktifkan cache |
+| `PUBLIC_CANONICAL_BASE_PATH`    | –                                         | `/news`             | –        | Base path publik `/news`; wajib absolute path diawali `/` bila diisi                                       |
+| `PUBLIC_TRUST_PROXY`            | –                                         | `false`             | –        | Percaya header proxy (`X-Forwarded-Host` dkk.) — **hanya** `true` di belakang reverse proxy tepercaya      |
+| `PUBLIC_PLATFORM_ROOT_DOMAIN`   | bila host_default                         | –                   | –        | Root domain platform dipakai resolver host-based (Issue #559) membedakan subdomain tenant dari host lain   |
 
 Aturan validasi cross-field (keputusan desain Issue #556, didokumentasikan
 di sini karena issue tidak merincinya secara eksplisit):
@@ -539,6 +540,29 @@ di sini karena issue tidak merincinya secara eksplisit):
   Setup Wizard di database, bukan env — di luar scope issue ini).
 - `PUBLIC_CANONICAL_BASE_PATH` bila diisi harus absolute path: diawali `/`,
   tanpa spasi, tanpa `//`, tanpa trailing slash kecuali persis `/`.
+
+**Kontrak staleness `PUBLIC_TENANT_CACHE_TTL_MS`** (Issue #832): resolusi
+host→tenant di-cache **di memori tiap proses aplikasi**
+(`src/lib/tenant/public-tenant-cache.ts`), karena sebelumnya setiap request
+publik membayar 1-2 round trip DB untuk mapping yang praktis statis.
+
+Konsekuensi operasional yang harus dipahami sebelum mengubah nilai ini:
+
+- **TTL adalah batas staleness yang sebenarnya, bukan invalidasi eksplisit.**
+  API tenant-domain memang mengevict hostname dari cache setelah mutation
+  commit, tetapi itu hanya mengenai memori **proses itu sendiri**. Pada
+  deployment multi-instance (atau di belakang load balancer), instance lain
+  tidak bisa di-invalidate oleh instance manapun. Jaminan yang jujur:
+  perubahan tenant domain (verify, suspend, delete, re-point) terlihat di
+  **semua** instance paling lambat setelah `PUBLIC_TENANT_CACHE_TTL_MS`.
+- Default `60000` (60 detik) dipilih karena mapping domain→tenant berubah
+  dalam hitungan hari, bukan detik.
+- Hasil **negatif** ikut di-cache (host tak dikenal → `null`), jadi domain
+  yang baru diverifikasi bisa tetap 404 sampai TTL habis pada instance yang
+  tidak menjalankan mutation-nya. Ini normal dan terbatas oleh TTL.
+- Set `0` untuk mematikan cache sepenuhnya dan kembali ke perilaku
+  selalu-query (propagasi seketika, dengan biaya TTFB yang jadi alasan issue
+  #832 ada).
 
 **Catatan keamanan `PUBLIC_TRUST_PROXY`**: defaultnya **wajib** `false`.
 Set `true` **hanya** bila aplikasi berjalan di belakang reverse proxy

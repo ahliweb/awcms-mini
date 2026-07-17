@@ -7,6 +7,7 @@ import {
 } from "../../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../../lib/database/client";
 import { withTenant } from "../../../../../../lib/database/tenant-context";
+import { invalidatePublicTenantHost } from "../../../../../../lib/tenant/public-tenant-cache";
 import {
   authorizeInTransaction,
   resolveAuthInputs
@@ -69,7 +70,14 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
   const now = new Date();
   const correlationId = locals.correlationId;
 
-  return withTenant(sql, tenantId, async (tx) => {
+  // Issue #832 — verify is the transition that makes a hostname START
+  // resolving (`pending_verification`/`failed` -> `active`), so a stale
+  // NEGATIVE cache entry from traffic that arrived before verification is
+  // exactly what would keep the freshly-verified domain 404ing. Evicted
+  // only after commit; see `tenant-domain-directory.ts`'s binding note.
+  let mutatedHostname: string | null = null;
+
+  const response = await withTenant(sql, tenantId, async (tx) => {
     const auth = await authorizeInTransaction(
       tx,
       tenantId,
@@ -130,6 +138,8 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
       );
     }
 
+    mutatedHostname = result.entry.normalizedHostname;
+
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: auth.context.tenantUserId,
@@ -157,4 +167,14 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
 
     return successResponse;
   });
+
+  // Not reached on an idempotent replay (that path returns the stored
+  // response before `verifyTenantDomain` runs, leaving `mutatedHostname`
+  // null) — correct: the original call already evicted this hostname, and
+  // a replay changes no state to invalidate.
+  if (mutatedHostname) {
+    invalidatePublicTenantHost(mutatedHostname);
+  }
+
+  return response;
 };

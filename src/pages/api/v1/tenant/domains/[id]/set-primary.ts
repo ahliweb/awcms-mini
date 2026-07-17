@@ -31,6 +31,18 @@ const IDEMPOTENCY_SCOPE = "tenant_domain_set_primary";
 /**
  * `POST /api/v1/tenant/domains/{id}/set-primary` (Issue #562) — atomically
  * makes `id` this tenant's primary domain, clearing any previous primary.
+ * Deliberately does NOT call `invalidatePublicTenantHost` (Issue #832),
+ * unlike every other mutating tenant-domain endpoint. `is_primary` cannot
+ * change whether or where a hostname resolves: `resolvePublicTenantByHost`
+ * reads the column but omits it from `PublicTenantResolution` entirely (a
+ * deliberately minimal read surface, Issue #559), so it is not part of the
+ * cached value and there is nothing here to go stale. Both hostnames
+ * involved in a primary swap keep resolving to the same tenant before and
+ * after. If a future change ever makes `is_primary`/`redirect_to_primary`
+ * observable through the public resolver — e.g. a canonical-host redirect —
+ * this endpoint must start invalidating both the old and the new primary's
+ * hostnames.
+ *
  * Atomicity comes from `withTenant`'s single `sql.begin(...)` transaction
  * plus `setPrimaryTenantDomain`'s fixed unset-then-set statement order —
  * see that function's own docblock for why the partial unique index

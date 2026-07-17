@@ -1,6 +1,11 @@
 import { assertUuid } from "../database/tenant-context";
 import { log } from "../logging/logger";
 import {
+  getOrLoadDefaultTenantFromEnv,
+  getOrLoadDefaultTenantFromSetupState,
+  getOrLoadTenantByHost
+} from "./public-tenant-cache";
+import {
   resolvePublicTenantByCode,
   type PublicTenantResolution
 } from "./public-tenant-resolver";
@@ -349,10 +354,71 @@ export async function resolveDefaultPublicTenantFromSetupState(
   return fetchActivePublicTenantById(sql, tenantId);
 }
 
+/**
+ * Cached wrappers (Issue #832, epic #818) — see `public-tenant-cache.ts`
+ * for the binding key/staleness rules.
+ *
+ * These are deliberately SEPARATE functions rather than caching inside
+ * `resolvePublicTenantByHost`/`resolveDefaultPublicTenantFrom*` themselves.
+ * Those three are exported and directly callable, and both test suites use
+ * them that way to assert *database* behavior — the integration suite's
+ * "exactly one query for every outcome" timing-side-channel test
+ * (`public-tenant-resolution.integration.test.ts`) counts real queries, and
+ * would silently start passing for the wrong reason (zero queries, because
+ * cached) if the cache lived inside them. Keeping the uncached functions
+ * pure preserves those tests as real proofs, and `defaultDeps` — already
+ * the established injection seam for this module — is where production
+ * picks up the cached path. A caller that injects its own `deps` (unit
+ * tests) therefore never touches the cache, which also keeps a
+ * process-lived cache from leaking state between test cases.
+ */
+async function resolvePublicTenantByHostCached(
+  sql: Bun.SQL,
+  normalizedHost: string
+): Promise<PublicTenantResolution | null> {
+  return getOrLoadTenantByHost(normalizedHost, () =>
+    resolvePublicTenantByHost(sql, normalizedHost)
+  );
+}
+
+/**
+ * Each wrapper stays strictly 1:1 with the function it caches, and each has
+ * its own cache slot. Folding steps 2-4 into a single "chain" wrapper was
+ * tried and rejected: `resolvePublicTenantFromRequest` calls the step-4 dep
+ * whenever the step-2/3 dep returns null, so a chain wrapper that already
+ * consulted setup state internally would make every no-default-tenant
+ * deployment run the setup-state query a second time, uncached, on every
+ * request — slower than the code it replaced. Keeping the wrappers 1:1
+ * means the caching is invisible to `resolvePublicTenantFromRequest`'s
+ * control flow: warm, each of steps 2-4 costs zero queries on its own.
+ */
+async function resolveDefaultPublicTenantFromEnvCached(
+  sql: Bun.SQL
+): Promise<PublicTenantResolution | null> {
+  // Intentionally does not forward the underlying function's optional `env`
+  // parameter: only `resolvePublicTenantFromRequest` reaches this wrapper,
+  // and it always relies on the `process.env` default. A caller that needs
+  // an explicit env object calls `resolveDefaultPublicTenantFromEnv`
+  // directly (as the integration suite does), bypassing the cache — correct,
+  // since env cannot change without a process restart anyway.
+  return getOrLoadDefaultTenantFromEnv(() =>
+    resolveDefaultPublicTenantFromEnv(sql)
+  );
+}
+
+async function resolveDefaultPublicTenantFromSetupStateCached(
+  sql: Bun.SQL
+): Promise<PublicTenantResolution | null> {
+  return getOrLoadDefaultTenantFromSetupState(() =>
+    resolveDefaultPublicTenantFromSetupState(sql)
+  );
+}
+
 const defaultDeps: PublicHostResolverDeps = {
-  resolvePublicTenantByHost,
-  resolveDefaultPublicTenantFromEnv,
-  resolveDefaultPublicTenantFromSetupState
+  resolvePublicTenantByHost: resolvePublicTenantByHostCached,
+  resolveDefaultPublicTenantFromEnv: resolveDefaultPublicTenantFromEnvCached,
+  resolveDefaultPublicTenantFromSetupState:
+    resolveDefaultPublicTenantFromSetupStateCached
 };
 
 /**
@@ -380,8 +446,16 @@ const defaultDeps: PublicHostResolverDeps = {
  * this codebase to anchor that logic on). It logs the anomaly and falls
  * back to the plain `Host` header instead, exactly as if `trustProxy` were
  * `false` for this one request.
+ *
+ * Exported (Issue #832) so `src/middleware.ts` can resolve the host string
+ * synchronously, while the request object is still alive, and hand the
+ * plain string to `resolvePublicTenantFromRequest`'s `Request | string`
+ * overload from inside a deferred telemetry task. It must be exported
+ * rather than reimplemented there: a second copy of the trust-proxy /
+ * multi-value `X-Forwarded-Host` decision is exactly the kind of security
+ * logic that drifts from its original and reintroduces a spoofing hole.
  */
-function extractHostHeader(
+export function extractPublicHostHeader(
   request: Request,
   trustProxy: boolean
 ): string | null {
@@ -465,7 +539,7 @@ export async function resolvePublicTenantFromRequest(
     const rawHost =
       typeof requestOrHost === "string"
         ? requestOrHost
-        : extractHostHeader(requestOrHost, trustProxy);
+        : extractPublicHostHeader(requestOrHost, trustProxy);
 
     if (rawHost && rawHost.trim().length > 0) {
       const normalizedHost = normalizePublicHost(rawHost);
