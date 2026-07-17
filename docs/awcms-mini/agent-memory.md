@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 66.**
+**Jumlah memory saat snapshot terakhir: 67.**
 
 ## Sengaja TIDAK disertakan
 
@@ -45,6 +45,7 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 - [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory hidup di luar repo & hilang saat pindah device; jalankan `bun run memory:docs:sync` tiap kali memory berubah, `memory:docs:restore` di device baru
 - [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (redactor #687); pakai `ipHash` HMAC via `src/lib/security/client-fingerprint.ts`, jangan rename key
 - [main branch protection AKTIF](main-branch-protection-active.md) — sejak 2026-07-17: 6 required check, 0 approval, enforce_admins false; jangan wajibkan `CodeQL` polos (bisa "skipping" → PR deadlock)
+- [SSR admin pages skip module-enabled](ssr-admin-pages-skip-module-enabled.md) — 54/55 halaman admin merender data modul yang di-disable padahal route-nya 403; nav filter kosmetik; Issue #841. Taruh gate DI DALAM helper, bukan call site
 - [Post-audit hardening epic #818](post-audit-hardening-epic-818.md) — audit menyeluruh 2026-07-17 v0.24.0 → epic #818/#819-#835; fetchModuleMatrix flake akarnya 92 query/render (bukan flake infra), main tanpa branch protection, nol tag `v*` pernah ada, cycle hidup yang lolos 2 gate
 - [Audit doc rename by date](audit-doc-rename-by-date.md) — AUDIT_STANDAR_PENGEMBANGAN_<tgl>.md itu dokumen HIDUP: git mv ke tanggal perubahan + update ~15 rujukan (kecuali CHANGELOG), jangan bikin file audit baru
 - [Release pipeline never triggered, gaps](release-pipeline-never-triggered-gaps.md) — release.yml never actually fired in repo history; changeset:tag silently skipped the private package AND the `release` GitHub Environment had zero protection rules, both fixed 2026-07-15
@@ -5912,6 +5913,35 @@ re-confirming the same one.
 See [[platform-hardening-epic-progress]] and [[open-epics-2026-07-12-survey]]
 for the epic/issue context this PR belonged to (#655, master-data
 wilayah epic).
+`````
+
+<!-- memory-file: ssr-admin-pages-skip-module-enabled.md -->
+
+`````markdown
+---
+name: ssr-admin-pages-skip-module-enabled
+description: "54 dari 55 halaman admin SSR TIDAK memeriksa module-enabled — route menolak 403 MODULE_DISABLED tapi halamannya tetap merender; nav filter AdminLayout kosmetik saja. Issue #841"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+Ditemukan 2026-07-17 (review bot pada PR #839, epic [[post-audit-hardening-epic-818]]). **Jalur SSR admin lebih longgar daripada jalur API** pada sumbu module-enabled.
+
+- Jalur API: `authorizeInTransaction` (`identity-access/application/access-guard.ts:91-116`) memanggil `resolveModuleEnabled` dan menolak **403 `MODULE_DISABLED` SEBELUM RBAC**.
+- Jalur SSR: halaman memakai `ssrContext.permissions` (dari `fetchGrantedPermissionKeys`), yang **tidak memfilter modul disabled**.
+
+Akibat: modul di-disable untuk tenant → semua route-nya 403, **halaman admin-nya tetap merender data tenant**. **54 dari 55 halaman admin yang memuat data** punya celah ini; hanya `admin/data-exchange/imports/[id].astro` yang kini memeriksa (diperbaiki di PR #839). Difilekan sebagai **Issue #841**.
+
+**Tidak ada mitigasi terpusat**: middleware hanya soal sesi, dan filter navigasi `AdminLayout` **kosmetik** — ia menyembunyikan link sidebar, dilewati begitu URL diketik langsung. Dibatasi RBAC, jadi dampaknya "modul disabled masih terbaca oleh pemegang permission-nya" — moderat, bukan critical.
+
+**How to apply:**
+- Membuat/menyentuh halaman admin SSR? **Cek module-enabled eksplisit** — jangan berasumsi `permissions` sudah mencerminkannya.
+- Taruh gate **di dalam helper**, bukan di call site. Pola yang benar (PR #839): helper menerima `(tx, tenantId, permissions, permissionKey)` dan memanggil `resolveModuleEnabled` sendiri — **modul dulu, baru RBAC**, urutan sama dengan `authorizeInTransaction`. Menerima flag yang sudah dihitung dari pemanggil mengulang cacatnya: intinya justru call site yang lupa satu sumbu.
+- Perbaikan struktural yang mungkin untuk #841: filter modul disabled **di dalam `fetchGrantedPermissionKeys`** — satu perubahan, paritas otomatis karena route memakai fungsi yang sama. Butuh audit pemanggil dulu.
+- `await` yang hilang di gate `.astro` = fail-**open** senyap (Promise tak di-await itu truthy), dan `tsc` tidak memeriksa `.astro` (lih. [[astro-files-escape-typecheck]]). **Verifikasi lewat dev server nyata.**
+
+**Pelajaran metodologis (mahal):** test paritas SSR-vs-route versi pertama **lolos padahal celahnya ada** — ia membandingkan satu sumbu (apakah pemanggil memegang key?), sehingga secara struktural **tak mungkin gagal** pada sumbu lain. Test paritas harus meng-assert **mekanismenya** (permission tetap granted setelah modul di-disable, tapi keputusan tetap deny), bukan sekadar hasilnya. Terkait: [[validator-exists-but-unwired-critical-pattern]].
 `````
 
 <!-- memory-file: subagent-background-notification-stall.md -->
