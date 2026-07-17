@@ -4510,7 +4510,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Export job is not completed.
+          description: Export job is not completed, or its exportKey is no longer registered (owning module disabled after the job ran).
           content:
             application/json:
               schema:
@@ -4817,7 +4817,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Batch is not in previewed status, or Idempotency-Key reused with a different request.
+          description: Batch is not in previewed status, its importKey is no longer registered (owning module disabled after staging), or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:
@@ -4885,7 +4885,7 @@ paths:
       tags:
         - Data Exchange
       summary: Paginated preview of a batch's staged rows
-      description: Zero domain mutation. Sensitive fields are masked unless the caller also holds data_exchange.preview_errors.read.
+      description: Zero domain mutation. Raw staged values are revealed only when the batch's descriptor declares a sensitiveFields policy AND the caller holds the permission THAT descriptor names in sensitiveFields.rawValuePermission -- never a generic data_exchange permission. A descriptor declaring no policy is masked entirely (default-deny), and a batch whose importKey no longer resolves (its owning module was disabled after staging) is refused with 409.
       operationId: dataExchangeImportsPreview
       security:
         - bearerAuth: []
@@ -4911,9 +4911,11 @@ paths:
         - name: offset
           in: query
           required: false
+          description: Clamped to the maximum below, which equals the hard cap on rows per batch -- no batch can hold a row beyond it. The response echoes the effective (clamped) offset.
           schema:
             type: integer
             minimum: 0
+            maximum: 50000
         - name: limit
           in: query
           required: false
@@ -4986,6 +4988,12 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: The batch's importKey is no longer registered -- its owning module was disabled or removed after the batch was staged.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/data-exchange/imports/{id}/resume:
@@ -5093,7 +5101,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: Batch is not retryable from its current status, or Idempotency-Key reused with a different request.
+          description: Batch is not retryable from its current status, its importKey is no longer registered (owning module disabled after staging), or Idempotency-Key reused with a different request.
           content:
             application/json:
               schema:

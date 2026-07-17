@@ -75,12 +75,26 @@ export const GET: APIRoute = async ({ request, cookies, params, locals }) => {
     // able to bypass an owning module's own `requiredPermission` gate
     // (e.g. a future payroll/HR export descriptor) just because this route
     // forgot to check it.
+    //
+    // Issue #820 Cacat 3: passing an unresolvable descriptor as `null` used
+    // to skip that gate entirely — so disabling the owning module made its
+    // already-materialized export file MORE downloadable, not less. Of
+    // every call site this one matters most: it serves raw file content.
+    const downloadDescriptor = resolveExportDescriptor(job.exportKey);
+    if (!downloadDescriptor) {
+      return fail(
+        409,
+        "INVALID_STATE",
+        `Export job cannot be downloaded: exportKey "${job.exportKey}" is no longer registered — its owning module may be disabled.`
+      );
+    }
+
     const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
       tx,
       tenantId,
       tokenHash,
       now,
-      resolveExportDescriptor(job.exportKey)
+      downloadDescriptor
     );
     if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
 

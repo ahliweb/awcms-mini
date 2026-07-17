@@ -398,11 +398,30 @@ export type ExchangeDirection = "import" | "export" | "both";
 
 export type ExchangeFormat = "csv" | "json";
 
+/**
+ * A descriptor's sensitive-value policy (Issue #752; hardened by Issue
+ * #820). REQUIRED on every descriptor — declaring it is an affirmative act
+ * by the owning module, never an omission the base silently interprets in
+ * the caller's favour:
+ *
+ * - `fieldNames: []` means "this descriptor has deliberately reasoned about
+ *   its fields and none of them are sensitive" — preview returns raw values.
+ * - A non-empty `fieldNames` masks exactly those fields unless the caller
+ *   holds THIS descriptor's own `rawValuePermission` (never a generic
+ *   `data_exchange.*` permission — see `preview.ts`).
+ * - A descriptor with NO policy at all (only reachable if it bypassed the
+ *   registry gate in `data-exchange/domain/exchange-registry.ts`) is masked
+ *   ENTIRELY at preview time, and no permission can unmask it. Default-deny:
+ *   an undeclared field is an unknown field, and an unknown field is
+ *   treated as sensitive.
+ */
 export type ExchangeSensitiveFieldPolicy = {
-  /** Field names (as they appear in the parsed row, not a column name) that must never appear unmasked in a preview/error artifact without the caller holding the descriptor's `rawValuePermission`. */
+  /** Field names (as they appear in the parsed row, not a column name) that must never appear unmasked in a preview/error artifact without the caller holding the descriptor's `rawValuePermission`. Declare `[]` to state explicitly that no field is sensitive. */
   fieldNames: readonly string[];
-  /** Permission key (module.activity.action format) required to view unmasked values for the fields above — required when `fieldNames` is non-empty. */
+  /** Permission key (module.activity.action format) required to view unmasked values for the fields above — required when `fieldNames` is non-empty, and the ONLY permission that unmasks them (Issue #820: previously this field was validated but never enforced, and the route hardcoded the far broader `data_exchange.preview_errors.read` instead). */
   rawValuePermission?: string;
+  /** The parsed-row field name the owning module's adapter derives a staged row's `naturalKey` from (e.g. `"code"` for `reference_items`, but plausibly `"email"`/`"nik"` for a profile import — the dedup key IS commonly the sensitive identifier). When this name also appears in `fieldNames`, `naturalKey` is masked alongside `fields` (Issue #820 Cacat 4: masking previously ASSUMED `naturalKey` was non-sensitive). */
+  naturalKeyField?: string;
 };
 
 export type ExchangeLimits = {
@@ -426,7 +445,8 @@ export type ExchangeDescriptor = {
   adapterRegistryKey: string;
   /** Permission key (module.activity.action) required to stage/preview/commit against this descriptor, beyond the generic `data_exchange.imports.*`/`data_exchange.exports.*` gate — e.g. an owning module may require its OWN write permission (`reference_data.items.create`) in addition. `undefined` means no additional permission beyond the generic gate. */
   requiredPermission?: string;
-  sensitiveFields?: ExchangeSensitiveFieldPolicy;
+  /** REQUIRED (Issue #820) — declare `{ fieldNames: [] }` to state explicitly that no field is sensitive. Omitting it used to mean "return every staged value raw, with no permission check at all"; it is now rejected by the registry gate, and masked entirely at preview time if it somehow reaches the route. */
+  sensitiveFields: ExchangeSensitiveFieldPolicy;
   description: string;
 };
 

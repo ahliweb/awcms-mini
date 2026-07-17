@@ -146,13 +146,28 @@ function validateSingleDescriptor(
     }
   }
 
-  if (
-    descriptor.sensitiveFields &&
+  // Issue #820 Cacat 1: `sensitiveFields` used to be optional, and its
+  // absence made the preview route return every staged value RAW with no
+  // raw-value permission check at all — forgetting to declare it OPENED the
+  // data instead of closing it. It is now mandatory: a module must state
+  // `{ fieldNames: [] }` affirmatively rather than say nothing.
+  if (!descriptor.sensitiveFields) {
+    push(
+      "sensitiveFields is required — declare { fieldNames: [] } to state explicitly that no field is sensitive."
+    );
+  } else if (
     descriptor.sensitiveFields.fieldNames.length > 0 &&
     !descriptor.sensitiveFields.rawValuePermission
   ) {
     push(
       "sensitiveFields.rawValuePermission is required whenever sensitiveFields.fieldNames is non-empty."
+    );
+  }
+
+  const naturalKeyField = descriptor.sensitiveFields?.naturalKeyField;
+  if (naturalKeyField !== undefined && naturalKeyField.length === 0) {
+    push(
+      "sensitiveFields.naturalKeyField must be a non-empty parsed-row field name when declared."
     );
   }
 

@@ -5,6 +5,7 @@
  * read-only, consumed by the interactive `GET .../imports/{id}/preview`
  * endpoint.
  */
+import { MAX_EXCHANGE_ROW_COUNT } from "../domain/exchange-registry";
 
 export type StagedRowRow = {
   id: string;
@@ -56,6 +57,21 @@ function toRow(row: StagedRowDbRow): StagedRowRow {
 export const PREVIEW_PAGE_SIZE_DEFAULT = 50;
 export const PREVIEW_PAGE_SIZE_MAX = 200;
 
+/**
+ * Hard ceiling on the preview's `OFFSET` (Issue #831). `limit` was already
+ * clamped one line below its parse site in the route, but `offset` was only
+ * checked `>= 0` — `?offset=5000000` reached Postgres verbatim, forcing it
+ * to walk and discard five million `staged_rows` per request. This table is
+ * unlike the base's log-shaped tables: a single 100k-row CSV import fills it
+ * to deep-offset volume in one shot, so the ceiling is not theoretical.
+ *
+ * Derived from `MAX_EXCHANGE_ROW_COUNT` — the registry gate caps every
+ * descriptor's `limits.maxRowCount` at that value, so no batch can hold a
+ * row at this offset in the first place. The ceiling therefore hides no
+ * reachable row, and stays correct if that cap is ever raised.
+ */
+export const PREVIEW_OFFSET_MAX = MAX_EXCHANGE_ROW_COUNT;
+
 export type ListStagedRowsFilter = {
   proposedAction?: StagedRowRow["proposedAction"];
   offset: number;
@@ -102,26 +118,72 @@ export async function countStagedRows(
 const REDACTED_VALUE = "[REDACTED]";
 
 /**
- * Masks any field named in `sensitiveFieldNames` — Issue #752 security
- * requirement: "Preview/error artifacts minimize and mask PII; raw
- * invalid values require explicit permission". Applied to a row's
- * `fields` only (never to `naturalKey`, which is assumed non-sensitive —
- * it is also displayed as the row's identity in every preview list).
+ * Masks any field named in `policy.fieldNames` — Issue #752 security
+ * requirement: "Preview/error artifacts minimize and mask PII; raw invalid
+ * values require explicit permission".
+ *
+ * `naturalKey` is masked too when `policy.naturalKeyField` names a field
+ * that is itself sensitive (Issue #820 Cacat 4). This function previously
+ * masked `fields` only, on the stated ASSUMPTION that `naturalKey` was
+ * non-sensitive — an assumption, never an invariant, and the wrong way
+ * round for the very adapters this base exists to host: a profile import's
+ * dedup key IS the email/NIK. Masking the `fields` copy while echoing the
+ * same value back as `naturalKey` would have masked nothing at all.
  */
 export function maskSensitiveFields(
   row: StagedRowRow,
-  sensitiveFieldNames: readonly string[]
+  policy: { fieldNames: readonly string[]; naturalKeyField?: string }
 ): StagedRowRow {
-  if (sensitiveFieldNames.length === 0) {
+  if (policy.fieldNames.length === 0) {
     return row;
   }
 
   const maskedFields: Record<string, unknown> = { ...row.fields };
-  for (const fieldName of sensitiveFieldNames) {
+  for (const fieldName of policy.fieldNames) {
     if (fieldName in maskedFields) {
       maskedFields[fieldName] = REDACTED_VALUE;
     }
   }
 
-  return { ...row, fields: maskedFields };
+  const naturalKeyIsSensitive =
+    policy.naturalKeyField !== undefined &&
+    policy.fieldNames.includes(policy.naturalKeyField);
+
+  return {
+    ...row,
+    fields: maskedFields,
+    naturalKey:
+      naturalKeyIsSensitive && row.naturalKey !== null
+        ? REDACTED_VALUE
+        : row.naturalKey
+  };
+}
+
+/**
+ * Default-deny projection (Issue #820 Cacat 1): redacts EVERY field value
+ * plus `naturalKey`, keeping only the row's non-content metadata (row
+ * number, proposed action, commit status). Used when a descriptor declares
+ * no `sensitiveFields` policy at all — the base cannot know which of that
+ * descriptor's fields are safe, and an unknown field is treated as
+ * sensitive, never as safe. No permission unmasks this; the owning module
+ * must declare its policy (the registry gate rejects a descriptor without
+ * one, so this is defence in depth for a descriptor reaching the route by
+ * some other path).
+ *
+ * `validationErrors` are kept — they carry a field name and a message, not
+ * a value — but `validationWarnings` are dropped, since a warning is free
+ * text an adapter may have interpolated a raw value into.
+ */
+export function maskAllFields(row: StagedRowRow): StagedRowRow {
+  const maskedFields: Record<string, unknown> = {};
+  for (const fieldName of Object.keys(row.fields)) {
+    maskedFields[fieldName] = REDACTED_VALUE;
+  }
+
+  return {
+    ...row,
+    fields: maskedFields,
+    naturalKey: row.naturalKey === null ? null : REDACTED_VALUE,
+    validationWarnings: row.validationWarnings === null ? null : []
+  };
 }

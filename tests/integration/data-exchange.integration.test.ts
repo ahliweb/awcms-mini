@@ -53,6 +53,7 @@ import {
 } from "../../src/pages/api/v1/data-exchange/imports/index";
 import { GET as getImportBatchRoute } from "../../src/pages/api/v1/data-exchange/imports/[id]/index";
 import { GET as getPreview } from "../../src/pages/api/v1/data-exchange/imports/[id]/preview";
+import { PREVIEW_OFFSET_MAX } from "../../src/modules/data-exchange/application/staged-row-directory";
 import { POST as commitImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/commit";
 import { POST as cancelImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/cancel";
 import { POST as retryImport } from "../../src/pages/api/v1/data-exchange/imports/[id]/retry";
@@ -1260,6 +1261,7 @@ suite("data_exchange integration", () => {
         limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
         adapterRegistryKey: "reference_items",
         requiredPermission: "identity_access.user_management.read",
+        sensitiveFields: { fieldNames: [] },
         description:
           "synthetic descriptor for requiredPermission enforcement test"
       };
@@ -1303,7 +1305,13 @@ suite("data_exchange integration", () => {
       expect(allowResult.allowed).toBe(true);
     });
 
-    test("a descriptor with no requiredPermission is a no-op (always allowed)", async () => {
+    // Issue #820 Cacat 3: this test used to pass `null` (an unresolvable
+    // descriptor) and assert `allowed: true` — it asserted the fail-open
+    // itself. `null` is no longer representable at this signature; the
+    // genuine no-op case is a RESOLVED descriptor declaring no extra
+    // requirement, which is what this now covers. Each route's own handling
+    // of an unresolvable descriptor is covered by the route tests below.
+    test("a resolved descriptor with no requiredPermission is a no-op (always allowed)", async () => {
       const owner = await bootstrap();
       const noAccess = await bootstrapNoAccessUser(owner);
       const appSql = getDatabaseClient();
@@ -1314,7 +1322,17 @@ suite("data_exchange integration", () => {
           owner.tenantId,
           hashSessionToken(noAccess.token),
           new Date(),
-          null
+          {
+            key: "data_exchange.synthetic_test_descriptor",
+            ownerModuleKey: "data_exchange",
+            direction: "both",
+            formats: ["csv"],
+            schemaVersion: "1.0",
+            limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
+            adapterRegistryKey: "reference_items",
+            sensitiveFields: { fieldNames: [] },
+            description: "synthetic descriptor with no requiredPermission"
+          }
         )
       );
       expect(result.allowed).toBe(true);
@@ -1340,6 +1358,7 @@ suite("data_exchange integration", () => {
             adapterRegistryKey: "reference_items",
             // Only two segments -- not a valid "module.activity.action" key.
             requiredPermission: "not-a-valid-permission-key",
+            sensitiveFields: { fieldNames: [] },
             description:
               "synthetic descriptor with a malformed requiredPermission"
           }
@@ -1495,6 +1514,235 @@ suite("data_exchange integration", () => {
       expect(auditRows.some((row) => row.message.includes("completed"))).toBe(
         true
       );
+    });
+  });
+
+  /**
+   * Issue #820 (raw-value guard) + #831 (offset clamp), both on
+   * `GET .../imports/{id}/preview`.
+   *
+   * These drive the REAL route handler, not the projection helpers in
+   * isolation — the defects being fixed were precisely of the "the helper
+   * is correct, nothing calls it / the route decides something else" class
+   * (cf. #740/#769), which a helper-level test cannot detect.
+   *
+   * `resolveImportDescriptor` re-reads `listModules()` on every request, so
+   * these tests swap the live `reference_items` descriptor's policy for the
+   * duration of one test and restore it afterwards. That keeps the route,
+   * the registry lookup and the permission checks all real, and is the only
+   * way to exercise a sensitive descriptor today: no module in the base
+   * declares one yet (which is exactly why these defects went unnoticed).
+   */
+  describe("preview raw-value guard (Issue #820) and offset clamp (Issue #831)", () => {
+    const referenceDescriptor = dataExchangeModule.dataExchange!.find(
+      (descriptor) => descriptor.key === REFERENCE_ITEMS_KEY
+    )! as {
+      sensitiveFields?: {
+        fieldNames: readonly string[];
+        rawValuePermission?: string;
+        naturalKeyField?: string;
+      };
+    };
+    const originalPolicy = referenceDescriptor.sensitiveFields;
+
+    afterEach(() => {
+      referenceDescriptor.sensitiveFields = originalPolicy;
+    });
+
+    async function stageAndValidate(owner: Bootstrap, idempotencyKey: string) {
+      const stage = await stageCsv(
+        owner,
+        "code,label,value\nwidget-a,Widget A,10\n",
+        idempotencyKey
+      );
+      expect(stage.status).toBe(200);
+      await drainWorker(getWorkerTestSql(), owner.tenantId);
+      return stage.body.data.batch.id as string;
+    }
+
+    test("a descriptor declaring NO sensitiveFields masks every value — omission must not reveal (Cacat 1)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-1");
+
+      // The pre-#820 default: no policy declared. This used to set
+      // `canSeeRawValues = true` and return every staged value raw, with no
+      // raw-value permission check performed at all.
+      referenceDescriptor.sensitiveFields = undefined;
+
+      // The tenant OWNER — the most privileged caller there is — still sees
+      // nothing raw. No permission unmasks an undeclared policy.
+      const preview = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(owner)
+      });
+
+      expect(preview.status).toBe(200);
+      const row = preview.body.data.rows[0];
+      expect(Object.keys(row.fields).length).toBeGreaterThan(0);
+      for (const value of Object.values(row.fields)) {
+        expect(value).toBe("[REDACTED]");
+      }
+      expect(row.naturalKey).toBe("[REDACTED]");
+      // Non-content metadata still flows — the preview stays navigable.
+      expect(row.proposedAction).toBe("create");
+      expect(row.rowNumber).toBe(1);
+    });
+
+    test("the DESCRIPTOR's own rawValuePermission gates raw values — the broader data_exchange.preview_errors.read does not (Cacat 2)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-2");
+
+      // A descriptor declaring a NARROW permission of its own, exactly as
+      // the contract has always promised it could.
+      referenceDescriptor.sensitiveFields = {
+        fieldNames: ["label", "code"],
+        rawValuePermission: "identity_access.user_management.read",
+        naturalKeyField: "code"
+      };
+
+      // A caller holding the BROAD, generic raw-value permission the route
+      // used to hardcode — and nothing the descriptor actually asked for.
+      // Pre-#820 this caller saw NIK/NPWP-equivalents in the clear.
+      const broad = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" },
+        {
+          moduleKey: "data_exchange",
+          activityCode: "preview_errors",
+          action: "read"
+        }
+      ]);
+
+      const denied = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(broad)
+      });
+
+      expect(denied.status).toBe(200);
+      const maskedRow = denied.body.data.rows[0];
+      expect(maskedRow.fields.label).toBe("[REDACTED]");
+      expect(maskedRow.fields.code).toBe("[REDACTED]");
+      // Cacat 4: naturalKey IS the sensitive `code` here — masking `fields`
+      // while echoing the same value back as `naturalKey` masks nothing.
+      expect(maskedRow.naturalKey).toBe("[REDACTED]");
+      // A field outside the policy is untouched (the adapter normalizes
+      // `value` to a number, so this is the stored shape, unmasked).
+      expect(maskedRow.fields.value).toBe(10);
+
+      // The descriptor's OWN permission — and only it — reveals the values.
+      const admin = getAdminSql();
+      await admin`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        SELECT ${owner.tenantId}, r.id, p.id
+        FROM awcms_mini_roles r, awcms_mini_permissions p
+        WHERE r.tenant_id = ${owner.tenantId} AND r.role_code = 'limited'
+          AND p.module_key = 'identity_access' AND p.activity_code = 'user_management' AND p.action = 'read'
+      `;
+
+      const allowed = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(broad)
+      });
+
+      expect(allowed.status).toBe(200);
+      expect(allowed.body.data.rows[0].fields.label).toBe("Widget A");
+      expect(allowed.body.data.rows[0].naturalKey).toBe("widget-a");
+    });
+
+    test("naturalKey stays visible when it is NOT declared sensitive (masking is not blanket)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-3");
+
+      referenceDescriptor.sensitiveFields = {
+        fieldNames: ["label"],
+        rawValuePermission: "identity_access.user_management.read",
+        naturalKeyField: "code"
+      };
+
+      const limited = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" }
+      ]);
+
+      const preview = await invoke<{ data: { rows: any[] } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+        params: { id: batchId },
+        headers: authHeaders(limited)
+      });
+
+      expect(preview.status).toBe(200);
+      expect(preview.body.data.rows[0].fields.label).toBe("[REDACTED]");
+      // `code` is the naturalKey but is not in `fieldNames` — it is the
+      // row's identity in the preview list and stays readable.
+      expect(preview.body.data.rows[0].naturalKey).toBe("widget-a");
+    });
+
+    test("a batch whose importKey is no longer registered is DENIED, not opened (Cacat 3)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-4");
+
+      // Simulates the owning module being disabled/removed via
+      // `module_management` AFTER the batch was staged: the key stops
+      // resolving. Pre-#820 this made the batch MORE readable than while
+      // its module ran — the descriptor gate returned `allowed: true` for a
+      // null descriptor AND the (now absent) sensitiveFields defaulted to
+      // "nothing is sensitive", so every value came back raw.
+      const admin = getAdminSql();
+      await admin`
+        UPDATE awcms_mini_data_exchange_import_batches
+        SET import_key = 'data_exchange.retired_descriptor'
+        WHERE tenant_id = ${owner.tenantId} AND id = ${batchId}
+      `;
+
+      const preview = await invoke<{ data?: { rows: any[] }; error?: any }>(
+        getPreview,
+        {
+          method: "GET",
+          path: `/api/v1/data-exchange/imports/${batchId}/preview`,
+          params: { id: batchId },
+          headers: authHeaders(owner)
+        }
+      );
+
+      expect(preview.status).toBe(409);
+      expect(preview.body.data).toBeUndefined();
+    });
+
+    test("a deep offset is clamped instead of reaching Postgres verbatim (Issue #831)", async () => {
+      const owner = await bootstrap();
+      const batchId = await stageAndValidate(owner, "guard-key-5");
+
+      const preview = await invoke<{
+        data: { rows: any[]; offset: number; limit: number };
+      }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview?offset=5000000`,
+        params: { id: batchId },
+        headers: authHeaders(owner)
+      });
+
+      expect(preview.status).toBe(200);
+      // The echoed offset proves the clamp happened BEFORE the query: an
+      // unclamped 5_000_000 would have been sent to Postgres as an OFFSET
+      // to walk and discard. The ceiling equals the registry's hard cap on
+      // rows per batch, so it can never hide a reachable row.
+      expect(preview.body.data.offset).toBe(PREVIEW_OFFSET_MAX);
+      expect(preview.body.data.offset).toBeLessThan(5_000_000);
+      expect(preview.body.data.rows).toEqual([]);
+
+      // A legitimate in-range offset is untouched.
+      const inRange = await invoke<{ data: { offset: number } }>(getPreview, {
+        method: "GET",
+        path: `/api/v1/data-exchange/imports/${batchId}/preview?offset=0`,
+        params: { id: batchId },
+        headers: authHeaders(owner)
+      });
+      expect(inRange.body.data.offset).toBe(0);
     });
   });
 });

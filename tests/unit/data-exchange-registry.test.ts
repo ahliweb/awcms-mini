@@ -26,6 +26,7 @@ function baseDescriptor(
     schemaVersion: "1.0",
     limits: { maxFileBytes: 1024, maxRowCount: 100, maxFieldsPerRow: 10 },
     adapterRegistryKey: "reference_items",
+    sensitiveFields: { fieldNames: [] },
     description: "test descriptor",
     ...overrides
   };
@@ -103,6 +104,36 @@ describe("validateExchangeRegistry — synthetic invalid descriptors", () => {
 
   test("rejects a missing adapterRegistryKey", () => {
     const descriptor = baseDescriptor({ adapterRegistryKey: "" });
+    const result = validateExchangeRegistry([fakeModule(descriptor)]);
+    expect(result.valid).toBe(false);
+  });
+
+  // Issue #820 Cacat 1: `sensitiveFields` used to be optional, and omitting
+  // it made the preview route return every staged value raw with no
+  // raw-value check at all — forgetting to declare it OPENED the data.
+  test("rejects a descriptor that omits sensitiveFields entirely", () => {
+    const descriptor = baseDescriptor();
+    delete (descriptor as { sensitiveFields?: unknown }).sensitiveFields;
+    const result = validateExchangeRegistry([fakeModule(descriptor)]);
+    expect(result.valid).toBe(false);
+    expect(
+      result.issues.some((i) =>
+        i.message.includes("sensitiveFields is required")
+      )
+    ).toBe(true);
+  });
+
+  test("accepts an explicit empty sensitiveFields.fieldNames (affirmatively non-sensitive)", () => {
+    const result = validateExchangeRegistry([
+      fakeModule(baseDescriptor({ sensitiveFields: { fieldNames: [] } }))
+    ]);
+    expect(result.valid).toBe(true);
+  });
+
+  test("rejects an empty sensitiveFields.naturalKeyField", () => {
+    const descriptor = baseDescriptor({
+      sensitiveFields: { fieldNames: [], naturalKeyField: "" }
+    });
     const result = validateExchangeRegistry([fakeModule(descriptor)]);
     expect(result.valid).toBe(false);
   });
