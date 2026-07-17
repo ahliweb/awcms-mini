@@ -296,7 +296,7 @@ Milestone M9 (5 anak issue peningkatan pasca-backlog v0.22.0, epic [#438](https:
 - **[#438](https://github.com/ahliweb/awcms-mini/issues/438)** — epic tracking, ditutup setelah 5/5 anak issue selesai.
 - **[#447](https://github.com/ahliweb/awcms-mini/issues/447)** — aktivasi sistem log & manajemennya (correlation ID otomatis lintas endpoint, retensi/purge audit log terjadwal, extension point observability) — issue berdiri sendiri, bukan bagian 5 anak epic #438.
 
-Detail lengkap tiap issue: `CHANGELOG.md` (versi 0.23.0-0.23.5) dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` §Perawatan pasca-backlog.
+Detail lengkap tiap issue: `CHANGELOG.md` (versi 0.23.0-0.23.5) dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md` §Perawatan pasca-backlog.
 
 ### Offline/LAN deployment profile 12.2 completed — seluruh backlog base generik tuntas (2026-07-05)
 
@@ -360,7 +360,7 @@ Issue [#377](https://github.com/ahliweb/awcms-mini/issues/377) ditutup `complete
 
 Issue [#376](https://github.com/ahliweb/awcms-mini/issues/376) ditutup `completed` setelah migrasi `sql/002_awcms_mini_tenant_office_schema.sql` menambahkan `awcms_mini_tenants`, `awcms_mini_offices`, `awcms_mini_physical_locations`, `awcms_mini_tenant_settings` dengan RLS tenant isolation dan soft delete pada tabel office-scoped, plus modul `tenant-admin` terdaftar. Diverifikasi langsung terhadap container PostgreSQL 16 (bukan hanya build/test): migration apply bersih, RLS mengisolasi role non-superuser per tenant, duplicate `office_code` aktif ditolak, dan kode bisa dipakai ulang setelah soft delete.
 
-Saat scoping issue ini, ditemukan Issue [#407](https://github.com/ahliweb/awcms-mini/issues/407) (12.1 — Setup Wizard) salah sequencing: butuh skema tenant/identity/RBAC dari #376/#378/#379 (Sprint 2/3), tapi sebelumnya di Sprint 1 sejajar 0.1-0.3. Label disesuaikan: `#376`/`#377`/`#378` `status:blocked` → `status:ready`; `#407` `status:ready` → `status:blocked` (komentar penjelasan ditambahkan di issue). Detail: `docs/awcms-mini/06_github_issues_detail.md` §Koreksi urutan sprint, `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`.
+Saat scoping issue ini, ditemukan Issue [#407](https://github.com/ahliweb/awcms-mini/issues/407) (12.1 — Setup Wizard) salah sequencing: butuh skema tenant/identity/RBAC dari #376/#378/#379 (Sprint 2/3), tapi sebelumnya di Sprint 1 sejajar 0.1-0.3. Label disesuaikan: `#376`/`#377`/`#378` `status:blocked` → `status:ready`; `#407` `status:ready` → `status:blocked` (komentar penjelasan ditambahkan di issue). Detail: `docs/awcms-mini/06_github_issues_detail.md` §Koreksi urutan sprint, `AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`.
 
 ### API contract 0.3 completed (2026-07-05)
 

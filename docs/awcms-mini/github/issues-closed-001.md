@@ -12,7 +12,7 @@
 
 > File ini adalah snapshot dari GitHub. Refresh dengan proses di `docs/awcms-mini/github/README.md` bila state issue berubah.
 
-Baris #371-#408 (38 issue) adalah backlog doc06 original — lihat narasi lengkap di bawah tabel dan di `docs/awcms-mini/github/README.md`. Baris #433-#454 (12 issue) adalah epic M9 + issue pasca-analisis lanjutan, **di luar** backlog doc06 — ringkasan singkat di bawah, detail lengkap di `CHANGELOG.md` dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` §Perawatan pasca-backlog.
+Baris #371-#408 (38 issue) adalah backlog doc06 original — lihat narasi lengkap di bawah tabel dan di `docs/awcms-mini/github/README.md`. Baris #433-#454 (12 issue) adalah epic M9 + issue pasca-analisis lanjutan, **di luar** backlog doc06 — ringkasan singkat di bawah, detail lengkap di `CHANGELOG.md` dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md` §Perawatan pasca-backlog.
 
 Seluruh issue di bawah ditutup dengan reason `not planned` pada 2026-07-04: kontennya spesifik domain POS/retail (katalog, stok, checkout, warehouse, pajak/Coretax, CRM receipt, AI business analyst) yang tidak sesuai konteks AWCMS-Mini sebagai contoh repo pengembangan umum. Konten dipindahkan ke aplikasi turunan contoh (mis. AWPOS), bukan dihapus riwayatnya.
 
@@ -61,7 +61,7 @@ Issue [#371](https://github.com/ahliweb/awcms-mini/issues/371), [#372](https://g
 
 ## Epic M9 + issue pasca-analisis lanjutan (di luar backlog doc06)
 
-Ditutup `completed` pada 2026-07-06 s.d. 2026-07-07, setelah seluruh 18 issue backlog doc06 di atas tuntas. Ringkasan per issue ada di `docs/awcms-mini/github/README.md` §Epic M9/§Issue pasca-analisis #450-#454/§Issue pasca-analisis #461-#465, #473, #475; detail teknis lengkap di `CHANGELOG.md` (versi 0.23.0-0.23.5) dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` §Perawatan pasca-backlog.
+Ditutup `completed` pada 2026-07-06 s.d. 2026-07-07, setelah seluruh 18 issue backlog doc06 di atas tuntas. Ringkasan per issue ada di `docs/awcms-mini/github/README.md` §Epic M9/§Issue pasca-analisis #450-#454/§Issue pasca-analisis #461-#465, #473, #475; detail teknis lengkap di `CHANGELOG.md` (versi 0.23.0-0.23.5) dan `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md` §Perawatan pasca-backlog.
 
 <!-- github-snapshot:closed-issues-post-doc06:start -->
 

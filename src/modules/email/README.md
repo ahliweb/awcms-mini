@@ -16,7 +16,7 @@ dokumentasi akhir (#500). **Epic #492 selesai seluruhnya** (lihat
 `.env.example`/doc 18 sebelumnya sempat mewariskan `MAILKETING_ENABLED`/
 `STARSENDER_ENABLED`/`AI_ANALYST_ENABLED` dari contoh domain retail/POS —
 flag itu dihapus dari `.env.example` base saat genericization
-(`AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`, `CHANGELOG.md`) karena terikat
+(`AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`, `CHANGELOG.md`) karena terikat
 kasus domain sempit "kirim struk via email/WA" (issue #390, closed _not
 planned_). Epic #492 **bukan** kebangkitan #390 — ini infrastruktur generik
 (password reset, system announcement, workflow notification) yang

@@ -1,8 +1,126 @@
-# Audit Standar Pengembangan Software AWCMS-Mini — 2026-07-04
+# Audit Standar Pengembangan Software AWCMS-Mini — 2026-07-17
 
-## Ringkasan verdict
+> **Dokumen hidup.** Nama file mengikuti **tanggal perubahan terakhir** — di-rename tiap kali diperbarui (sebelumnya `AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`). Entri CHANGELOG lama sengaja tetap merujuk nama file pada saat itu; itu akurat secara historis.
+>
+> **Riwayat rename**: `2026-07-04` (audit baseline & foundation skeleton) → `2026-07-17` (audit repo menyeluruh v0.24.0).
 
-Status repository terbaru: **PASS untuk baseline perencanaan dan foundation skeleton Issue 0.1**. Runtime aplikasi penuh belum selesai karena tenant/auth/RBAC/sync/deployment masih berada di backlog, tetapi scaffold Astro/Bun, health endpoint, module contract, response helper, soft-delete convention, dan folder standar sudah tersedia.
+## Audit repo menyeluruh — 2026-07-17 (v0.24.0)
+
+> Tindak lanjut ditrack di epic **#818** dan issue **#819–#835** (milestone _M9 — Peningkatan & Hardening (pasca-backlog)_).
+
+### Ringkasan verdict 2026-07-17
+
+**PASS** — nol temuan Critical; gate go-live doc 07 tidak memblokir.
+
+Fondasi **sehat dan melebihi scope PRD**. Terhadap 11 "Modul utama (base)" doc 01, **tidak ada modul yang hilang** — beberapa jauh melebihi spesifikasinya. Audit dijalankan saat backlog kosong (0 issue, 0 PR terbuka).
+
+Temuan nyata mengelompok di **tiga tempat**:
+
+1. **Jalur `data-exchange` preview** — tiga cacat saling menguat; laten, tapi akan mengunci turunan pertama.
+2. **Pagar rilis/CI** — praktis tidak ada; `main` tak diproteksi, rilis tak pernah terjadi.
+3. **Dokumen perencanaan** — tertinggal jauh dari kode (scope drift tak terdokumentasi).
+
+### Lingkup & metode
+
+Empat audit paralel independen (konformansi PRD, keamanan, testing/CI/ops, arsitektur/performa) + satu audit performa/algoritma mendalam. Setiap temuan **diverifikasi ulang langsung terhadap kode**, bukan diterima apa adanya dari laporan agen.
+
+Ukuran repo saat audit: **~180k LOC**, **24 modul** (22 `active`, 2 `experimental`), **76 migration**, **144 tabel**, **~290 route API** (396 operasi OpenAPI), **4610 test / 319 file**, **46 skill**.
+
+> **Catatan scope**: doc 02 menyatakan **sendiri** bahwa modul retail/POS-nya **ilustratif**. Konformansi dinilai terhadap tabel "Modul utama (base)" doc 01 — bukan terhadap Sales POS/Warehouse/Coretax/AI yang memang tak pernah dibangun di sini.
+
+### Diverifikasi bersih — jangan audit ulang dari nol
+
+| Area                         | Hasil                                                                                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **RLS**                      | **129/129** tabel tenant-scoped punya `ENABLE` + `FORCE` + `CREATE POLICY`. Nol ENABLE-tanpa-policy, nol owner-bypass.                                    |
+| **Auth guard**               | 25 dari 289 route tanpa guard ABAC — **semuanya public sah** (auth pre-session, health, setup wizard, sync HMAC, webhook HMAC). Default-deny tidak bocor. |
+| **Masking PII**              | `identifier-directory.ts` **tidak pernah** menyeleksi `normalized_value`, hanya `masked_value`.                                                           |
+| **Secret**                   | Nol hardcoded; tak ada fallback default pada env secret.                                                                                                  |
+| **Migration checksum drift** | Tergate — `scripts/db-migrate.ts:357` fail-fast, unit-covered.                                                                                            |
+| **Connection pool**          | Nol gap vs doc 16.                                                                                                                                        |
+| **Test pyramid**             | Integration suite jalan di CI terhadap **Postgres 18.4 nyata** (bukan skip diam-diam). 64 file assert RLS, 43 assert cross-tenant denial.                 |
+| **Struktur data**            | Nol idiom dedupe O(n²), nol sort manual. `src/lib` bersih total.                                                                                          |
+
+> **Jebakan metodologi**: ada **dua** gaya guard (`authorizeInTransaction` dan `evaluateAccess` inline, sebagian didelegasikan ke service). Grep satu pola saja akan **salah melaporkan ~43 route** sebagai tanpa guard. Begitu pula hitungan test mentah: `_shared`/`identity-access`/`logging`/`tenant-admin` tampak punya 62-65 integration test hanya karena hampir setiap test melakukan setup+login — **insidental, bukan dedicated**.
+
+### Temuan
+
+#### Keamanan — `data-exchange` preview (#820)
+
+Tiga cacat, satu jalur, **saling menguat** menjadi kebocoran NIK/NPWP mentah:
+
+1. **Default-allow** — `sensitiveFields` opsional ⇒ `[]` ⇒ `canSeeRawValues = true`. Lupa mendeklarasikan = _membuka_.
+2. **`rawValuePermission` divalidasi tapi nol enforcement site** — kontrak menjanjikan proteksi yang tak pernah dieksekusi. Pengulangan pola "validator ada tapi tak tersambung" (#769/#740, dulu Critical).
+3. **Fail-open** — `!descriptor` lolos, padahal komentar di bawahnya mengklaim _"fails CLOSED, never open"_. Efek: batch jadi **lebih terbuka setelah modulnya di-disable**.
+
+**Status: laten** — belum ada modul yang mendaftarkan exchange descriptor. Karena ini repo **base**, ketiganya perangkap untuk turunan **pertama** yang mendaftarkan adapter profil.
+
+#### Keamanan — audit login (#821)
+
+`auth/login.ts` mengimpor `recordAuditEvent`, memanggilnya **sekali** (`mfa_challenge_issued`). **Login sukses & gagal tidak diaudit** — satu-satunya gate base-ready doc 01 yang **gagal di kode**.
+
+#### Rilis & CI (#823, #824, #825)
+
+- **`main` tidak diproteksi** (`404 Branch not protected`) ⇒ CI **advisory**.
+- **CI merah 3 run beruntun** — `fetchModuleMatrix` **7278ms vs budget 5000ms**.
+- **Nol rilis pernah terjadi**: v0.24.0, nol tag `v*`. `changeset tag` → `awcms-mini@0.24.0`; release.yml trigger `v*.*.*`. **Saling meniadakan.** `sign + attest + publish` belum pernah dieksekusi end-to-end.
+- **Lima gate `check` absen dari ci.yml** — kejadian **keempat** untuk kelas yang sama.
+- **Nol cron selain CodeQL**; `resilience-dr-verification.md:196` & `performance-suite.md:26` **menjanjikan lane terjadwal yang tidak ada**.
+
+#### Arsitektur (#826)
+
+**Import cycle hidup** `domain_event_runtime ⇄ integration_hub`, **kedua gate buta**: `module-boundary-cycles.test.ts` hanya memindai `application/`+`domain/` (sisi keluar ada di `infrastructure/`); `modules:dag:check` memercayai `dependencies` yang tidak mendeklarasikan `integration_hub`/`reporting`. Sisa graf asiklik & sehat.
+
+#### Performa (#824, #830–#835)
+
+| Temuan                                                                                                      | Kompleksitas                        | Kapan menggigit                      |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------ |
+| `fetchModuleMatrix` ≈**92 query/render** (#824) — `migrationsAppliedSignal` module-invariant dijalankan 23× | O(M) → **O(1)**                     | **Sekarang, di CI**                  |
+| Middleware `await` analytics + host→tenant tanpa cache (#832)                                               | 4-6 RTT masuk TTFB                  | **Traffic publik apa pun**           |
+| Index hilang: `updated_at`, `scheduled_at`, 4 FK (#830)                                                     | Seq scan                            | ~50k row/tenant                      |
+| `detectSoDConflicts` (#833)                                                                                 | O(P×R×K×F×S) ≈**6M kunjungan/POST** | Hierarki dalam + role luas           |
+| `resolveLegalEntityScope` (#834)                                                                            | O(U²) → **O(U)**                    | Ratusan–puluhan ribu unit            |
+| Klamp separuh `page`/`offset` (#819, #831)                                                                  | `OFFSET NaN` → **500**              | **Sekarang** — DoS publik tanpa auth |
+
+**Sudah optimal — jangan "diperbaiki"**: `workflow-graph.ts` `detectCycle` (DFS O(V+E), `MAX_NODES=64`); `module-dependency-graph.ts` (Kahn naif tapi V≈23 statis, build-time only); `evaluateAccess` (Set-based O(1)); keyset pagination di `visitor-analytics`/`blog-search`/`email`/`tenant-domain`/`sync-*`; `archive-purge-job.ts` `SELECT *` (archiver generik, legit); **57 FK non-leading** dalam `(tenant_id, x)` (setiap query memfilter `tenant_id` eksplisit per doc 16).
+
+**Karakter arsitektural**: repo ini **tidak punya recursive CTE sama sekali** dan **tidak punya per-level query loop**. Pola hierarki selalu: satu bulk query muat seluruh adjacency tenant → walk in-memory. Kegagalannya **kebalikan N+1**.
+
+#### Dokumen (#828, #829)
+
+- **Doc 01 & 02: nol penyebutan** untuk 12+ modul shipped. Doc 01 masih menegaskan _"Modul domain … bukan bagian base ini"_ — **membantah doc 21 dan kode**.
+- **Doc 13**: 9/22 baris traceability menunjuk modul tak pernah ada; ~14/27 baris menyebut tabel/endpoint fiktif; migration matrix berhenti di `055` padahal preamble-nya menulis "76 file migration nyata".
+- **Doc 02** tak punya PRD untuk 2 dari 11 modul base (Localization UI, Management Reporting).
+- **4 dari 11 modul base tak punya module folder/descriptor** ⇒ tak terlihat `modules:dag:check`.
+- **`awcms_mini_security_*` dijanjikan doc 13, nol di kode**.
+- **5 modul aktif tanpa skill** (#829): `data-exchange`, `organization-structure`, `reference-data`, `reporting`, `domain-event-runtime` — empat di antaranya jadi sumber temuan audit ini.
+- Jumlah skill di doc 13 tertulis **39**; nyatanya **46**.
+
+> **`docs/perbedaan-dengan-awcms.md` adalah dokumen paling akurat** di set ini dan konsisten dengan kode. Ia sudah mengidentifikasi cluster CMS sebagai "skopnya CMS, bukan fondasi ERP" — pengakuan implisit atas scope drift yang **tak pernah dipropagasikan balik** ke doc 01. **Pakai sebagai sumber kebenaran saat merekonsiliasi.**
+
+### Kelas bug yang berulang di repo ini
+
+Semuanya **lolos review manusia** minimal sekali:
+
+1. **Validator ada tapi tak tersambung** (#820, #769, #740) — telusuri kontrak keamanan **MUNDUR dari jalur nyata**.
+2. **Default-allow menyamar default-deny** (#820) — tanya "kalau tidak diisi, apa yang terjadi?" Jawaban benar selalu **tutup**.
+3. **Klamp separuh** (#819, #831) — `limit` diklamp, `offset` di sebelahnya tidak.
+4. **Gate memindai tempat salah / memercayai deklarasi** (#826) — gate hijau ≠ tidak ada masalah.
+5. **CI mencerminkan `check` manual lalu melenceng** (#823) — 4× berulang.
+6. **Skill/doc drift** (#828, #829) — 6× berulang.
+7. **Idempotency tak konsisten antar padanan** (#822, #795).
+
+Pola gate yang benar untuk kelas 1–6: **gate yang gagal keras**, bukan konvensi tertulis.
+
+---
+
+## Audit baseline & foundation skeleton — 2026-07-04 (historis)
+
+> Bagian di bawah adalah audit asli 2026-07-04, saat repo baru berupa foundation skeleton Issue 0.1. Dipertahankan sebagai rekaman historis — **status "belum ada"/"menunggu issue" di dalamnya sudah usang** (lihat bagian 2026-07-17 di atas untuk keadaan sekarang).
+
+### Ringkasan verdict 2026-07-04
+
+Status repository saat itu: **PASS untuk baseline perencanaan dan foundation skeleton Issue 0.1**. Runtime aplikasi penuh belum selesai karena tenant/auth/RBAC/sync/deployment masih berada di backlog, tetapi scaffold Astro/Bun, health endpoint, module contract, response helper, soft-delete convention, dan folder standar sudah tersedia.
 
 Stack target sudah konsisten di dokumen:
 

@@ -45,7 +45,7 @@ nyata apa pun). AWPOS sebaliknya sudah:
 
 ## Fakta kunci: paket dokumen AWPOS adalah sumber asal base ini
 
-Ini bukan kebetulan — `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`
+Ini bukan kebetulan — `docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`
 mencatat bahwa AWCMS-Mini direfaktor total pada 2026-07-04 mengikuti paket
 dokumen AWPOS sebagai **sumber kebenaran standar**, mengekstrak 18 dari 38
 issue doc06 AWPOS yang bersifat generik (foundation, tenant/identity,
@@ -224,7 +224,7 @@ kepatuhan praktis, ditambah butir spesifik AWPOS:
   — contoh konkret satu modul domain minimal.
 - [`deploy-coolify.md`](deploy-coolify.md) — panduan deployment registry-
   based bila AWPOS memilih topologi online/multi-outlet.
-- [`AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md`](AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md)
+- [`AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`](AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md)
   — catatan asal-usul ekstraksi 18 issue generik dari 38 issue AWPOS
   menjadi base ini.
 - Repo [`ahliweb/awpos`](https://github.com/ahliweb/awpos) — docs 01-19,

@@ -182,7 +182,7 @@ Check yang butuh Postgres sungguhan (`checkRlsEnabled`,
 `checkAuditLogTableReachable`, sebagian `checkSoftDeletePermissionsSeededAndAudited`)
 **tidak** di-unit-test dengan DB palsu — itu akan menguji mock, bukan query
 sungguhan. Pembuktiannya ada di verifikasi live (lihat
-`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-04.md` entri Issue 10.3),
+`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md` entri Issue 10.3),
 termasuk skenario RLS sengaja dimatikan untuk membuktikan gate benar-benar
 memblokir, bukan sekadar skrip yang selalu mencetak "pass".
 
