@@ -45,7 +45,11 @@ function packageScripts(): Record<string, string> {
 /** Ekstrak nama script dari komposit `check` (`bun run a && bun run b && ...`). */
 function checkSteps(): string[] {
   const composite = packageScripts().check;
-  expect(composite, "package.json harus punya script `check`").toBeDefined();
+  if (!composite) {
+    throw new Error(
+      "package.json tidak punya script `check` — gate paritas ini tidak bermakna tanpanya."
+    );
+  }
   return [...composite.matchAll(/bun run ([a-z0-9:_-]+)/g)].map((m) => m[1]!);
 }
 
