@@ -328,3 +328,125 @@ describe("getOrLoadTenantByHost — bounded memory", () => {
     expect(stats.evictions).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Invalidation vs a loader that is ALREADY in flight (PR #847 review).
+ *
+ * Post-commit invalidation alone does not close this: `invalidate()` can only
+ * delete what is already stored, while a loader that started BEFORE the commit
+ * still holds a pre-commit snapshot and re-seats it afterwards with a full TTL.
+ * The eviction is undone by a read that was already in the air, so the route's
+ * carefully-ordered evict-after-commit is silently defeated.
+ *
+ * These are the tests whose absence let the race pass 4833 others.
+ */
+describe("invalidation beats a load that is already in flight", () => {
+  test("a value read BEFORE the invalidation is never seated afterwards", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    // Loader started at t0, reading pre-commit state.
+    const inFlight = getOrLoadTenantByHost("race.example.com", async () => {
+      await gate;
+      return "PRE_COMMIT";
+    });
+
+    // t1: the mutation commits, then the route invalidates. Nothing is stored
+    // yet, so this delete is a no-op — that is the whole trap.
+    invalidatePublicTenantHost("race.example.com");
+
+    release!();
+    // The in-flight caller still gets its answer: it asked before the change.
+    expect(await inFlight).toBe("PRE_COMMIT");
+
+    // But the NEXT request must not inherit it.
+    const after = await getOrLoadTenantByHost(
+      "race.example.com",
+      async () => "POST_COMMIT"
+    );
+    expect(after).toBe("POST_COMMIT");
+  });
+
+  test("a NEGATIVE result read before verification does not keep the domain 404ing", async () => {
+    // The concrete case `tenant/domains/[id]/verify.ts` documents as its
+    // reason for invalidating at all: traffic arriving while the domain is
+    // still pending_verification caches `null`.
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const inFlight = getOrLoadTenantByHost("newsite.example.com", async () => {
+      await gate;
+      return null;
+    });
+
+    invalidatePublicTenantHost("newsite.example.com");
+    release!();
+    expect(await inFlight).toBeNull();
+
+    const afterVerification = await getOrLoadTenantByHost(
+      "newsite.example.com",
+      async () => "tenant-now-active"
+    );
+    expect(afterVerification).toBe("tenant-now-active");
+  });
+
+  test("a request arriving after the invalidation does not JOIN the pre-invalidation flight", async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let loads = 0;
+
+    const inFlight = getOrLoadTenantByHost("join.example.com", async () => {
+      loads += 1;
+      await gate;
+      return "PRE_COMMIT";
+    });
+
+    invalidatePublicTenantHost("join.example.com");
+
+    // Arrives after the commit+invalidate — must issue its own read rather
+    // than adopting the answer of a query that read pre-commit state.
+    const afterInvalidate = getOrLoadTenantByHost(
+      "join.example.com",
+      async () => {
+        loads += 1;
+        return "POST_COMMIT";
+      }
+    );
+
+    release!();
+    expect(await inFlight).toBe("PRE_COMMIT");
+    expect(await afterInvalidate).toBe("POST_COMMIT");
+    expect(loads).toBe(2);
+  });
+
+  test("BIDIRECTIONAL: single-flight still collapses concurrent cold reads when nothing invalidates", async () => {
+    // Without this, "fixing" the race by disabling single-flight entirely
+    // would pass every test above while throwing away the stampede
+    // protection that is the reason this cache exists.
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let loads = 0;
+
+    const load = async () => {
+      loads += 1;
+      await gate;
+      return "SHARED";
+    };
+
+    const a = getOrLoadTenantByHost("flight.example.com", load);
+    const b = getOrLoadTenantByHost("flight.example.com", load);
+
+    release!();
+    expect(await a).toBe("SHARED");
+    expect(await b).toBe("SHARED");
+    expect(loads).toBe(1);
+  });
+});

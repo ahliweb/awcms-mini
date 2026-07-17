@@ -45,6 +45,43 @@ const COMPOSITION_ROOTS = [
   "scripts/domain-events-dispatch.ts",
   // REPLAY — resolves the handler via `getConsumerByName`.
   "src/pages/api/v1/domain-events/deliveries/[id]/replay.ts"
+  // Deliberately NOT listing publish roots here. This list's rule is "every
+  // root imports EVERY registration file", which is right for a root that
+  // RESOLVES handlers (dispatch/replay can be handed any consumer's delivery)
+  // but wrong for a PUBLISHER: forcing `integration_hub`'s publisher to import
+  // `reporting`'s registration would manufacture exactly the cross-module edge
+  // Issue #826 deleted. Publish-side coverage is asserted separately below,
+  // per-module. (PR #847 review; general derivation tracked as Issue #848.)
+];
+
+/**
+ * PUBLISH-side wiring, asserted per-module rather than through
+ * `COMPOSITION_ROOTS` above.
+ *
+ * `appendDomainEvent` creates delivery rows FROM THE REGISTRY at publish
+ * time, so a publisher that has not imported the registration for a consumer
+ * subscribed to its event creates ZERO rows for an event that really
+ * happened. That is strictly worse than a missed dispatch root: a missed
+ * dispatch leaves rows `pending` and re-running the dispatcher recovers them;
+ * a missed publish root loses them permanently, with nothing to reconstruct
+ * from — and silently, since `dispatch-domain-events.ts` iterates registered
+ * consumers, not delivery rows.
+ *
+ * Only ONE entry today, and that is a fact about the registry rather than an
+ * omission: `integration_hub.outbound_subscription_fanout` is the only
+ * registered cross-module consumer whose event type has any production
+ * publisher, and that publisher is in the SAME module — so the import is a
+ * module reaching its own infrastructure, not a new module-level edge.
+ * `reporting.event_activity_projector` subscribes to
+ * `domain-event-runtime.sample.recorded`, which no production code publishes.
+ */
+const PUBLISH_ROOTS: { publisher: string; registration: string }[] = [
+  {
+    publisher:
+      "src/modules/integration-hub/application/inbound-webhook-intake.ts",
+    registration:
+      "integration-hub/infrastructure/domain-event-consumer-registration.ts"
+  }
 ];
 
 function findRegistrationFiles(): string[] {
@@ -85,13 +122,55 @@ describe("domain-event consumer registration wiring (Issue #826)", () => {
         const source = readFileSync(path.join(REPO_ROOT, root), "utf-8");
         const moduleSpecifier = registrationFile.replace(/\.ts$/, "");
 
+        // An import STATEMENT ending in this specifier — not any mention of
+        // it. `includes()` is satisfied by a comment naming the path, which
+        // is the same defect this PR fixes in `ci-check-parity.test.ts` and
+        // which the publish-side check below shipped with until it was
+        // caught. The relative prefix varies by root (`../`, `../../…`), so
+        // the specifier is anchored at the end of the module string.
+        const importStatement = new RegExp(
+          `^\\s*import\\s+["'][^"']*${moduleSpecifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\.ts)?["']\\s*;?\\s*$`,
+          "m"
+        );
+
         expect(
-          source.includes(moduleSpecifier),
+          importStatement.test(source),
           `${root} must \`import "…/${moduleSpecifier}";\` for its side effect. ` +
             `Without it, that consumer is not registered in this process and its deliveries are never claimed — silently, forever.`
         ).toBe(true);
       });
     }
+  }
+
+  test("PUBLISH_ROOTS is not empty — an empty list would make the publish-side assertions below vacuous", () => {
+    expect(PUBLISH_ROOTS.length).toBeGreaterThan(0);
+  });
+
+  for (const { publisher, registration } of PUBLISH_ROOTS) {
+    test(`${publisher} imports ${registration} (publish-side: unregistered consumer = zero delivery rows, permanently)`, () => {
+      const source = readFileSync(path.join(REPO_ROOT, publisher), "utf-8");
+      const moduleDir = registration.split("/")[0]!;
+      const specifier = `../infrastructure/${REGISTRATION_FILE_NAME.replace(".ts", "")}`;
+
+      // Match the IMPORT STATEMENT, not any occurrence of the path. The first
+      // version of this check used `source.includes(specifier)` and passed
+      // with the real import deleted, because the line above it is a comment
+      // mentioning the same path — the identical "prose satisfies the gate"
+      // defect this PR fixes in `ci-check-parity.test.ts`. A side-effect
+      // import has no bindings, so the statement form is unambiguous.
+      const importStatement = new RegExp(
+        `^\\s*import\\s+["']${specifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\.ts)?["']\\s*;?\\s*$`,
+        "m"
+      );
+
+      expect(
+        importStatement.test(source),
+        `${publisher} calls appendDomainEvent but does not import its module's consumer registration.\n` +
+          `Delivery rows are created FROM THE REGISTRY at publish time, so without this import a subscribed ` +
+          `consumer gets ZERO rows for an event that did happen — no error, no dead-letter, nothing to replay.\n` +
+          `Add: import "${specifier}";  (registration file: ${moduleDir}/infrastructure/${REGISTRATION_FILE_NAME})`
+      ).toBe(true);
+    });
   }
 
   test("the runtime's own registry imports no consumer module (the cycle #826 broke)", () => {

@@ -115,9 +115,36 @@ export type PublicTenantCacheStats = {
 class SingleFlightTtlCache<T> {
   private readonly entries = new Map<string, CacheEntry<T>>();
   private readonly inFlight = new Map<string, Promise<T>>();
+  /**
+   * Per-key generation counter, bumped by every `invalidate()`/`reset()`.
+   *
+   * Post-commit invalidation alone does NOT close the staleness race, which
+   * is the trap this counter exists for: `invalidate()` can only delete what
+   * is already stored, and a loader that started BEFORE the commit is still
+   * in flight holding a pre-commit snapshot. Its `.then(store(...))` lands
+   * AFTER the invalidation and re-seats the stale value with a full TTL — so
+   * the eviction is silently undone by a read that was already in the air.
+   * Snapshotting the generation before `loader()` and refusing the `store()`
+   * when it has moved makes the invalidation win regardless of timing.
+   *
+   * Both review passes on PR #847 found this independently, from opposite
+   * directions: a de-listed domain kept serving for 60s, and a
+   * freshly-verified domain kept 404ing for 60s from a NEGATIVE entry —
+   * the very case `tenant/domains/[id]/verify.ts` documents as the reason it
+   * invalidates at all.
+   */
+  private readonly generations = new Map<string, number>();
   private hits = 0;
   private misses = 0;
   private evictions = 0;
+
+  private generationOf(key: string): number {
+    return this.generations.get(key) ?? 0;
+  }
+
+  private bumpGeneration(key: string): void {
+    this.generations.set(key, this.generationOf(key) + 1);
+  }
 
   async getOrLoad(key: string, loader: () => Promise<T>): Promise<T> {
     const ttlMs = resolvePublicTenantCacheTtlMs();
@@ -154,8 +181,20 @@ class SingleFlightTtlCache<T> {
 
     this.misses += 1;
 
+    // Snapshot BEFORE the loader runs — anything that invalidates this key
+    // while the query is in flight moves the generation, and the `store`
+    // below then declines to seat a value the invalidation already ruled out.
+    const generationAtLoad = this.generationOf(key);
+
     const promise = loader()
       .then((value) => {
+        if (this.generationOf(key) !== generationAtLoad) {
+          // Invalidated mid-flight. Return the value to THIS caller (it is a
+          // correct answer for a request that started before the change), but
+          // do not cache it for anyone else.
+          return value;
+        }
+
         this.store(key, value, ttlMs);
 
         return value;
@@ -187,9 +226,24 @@ class SingleFlightTtlCache<T> {
 
   invalidate(key: string): void {
     this.entries.delete(key);
+    // Drop the in-flight slot too, so a request arriving after the commit
+    // does not JOIN a query that read pre-commit state and inherit its
+    // answer. It costs one extra round trip for that request — the correct
+    // trade against serving a value the operator has already changed.
+    this.inFlight.delete(key);
+    this.bumpGeneration(key);
   }
 
   reset(): void {
+    // Bump every key that could still have a loader in flight, not just the
+    // stored ones — `entries` and `inFlight` are disjoint for a cold key.
+    for (const key of this.entries.keys()) {
+      this.bumpGeneration(key);
+    }
+    for (const key of this.inFlight.keys()) {
+      this.bumpGeneration(key);
+    }
+
     this.entries.clear();
     this.inFlight.clear();
     this.hits = 0;

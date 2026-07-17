@@ -436,4 +436,65 @@ suite("public tenant resolution cache — production path (Issue #832)", () => {
     expect(afterFirst).toBe(1);
     expect(counting.count()).toBe(2);
   });
+
+  /**
+   * Cross-module invalidation (PR #847 review).
+   *
+   * The cache's own note calls the resolution "a pure function of host" —
+   * true of the KEY, but not of the VALUE: `public-host-tenant-resolver.ts`
+   * selects `tenant_status, tenant_code, tenant_name, default_locale` from
+   * `awcms_mini_tenants`, a table the `tenant_admin` settings module mutates
+   * and the `tenant_domain` module never touches. Modelling the cache as
+   * owned by `tenant_domain` alone leaves that edit invisible for a full TTL,
+   * where before the cache it was correct on the very next request.
+   */
+  test("a tenant_name edit is visible to the PUBLIC resolver, not stuck behind the TTL", async () => {
+    await insertDomain(TENANT_A, "rename.example.com");
+    const admin = getAdminSql();
+
+    const before = await resolvePublicTenantFromRequest(
+      getTestSql(),
+      requestForHost("rename.example.com"),
+      { mode: "host_default" }
+    );
+    expect(before?.tenantName).toBe("Tenant A");
+
+    // The settings route's write + its post-commit eviction.
+    await admin`
+      UPDATE awcms_mini_tenants SET tenant_name = 'Renamed A' WHERE id = ${TENANT_A}
+    `;
+    invalidatePublicTenantHost("rename.example.com");
+
+    const after = await resolvePublicTenantFromRequest(
+      getTestSql(),
+      requestForHost("rename.example.com"),
+      { mode: "host_default" }
+    );
+    expect(after?.tenantName).toBe("Renamed A");
+  });
+
+  test("BIDIRECTIONAL: without the eviction the rename is INVISIBLE — proving the eviction is what makes it work, not the TTL", async () => {
+    await insertDomain(TENANT_A, "stale.example.com");
+    const admin = getAdminSql();
+
+    const before = await resolvePublicTenantFromRequest(
+      getTestSql(),
+      requestForHost("stale.example.com"),
+      { mode: "host_default" }
+    );
+    expect(before?.tenantName).toBe("Tenant A");
+
+    await admin`
+      UPDATE awcms_mini_tenants SET tenant_name = 'Renamed A' WHERE id = ${TENANT_A}
+    `;
+    // Deliberately NO invalidatePublicTenantHost — this is the pre-fix
+    // behaviour, pinned so the test above cannot pass for the wrong reason
+    // (e.g. if caching silently stopped working at all).
+    const stillStale = await resolvePublicTenantFromRequest(
+      getTestSql(),
+      requestForHost("stale.example.com"),
+      { mode: "host_default" }
+    );
+    expect(stillStale?.tenantName).toBe("Tenant A");
+  });
 });
