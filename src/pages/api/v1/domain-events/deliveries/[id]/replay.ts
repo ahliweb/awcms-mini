@@ -24,6 +24,14 @@ import {
   UnknownReplayConsumerError,
   replayDomainEventDelivery
 } from "../../../../../../modules/domain-event-runtime/application/delivery-replay";
+// Side-effect import (Issue #826) — COMPOSITION ROOT. `replayDomainEventDelivery`
+// resolves the handler via `getConsumerByName`, so a cross-module consumer whose
+// registration file was never imported in THIS process would make a legitimate
+// replay fail with `UnknownReplayConsumerError`. Any new registration file must be
+// added here too; enforced by
+// `tests/unit/domain-event-consumer-registration-wiring.test.ts`.
+import "../../../../../../modules/integration-hub/infrastructure/domain-event-consumer-registration";
+import "../../../../../../modules/reporting/infrastructure/domain-event-consumer-registration";
 
 const REPLAY_GUARD = {
   moduleKey: "domain_event_runtime",

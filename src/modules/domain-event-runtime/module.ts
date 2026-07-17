@@ -7,6 +7,15 @@ export const domainEventRuntimeModule = defineModule({
   status: "active",
   description:
     "Transactional, versioned domain-event outbox and dispatcher (Issue #742, epic `platform-evolution` #738, Wave 1 — System Foundation candidate per ADR-0013 §1). Provider-neutral, generic multi-consumer counterpart to this repo's existing single-purpose outbox precedents (`sync-storage`'s object queue, `email`'s message queue, `social-publishing`'s publish jobs) — one event can fan out to MANY registered consumers, with explicit per-aggregate/order-key ordering (never a global total order). Producers call `application/append-domain-event.ts`'s `appendDomainEvent` inside their OWN business transaction (same-commit outbox write, ADR-0006 compliant: no external call happens there). A static, reviewed-source-code consumer registry (`infrastructure/consumer-registry.ts`) decides fan-out at publish time; `application/dispatch-domain-events.ts` (`bun run domain-events:dispatch`, built on the shared worker runner `src/lib/jobs/job-runner.ts`, PR #713) claims/executes/finalizes deliveries with per-order-key ordering, exponential backoff, and dead-letter handling. Dead-lettered deliveries can be replayed by a permission-gated, reason-required, audited, idempotent admin action (`application/delivery-replay.ts`). Ships exactly one self-contained reference event type (`sample.recorded`, `domain/event-type-registry.ts`) and two representative consumers (a same-process cross-module audit projector, and a reporting/read-model activity-rollup projection) to exercise the full mechanism end-to-end — real producer/consumer wiring for existing modules (blog_content, social_publishing, email, etc.) is intentionally deferred to follow-up issues, matching the accepted \"foundation issue ships zero real business integrations\" precedent (#643, PR #713). An optional broker adapter port (`infrastructure/broker-adapter-port.ts`) is defined for future out-of-process delivery; no external broker is required or registered by default — PostgreSQL/in-process dispatch is the only implemented path, so offline/LAN deployments are unaffected. See `README.md` for full design rationale.",
+  // Issue #826: this list is now backed by the REAL import graph, enforced
+  // by `tests/unit/module-declared-dependencies.test.ts`. Neither
+  // `integration_hub` nor `reporting` is declared here — #826 removed the
+  // imports that used to reach into them (both consumers now register
+  // THEMSELVES into this runtime; see `infrastructure/consumer-registry.ts`'s
+  // `registerDomainEventConsumer`). Declaring either would re-create a cycle
+  // in the declared graph, since both declare `domain_event_runtime`
+  // themselves — a `system` foundation module must not depend on the feature
+  // modules that plug into it (ADR-0013 §1).
   dependencies: ["tenant_admin", "identity_access", "logging"],
   type: "system",
   events: {

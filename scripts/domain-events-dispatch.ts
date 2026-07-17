@@ -45,6 +45,17 @@ import {
   recordDomainEventBacklogGauges,
   type DispatchDomainEventsResult
 } from "../src/modules/domain-event-runtime/application/dispatch-domain-events";
+// Side-effect imports (Issue #826) — COMPOSITION ROOT. Every module that
+// owns a `domain_event_runtime` consumer registers it from its own
+// `infrastructure/domain-event-consumer-registration.ts`; this worker runs
+// in its own process and imports none of those modules otherwise, so
+// without these lines `dispatchDomainEventsForTenant` (which iterates
+// REGISTERED CONSUMERS) would never claim their deliveries — silently, with
+// no error and no dead-letter, leaving them `pending` forever. Any new
+// registration file must be added here too; enforced by
+// `tests/unit/domain-event-consumer-registration-wiring.test.ts`.
+import "../src/modules/integration-hub/infrastructure/domain-event-consumer-registration";
+import "../src/modules/reporting/infrastructure/domain-event-consumer-registration";
 
 export type DomainEventsDispatchOptions = {
   /** Forwarded to `dispatchDomainEventsForTenant`'s own `limit` (defaults to 25 there). Exposed here so tests can force small batches deterministically. */

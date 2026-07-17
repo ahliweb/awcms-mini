@@ -71,11 +71,16 @@ reporting:projections:registry:check`.
   `domain_event_runtime` consumer (Issue #742), reusing that module's
   shared jobs/locks/batching/idempotency/retry/pause-resume machinery
   instead of building a second one. The ONE real (non-reference) new
-  consumer this issue registers lives in `domain-event-runtime/
-infrastructure/consumer-registry.ts` (`reporting.event_activity_
-projector`) — the one deliberate cross-module edge, one-directional
-  (`domain_event_runtime -> reporting/application`), verified cycle-free
-  by `tests/unit/module-boundary-cycles.test.ts`.
+  consumer this issue registers lives in this module's own
+  `infrastructure/domain-event-consumer-registration.ts`
+  (`reporting.event_activity_projector`), which registers itself into
+  `domain_event_runtime` via `registerDomainEventConsumer`. It used to
+  live in `domain-event-runtime/infrastructure/consumer-registry.ts`,
+  making the edge point `domain_event_runtime -> reporting` — the exact
+  OPPOSITE of the `reporting -> domain_event_runtime` dependency this
+  module's own `module.ts` declares. Issue #826 inverted it so the code
+  and the declaration finally agree; `tests/unit/module-declared-
+dependencies.test.ts` now enforces that agreement.
 
 Every projection — REGARDLESS of its steady-state strategy — is
 REBUILT via the exact same bounded `cursor_table` re-scan mechanism
