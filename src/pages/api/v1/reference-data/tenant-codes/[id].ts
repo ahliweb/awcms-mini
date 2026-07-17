@@ -169,7 +169,19 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     // no-op stays observably a no-op. Deliberately AFTER authorization and the
     // 404/idempotency-replay checks — an empty patch must not become a way to
     // probe for a code's existence without holding the update permission.
+    //
+    // Every refusal `updateTenantReferenceCode` would have applied has to be
+    // re-applied here, or the endpoint's answer starts depending on how many
+    // fields the caller happened to send. Its UPDATE carries
+    // `AND deprecated_at IS NULL` and reports `not_found` for a deprecated
+    // row, so the empty patch must 404 on one too — otherwise a deprecated
+    // tenant code reads back as a live, editable-looking 200 through this path
+    // alone. (Issue #843 tracks removing this duplication outright.)
     if (Object.keys(parsed.patch).length === 0) {
+      if (existing.deprecatedAt !== null) {
+        return fail(404, "NOT_FOUND", "Tenant code not found.");
+      }
+
       const noopResponse = ok({ tenantCode: existing });
       await saveIdempotencyRecord(
         tx,
