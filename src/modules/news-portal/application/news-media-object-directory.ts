@@ -272,6 +272,54 @@ export async function fetchNewsMediaObjectById(
   return rows[0] ? toView(rows[0]) : null;
 }
 
+/**
+ * Bulk sibling of `fetchNewsMediaObjectById` (Issue #835 §1): resolves many
+ * ids in ONE `id = ANY(...)` round-trip instead of one query per id. Used by
+ * `news-media-port-adapter.ts`'s `resolveMediaReferences`, whose signature
+ * is already batch-shaped — callers correctly hand it the whole id set, only
+ * for the old implementation to loop `fetchNewsMediaObjectById` N times. The
+ * default (`includeDeleted` omitted) filters `deleted_at IS NULL`, matching
+ * the point lookup. Order is not guaranteed — callers key by id, never by
+ * position.
+ */
+export async function fetchNewsMediaObjectsByIds(
+  tx: Bun.SQL,
+  tenantId: string,
+  ids: readonly string[],
+  options: FetchNewsMediaObjectOptions = {}
+): Promise<NewsMediaObjectView[]> {
+  const uniqueIds = [...new Set(ids)];
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const rows = (
+    options.includeDeleted
+      ? await tx`
+        SELECT id, tenant_id, module_key, owner_resource_type, owner_resource_id,
+          storage_driver, bucket_name, object_key, original_filename, public_url,
+          mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
+          status, created_by_tenant_user_id, created_at, updated_at,
+          deleted_at, deleted_by, delete_reason, restored_at, restored_by
+        FROM awcms_mini_news_media_objects
+        WHERE tenant_id = ${tenantId} AND id = ANY(${tx.array(uniqueIds, "uuid")})
+      `
+      : await tx`
+        SELECT id, tenant_id, module_key, owner_resource_type, owner_resource_id,
+          storage_driver, bucket_name, object_key, original_filename, public_url,
+          mime_type, size_bytes, checksum_sha256, width, height, alt_text, caption,
+          status, created_by_tenant_user_id, created_at, updated_at,
+          deleted_at, deleted_by, delete_reason, restored_at, restored_by
+        FROM awcms_mini_news_media_objects
+        WHERE tenant_id = ${tenantId} AND id = ANY(${tx.array(uniqueIds, "uuid")})
+          AND deleted_at IS NULL
+      `
+  ) as NewsMediaObjectRow[];
+
+  return rows.map(toView);
+}
+
 export type MarkNewsMediaObjectUploadedInput = {
   sizeBytes?: number;
   checksumSha256?: string;

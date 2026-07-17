@@ -55,6 +55,7 @@ import { isFullOnlineR2ModeAppliedForTenant } from "./news-portal-tenant-state";
 import { evaluateNewsPortalFullOnlineR2Readiness } from "../domain/news-portal-preset-readiness";
 import {
   fetchNewsMediaObjectById,
+  fetchNewsMediaObjectsByIds,
   isNewsMediaObjectSafeForPublicReference
 } from "./news-media-object-directory";
 import type {
@@ -93,11 +94,19 @@ export const newsMediaPortAdapter: NewsMediaPort = {
   ): Promise<ReadonlyMap<string, ResolvedNewsMediaReferenceDTO>> {
     const resolved = new Map<string, ResolvedNewsMediaReferenceDTO>();
 
-    for (const mediaObjectId of new Set(mediaObjectIds)) {
-      const media = await fetchNewsMediaObjectById(tx, tenantId, mediaObjectId);
+    // Issue #835 §1: one `id = ANY(...)` round-trip for the whole batch,
+    // instead of one `fetchNewsMediaObjectById` per id. Unsafe / nonexistent
+    // / cross-tenant ids are simply absent from the result (the row is filtered
+    // by status or never returned), never thrown — same contract as before.
+    const mediaObjects = await fetchNewsMediaObjectsByIds(
+      tx,
+      tenantId,
+      mediaObjectIds
+    );
 
-      if (media && isNewsMediaObjectSafeForPublicReference(media.status)) {
-        resolved.set(mediaObjectId, {
+    for (const media of mediaObjects) {
+      if (isNewsMediaObjectSafeForPublicReference(media.status)) {
+        resolved.set(media.id, {
           publicUrl: media.publicUrl,
           altText: media.altText,
           mimeType: media.mimeType,

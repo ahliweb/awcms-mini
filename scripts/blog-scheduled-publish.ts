@@ -49,6 +49,7 @@ async function main() {
 
     let totalPublished = 0;
     let totalBlocked = 0;
+    let partialTenants = 0;
 
     for (const tenant of tenants) {
       const result = await publishDueScheduledPosts(
@@ -61,11 +62,17 @@ async function main() {
 
       totalPublished += result.publishedCount;
       totalBlocked += result.blockedCount;
+      if (result.partial) {
+        // Issue #835 §6: this tenant had a full batch this run; its remaining
+        // due posts are picked up on the next scheduled run (idempotent).
+        partialTenants += 1;
+      }
     }
 
     console.log(
       `blog:publish:scheduled complete — correlationId=${correlationId} ` +
-        `tenants=${tenants.length} published=${totalPublished} blocked=${totalBlocked}`
+        `tenants=${tenants.length} published=${totalPublished} blocked=${totalBlocked} ` +
+        `partialTenants=${partialTenants}`
     );
   } catch (error) {
     logScriptFailure("blog:publish:scheduled FAILED", error);
