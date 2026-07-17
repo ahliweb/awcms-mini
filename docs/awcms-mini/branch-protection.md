@@ -2,15 +2,35 @@
 
 Issue #685 (epic #679, platform-hardening) acceptance criterion: "Branch
 protection documentation identifies required checks." This document is
-that reference — it does **not** itself configure GitHub, and as of this
-writing `main` has **no branch protection rule at all**
-(`gh api repos/ahliweb/awcms-mini/branches/main/protection` returns
-`404 Branch not protected`). Every check below already runs and reports
-its status on every PR; none of them currently **block** a merge — a PR
-with a failing check can still be merged today. Enabling branch protection
-is a repo-admin, shared-state change (affects every contributor's merge
-flow) and is deliberately left to a maintainer to apply explicitly, not
-done automatically by this doc or by CI itself.
+that reference.
+
+> ## ✅ AKTIF sejak 2026-07-17 (Issue #823, epic #818)
+>
+> `main` **sudah diproteksi**. Sebelumnya tidak sama sekali
+> (`404 Branch not protected`) — CI berjalan tapi **advisory**: PR dengan
+> check merah tetap bisa di-merge, dan itu akar beberapa temuan audit
+> [#818](https://github.com/ahliweb/awcms-mini/issues/818).
+>
+> Konfigurasi terpasang (verifikasi: `gh api repos/ahliweb/awcms-mini/branches/main/protection`):
+>
+> | Setelan                            | Nilai                    | Alasan                                                                                                                                                         |
+> | ---------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | Required checks                    | 6 (lihat tabel di bawah) | CI tidak lagi advisory                                                                                                                                         |
+> | `strict`                           | `false`                  | PR tidak dipaksa selalu up-to-date dengan `main` — trade-off sadar agar banyak PR paralel tidak terserialisasi. Pertimbangkan `true` setelah epic #818 selesai |
+> | Approval wajib                     | `0`                      | PR tetap wajib + CI wajib hijau, tapi alur agent masih bisa me-merge PR hijau. Naikkan ke `1` bila ingin review manusia wajib                                  |
+> | `enforce_admins`                   | `false`                  | Menyisakan jalan darurat bila CI rusak total                                                                                                                   |
+> | Force push                         | diblokir                 |                                                                                                                                                                |
+> | Penghapusan branch                 | diblokir                 |                                                                                                                                                                |
+> | `required_conversation_resolution` | `true`                   | Temuan review tidak bisa diabaikan diam-diam                                                                                                                   |
+>
+> **`CodeQL` (yang polos) sengaja TIDAK diwajibkan** — check itu melapor
+> `skipping` pada sebagian run, dan mewajibkannya akan menggantungkan PR
+> selamanya. Yang diwajibkan adalah dua job `Analyze (...)` yang benar-benar
+> berjalan. Ini jebakan nyata: required check yang bisa "skip" = deadlock.
+
+Mengubah proteksi adalah perubahan shared-state (memengaruhi alur merge
+setiap kontributor) — lakukan eksplisit oleh maintainer, jangan otomatis dari
+doc ini atau dari CI.
 
 ## Required status checks (recommended)
 
@@ -34,7 +54,19 @@ list too if the org's GitGuardian integration is expected to stay enabled
 long-term; it is not configured by anything in `.github/workflows/`, so
 it isn't itemized above with the rest.
 
-## Applying this (maintainer action, not automated)
+## Mengubah proteksi (sudah diterapkan — bagian ini untuk MENGUBAH, bukan memasang)
+
+> Perintah & anjuran di bawah ditulis **sebelum** proteksi aktif dan
+> mencerminkan usulan awal, bukan kondisi terpasang. Yang benar-benar aktif
+> ada di kotak ✅ di bagian atas. **Dua nilai sengaja berbeda dari contoh di
+> bawah**: `strict=false` (bukan `true`) agar PR paralel tidak terserialisasi,
+> dan `enforce_admins=false` (bukan `true`) untuk menyisakan jalan darurat.
+> Contoh di bawah juga memakai `required_pull_request_reviews=null`, sedangkan
+> yang terpasang mewajibkan PR dengan `0` approval.
+>
+> Cara terpasangnya: `gh api -X PUT ... --input <file.json>` (payload JSON
+> penuh) — bentuk `-f key.subkey=value` di bawah rapuh untuk struktur bersarang.
+> **Selalu verifikasi dengan `GET` setelah mengubah.**
 
 Via the GitHub UI: **Settings → Branches → Add branch protection rule**,
 pattern `main`, enable **Require status checks to pass before merging**,
