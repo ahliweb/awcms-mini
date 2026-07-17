@@ -495,14 +495,8 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     profiles: ALL_PROFILES,
     default: "change-me-in-production",
     description:
-      "Documented as the session-token signing secret, still enforced non-empty at boot for backward compatibility.",
-    validatorGroup: "checkRequiredVars",
-    deprecated: {
-      since: "0.24.0",
-      removalVersion: "1.0.0",
-      guidance:
-        "Verified dead (Issue #689, matches the issue's own evidence): sessions are OPAQUE tokens, not JWT — src/modules/identity-access/README.md states `awcms_mini_sessions` stores only `token_hash` (raw token sent once at login). `grep -rn AUTH_JWT_SECRET src` outside scripts/validate-env.ts/tests finds zero consumers; the only real JWT verification in this repo (src/lib/auth/jwt-verify.ts, RS256 for Google/generic-OIDC ID tokens) verifies signatures against provider-published JWKS via WebCrypto — it never signs anything with this secret, and never reads it. This env var has zero runtime effect. Still required at boot for this release only to avoid a same-release behavior change; a future major version drops the boot-time requirement and then the variable itself. Nothing to migrate to — session tokens are generated with cryptographically random bytes, not derived from a shared secret."
-    }
+      "HMAC key for the audit-log client-IP pseudonym (`ipHash`) written by the auth routes — src/lib/security/client-fingerprint.ts. Despite its name it does NOT sign session tokens: sessions are opaque random tokens (`awcms_mini_sessions.token_hash`) and src/lib/auth/jwt-verify.ts verifies provider ID tokens with RS256 against published JWKS, never with this secret. Must be a high-entropy value and must NOT be left at the documented placeholder: the audit `ipHash` is only as unguessable as this key (an unkeyed digest over the 2^32 IPv4 space is reversible in seconds). Rotating it breaks `ipHash` correlation across the rotation boundary — audit rows before and after no longer group by source.",
+    validatorGroup: "checkRequiredVars + checkAuthJwtSecretNotDefault"
   },
   {
     name: "AUTH_SESSION_TTL_MIN",

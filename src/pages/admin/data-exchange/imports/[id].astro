@@ -21,6 +21,7 @@ import {
   maskSensitiveFields,
   type StagedRowRow
 } from "../../../../modules/data-exchange/application/staged-row-directory";
+import { isDescriptorPermissionGranted } from "../../../../modules/data-exchange/application/descriptor-authorization";
 import { listReconciliationReports } from "../../../../modules/data-exchange/application/reconciliation-service";
 import { createTranslator } from "../../../../lib/i18n/translate";
 import { logAdminPageError } from "../../../../lib/logging/error-log";
@@ -58,9 +59,20 @@ const CAN_MANAGE = context.permissions.has(
 // that issue fixes in the route (default-allow on an undeclared policy, a
 // hardcoded `data_exchange.preview_errors.read` in place of the
 // descriptor's own `rawValuePermission`, and no handling of a descriptor
-// that stopped resolving). The raw-value decision is made below, from the
-// descriptor, exactly as the route makes it — there is deliberately no
-// page-level `CAN_SEE_RAW` constant to drift from it again.
+// that stopped resolving). BOTH descriptor-level decisions are made below,
+// from the descriptor, exactly as the route makes them — there is
+// deliberately no page-level `CAN_SEE_RAW` constant to drift from them
+// again.
+//
+// PR #839's security review found the first pass here made only the
+// raw-value decision and skipped the descriptor's `requiredPermission`
+// gate entirely — the OWNING module's own permission, which all six API
+// routes enforce via `authorizeExchangeDescriptorPermission`. A descriptor
+// declaring `requiredPermission: "hr.payroll.read"` was therefore enforced
+// everywhere except here, letting a holder of the generic
+// `data_exchange.imports.read` read that module's staged content off this
+// page. Both gates now run below, sharing the route's semantics via
+// `isDescriptorPermissionGranted`.
 
 const clientStrings = {
   actionSuccess: t("admin.data_exchange.imports.action_success"),
@@ -76,6 +88,7 @@ let totalRows = 0;
 let reconciliation: Awaited<ReturnType<typeof listReconciliationReports>> = [];
 let loadError = false;
 let notFound = false;
+let descriptorDenied = false;
 
 if (CAN_READ && batchId) {
   try {
@@ -84,12 +97,40 @@ if (CAN_READ && batchId) {
       if (!batch) return;
 
       const descriptor = resolveImportDescriptor(batch.importKey);
-      const policy = descriptor?.sensitiveFields;
 
-      // Default-deny, same as the route: an unresolvable descriptor (owning
-      // module disabled after staging) and a descriptor declaring no policy
-      // both mask everything — including `naturalKey`, which is the only
-      // staged VALUE this table actually renders.
+      // An unresolvable descriptor (owning module disabled/removed via
+      // `module_management` after staging) DENIES — it does not fall back to
+      // `maskAllFields`. Nothing left in the registry can say who may read
+      // this batch, so masking the values while still rendering the batch's
+      // metadata would leave it strictly more exposed than while its module
+      // ran. The preview route answers 409 for exactly this state; this page
+      // renders the denied notice.
+      if (!descriptor) {
+        descriptorDenied = true;
+        batch = null;
+        return;
+      }
+
+      // The OWNING module's own permission, on top of the generic
+      // `data_exchange.imports.read` gate above — the same check the six API
+      // routes make with `authorizeExchangeDescriptorPermission` (a
+      // malformed key fails closed there and here).
+      if (
+        !isDescriptorPermissionGranted(
+          context.permissions,
+          descriptor.requiredPermission
+        )
+      ) {
+        descriptorDenied = true;
+        batch = null;
+        return;
+      }
+
+      const policy = descriptor.sensitiveFields;
+
+      // Default-deny, same as the route: a descriptor declaring no policy
+      // masks everything — including `naturalKey`, which is the only staged
+      // VALUE this table actually renders.
       let project: (row: StagedRowRow) => StagedRowRow = maskAllFields;
       if (policy) {
         // The descriptor's OWN permission, never a generic data_exchange one.
@@ -117,7 +158,7 @@ if (CAN_READ && batchId) {
         batchId
       );
     });
-    if (!batch) notFound = true;
+    if (!batch && !descriptorDenied) notFound = true;
   } catch (error) {
     logAdminPageError(
       "admin/data-exchange/imports/[id].astro: failed to load batch",
@@ -133,7 +174,7 @@ if (CAN_READ && batchId) {
 
 <AdminLayout title={t("admin.data_exchange.imports.detail_title")}>
   {
-    !CAN_READ && (
+    (!CAN_READ || descriptorDenied) && (
       <StateNotice
         kind="denied"
         title={t("admin.data_exchange.access_denied_title")}

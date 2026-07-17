@@ -30,6 +30,45 @@ export type DescriptorPermissionCheck =
   { allowed: true } | { allowed: false; denied: Response };
 
 /**
+ * The same decision as `authorizeDescriptorPermissionKey` below, expressed
+ * against an already-resolved permission set instead of a transaction +
+ * token hash — for the SSR admin screens, whose `Astro.locals.ssrContext`
+ * carries the caller's granted permission keys (`src/lib/auth/ssr-session.ts`
+ * builds it with the very same `fetchGrantedPermissionKeys` the bearer-token
+ * guard uses) and which have no bearer token to authorize with.
+ *
+ * It exists because `src/pages/admin/data-exchange/imports/[id].astro` does
+ * NOT go through the preview route — it queries and projects staged rows
+ * itself (see that page's own note) — and so needs its own call site for the
+ * descriptor gate. PR #839's security review found the page had replicated
+ * the raw-value decision but never made the `requiredPermission` one at all:
+ * a descriptor requiring, say, `hr.payroll.read` was enforced by all six API
+ * routes and by nothing in the UI, so a holder of the generic
+ * `data_exchange.imports.read` could read the owning module's staged content
+ * (natural keys, validation errors, reconciliation) straight off the page.
+ *
+ * Fails closed identically to the route path: a malformed key is `false`,
+ * never "no requirement". `undefined` — a descriptor genuinely declaring no
+ * extra requirement — is a legitimate allow, exactly as in
+ * `authorizeExchangeDescriptorPermission`.
+ */
+export function isDescriptorPermissionGranted(
+  permissions: ReadonlySet<string>,
+  permissionKey: string | undefined
+): boolean {
+  if (permissionKey === undefined) {
+    return true;
+  }
+
+  const parts = permissionKey.split(".");
+  if (parts.length !== 3 || parts.some((part) => part.length === 0)) {
+    return false;
+  }
+
+  return permissions.has(permissionKey);
+}
+
+/**
  * Authorizes one descriptor-declared permission key (`module.activity.
  * action`) against the caller. A malformed key fails CLOSED (500), never
  * open — a declaration the base cannot parse is never silently downgraded

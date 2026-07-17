@@ -34,6 +34,19 @@ import {
 // Captured at module load, before provisionAppRole() repoints DATABASE_URL.
 const ADMIN_DATABASE_URL = process.env.DATABASE_URL ?? "";
 
+/**
+ * `AUTH_JWT_SECRET` keys the audit-log `ipHash` HMAC
+ * (`src/lib/security/client-fingerprint.ts`), and since PR #839 the auth
+ * routes REFUSE to run without it rather than silently degrading to an
+ * unkeyed, reversible digest. It is a real deployment secret, and these tests
+ * are a deployment: supply a fixture value here rather than let the login
+ * route throw. Only defaulted, never overridden, so a run that sets its own
+ * secret keeps it.
+ */
+if (!process.env.AUTH_JWT_SECRET) {
+  process.env.AUTH_JWT_SECRET = "integration-test-ip-hash-secret";
+}
+
 // Non-secret fixture password for the least-privilege app role in tests.
 const APP_ROLE_TEST_PASSWORD = "integration_app_role_password";
 // Issue #683 (epic #679): fixture passwords for the two new least-privilege

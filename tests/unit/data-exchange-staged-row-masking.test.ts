@@ -91,6 +91,55 @@ describe("maskSensitiveFields", () => {
     expect(original.fields.email).toBe("person@example.com");
     expect(original.naturalKey).toBe("person@example.com");
   });
+
+  /**
+   * PR #839 security review: masking `fields.email` while handing the same
+   * address back through an adapter-authored warning masks nothing at all —
+   * the identical failure `maskAllFields` already guards against, in the
+   * neighbouring channel. Free text an adapter may have interpolated a raw
+   * value into must not survive on EITHER path.
+   */
+  test("drops free-text validationWarnings that may quote a masked value", () => {
+    const masked = maskSensitiveFields(
+      row({
+        validationWarnings: ["email person@example.com is already registered"]
+      }),
+      { fieldNames: ["email"], naturalKeyField: "email" }
+    );
+
+    expect(masked.validationWarnings).toEqual([]);
+    expect(JSON.stringify(masked)).not.toContain("person@example.com");
+  });
+
+  test("redacts commitError, the adapter's own free-text reason", () => {
+    const masked = maskSensitiveFields(
+      row({
+        commitStatus: "failed",
+        commitError: "duplicate key: person@example.com"
+      }),
+      { fieldNames: ["email"], naturalKeyField: "email" }
+    );
+
+    expect(masked.commitError).toBe("[REDACTED]");
+    expect(JSON.stringify(masked)).not.toContain("person@example.com");
+  });
+
+  test("keeps the FACT of a failure — commitStatus survives, only the reason goes", () => {
+    const masked = maskSensitiveFields(
+      row({ commitStatus: "failed", commitError: "boom person@example.com" }),
+      { fieldNames: ["email"] }
+    );
+
+    expect(masked.commitStatus).toBe("failed");
+    expect(masked.commitError).toBe("[REDACTED]");
+  });
+
+  test("a null commitError / null warnings stay null rather than becoming markers", () => {
+    const masked = maskSensitiveFields(row(), { fieldNames: ["email"] });
+
+    expect(masked.commitError).toBeNull();
+    expect(masked.validationWarnings).toBeNull();
+  });
 });
 
 describe("maskAllFields (default-deny projection, Cacat 1)", () => {
@@ -127,8 +176,32 @@ describe("maskAllFields (default-deny projection, Cacat 1)", () => {
     expect(masked.validationWarnings).toEqual([]);
   });
 
+  /**
+   * PR #839 security review: `commitError` is the adapter's own
+   * `outcome.reason` — free text on the same footing as a warning — and was
+   * passed through verbatim even on this default-deny path, where by
+   * definition the base does not know which of the descriptor's fields are
+   * safe.
+   */
+  test("redacts commitError, keeping only the fact of the failure", () => {
+    const masked = maskAllFields(
+      row({
+        commitStatus: "failed",
+        commitError: "conflict on person@example.com"
+      })
+    );
+
+    expect(masked.commitStatus).toBe("failed");
+    expect(masked.commitError).toBe("[REDACTED]");
+    expect(JSON.stringify(masked)).not.toContain("person@example.com");
+  });
+
   test("a null naturalKey stays null", () => {
     expect(maskAllFields(row({ naturalKey: null })).naturalKey).toBeNull();
+  });
+
+  test("a null commitError stays null rather than becoming a marker", () => {
+    expect(maskAllFields(row()).commitError).toBeNull();
   });
 
   test("does not mutate the input row", () => {
