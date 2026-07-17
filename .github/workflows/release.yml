@@ -2,7 +2,13 @@
 #
 # Two entry points, deliberately with no boolean toggles between them:
 #
-#   1. `push: tags: v*.*.*`      — a REAL release. Requires the tag's commit
+#   1. `push: tags: awcms-mini@*` — a REAL release. This is the exact tag
+#      shape Changesets emits for this private package: `.changeset/
+#      config.json`'s `privatePackages: { version: true, tag: true }` makes
+#      `bun run changeset:tag` create `awcms-mini@X.Y.Z` (see the existing
+#      `awcms-mini@0.0.x` tags), so the trigger and the tag generator are
+#      the SAME source of truth — no manual `vX.Y.Z` tag, no version↔tag
+#      drift (Issue #825, epic #818). Requires the tag's commit
 #      to already be an ancestor of `origin/main` (see "Guard" step below —
 #      this repo has no branch-protection rule today, see
 #      docs/awcms-mini/branch-protection.md, so this is the closest
@@ -30,7 +36,11 @@ name: Release
 on:
   push:
     tags:
-      - "v*.*.*"
+      # Package-scoped tag Changesets emits for this private package
+      # (`awcms-mini@X.Y.Z`) — NOT `v*.*.*`. See the header comment and
+      # Issue #825: the previous `v*.*.*` trigger could never match a
+      # changeset-generated tag, so the automated release path was dead.
+      - "awcms-mini@*"
   workflow_dispatch: {}
 
 concurrency:
@@ -394,8 +404,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Positional arg is the git tag name Changesets created
+          # (`awcms-mini@X.Y.Z`); the human-facing title uses the bare
+          # version so it doesn't read "awcms-mini awcms-mini@X.Y.Z".
           gh release create "${{ github.ref_name }}" \
-            --title "awcms-mini ${{ github.ref_name }}" \
+            --title "awcms-mini ${{ needs.validate.outputs.version }}" \
             --notes-file RELEASE_NOTES.md \
             "CHECKSUMS.txt" \
             "sbom-source.cdx.json" \
