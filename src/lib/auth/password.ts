@@ -32,6 +32,36 @@ let dummyPasswordHashPromise: Promise<string> | null = null;
  *
  * Computed lazily and memoized: at most one extra hash per process, on the
  * first unknown identifier seen, instead of an ~80 ms hash on every boot.
+ *
+ * COLD-START RESIDUAL, measured and accepted (Issue #840 review). The first
+ * unknown identifier of each process pays hash + verify instead of just
+ * verify: **254.7 ms against a 94.3 ms warm median** (~2.7x), versus 96.4 ms
+ * for a known identifier in the same run. If you benchmark cold start and see
+ * that 2.7x, it is this — not a leak, and not the ~19x gap this function
+ * exists to close. Three reasons it does not re-open the oracle:
+ *
+ *   1. It is once per PROCESS, not per request. `??=` assigns the promise
+ *      synchronously, so even a concurrent first burst shares one hash, and
+ *      every attempt after it is warm. An attacker's own first probe warms it.
+ *   2. The skew runs the SAFE direction: cold-unknown (254.7 ms) is SLOWER
+ *      than known (96.4 ms). The exploitable signal was "unknown answers
+ *      FAST"; a single slow outlier does not reconstruct it.
+ *   3. It is unattributable: one sample cannot be told apart from a GC pause
+ *      or a busy server, and the attacker would have to know they were the
+ *      first caller of a fresh process AND that no other traffic beat them.
+ *
+ * Honest caveat: on a process that has served no login at all, the literal
+ * first request is distinguishable in principle. Real deployments warm this
+ * on their first miss, and the direction is wrong for the attack.
+ *
+ * Eager warming was considered and REJECTED — do not "fix" this by adding it:
+ * a blocking top-level `await` would stall module evaluation for every
+ * importer (tests, seeds, `scripts/*`, CLI) that only ever wants
+ * `hashPassword`, and a fire-and-forget `void getDummyPasswordHash()` at
+ * module scope would silently burn an argon2id hash in each of those same
+ * processes and needs its own rejection handling to avoid an unhandled
+ * rejection. Both trade a real, every-process cost for a once-per-process
+ * skew that already points the harmless way.
  */
 function getDummyPasswordHash(): Promise<string> {
   dummyPasswordHashPromise ??= hashPassword(DUMMY_PASSWORD_SOURCE);
