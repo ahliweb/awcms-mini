@@ -451,6 +451,32 @@ export const METRIC_DEFINITIONS = {
     allowedLabelKeys: [],
     approxCardinality: "Exactly 1 — unlabeled.",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  // Issue #832 (epic #818) — visitor telemetry moved off the response path
+  // into a bounded in-process queue (`visitor-analytics/application/
+  // telemetry-queue.ts`). Deferring the write is only safe if its failure
+  // modes stay visible, so both the one lossy path (queue overflow) and the
+  // saturation signal that precedes it (queue depth) are metrics, not just
+  // log lines. Unlabeled — a tenant id here would be exactly the
+  // high-cardinality, visitor-identifying label this port exists to
+  // prevent.
+  visitor_analytics_queue_dropped_total: {
+    name: "visitor_analytics_queue_dropped_total",
+    type: "counter",
+    description:
+      "Count of visitor telemetry events dropped without being written because the in-process queue was at MAX_QUEUE_DEPTH (backpressure). Non-zero means telemetry is being lost — the only path in this module where that happens silently to the visitor.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  visitor_analytics_queue_depth: {
+    name: "visitor_analytics_queue_depth",
+    type: "gauge",
+    description:
+      "Current depth of the in-process visitor telemetry queue, sampled at enqueue. Sustained growth toward MAX_QUEUE_DEPTH is the leading indicator of the dropped_total counter above.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   }
 } as const satisfies Record<string, MetricDefinition>;
 

@@ -3,6 +3,7 @@ import type { APIRoute } from "astro";
 import { fail, ok } from "../../../../../modules/_shared/api-response";
 import { getDatabaseClient } from "../../../../../lib/database/client";
 import { withTenant } from "../../../../../lib/database/tenant-context";
+import { invalidatePublicTenantHost } from "../../../../../lib/tenant/public-tenant-cache";
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
 import {
   bodyTooLargeResponse,
@@ -131,7 +132,12 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
   const now = new Date();
   const correlationId = locals.correlationId;
 
-  return withTenant(sql, tenantId, async (tx) => {
+  // Issue #832: captured inside the transaction, evicted only after it has
+  // committed — see `tenant-domain-directory.ts`'s binding note for why the
+  // eviction cannot live inside the transaction itself.
+  let mutatedHostname: string | null = null;
+
+  const response = await withTenant(sql, tenantId, async (tx) => {
     const auth = await authorizeInTransaction(
       tx,
       tenantId,
@@ -169,6 +175,8 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
       throw error;
     }
 
+    mutatedHostname = domain.normalizedHostname;
+
     await recordAuditEvent(tx, {
       tenantId,
       actorTenantUserId: auth.context.tenantUserId,
@@ -183,4 +191,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     return ok(domain);
   });
+
+  // A newly created domain starts as `pending_verification`, so it does not
+  // resolve traffic yet — but a NEGATIVE cache entry for this hostname may
+  // already exist (public traffic hitting the host before it was mapped is
+  // exactly how a domain gets set up), and it must not outlive the mapping.
+  if (mutatedHostname) {
+    invalidatePublicTenantHost(mutatedHostname);
+  }
+
+  return response;
 };
