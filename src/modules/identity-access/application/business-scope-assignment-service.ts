@@ -23,13 +23,16 @@ import {
   type BusinessScopeAssignmentValidationError,
   type RevokeBusinessScopeAssignmentInput
 } from "../domain/business-scope-assignment";
-import { detectSoDConflicts } from "../domain/sod-conflict-evaluation";
+import {
+  createSoDConflictEvaluator,
+  type SoDConflictMatch
+} from "../domain/sod-conflict-evaluation";
 import {
   resolveRolePermissionKeys,
   resolveSoDAssignmentFacts
 } from "./business-scope-facts";
 import { recordSoDConflictEvaluation } from "./sod-conflict-evaluation-log";
-import { findValidSoDConflictException } from "./sod-exception-service";
+import { findValidSoDConflictExceptionsByRuleKeys } from "./sod-exception-service";
 
 const IDENTITY_ACCESS_MODULE_KEY = "identity_access";
 
@@ -210,64 +213,94 @@ export async function createBusinessScopeAssignment(
   const conflicts: SoDConflictSummary[] = [];
 
   if (input.roleId) {
-    const [requestedPermissionKeys, subjectFacts] = await Promise.all([
-      resolveRolePermissionKeys(tx, tenantId, input.roleId),
-      resolveSoDAssignmentFacts(tx, tenantId, input.tenantUserId, now, null)
-    ]);
+    // Sequential, NOT `Promise.all` over the same `tx`: one Postgres
+    // connection serves one query at a time, so concurrent queries on a
+    // single transaction handle HANG (documented at
+    // `reporting/application/projection-reconciliation.ts:89-94`). Two
+    // awaits cost one extra round trip and nothing else.
+    const requestedPermissionKeys = await resolveRolePermissionKeys(
+      tx,
+      tenantId,
+      input.roleId
+    );
+    const subjectFacts = await resolveSoDAssignmentFacts(
+      tx,
+      tenantId,
+      input.tenantUserId,
+      now,
+      null
+    );
 
+    // Phase 1 — detect. The evaluator's indexes are built ONCE here and
+    // reused for every one of the role's permission keys (Issue #833);
+    // building it per key would reintroduce the O(P×R×K×F×S) rescan.
+    const evaluator = createSoDConflictEvaluator(
+      deps.sodRules,
+      requestedScope,
+      subjectFacts
+    );
+    const detected: { permissionKey: string; match: SoDConflictMatch }[] = [];
     for (const permissionKey of requestedPermissionKeys) {
-      const matches = detectSoDConflicts(
-        deps.sodRules,
-        permissionKey,
-        requestedScope,
-        subjectFacts
-      );
+      for (const match of evaluator.detect(permissionKey)) {
+        detected.push({ permissionKey, match });
+      }
+    }
 
-      for (const match of matches) {
-        const exception = match.indeterminate
-          ? null
-          : await findValidSoDConflictException(
-              tx,
-              tenantId,
-              match.rule.ruleKey,
-              input.tenantUserId,
-              now,
-              requestedScope
-            );
+    // Phase 2 — resolve every exception in ONE query instead of one per
+    // match (Issue #833). Indeterminate matches never consulted an
+    // exception before and still do not: their rule keys are excluded from
+    // the batch, not looked up and ignored.
+    const exceptionsByRuleKey = await findValidSoDConflictExceptionsByRuleKeys(
+      tx,
+      tenantId,
+      detected
+        .filter((entry) => !entry.match.indeterminate)
+        .map((entry) => entry.match.rule.ruleKey),
+      input.tenantUserId,
+      now,
+      requestedScope
+    );
 
-        const resolvedVia = match.indeterminate
-          ? "denied"
+    // Phase 3 — record. Iterates `detected` in detection order, so the
+    // append-only evaluation rows and counters are emitted in exactly the
+    // order (and with exactly the content) the pre-#833 single loop did.
+    for (const { permissionKey, match } of detected) {
+      const exception = match.indeterminate
+        ? null
+        : (exceptionsByRuleKey.get(match.rule.ruleKey) ?? null);
+
+      const resolvedVia = match.indeterminate
+        ? "denied"
+        : exception
+          ? "exception"
+          : "denied";
+
+      await recordSoDConflictEvaluation(tx, tenantId, {
+        ruleKey: match.rule.ruleKey,
+        subjectTenantUserId: input.tenantUserId,
+        triggerContext: "assignment_create",
+        conflictDetected: true,
+        resolvedVia,
+        decisionReason: match.indeterminate
+          ? `Conflict with "${match.conflictingPermissionKey}" could not be scope-resolved for a same-scope-only rule.`
           : exception
-            ? "exception"
-            : "denied";
+            ? `Conflict with "${match.conflictingPermissionKey}" covered by an approved exception.`
+            : `Conflict with "${match.conflictingPermissionKey}" — no approved exception on file.`,
+        metadata: { requestedPermissionKey: permissionKey }
+      });
 
-        await recordSoDConflictEvaluation(tx, tenantId, {
+      recordCounter("sod_conflicts_detected_total", {
+        ruleKey: match.rule.ruleKey,
+        resolvedVia
+      });
+
+      if (resolvedVia === "denied") {
+        conflicts.push({
           ruleKey: match.rule.ruleKey,
-          subjectTenantUserId: input.tenantUserId,
-          triggerContext: "assignment_create",
-          conflictDetected: true,
-          resolvedVia,
-          decisionReason: match.indeterminate
-            ? `Conflict with "${match.conflictingPermissionKey}" could not be scope-resolved for a same-scope-only rule.`
-            : exception
-              ? `Conflict with "${match.conflictingPermissionKey}" covered by an approved exception.`
-              : `Conflict with "${match.conflictingPermissionKey}" — no approved exception on file.`,
-          metadata: { requestedPermissionKey: permissionKey }
+          severity: match.rule.severity,
+          conflictingPermissionKey: match.conflictingPermissionKey,
+          indeterminate: match.indeterminate
         });
-
-        recordCounter("sod_conflicts_detected_total", {
-          ruleKey: match.rule.ruleKey,
-          resolvedVia
-        });
-
-        if (resolvedVia === "denied") {
-          conflicts.push({
-            ruleKey: match.rule.ruleKey,
-            severity: match.rule.severity,
-            conflictingPermissionKey: match.conflictingPermissionKey,
-            indeterminate: match.indeterminate
-          });
-        }
       }
     }
   }
