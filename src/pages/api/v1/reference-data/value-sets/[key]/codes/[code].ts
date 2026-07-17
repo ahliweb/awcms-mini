@@ -27,7 +27,11 @@ import {
   fetchReferenceCodeByCode,
   updateReferenceCode
 } from "../../../../../../../modules/reference-data/application/code-directory";
-import type { ReferenceCodeLabelInput } from "../../../../../../../modules/reference-data/domain/code";
+import type { ReferenceCodeRow } from "../../../../../../../modules/reference-data/application/code-directory";
+import {
+  mergeReferenceCodePatchInput,
+  parseReferenceCodePatchInput
+} from "../../../../../../../modules/reference-data/domain/code-patch";
 
 const UPDATE_IDEMPOTENCY_SCOPE = "reference_data_code_update";
 const DEPRECATE_IDEMPOTENCY_SCOPE = "reference_data_code_deprecate";
@@ -48,31 +52,16 @@ const DELETE_GUARD = {
   action: "delete" as const
 };
 
-function parseLabels(value: unknown): ReferenceCodeLabelInput[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter(
-      (entry): entry is Record<string, unknown> =>
-        !!entry && typeof entry === "object"
-    )
-    .map((entry) => ({
-      locale: typeof entry.locale === "string" ? entry.locale : "",
-      label: typeof entry.label === "string" ? entry.label : "",
-      description:
-        typeof entry.description === "string" ? entry.description : null
-    }));
-}
-
-async function resolveCodeId(
+async function resolveCode(
   tx: Bun.SQL,
   valueSetKey: string,
   codeString: string
-): Promise<{ valueSetId: string; codeId: string } | null> {
+): Promise<{ valueSetId: string; code: ReferenceCodeRow } | null> {
   const valueSet = await fetchReferenceValueSetByKey(tx, valueSetKey);
   if (!valueSet) return null;
   const code = await fetchReferenceCodeByCode(tx, valueSet.id, codeString);
   if (!code) return null;
-  return { valueSetId: valueSet.id, codeId: code.id };
+  return { valueSetId: valueSet.id, code };
 }
 
 export const GET: APIRoute = async ({ request, cookies, params }) => {
@@ -115,7 +104,14 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
   });
 };
 
-/** `PATCH /api/v1/reference-data/value-sets/{key}/codes/{code}` — mutable-fields-only update. Requires `Idempotency-Key`. */
+/**
+ * `PATCH /api/v1/reference-data/value-sets/{key}/codes/{code}` — partial update
+ * of mutable fields. Requires `Idempotency-Key`.
+ *
+ * True `PATCH` semantics: an omitted field keeps its stored value; an explicit
+ * `null` clears/resets it (`sortOrder` -> `0`, `metadata` -> `{}`, `validTo` ->
+ * `null`). `validFrom` and `labels` reject `null` (both are always required).
+ */
 export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
   if (!tenantId)
@@ -148,19 +144,16 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
   const body = bodyRead.value ?? {};
 
-  const input = {
-    labels: parseLabels(body.labels),
-    sortOrder: typeof body.sortOrder === "number" ? body.sortOrder : 0,
-    metadata:
-      body.metadata && typeof body.metadata === "object"
-        ? (body.metadata as Record<string, unknown>)
-        : {},
-    validFrom:
-      typeof body.validFrom === "string"
-        ? new Date(body.validFrom)
-        : new Date(),
-    validTo: typeof body.validTo === "string" ? new Date(body.validTo) : null
-  };
+  const parsed = parseReferenceCodePatchInput(body);
+  if (!parsed.ok) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      parsed.errors
+        .map((error) => `${error.field}: ${error.message}`)
+        .join("; ")
+    );
+  }
 
   const requestHash = computeRequestHash({
     ...body,
@@ -183,7 +176,7 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
-    const resolved = await resolveCodeId(tx, key, codeParam);
+    const resolved = await resolveCode(tx, key, codeParam);
     if (!resolved) return fail(404, "NOT_FOUND", "Code not found.");
 
     const existingIdempotency = await findIdempotencyRecord(
@@ -209,8 +202,8 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
       tx,
       tenantId,
       auth.context.tenantUserId,
-      resolved.codeId,
-      input,
+      resolved.code.id,
+      mergeReferenceCodePatchInput(resolved.code, parsed.patch),
       correlationId
     );
 
@@ -312,7 +305,7 @@ export const DELETE: APIRoute = async ({
     );
     if (!auth.allowed) return auth.denied;
 
-    const resolved = await resolveCodeId(tx, key, codeParam);
+    const resolved = await resolveCode(tx, key, codeParam);
     if (!resolved) return fail(404, "NOT_FOUND", "Code not found.");
 
     const existingIdempotency = await findIdempotencyRecord(
@@ -338,7 +331,7 @@ export const DELETE: APIRoute = async ({
       tx,
       tenantId,
       auth.context.tenantUserId,
-      resolved.codeId,
+      resolved.code.id,
       { reason, supersededByCodeId },
       correlationId
     );
