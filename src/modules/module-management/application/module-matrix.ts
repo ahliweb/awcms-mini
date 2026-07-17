@@ -115,10 +115,13 @@ export async function fetchModuleMatrix(
   tenantId: string,
   options: ModuleMatrixOptions
 ): Promise<ModuleMatrixRow[]> {
-  const [catalog, tenantEntries] = await Promise.all([
-    fetchModuleCatalog(tx),
-    fetchTenantModuleEntries(tx, tenantId)
-  ]);
+  // Sequential, NOT `Promise.all` — both calls issue queries on the SAME
+  // transaction/connection (`tx`), and one Postgres connection serves one
+  // query at a time; running them concurrently produced a real hang in this
+  // repo (see `reporting/application/projection-reconciliation.ts:89-94`).
+  // Two awaits cost one extra round trip and nothing else.
+  const catalog = await fetchModuleCatalog(tx);
+  const tenantEntries = await fetchTenantModuleEntries(tx, tenantId);
 
   const allDescriptors = listModules();
   const descriptorByKey = new Map(allDescriptors.map((d) => [d.key, d]));
@@ -149,101 +152,109 @@ export async function fetchModuleMatrix(
     );
   }
 
-  return Promise.all(
-    catalog.map(async (entry) => {
-      const descriptor = descriptorByKey.get(entry.moduleKey) ?? null;
-      const tenantState = resolveTenantState(entry.moduleKey);
-      const tenantEntry = tenantEntryByKey.get(entry.moduleKey) ?? null;
+  // Sequential loop, NOT `Promise.all(catalog.map(async …))`. The body awaits
+  // `fetchModuleHealthReport(tx, …)`, which issues NO query only while the
+  // prefetched `healthContext` above is passed to it — drop that argument and
+  // every iteration would fan out four queries CONCURRENTLY on the one `tx`
+  // this function was handed, which is exactly the hang documented in
+  // `reporting/application/projection-reconciliation.ts:89-94` (and the #824
+  // regression PR #839 caught). A loop makes the safety structural instead of
+  // resting on an argument nobody is required to keep passing. Nothing is lost:
+  // with the context prefetched the body is pure in-memory work.
+  const rows: ModuleMatrixRow[] = [];
 
-      let dependencyWarning: ModuleMatrixRow["dependencyWarning"] = null;
-      if (!tenantState.tenantEnabled && descriptor) {
-        const dependencyStates = descriptor.dependencies.map((depKey) => {
-          const depDescriptor = descriptorByKey.get(depKey) ?? null;
-          return depDescriptor
-            ? {
-                descriptor: depDescriptor,
-                tenantState: resolveTenantState(depKey)
-              }
-            : { descriptor: null, moduleKey: depKey };
-        });
+  for (const entry of catalog) {
+    const descriptor = descriptorByKey.get(entry.moduleKey) ?? null;
+    const tenantState = resolveTenantState(entry.moduleKey);
+    const tenantEntry = tenantEntryByKey.get(entry.moduleKey) ?? null;
 
-        const validation = evaluateModuleEnable({
-          target: descriptor,
-          targetTenantState: tenantState,
-          dependencyStates,
-          allDescriptors,
-          currentAppVersion: CURRENT_APP_VERSION
-        });
+    let dependencyWarning: ModuleMatrixRow["dependencyWarning"] = null;
+    if (!tenantState.tenantEnabled && descriptor) {
+      const dependencyStates = descriptor.dependencies.map((depKey) => {
+        const depDescriptor = descriptorByKey.get(depKey) ?? null;
+        return depDescriptor
+          ? {
+              descriptor: depDescriptor,
+              tenantState: resolveTenantState(depKey)
+            }
+          : { descriptor: null, moduleKey: depKey };
+      });
 
-        if (
-          !validation.valid &&
-          DEPENDENCY_WARNING_CODES.has(validation.code)
-        ) {
-          dependencyWarning = {
-            code: validation.code,
-            message: validation.message
-          };
-        }
+      const validation = evaluateModuleEnable({
+        target: descriptor,
+        targetTenantState: tenantState,
+        dependencyStates,
+        allDescriptors,
+        currentAppVersion: CURRENT_APP_VERSION
+      });
+
+      if (!validation.valid && DEPENDENCY_WARNING_CODES.has(validation.code)) {
+        dependencyWarning = {
+          code: validation.code,
+          message: validation.message
+        };
       }
+    }
 
-      let reverseDependencyWarning: ModuleMatrixRow["reverseDependencyWarning"] =
-        null;
-      if (tenantState.tenantEnabled && descriptor) {
-        const reverseDependencies = allDescriptors
-          .filter(
-            (d) =>
-              d.key !== entry.moduleKey &&
-              d.dependencies.includes(entry.moduleKey)
+    let reverseDependencyWarning: ModuleMatrixRow["reverseDependencyWarning"] =
+      null;
+    if (tenantState.tenantEnabled && descriptor) {
+      const reverseDependencies = allDescriptors
+        .filter(
+          (d) =>
+            d.key !== entry.moduleKey &&
+            d.dependencies.includes(entry.moduleKey)
+        )
+        .map((d) => ({
+          descriptor: d,
+          tenantState: resolveTenantState(d.key)
+        }));
+
+      const validation = evaluateModuleDisable({
+        target: descriptor,
+        targetTenantState: tenantState,
+        reverseDependencies
+      });
+
+      if (
+        !validation.valid &&
+        validation.code === "MODULE_REVERSE_DEPENDENCY_ACTIVE"
+      ) {
+        reverseDependencyWarning = {
+          code: validation.code,
+          message: validation.message
+        };
+      }
+    }
+
+    const healthStatus = healthContext
+      ? ((
+          await fetchModuleHealthReport(
+            tx,
+            tenantId,
+            entry.moduleKey,
+            options.correlationId ?? undefined,
+            healthContext
           )
-          .map((d) => ({
-            descriptor: d,
-            tenantState: resolveTenantState(d.key)
-          }));
+        )?.status ?? null)
+      : null;
 
-        const validation = evaluateModuleDisable({
-          target: descriptor,
-          targetTenantState: tenantState,
-          reverseDependencies
-        });
+    rows.push({
+      moduleKey: entry.moduleKey,
+      name: entry.name,
+      version: entry.version,
+      type: entry.type,
+      status: entry.status,
+      isCore: entry.isCore,
+      isProtected: protectedKeys.has(entry.moduleKey),
+      tenantEnabled: tenantState.tenantEnabled,
+      disableReason: tenantEntry?.disableReason ?? null,
+      dependencies: entry.dependencies,
+      healthStatus,
+      dependencyWarning,
+      reverseDependencyWarning
+    });
+  }
 
-        if (
-          !validation.valid &&
-          validation.code === "MODULE_REVERSE_DEPENDENCY_ACTIVE"
-        ) {
-          reverseDependencyWarning = {
-            code: validation.code,
-            message: validation.message
-          };
-        }
-      }
-
-      const healthStatus = healthContext
-        ? ((
-            await fetchModuleHealthReport(
-              tx,
-              tenantId,
-              entry.moduleKey,
-              options.correlationId ?? undefined,
-              healthContext
-            )
-          )?.status ?? null)
-        : null;
-
-      return {
-        moduleKey: entry.moduleKey,
-        name: entry.name,
-        version: entry.version,
-        type: entry.type,
-        status: entry.status,
-        isCore: entry.isCore,
-        isProtected: protectedKeys.has(entry.moduleKey),
-        tenantEnabled: tenantState.tenantEnabled,
-        disableReason: tenantEntry?.disableReason ?? null,
-        dependencies: entry.dependencies,
-        healthStatus,
-        dependencyWarning,
-        reverseDependencyWarning
-      };
-    })
-  );
+  return rows;
 }

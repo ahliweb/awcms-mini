@@ -144,10 +144,17 @@ export async function resolveReferenceValueSetForTenant(
   valueSetId: string,
   options: ResolveValueSetOptions = {}
 ): Promise<ResolvedReferenceCodeEntry[]> {
-  const [baseline, tenantCodes] = await Promise.all([
-    fetchBaselineWithLabels(tx, valueSetId),
-    fetchTenantCodesWithLabels(tx, tenantId, valueSetId)
-  ]);
+  // Sequential, NOT `Promise.all` — both calls issue queries on the SAME
+  // transaction/connection (`tx`), and one Postgres connection serves one
+  // query at a time; running them concurrently produced a real hang in this
+  // repo (see `reporting/application/projection-reconciliation.ts:89-94`).
+  // Two awaits cost one extra round trip and nothing else.
+  const baseline = await fetchBaselineWithLabels(tx, valueSetId);
+  const tenantCodes = await fetchTenantCodesWithLabels(
+    tx,
+    tenantId,
+    valueSetId
+  );
 
   return resolveReferenceCodes(baseline, tenantCodes, {
     asOf: options.asOf ?? new Date(),
@@ -164,10 +171,14 @@ export async function resolveReferenceCodeForTenant(
   code: string,
   options: ResolveValueSetOptions = {}
 ): Promise<ResolvedReferenceCodeEntry | null> {
-  const [baseline, tenantCodes] = await Promise.all([
-    fetchBaselineWithLabels(tx, valueSetId),
-    fetchTenantCodesWithLabels(tx, tenantId, valueSetId)
-  ]);
+  // Sequential, NOT `Promise.all` over the same `tx` — see the matching note
+  // in `resolveReferenceValueSetForTenant` above.
+  const baseline = await fetchBaselineWithLabels(tx, valueSetId);
+  const tenantCodes = await fetchTenantCodesWithLabels(
+    tx,
+    tenantId,
+    valueSetId
+  );
 
   return resolveOneReferenceCode(baseline, tenantCodes, code, {
     asOf: options.asOf ?? new Date(),

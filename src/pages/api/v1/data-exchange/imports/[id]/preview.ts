@@ -182,10 +182,16 @@ export const GET: APIRoute = async ({ request, cookies, params, url }) => {
       (proposedActionParam as StagedRowRow["proposedAction"] | null) ??
       undefined;
 
-    const [rows, total] = await Promise.all([
-      listStagedRows(tx, tenantId, batchId, { proposedAction, offset, limit }),
-      countStagedRows(tx, tenantId, batchId, proposedAction)
-    ]);
+    // Sequential, NOT `Promise.all` — both calls issue queries on the SAME
+    // transaction/connection (`tx`), and one Postgres connection serves one
+    // query at a time; running them concurrently produced a real hang in this
+    // repo (see `reporting/application/projection-reconciliation.ts:89-94`).
+    const rows = await listStagedRows(tx, tenantId, batchId, {
+      proposedAction,
+      offset,
+      limit
+    });
+    const total = await countStagedRows(tx, tenantId, batchId, proposedAction);
 
     const projectedRows = rows.map(project);
 

@@ -80,37 +80,37 @@ if (hasAnyAccess) {
       getDatabaseClient(),
       context.tenantId,
       async (tx) => {
-        const [
-          totalPostsRows,
-          draftPostsRows,
-          scheduledPostsRows,
-          totalPagesRows
-        ] = await Promise.all([
-          CAN_READ_POSTS
-            ? (tx`
-                SELECT count(*)::int AS count FROM awcms_mini_blog_posts
-                WHERE tenant_id = ${context.tenantId} AND deleted_at IS NULL
-              ` as Promise<CountRow[]>)
-            : Promise.resolve([{ count: 0 }]),
-          CAN_READ_POSTS
-            ? (tx`
-                SELECT count(*)::int AS count FROM awcms_mini_blog_posts
-                WHERE tenant_id = ${context.tenantId} AND deleted_at IS NULL AND status = 'draft'
-              ` as Promise<CountRow[]>)
-            : Promise.resolve([{ count: 0 }]),
-          CAN_READ_POSTS
-            ? (tx`
-                SELECT count(*)::int AS count FROM awcms_mini_blog_posts
-                WHERE tenant_id = ${context.tenantId} AND deleted_at IS NULL AND status = 'scheduled'
-              ` as Promise<CountRow[]>)
-            : Promise.resolve([{ count: 0 }]),
-          CAN_READ_PAGES
-            ? (tx`
-                SELECT count(*)::int AS count FROM awcms_mini_blog_pages
-                WHERE tenant_id = ${context.tenantId} AND deleted_at IS NULL
-              ` as Promise<CountRow[]>)
-            : Promise.resolve([{ count: 0 }])
-        ]);
+        // Sequential, NOT `Promise.all` — every query below runs on the SAME
+        // transaction/connection (`tx`), and one Postgres connection serves one
+        // query at a time; running them concurrently produced a real hang in
+        // this repo (see
+        // `reporting/application/projection-reconciliation.ts:89-94`). The
+        // permission gates are preserved exactly: a denied read still issues no
+        // query at all and keeps its zero-count fallback.
+        const totalPostsRows = CAN_READ_POSTS
+          ? ((await tx`
+              SELECT count(*)::int AS count FROM awcms_mini_blog_posts
+              WHERE tenant_id = ${context.tenantId} AND deleted_at IS NULL
+            `) as CountRow[])
+          : [{ count: 0 }];
+        const draftPostsRows = CAN_READ_POSTS
+          ? ((await tx`
+              SELECT count(*)::int AS count FROM awcms_mini_blog_posts
+              WHERE tenant_id = ${context.tenantId} AND deleted_at IS NULL AND status = 'draft'
+            `) as CountRow[])
+          : [{ count: 0 }];
+        const scheduledPostsRows = CAN_READ_POSTS
+          ? ((await tx`
+              SELECT count(*)::int AS count FROM awcms_mini_blog_posts
+              WHERE tenant_id = ${context.tenantId} AND deleted_at IS NULL AND status = 'scheduled'
+            `) as CountRow[])
+          : [{ count: 0 }];
+        const totalPagesRows = CAN_READ_PAGES
+          ? ((await tx`
+              SELECT count(*)::int AS count FROM awcms_mini_blog_pages
+              WHERE tenant_id = ${context.tenantId} AND deleted_at IS NULL
+            `) as CountRow[])
+          : [{ count: 0 }];
 
         const recentUpdates = CAN_READ_POSTS
           ? await listBlogPosts(tx, context.tenantId, { limit: 5 })

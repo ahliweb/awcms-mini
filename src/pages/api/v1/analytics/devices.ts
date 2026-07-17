@@ -65,10 +65,12 @@ export const GET: APIRoute = async ({ request, cookies, url }) => {
     }
 
     const start = resolveRangeStart(range, now);
-    const [browsers, devices] = await Promise.all([
-      fetchTopBrowsers(tx, tenantId, start),
-      fetchTopDevices(tx, tenantId, start)
-    ]);
+    // Sequential, NOT `Promise.all` — both calls issue queries on the SAME
+    // transaction/connection (`tx`), and one Postgres connection serves one
+    // query at a time; running them concurrently produced a real hang in this
+    // repo (see `reporting/application/projection-reconciliation.ts:89-94`).
+    const browsers = await fetchTopBrowsers(tx, tenantId, start);
+    const devices = await fetchTopDevices(tx, tenantId, start);
 
     return ok({ range, browsers, devices });
   });

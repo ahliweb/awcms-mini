@@ -163,46 +163,49 @@ async function computeDailyAreaRollup(
   dayEnd: Date,
   counts: AreaCountRow
 ): Promise<DailyAreaRollup> {
-  const [topPaths, topBrowsers, topDevices, topCountries] = await Promise.all([
-    fetchTopPathsForDay(
-      tx,
-      tenantId,
-      area,
-      dayStart,
-      dayEnd,
-      ROLLUP_TOP_N_LIMIT
-    ),
-    fetchTopJsonFieldForDay(
-      tx,
-      tenantId,
-      area,
-      dayStart,
-      dayEnd,
-      "user_agent_parsed",
-      "browserName",
-      ROLLUP_TOP_N_LIMIT
-    ),
-    fetchTopJsonFieldForDay(
-      tx,
-      tenantId,
-      area,
-      dayStart,
-      dayEnd,
-      "user_agent_parsed",
-      "deviceType",
-      ROLLUP_TOP_N_LIMIT
-    ),
-    fetchTopJsonFieldForDay(
-      tx,
-      tenantId,
-      area,
-      dayStart,
-      dayEnd,
-      "geo",
-      "countryCode",
-      ROLLUP_TOP_N_LIMIT
-    )
-  ]);
+  // Sequential, NOT `Promise.all` — all four calls issue queries on the SAME
+  // transaction/connection (`tx`), and one Postgres connection serves one query
+  // at a time; running them concurrently produced a real hang in this repo (see
+  // `reporting/application/projection-reconciliation.ts:89-94`). Four awaits
+  // cost three extra round trips and nothing else.
+  const topPaths = await fetchTopPathsForDay(
+    tx,
+    tenantId,
+    area,
+    dayStart,
+    dayEnd,
+    ROLLUP_TOP_N_LIMIT
+  );
+  const topBrowsers = await fetchTopJsonFieldForDay(
+    tx,
+    tenantId,
+    area,
+    dayStart,
+    dayEnd,
+    "user_agent_parsed",
+    "browserName",
+    ROLLUP_TOP_N_LIMIT
+  );
+  const topDevices = await fetchTopJsonFieldForDay(
+    tx,
+    tenantId,
+    area,
+    dayStart,
+    dayEnd,
+    "user_agent_parsed",
+    "deviceType",
+    ROLLUP_TOP_N_LIMIT
+  );
+  const topCountries = await fetchTopJsonFieldForDay(
+    tx,
+    tenantId,
+    area,
+    dayStart,
+    dayEnd,
+    "geo",
+    "countryCode",
+    ROLLUP_TOP_N_LIMIT
+  );
 
   const authenticatedUniqueUsers = Number(counts.authenticated_unique_users);
   const allUniqueVisitors = Number(counts.all_unique_visitors);
