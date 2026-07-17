@@ -20,6 +20,10 @@
  *   which is never publicly reachable at all).
  */
 import type { BlogContentVisibility } from "../domain/post-status";
+import {
+  boundedPageNumber,
+  boundedPageSize as sharedBoundedPageSize
+} from "../../_shared/offset-pagination";
 export type PublicBlogPostDetail = {
   id: string;
   title: string;
@@ -145,11 +149,16 @@ const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 
 function boundedPageSize(pageSize: number | undefined): number {
-  return Math.min(Math.max(pageSize ?? DEFAULT_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+  return sharedBoundedPageSize(pageSize, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 }
 
+/**
+ * Clamped at both ends via the shared helper (Issue #819) — these routes are
+ * public and unauthenticated, so an unbounded `page` was a one-request
+ * deep-offset scan (`?page=1e8` → `OFFSET 1e9`) and `NaN` was a 500.
+ */
 function boundedPage(page: number | undefined): number {
-  return Math.max(page ?? 1, 1);
+  return boundedPageNumber(page);
 }
 
 /** Standard `?page=` (1-indexed) pagination — fetches `pageSize + 1` rows to derive `hasNextPage` without a separate `COUNT(*)` query, same "one extra row" trick used for cursor pagination elsewhere in this repo. */

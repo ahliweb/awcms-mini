@@ -7,6 +7,7 @@ import {
   serverErrorHtmlResponse
 } from "../../../lib/html/error-responses";
 import { log } from "../../../lib/logging/logger";
+import { parsePageParam } from "../../../modules/_shared/offset-pagination";
 import {
   fetchPublicTermBySlug,
   listPublicBlogPostsByTermId
@@ -32,8 +33,7 @@ export const GET: APIRoute = async ({ params, request, url }) => {
 
   try {
     const sql = getDatabaseClient();
-    const pageParam = url.searchParams.get("page");
-    const page = pageParam ? Number(pageParam) : 1;
+    const page = parsePageParam(url.searchParams.get("page"));
 
     const result = await withNewsTenant(
       sql,

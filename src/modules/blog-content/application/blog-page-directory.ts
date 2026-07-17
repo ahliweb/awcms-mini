@@ -7,6 +7,10 @@ import type {
   UpdateBlogPageInput
 } from "../domain/blog-page-validation";
 import type { PageType } from "../domain/page-type";
+import {
+  boundedPageNumber,
+  boundedPageSize
+} from "../../_shared/offset-pagination";
 
 /**
  * Read/write query module for `awcms_mini_blog_pages` (Issue #539) — same
@@ -283,11 +287,12 @@ export async function listBlogPagesForAdmin(
   tenantId: string,
   filter: ListBlogPagesForAdminFilter = {}
 ): Promise<ListBlogPagesForAdminResult> {
-  const pageSize = Math.min(
-    Math.max(filter.pageSize ?? DEFAULT_ADMIN_LIST_PAGE_SIZE, 1),
+  const pageSize = boundedPageSize(
+    filter.pageSize,
+    DEFAULT_ADMIN_LIST_PAGE_SIZE,
     MAX_ADMIN_LIST_PAGE_SIZE
   );
-  const page = Math.max(filter.page ?? 1, 1);
+  const page = boundedPageNumber(filter.page);
   const offset = (page - 1) * pageSize;
   const search = filter.search?.trim() || null;
   const status = filter.status ?? null;
