@@ -30,34 +30,28 @@ export type DescriptorPermissionCheck =
   { allowed: true } | { allowed: false; denied: Response };
 
 /**
- * `descriptor` may be `null` (an unresolvable importKey/exportKey) — the
- * caller is expected to have already handled that as its own 404 before
- * reaching a data mutation; passing `null` here is treated as "nothing
- * additional to check" so callers can resolve-then-check in either order
- * without this function throwing.
+ * Authorizes one descriptor-declared permission key (`module.activity.
+ * action`) against the caller. A malformed key fails CLOSED (500), never
+ * open — a declaration the base cannot parse is never silently downgraded
+ * to "no requirement". Shared by `requiredPermission` (the descriptor-level
+ * gate below) and `sensitiveFields.rawValuePermission` (the raw-value gate
+ * in `imports/[id]/preview.ts`), so both enforce the SAME semantics from
+ * one place (Issue #820 Cacat 2: `rawValuePermission` had zero enforcement
+ * sites and the route hardcoded a broader permission instead).
  */
-export async function authorizeExchangeDescriptorPermission(
+export async function authorizeDescriptorPermissionKey(
   tx: Bun.SQL,
   tenantId: string,
   tokenHash: string,
   now: Date,
-  descriptor: ExchangeDescriptor | null
+  permissionKey: string,
+  malformedMessage: string
 ): Promise<DescriptorPermissionCheck> {
-  if (!descriptor || !descriptor.requiredPermission) {
-    return { allowed: true };
-  }
-
-  const parts = descriptor.requiredPermission.split(".");
+  const parts = permissionKey.split(".");
   if (parts.length !== 3 || parts.some((part) => part.length === 0)) {
-    // A malformed descriptor-declared permission fails CLOSED, never open
-    // — never silently treated as "no extra requirement".
     return {
       allowed: false,
-      denied: fail(
-        500,
-        "INTERNAL_ERROR",
-        "Exchange descriptor's requiredPermission is malformed."
-      )
+      denied: fail(500, "INTERNAL_ERROR", malformedMessage)
     };
   }
 
@@ -74,4 +68,43 @@ export async function authorizeExchangeDescriptorPermission(
   }
 
   return { allowed: true };
+}
+
+/**
+ * `descriptor` is deliberately NON-nullable (Issue #820 Cacat 3). It used
+ * to accept `null` — an importKey/exportKey resolving to nothing, which
+ * happens when the owning module is disabled/removed via `module_management`
+ * AFTER a batch was staged — and treat it as "nothing additional to check",
+ * returning `{ allowed: true }`. That directly contradicted this file's own
+ * fail-closed contract: an unregistered key skipped the descriptor gate
+ * entirely, so a batch became MORE open once its owning module was switched
+ * off.
+ *
+ * Fail-open is now unrepresentable rather than merely discouraged: every
+ * caller must decide what an unresolvable descriptor means for ITS route
+ * before it can call this at all (`imports`/`exports` create and `imports`
+ * retry answer 404 for an unknown key/batch; `imports/[id]/preview` denies
+ * — see each call site). `requiredPermission === undefined` — a resolvable
+ * descriptor that genuinely declares no extra requirement — remains a
+ * legitimate allow, and is now a strictly separate, unrelated branch.
+ */
+export async function authorizeExchangeDescriptorPermission(
+  tx: Bun.SQL,
+  tenantId: string,
+  tokenHash: string,
+  now: Date,
+  descriptor: ExchangeDescriptor
+): Promise<DescriptorPermissionCheck> {
+  if (!descriptor.requiredPermission) {
+    return { allowed: true };
+  }
+
+  return authorizeDescriptorPermissionKey(
+    tx,
+    tenantId,
+    tokenHash,
+    now,
+    descriptor.requiredPermission,
+    "Exchange descriptor's requiredPermission is malformed."
+  );
 }

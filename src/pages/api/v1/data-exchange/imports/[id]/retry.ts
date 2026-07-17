@@ -73,14 +73,29 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     if (!auth.allowed) return auth.denied;
 
     const existingBatch = await getImportBatchById(tx, tenantId, batchId);
-    const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
-      tx,
-      tenantId,
-      tokenHash,
-      now,
-      existingBatch ? resolveImportDescriptor(existingBatch.importKey) : null
-    );
-    if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
+    // A missing batch answers 404 further below (via `requestImportRetry`).
+    // An EXISTING batch whose importKey no longer resolves, however, is the
+    // module-disabled-after-staging case (Issue #820 Cacat 3): retrying
+    // re-runs the owning module's adapter, so it must fail CLOSED here
+    // rather than skip the descriptor gate the way passing `null` used to.
+    if (existingBatch) {
+      const retryDescriptor = resolveImportDescriptor(existingBatch.importKey);
+      if (!retryDescriptor) {
+        return fail(
+          409,
+          "INVALID_STATE",
+          `Import batch cannot be retried: importKey "${existingBatch.importKey}" is no longer registered — its owning module may be disabled.`
+        );
+      }
+      const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
+        tx,
+        tenantId,
+        tokenHash,
+        now,
+        retryDescriptor
+      );
+      if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
+    }
 
     const existingIdempotency = await findIdempotencyRecord(
       tx,

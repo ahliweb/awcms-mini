@@ -9548,15 +9548,15 @@ Distinct, more sensitive permission from exports.read (data_exchange.export_down
 
 **Responses**
 
-| Status | Description                                         | Schema                                 |
-| ------ | --------------------------------------------------- | -------------------------------------- |
-| 200    | Export file content.                                | string                                 |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope) |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope) |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope) |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope) |
-| 409    | Export job is not completed.                        | [`ApiError`](#standard-error-envelope) |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope) |
+| Status | Description                                                                                                       | Schema                                 |
+| ------ | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| 200    | Export file content.                                                                                              | string                                 |
+| 400    | Validation or request error.                                                                                      | [`ApiError`](#standard-error-envelope) |
+| 401    | Authentication required or expired.                                                                               | [`ApiError`](#standard-error-envelope) |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                    | [`ApiError`](#standard-error-envelope) |
+| 404    | Resource not found or hidden by soft-delete policy.                                                               | [`ApiError`](#standard-error-envelope) |
+| 409    | Export job is not completed, or its exportKey is no longer registered (owning module disabled after the job ran). | [`ApiError`](#standard-error-envelope) |
+| 500    | Internal server error without stack trace.                                                                        | [`ApiError`](#standard-error-envelope) |
 
 ### `GET /api/v1/data-exchange/imports` — List staged import batches
 
@@ -9685,15 +9685,15 @@ High-risk mutation -- requires Idempotency-Key. Never blocks on the actual per-r
 
 **Responses**
 
-| Status | Description                                                                           | Schema                                                   |
-| ------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Commit triggered.                                                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                                                          | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                                                   | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                        | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy.                                   | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Batch is not in previewed status, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.                                            | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                                                                                         | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Commit triggered.                                                                                                                                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Batch is not in previewed status, its importKey is no longer registered (owning module disabled after staging), or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                          | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/data-exchange/imports/{id}/pause` — Pause an in-progress commit
 
@@ -9728,29 +9728,30 @@ Requires Idempotency-Key. The worker skips a paused batch entirely.
 - **operationId**: `dataExchangeImportsPreview`
 - **Security**: bearerAuth + tenantHeader
 
-Zero domain mutation. Sensitive fields are masked unless the caller also holds data_exchange.preview_errors.read.
+Zero domain mutation. Raw staged values are revealed only when the batch's descriptor declares a sensitiveFields policy AND the caller holds the permission THAT descriptor names in sensitiveFields.rawValuePermission -- never a generic data_exchange permission. A descriptor declaring no policy is masked entirely (default-deny), and a batch whose importKey no longer resolves (its owning module was disabled after staging) is refused with 409.
 
 **Parameters**
 
-| Name               | In     | Required | Type                                                    | Description                                 |
-| ------------------ | ------ | -------- | ------------------------------------------------------- | ------------------------------------------- |
-| `id`               | path   | yes      | string (uuid)                                           |                                             |
-| `proposedAction`   | query  | no       | enum(`create`, `update`, `skip`, `conflict`, `invalid`) |                                             |
-| `offset`           | query  | no       | integer                                                 |                                             |
-| `limit`            | query  | no       | integer                                                 |                                             |
-| `X-Correlation-ID` | header | no       | string                                                  | Optional server-side trace correlation ID.  |
-| `X-Request-ID`     | header | no       | string                                                  | Optional client-generated request trace ID. |
+| Name               | In     | Required | Type                                                    | Description                                                                                                                                                         |
+| ------------------ | ------ | -------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | path   | yes      | string (uuid)                                           |                                                                                                                                                                     |
+| `proposedAction`   | query  | no       | enum(`create`, `update`, `skip`, `conflict`, `invalid`) |                                                                                                                                                                     |
+| `offset`           | query  | no       | integer                                                 | Clamped to the maximum below, which equals the hard cap on rows per batch -- no batch can hold a row beyond it. The response echoes the effective (clamped) offset. |
+| `limit`            | query  | no       | integer                                                 |                                                                                                                                                                     |
+| `X-Correlation-ID` | header | no       | string                                                  | Optional server-side trace correlation ID.                                                                                                                          |
+| `X-Request-ID`     | header | no       | string                                                  | Optional client-generated request trace ID.                                                                                                                         |
 
 **Responses**
 
-| Status | Description                                         | Schema                                                   |
-| ------ | --------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Preview page.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                                            | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Preview page.                                                                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 409    | The batch's importKey is no longer registered -- its owning module was disabled or removed after the batch was staged. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                             | [`ApiError`](#standard-error-envelope)                   |
 
 ### `POST /api/v1/data-exchange/imports/{id}/resume` — Resume a paused commit
 
@@ -9798,15 +9799,15 @@ High-risk mutation -- requires Idempotency-Key. Resumes from the batch's saved c
 
 **Responses**
 
-| Status | Description                                                                                         | Schema                                                   |
-| ------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| 200    | Retry/resume triggered.                                                                             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
-| 400    | Validation or request error.                                                                        | [`ApiError`](#standard-error-envelope)                   |
-| 401    | Authentication required or expired.                                                                 | [`ApiError`](#standard-error-envelope)                   |
-| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                      | [`ApiError`](#standard-error-envelope)                   |
-| 404    | Resource not found or hidden by soft-delete policy.                                                 | [`ApiError`](#standard-error-envelope)                   |
-| 409    | Batch is not retryable from its current status, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
-| 500    | Internal server error without stack trace.                                                          | [`ApiError`](#standard-error-envelope)                   |
+| Status | Description                                                                                                                                                                       | Schema                                                   |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Retry/resume triggered.                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                               | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                               | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Batch is not retryable from its current status, its importKey is no longer registered (owning module disabled after staging), or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                        | [`ApiError`](#standard-error-envelope)                   |
 
 ### `GET /api/v1/data-exchange/reconciliation/{subjectType}/{subjectId}` — Read reconciliation reports for an import or export subject
 
