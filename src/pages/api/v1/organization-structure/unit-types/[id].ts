@@ -26,6 +26,10 @@ import {
   fetchOrganizationUnitTypeById,
   updateOrganizationUnitType
 } from "../../../../../modules/organization-structure/application/organization-unit-type-directory";
+import {
+  mergeOrganizationUnitTypePatch,
+  parseOrganizationUnitTypePatch
+} from "../../../../../modules/organization-structure/domain/patch-input";
 
 const IDEMPOTENCY_SCOPE = "organization_structure_unit_type_delete";
 
@@ -97,10 +101,21 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
   const body = bodyRead.value ?? {};
 
-  const input = {
-    name: typeof body.name === "string" ? body.name : "",
-    description: typeof body.description === "string" ? body.description : null
-  };
+  // True partial-PATCH semantics (Issue #837): an omitted field keeps its
+  // stored value, an explicit `null` clears `description`, and `name` rejects
+  // `null` (`NOT NULL`). The pre-#837 route rebuilt the full input with
+  // per-field defaults, so a PATCH that changed only `name` silently cleared
+  // `description`.
+  const parsed = parseOrganizationUnitTypePatch(body);
+  if (!parsed.ok) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      parsed.errors
+        .map((error) => `${error.field}: ${error.message}`)
+        .join("; ")
+    );
+  }
 
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
@@ -117,12 +132,20 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
+    const existing = await fetchOrganizationUnitTypeById(
+      tx,
+      tenantId,
+      unitTypeId
+    );
+    if (!existing)
+      return fail(404, "NOT_FOUND", "Organization-unit type not found.");
+
     const result = await updateOrganizationUnitType(
       tx,
       tenantId,
       auth.context.tenantUserId,
       unitTypeId,
-      input,
+      mergeOrganizationUnitTypePatch(existing, parsed.patch),
       correlationId
     );
 

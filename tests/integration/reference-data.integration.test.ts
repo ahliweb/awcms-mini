@@ -2237,4 +2237,134 @@ describe("reference-data PATCH no-op and body-shape handling", () => {
 
     expect(noopPatch.status).toBe(realPatch.status);
   });
+
+  /**
+   * The `managed_by_descriptor` axis (#750) is the refusal PR #839 round 2
+   * caught by hand and — unlike the deprecated axis above — never got its own
+   * parity test, so nothing stopped the no-op path from silently answering
+   * `200` for a descriptor-managed code while a real patch answered `409`.
+   * Issue #843 moved BOTH the refusal and the no-op decision inside
+   * `updateReferenceCode`, so this parity is now structural; this test pins it
+   * so a future regression cannot re-open the exact gap that motivated #843.
+   */
+  test("REGRESSION (Issue #843, value-sets/codes PATCH): `PATCH {}` on a DESCRIPTOR-MANAGED code must 409 exactly like a real patch does -- the managed_by_descriptor refusal (#750) now lives inside updateReferenceCode, so the no-op path cannot answer 200 while a real patch answers 409", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+    const created = await invoke(createCode, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/currency/codes",
+      params: { key: "currency" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        code: "MGD",
+        labels: [{ locale: "en", label: "Managed" }],
+        sortOrder: 1,
+        metadata: {},
+        validFrom: "2026-01-01T00:00:00.000Z",
+        validTo: null
+      }
+    });
+    expect(created.status).toBe(200);
+
+    // Flip the row to descriptor-managed the way `contribution-sync` would.
+    // Via the least-privilege `awcms_mini_app` role (`getTestSql()` +
+    // `withTenant`), never the admin/superuser bypass.
+    const testSql = getTestSql();
+    await withTenant(testSql, owner.tenantId, async (tx) => {
+      await tx`
+        UPDATE awcms_mini_reference_codes SET managed_by_descriptor = true
+        WHERE code = 'MGD'
+          AND value_set_id = (
+            SELECT id FROM awcms_mini_reference_value_sets WHERE key = 'currency'
+          )
+      `;
+    });
+
+    // A REAL patch establishes the update path's own answer instead of
+    // assuming it.
+    const realPatch = await invoke<{ error: { code: string } }>(updateCode, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency/codes/MGD",
+      params: { key: "currency", code: "MGD" },
+      headers: authHeaders(owner, idKey()),
+      body: { sortOrder: 4 }
+    });
+    expect(realPatch.status).toBe(409);
+
+    const noopPatch = await invoke<{ error: { code: string } }>(updateCode, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency/codes/MGD",
+      params: { key: "currency", code: "MGD" },
+      headers: authHeaders(owner, idKey()),
+      body: {}
+    });
+
+    // The parity claim itself: same row, same permission, same endpoint --
+    // only the patch size differs, so the answer must not.
+    expect(noopPatch.status).toBe(realPatch.status);
+    expect(noopPatch.body.error.code).toBe(realPatch.body.error.code);
+  });
+
+  /**
+   * Issue #837: the value-set metadata PATCH defaulted an omitted `description`
+   * to `null`, so `PATCH { name }` silently cleared the stored description.
+   * True partial semantics keep it; an explicit `null` clears it; `name: null`
+   * is rejected (`NOT NULL`).
+   */
+  test("REGRESSION (Issue #837, value-sets PATCH): PATCH { name } keeps description; { description: null } clears it; { name: null } is 400", async () => {
+    const owner = await bootstrap();
+    const created = await invoke(createValueSet, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets",
+      headers: authHeaders(owner, idKey()),
+      body: {
+        key: "currency",
+        name: "Currencies",
+        description: "ISO 4217 currency codes",
+        overridePolicy: "tenant_extend_and_override"
+      }
+    });
+    expect(created.status).toBe(200);
+
+    const renamed = await invoke<{
+      data: { valueSet: { name: string; description: string | null } };
+    }>(updateValueSet, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency",
+      params: { key: "currency" },
+      headers: authHeaders(owner, idKey()),
+      body: { name: "Currency Codes" }
+    });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.data.valueSet.name).toBe("Currency Codes");
+    expect(renamed.body.data.valueSet.description).toBe(
+      "ISO 4217 currency codes"
+    );
+
+    const cleared = await invoke<{
+      data: { valueSet: { description: string | null } };
+    }>(updateValueSet, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency",
+      params: { key: "currency" },
+      headers: authHeaders(owner, idKey()),
+      body: { description: null }
+    });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data.valueSet.description).toBeNull();
+
+    const rejected = await invoke<{ error: { code: string } }>(updateValueSet, {
+      method: "PATCH",
+      path: "/api/v1/reference-data/value-sets/currency",
+      params: { key: "currency" },
+      headers: authHeaders(owner, idKey()),
+      body: { name: null }
+    });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.error.code).toBe("VALIDATION_ERROR");
+  });
 });

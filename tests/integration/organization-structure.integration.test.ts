@@ -29,18 +29,26 @@ import {
   GET as listLegalEntities,
   POST as createLegalEntity
 } from "../../src/pages/api/v1/organization-structure/legal-entities/index";
-import { DELETE as deactivateLegalEntity } from "../../src/pages/api/v1/organization-structure/legal-entities/[id]";
+import {
+  DELETE as deactivateLegalEntity,
+  GET as getLegalEntityById,
+  PATCH as updateLegalEntity
+} from "../../src/pages/api/v1/organization-structure/legal-entities/[id]";
 import { POST as restoreLegalEntity } from "../../src/pages/api/v1/organization-structure/legal-entities/[id]/restore";
 import {
   GET as listUnitTypes,
   POST as createUnitType
 } from "../../src/pages/api/v1/organization-structure/unit-types/index";
-import { DELETE as deleteUnitType } from "../../src/pages/api/v1/organization-structure/unit-types/[id]";
+import {
+  DELETE as deleteUnitType,
+  PATCH as updateUnitType
+} from "../../src/pages/api/v1/organization-structure/unit-types/[id]";
 import { POST as restoreUnitType } from "../../src/pages/api/v1/organization-structure/unit-types/[id]/restore";
 import { POST as createUnit } from "../../src/pages/api/v1/organization-structure/units/index";
 import {
   GET as getUnitById,
-  DELETE as deactivateUnit
+  DELETE as deactivateUnit,
+  PATCH as updateUnit
 } from "../../src/pages/api/v1/organization-structure/units/[id]";
 import { POST as restoreUnit } from "../../src/pages/api/v1/organization-structure/units/[id]/restore";
 import { POST as reparent } from "../../src/pages/api/v1/organization-structure/hierarchy/reparent";
@@ -50,7 +58,10 @@ import {
   GET as listLocations,
   POST as createLocation
 } from "../../src/pages/api/v1/organization-structure/locations/index";
-import { DELETE as deleteLocation } from "../../src/pages/api/v1/organization-structure/locations/[id]";
+import {
+  DELETE as deleteLocation,
+  PATCH as updateLocation
+} from "../../src/pages/api/v1/organization-structure/locations/[id]";
 import { POST as restoreLocation } from "../../src/pages/api/v1/organization-structure/locations/[id]/restore";
 import { POST as createLocationUnitRelationship } from "../../src/pages/api/v1/organization-structure/location-unit-relationships/index";
 import { POST as endLocationUnitRelationship } from "../../src/pages/api/v1/organization-structure/location-unit-relationships/[id]/end";
@@ -1622,6 +1633,315 @@ suite("organization_structure integration", () => {
         ancestorScopes: [],
         descendantScopes: []
       });
+    });
+  });
+
+  /**
+   * Issue #837 (spin-off of #822): the PATCH routes rebuilt their full update
+   * input with per-field defaults, so a partial PATCH silently RESET every
+   * omitted field — `name` -> `""`, `effectiveFrom` -> `now`, `effectiveTo`/
+   * FKs/description -> `null`. For the effective-dated units/legal-entities
+   * backing `BusinessScopeHierarchyPort` (#786) that truncated a record's
+   * validity history on any one-field edit. These pin the corrected semantics:
+   * absent = keep, explicit `null` = clear a nullable field, `null` on a
+   * `NOT NULL` field = 400. There was ZERO PATCH coverage here before, which is
+   * why the reset went unnoticed.
+   */
+  describe("PATCH partial-update semantics (Issue #837)", () => {
+    test("units: PATCH { name } keeps effectiveFrom/effectiveTo/legalEntityId untouched -- pre-#837 it reset effectiveFrom to now and effectiveTo/FK to null", async () => {
+      const owner = await bootstrap();
+      const created = await invoke<{
+        data: { unit: { id: string } };
+      }>(createUnit, {
+        method: "POST",
+        path: "/api/v1/organization-structure/units",
+        headers: authHeaders(owner),
+        body: {
+          code: "unit-837",
+          name: "Original Name",
+          effectiveFrom: "2020-01-01T00:00:00.000Z",
+          effectiveTo: "2030-01-01T00:00:00.000Z"
+        }
+      });
+      expect(created.status).toBe(200);
+      const unitId = created.body.data.unit.id;
+
+      const patched = await invoke<{
+        data: {
+          unit: {
+            name: string;
+            effectiveFrom: string;
+            effectiveTo: string | null;
+          };
+        };
+      }>(updateUnit, {
+        method: "PATCH",
+        path: `/api/v1/organization-structure/units/${unitId}`,
+        params: { id: unitId },
+        headers: authHeaders(owner),
+        body: { name: "Renamed" }
+      });
+      expect(patched.status).toBe(200);
+      expect(patched.body.data.unit.name).toBe("Renamed");
+      expect(new Date(patched.body.data.unit.effectiveFrom).toISOString()).toBe(
+        "2020-01-01T00:00:00.000Z"
+      );
+      expect(patched.body.data.unit.effectiveTo).not.toBeNull();
+      expect(new Date(patched.body.data.unit.effectiveTo!).toISOString()).toBe(
+        "2030-01-01T00:00:00.000Z"
+      );
+
+      // Confirm at the persistence layer too, not just the response echo.
+      const fetched = await invoke<{
+        data: { unit: { effectiveFrom: string; name: string } };
+      }>(getUnitById, {
+        method: "GET",
+        path: `/api/v1/organization-structure/units/${unitId}`,
+        params: { id: unitId },
+        headers: authHeaders(owner)
+      });
+      expect(new Date(fetched.body.data.unit.effectiveFrom).toISOString()).toBe(
+        "2020-01-01T00:00:00.000Z"
+      );
+      expect(fetched.body.data.unit.name).toBe("Renamed");
+    });
+
+    test("units: PATCH { effectiveTo: null } clears it while keeping effectiveFrom/name; PATCH { name: null } is 400", async () => {
+      const owner = await bootstrap();
+      const created = await invoke<{ data: { unit: { id: string } } }>(
+        createUnit,
+        {
+          method: "POST",
+          path: "/api/v1/organization-structure/units",
+          headers: authHeaders(owner),
+          body: {
+            code: "unit-837-clear",
+            name: "Keep Me",
+            effectiveFrom: "2021-06-01T00:00:00.000Z",
+            effectiveTo: "2031-06-01T00:00:00.000Z"
+          }
+        }
+      );
+      expect(created.status).toBe(200);
+      const unitId = created.body.data.unit.id;
+
+      const cleared = await invoke<{
+        data: {
+          unit: { name: string; effectiveFrom: string; effectiveTo: null };
+        };
+      }>(updateUnit, {
+        method: "PATCH",
+        path: `/api/v1/organization-structure/units/${unitId}`,
+        params: { id: unitId },
+        headers: authHeaders(owner),
+        body: { effectiveTo: null }
+      });
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.data.unit.effectiveTo).toBeNull();
+      expect(cleared.body.data.unit.name).toBe("Keep Me");
+      expect(new Date(cleared.body.data.unit.effectiveFrom).toISOString()).toBe(
+        "2021-06-01T00:00:00.000Z"
+      );
+
+      const rejected = await invoke<{ error: { code: string } }>(updateUnit, {
+        method: "PATCH",
+        path: `/api/v1/organization-structure/units/${unitId}`,
+        params: { id: unitId },
+        headers: authHeaders(owner),
+        body: { name: null }
+      });
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.error.code).toBe("VALIDATION_ERROR");
+    });
+
+    test("legal-entities: PATCH { name } keeps registrationIdentifier + effectiveFrom; PATCH { identifier: null, label: null } clears the pair", async () => {
+      const owner = await bootstrap();
+      const created = await invoke<{
+        data: { legalEntity: { id: string } };
+      }>(createLegalEntity, {
+        method: "POST",
+        path: "/api/v1/organization-structure/legal-entities",
+        headers: authHeaders(owner),
+        body: {
+          code: "le-837",
+          name: "Legal Original",
+          registrationIdentifier: "01.234.567.8-901.000",
+          registrationIdentifierLabel: "NPWP",
+          effectiveFrom: "2019-01-01T00:00:00.000Z"
+        }
+      });
+      expect(created.status).toBe(200);
+      const legalEntityId = created.body.data.legalEntity.id;
+
+      const patched = await invoke<{
+        data: {
+          legalEntity: {
+            name: string;
+            registrationIdentifier: string | null;
+            effectiveFrom: string;
+          };
+        };
+      }>(updateLegalEntity, {
+        method: "PATCH",
+        path: `/api/v1/organization-structure/legal-entities/${legalEntityId}`,
+        params: { id: legalEntityId },
+        headers: authHeaders(owner),
+        body: { name: "Legal Renamed" }
+      });
+      expect(patched.status).toBe(200);
+      expect(patched.body.data.legalEntity.name).toBe("Legal Renamed");
+      expect(patched.body.data.legalEntity.registrationIdentifier).toBe(
+        "01.234.567.8-901.000"
+      );
+      expect(
+        new Date(patched.body.data.legalEntity.effectiveFrom).toISOString()
+      ).toBe("2019-01-01T00:00:00.000Z");
+
+      // The identifier/label are a both-or-neither pair (domain validator +
+      // DB CHECK), so clearing ONLY the identifier is correctly a 400 -- proof
+      // that value validation still runs on the merged result. Clearing the
+      // pair together succeeds.
+      const loneClear = await invoke<{ error: { code: string } }>(
+        updateLegalEntity,
+        {
+          method: "PATCH",
+          path: `/api/v1/organization-structure/legal-entities/${legalEntityId}`,
+          params: { id: legalEntityId },
+          headers: authHeaders(owner),
+          body: { registrationIdentifier: null }
+        }
+      );
+      expect(loneClear.status).toBe(400);
+
+      const cleared = await invoke<{
+        data: {
+          legalEntity: {
+            name: string;
+            registrationIdentifier: string | null;
+            registrationIdentifierLabel: string | null;
+          };
+        };
+      }>(updateLegalEntity, {
+        method: "PATCH",
+        path: `/api/v1/organization-structure/legal-entities/${legalEntityId}`,
+        params: { id: legalEntityId },
+        headers: authHeaders(owner),
+        body: {
+          registrationIdentifier: null,
+          registrationIdentifierLabel: null
+        }
+      });
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.data.legalEntity.registrationIdentifier).toBeNull();
+      expect(cleared.body.data.legalEntity.name).toBe("Legal Renamed");
+
+      // The GET confirms the pair really is null in storage.
+      const fetched = await invoke<{
+        data: {
+          legalEntity: {
+            registrationIdentifier: string | null;
+            registrationIdentifierLabel: string | null;
+          };
+        };
+      }>(getLegalEntityById, {
+        method: "GET",
+        path: `/api/v1/organization-structure/legal-entities/${legalEntityId}`,
+        params: { id: legalEntityId },
+        headers: authHeaders(owner)
+      });
+      expect(fetched.body.data.legalEntity.registrationIdentifier).toBeNull();
+      expect(
+        fetched.body.data.legalEntity.registrationIdentifierLabel
+      ).toBeNull();
+    });
+
+    test("unit-types: PATCH { name } keeps description; PATCH { description: null } clears it", async () => {
+      const owner = await bootstrap();
+      const created = await invoke<{
+        data: { unitType: { id: string } };
+      }>(createUnitType, {
+        method: "POST",
+        path: "/api/v1/organization-structure/unit-types",
+        headers: authHeaders(owner),
+        body: {
+          code: "type_837",
+          name: "Type Original",
+          description: "Keep this description"
+        }
+      });
+      expect(created.status).toBe(200);
+      const unitTypeId = created.body.data.unitType.id;
+
+      const patched = await invoke<{
+        data: { unitType: { name: string; description: string | null } };
+      }>(updateUnitType, {
+        method: "PATCH",
+        path: `/api/v1/organization-structure/unit-types/${unitTypeId}`,
+        params: { id: unitTypeId },
+        headers: authHeaders(owner),
+        body: { name: "Type Renamed" }
+      });
+      expect(patched.status).toBe(200);
+      expect(patched.body.data.unitType.name).toBe("Type Renamed");
+      expect(patched.body.data.unitType.description).toBe(
+        "Keep this description"
+      );
+
+      const cleared = await invoke<{
+        data: { unitType: { description: string | null } };
+      }>(updateUnitType, {
+        method: "PATCH",
+        path: `/api/v1/organization-structure/unit-types/${unitTypeId}`,
+        params: { id: unitTypeId },
+        headers: authHeaders(owner),
+        body: { description: null }
+      });
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.data.unitType.description).toBeNull();
+    });
+
+    test("locations: PATCH { name } keeps the stored address/coordinates untouched", async () => {
+      const owner = await bootstrap();
+      const created = await invoke<{
+        data: { location: { id: string } };
+      }>(createLocation, {
+        method: "POST",
+        path: "/api/v1/organization-structure/locations",
+        headers: authHeaders(owner),
+        body: {
+          name: "Location Original",
+          addressLine1: "Jl. Merdeka 1",
+          city: "Bandung",
+          latitude: -6.9,
+          longitude: 107.6
+        }
+      });
+      expect(created.status).toBe(200);
+      const locationId = created.body.data.location.id;
+
+      const patched = await invoke<{
+        data: {
+          location: {
+            name: string;
+            addressLine1: string | null;
+            city: string | null;
+            latitude: number | null;
+            longitude: number | null;
+          };
+        };
+      }>(updateLocation, {
+        method: "PATCH",
+        path: `/api/v1/organization-structure/locations/${locationId}`,
+        params: { id: locationId },
+        headers: authHeaders(owner),
+        body: { name: "Location Renamed" }
+      });
+      expect(patched.status).toBe(200);
+      expect(patched.body.data.location.name).toBe("Location Renamed");
+      expect(patched.body.data.location.addressLine1).toBe("Jl. Merdeka 1");
+      expect(patched.body.data.location.city).toBe("Bandung");
+      expect(patched.body.data.location.latitude).toBe(-6.9);
+      expect(patched.body.data.location.longitude).toBe(107.6);
     });
   });
 });

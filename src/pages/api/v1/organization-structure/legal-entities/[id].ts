@@ -26,6 +26,10 @@ import {
   fetchLegalEntityById,
   updateLegalEntity
 } from "../../../../../modules/organization-structure/application/legal-entity-directory";
+import {
+  mergeLegalEntityPatch,
+  parseLegalEntityPatch
+} from "../../../../../modules/organization-structure/domain/patch-input";
 
 const IDEMPOTENCY_SCOPE = "organization_structure_legal_entity_delete";
 
@@ -98,23 +102,21 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
   const body = bodyRead.value ?? {};
 
-  const input = {
-    name: typeof body.name === "string" ? body.name : "",
-    registrationIdentifier:
-      typeof body.registrationIdentifier === "string"
-        ? body.registrationIdentifier
-        : null,
-    registrationIdentifierLabel:
-      typeof body.registrationIdentifierLabel === "string"
-        ? body.registrationIdentifierLabel
-        : null,
-    effectiveFrom:
-      typeof body.effectiveFrom === "string"
-        ? new Date(body.effectiveFrom)
-        : new Date(),
-    effectiveTo:
-      typeof body.effectiveTo === "string" ? new Date(body.effectiveTo) : null
-  };
+  // True partial-PATCH semantics (Issue #837): an omitted field keeps its
+  // stored value, an explicit `null` clears a nullable one, and `name`/
+  // `effectiveFrom` reject `null` (both are `NOT NULL`). The pre-#837 route
+  // rebuilt the full input with per-field defaults, so any one-field PATCH
+  // silently reset the legal entity's name/effective-dating history.
+  const parsed = parseLegalEntityPatch(body);
+  if (!parsed.ok) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      parsed.errors
+        .map((error) => `${error.field}: ${error.message}`)
+        .join("; ")
+    );
+  }
 
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
@@ -131,12 +133,15 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
+    const existing = await fetchLegalEntityById(tx, tenantId, legalEntityId);
+    if (!existing) return fail(404, "NOT_FOUND", "Legal entity not found.");
+
     const result = await updateLegalEntity(
       tx,
       tenantId,
       auth.context.tenantUserId,
       legalEntityId,
-      input,
+      mergeLegalEntityPatch(existing, parsed.patch),
       correlationId
     );
 

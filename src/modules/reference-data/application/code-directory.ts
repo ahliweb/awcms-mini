@@ -35,9 +35,13 @@ import {
   type CreateReferenceCodeInput,
   type DeprecateReferenceCodeInput,
   type ReferenceCodeLabelInput,
-  type ReferenceCodeValidationError,
-  type UpdateReferenceCodeInput
+  type ReferenceCodeValidationError
 } from "../domain/code";
+import {
+  isEmptyReferenceCodePatch,
+  mergeReferenceCodePatchInput,
+  type ReferenceCodePatchInput
+} from "../domain/code-patch";
 
 const MODULE_KEY = "reference_data";
 
@@ -217,33 +221,43 @@ export async function createReferenceCode(
 }
 
 export type UpdateReferenceCodeResult =
-  | { ok: true; code: ReferenceCodeRow }
+  | { ok: true; code: ReferenceCodeRow; noop: boolean }
   | { ok: false; reason: "validation"; errors: ReferenceCodeValidationError[] }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "descriptor_managed" };
 
+/**
+ * Apply a partial `PATCH` to a reference code.
+ *
+ * Takes the caller's already-fetched `existing` row plus the raw
+ * {@link ReferenceCodePatchInput} and owns EVERY decision that depends on the
+ * patch shape — the `managed_by_descriptor` refusal (#750) AND the documented
+ * empty-`{}` no-op — so a caller can never re-derive one of them and drift
+ * (Issue #843). The refusal is checked BEFORE the no-op short-circuit, so an
+ * empty patch on a descriptor-managed code stays a `409`, never a `200`. A
+ * genuine no-op returns the row verbatim with `noop: true` and performs NO
+ * write, audit event or domain event.
+ */
 export async function updateReferenceCode(
   tx: Bun.SQL,
   tenantId: string,
   actorTenantUserId: string,
-  codeId: string,
-  input: UpdateReferenceCodeInput,
+  existing: ReferenceCodeRow,
+  patch: ReferenceCodePatchInput,
   correlationId?: string
 ): Promise<UpdateReferenceCodeResult> {
+  if (existing.managedByDescriptor) {
+    return { ok: false, reason: "descriptor_managed" };
+  }
+
+  if (isEmptyReferenceCodePatch(patch)) {
+    return { ok: true, code: existing, noop: true };
+  }
+
+  const input = mergeReferenceCodePatchInput(existing, patch);
   const errors = validateUpdateReferenceCodeInput(input);
   if (errors.length > 0) {
     return { ok: false, reason: "validation", errors };
-  }
-
-  const existingRows = (await tx`
-    SELECT id, managed_by_descriptor FROM awcms_mini_reference_codes WHERE id = ${codeId}
-  `) as { id: string; managed_by_descriptor: boolean }[];
-  const existing = existingRows[0];
-  if (!existing) {
-    return { ok: false, reason: "not_found" };
-  }
-  if (existing.managed_by_descriptor) {
-    return { ok: false, reason: "descriptor_managed" };
   }
 
   const rows = (await tx`
@@ -251,13 +265,16 @@ export async function updateReferenceCode(
     SET sort_order = ${input.sortOrder}, metadata = ${input.metadata},
         valid_from = ${input.validFrom}, valid_to = ${input.validTo},
         updated_by = ${actorTenantUserId}, updated_at = now()
-    WHERE id = ${codeId}
+    WHERE id = ${existing.id} AND managed_by_descriptor = false
     RETURNING id, value_set_id, code, sort_order, metadata, valid_from, valid_to,
       deprecated_at, superseded_by_code_id, provenance, managed_by_descriptor, import_batch_id,
       created_at, updated_at
   `) as CodeDbRow[];
 
-  const updated = rows[0]!;
+  if (!rows[0]) {
+    return { ok: false, reason: "not_found" };
+  }
+  const updated = rows[0];
   await replaceLabels(tx, updated.id, input.labels);
   const code = toRow(updated, input.labels);
 
@@ -285,7 +302,7 @@ export async function updateReferenceCode(
     correlationId
   });
 
-  return { ok: true, code };
+  return { ok: true, code, noop: false };
 }
 
 export type DeprecateReferenceCodeResult =

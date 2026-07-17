@@ -26,6 +26,10 @@ import {
   fetchReferenceValueSetByKey,
   updateReferenceValueSet
 } from "../../../../../modules/reference-data/application/value-set-directory";
+import {
+  mergeReferenceValueSetPatch,
+  parseReferenceValueSetPatch
+} from "../../../../../modules/reference-data/domain/value-set-patch";
 
 const DEPRECATE_IDEMPOTENCY_SCOPE = "reference_data_value_set_deprecate";
 const UPDATE_IDEMPOTENCY_SCOPE = "reference_data_value_set_update";
@@ -100,10 +104,21 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   }>(request, "default");
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
   const body = bodyRead.value ?? {};
-  const input = {
-    name: typeof body.name === "string" ? body.name : "",
-    description: typeof body.description === "string" ? body.description : null
-  };
+
+  // True partial-PATCH semantics (Issue #837): an omitted field keeps its
+  // stored value, an explicit `null` clears `description`, and `name` rejects
+  // `null` (`NOT NULL`). The pre-#837 route defaulted an omitted `description`
+  // to `null`, so a PATCH that changed only `name` silently cleared it.
+  const parsed = parseReferenceValueSetPatch(body);
+  if (!parsed.ok) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      parsed.errors
+        .map((error) => `${error.field}: ${error.message}`)
+        .join("; ")
+    );
+  }
 
   const requestHash = computeRequestHash({ ...body, key, action: "update" });
   const sql = getDatabaseClient();
@@ -140,12 +155,15 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
       });
     }
 
+    const existing = await fetchReferenceValueSetByKey(tx, key);
+    if (!existing) return fail(404, "NOT_FOUND", "Value set not found.");
+
     const result = await updateReferenceValueSet(
       tx,
       tenantId,
       auth.context.tenantUserId,
       key,
-      input,
+      mergeReferenceValueSetPatch(existing, parsed.patch),
       correlationId
     );
 

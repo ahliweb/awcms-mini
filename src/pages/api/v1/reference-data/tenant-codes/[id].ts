@@ -28,10 +28,7 @@ import {
   fetchTenantReferenceCodeById,
   updateTenantReferenceCode
 } from "../../../../../modules/reference-data/application/tenant-code-directory";
-import {
-  mergeReferenceCodePatchInput,
-  parseReferenceCodePatchInput
-} from "../../../../../modules/reference-data/domain/code-patch";
+import { parseReferenceCodePatchInput } from "../../../../../modules/reference-data/domain/code-patch";
 
 const UPDATE_IDEMPOTENCY_SCOPE = "reference_data_tenant_code_update";
 const DEPRECATE_IDEMPOTENCY_SCOPE = "reference_data_tenant_code_deprecate";
@@ -161,46 +158,22 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     const existing = await fetchTenantReferenceCodeById(tx, tenantId, id);
     if (!existing) return fail(404, "NOT_FOUND", "Tenant code not found.");
 
-    // `{}` is a documented valid no-op (see the OpenAPI request-body note),
-    // but `updateTenantReferenceCode` is unconditional: it would bump
-    // `updated_at`, re-write the translation rows, emit an audit event and
-    // append a `reference-code-updated` domain event for a request that
-    // changes nothing. Answer with the current representation instead, so a
-    // no-op stays observably a no-op. Deliberately AFTER authorization and the
-    // 404/idempotency-replay checks — an empty patch must not become a way to
-    // probe for a code's existence without holding the update permission.
-    //
-    // Every refusal `updateTenantReferenceCode` would have applied has to be
-    // re-applied here, or the endpoint's answer starts depending on how many
-    // fields the caller happened to send. Its UPDATE carries
-    // `AND deprecated_at IS NULL` and reports `not_found` for a deprecated
-    // row, so the empty patch must 404 on one too — otherwise a deprecated
-    // tenant code reads back as a live, editable-looking 200 through this path
-    // alone. (Issue #843 tracks removing this duplication outright.)
-    if (Object.keys(parsed.patch).length === 0) {
-      if (existing.deprecatedAt !== null) {
-        return fail(404, "NOT_FOUND", "Tenant code not found.");
-      }
-
-      const noopResponse = ok({ tenantCode: existing });
-      await saveIdempotencyRecord(
-        tx,
-        tenantId,
-        UPDATE_IDEMPOTENCY_SCOPE,
-        idempotencyKey,
-        requestHash,
-        200,
-        await noopResponse.clone().json()
-      );
-      return noopResponse;
-    }
-
+    // The empty-`{}` no-op AND the deprecated-row refusal both live inside
+    // `updateTenantReferenceCode` now (Issue #843): it takes the raw patch,
+    // decides no-op-vs-write there, and returns the row verbatim (`noop: true`)
+    // without a spurious `updated_at` bump, audit event or domain event. The
+    // route never re-derives either decision, so the endpoint's answer can no
+    // longer depend on how many fields the caller happened to send. `existing`
+    // is fetched here only so an unknown id is a 404 before the helper runs —
+    // deliberately AFTER authorization and the idempotency-replay check, so an
+    // empty patch cannot probe for a code's existence without the update
+    // permission.
     const result = await updateTenantReferenceCode(
       tx,
       tenantId,
       auth.context.tenantUserId,
-      id,
-      mergeReferenceCodePatchInput(existing, parsed.patch),
+      existing,
+      parsed.patch,
       correlationId
     );
 
