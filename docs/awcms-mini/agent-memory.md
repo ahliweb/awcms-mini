@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 91.**
+**Jumlah memory saat snapshot terakhir: 93.**
 
 ## Sengaja TIDAK disertakan
 
@@ -44,118 +44,121 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 
 ## Cara kerja & jebakan proses
 
-- [Workflow quorum bypass via concurrent decisions #851](workflow-quorum-bypass-concurrent-decision-851.md) — #827: quorum-`all` bypassable by ONE approver via 2 concurrent approvals w/ DIFFERENT idempotency keys (READ COMMITTED TOCTOU, no unique constraint on decisions); filed #851; `test.failing` = honest primitive for a deterministic known-bug probe; #827 premise integ=1 WRONG (real 13/24/40 blocks)
-- [Session limit kills agents, work survives](session-limit-kills-agents-work-survives.md) — kuota habis = semua agent mati serentak; DUA varian: worktree SELAMAT (ada commit) → resume via SendMessage; worktree HILANG (mati di eksplorasi, auto-clean karena unchanged) → relaunch bersih. Bedakan via `git rev-list --count main..<branch>`. Scratch DB di Postgres selalu selamat
-- [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory hidup di luar repo & hilang saat pindah device; `bun run memory:docs:sync` tiap memory berubah, `memory:docs:restore` di device baru
-- [Create feature branch before commit](create-feature-branch-before-commit.md) — 3x commit langsung ke main setelah merge PR sebelumnya; `git checkout -b` segera setelah sync, cek `git branch --show-current` sebelum tiap commit
-- [Bulk branch delete needs named list](bulk-branch-delete-needs-named-list.md) — classifier memblokir hapus-massal branch walau verifikasi PR sudah kuat; minta konfirmasi AskUserQuestion atas daftar persisnya
-- [Agent shared working-dir checkout](agent-shared-working-dir-checkout.md) — agent latar berbagi checkout orchestrator (tanpa isolasi worktree); `git checkout main` satu agent bisa memindahkanmu dari branch fitur
-- [Shared checkout branch-switch near-miss](shared-checkout-branch-switch-near-miss.md) — `git checkout main` di dir bersama diam-diam membawa serta kerja uncommitted branch lain; cek `git status` dulu
-- [Subagent background-notification stall](subagent-background-notification-stall.md) — subagent yang mem-background `bun run check` sendiri lalu menunggu notifikasi macet selamanya (hanya orchestrator yang menerimanya)
-- [awcms-mini-coder self-delegation trap](awcms-mini-coder-self-delegation-trap.md) — deskripsi agent bisa terbaca sebagai instruksi diri → rantai spawn rekursif no-op; verifikasi via git/gh sebelum percaya laporan "sudah diluncurkan"
-- [ScheduleWakeup unreliable for CI waits](schedulewakeup-unreliable-ci-wait.md) — delay tak memetakan wall-clock nyata; pakai Bash run_in_background + until-loop
+- [Workflow quorum bypass via concurrent decisions #851](workflow-quorum-bypass-concurrent-decision-851.md) — #827: quorum-`all` bypass oleh 1 approver via 2 approve konkuren key beda (TOCTOU, tak ada unique constraint decisions); filed #851; `test.failing` = primitif jujur probe bug deterministik; premis #827 integ=1 SALAH (nyata 13/24/40 blok)
+- [Session limit kills agents, work survives](session-limit-kills-agents-work-survives.md) — kuota habis = semua agent mati; worktree SELAMAT (ada commit) → resume SendMessage; HILANG → relaunch; bedakan `git rev-list --count main..<branch>`
+- [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory di luar repo & hilang saat pindah device; `bun run memory:docs:sync` tiap berubah, `memory:docs:restore` di device baru
+- [Create feature branch before commit](create-feature-branch-before-commit.md) — 3x commit langsung ke main setelah merge; `git checkout -b` segera setelah sync, cek `git branch --show-current` sebelum tiap commit
+- [Bulk branch delete needs named list](bulk-branch-delete-needs-named-list.md) — classifier blokir hapus-massal branch walau verifikasi PR kuat; minta konfirmasi AskUserQuestion atas daftar persisnya
+- [Agent shared working-dir checkout](agent-shared-working-dir-checkout.md) — agent latar berbagi checkout orchestrator; `git checkout main` satu agent bisa memindahkanmu dari branch fitur
+- [Shared checkout branch-switch near-miss](shared-checkout-branch-switch-near-miss.md) — `git checkout main` di dir bersama diam-diam membawa kerja uncommitted branch lain; cek `git status` dulu
+- [Subagent background-notification stall](subagent-background-notification-stall.md) — subagent yang mem-background `bun run check` lalu menunggu notifikasi macet selamanya (hanya orchestrator terima)
+- [awcms-mini-coder self-delegation trap](awcms-mini-coder-self-delegation-trap.md) — deskripsi agent terbaca sebagai instruksi diri → spawn rekursif no-op; verifikasi via git/gh
+- [ScheduleWakeup unreliable for CI waits](schedulewakeup-unreliable-ci-wait.md) — delay tak memetakan wall-clock; pakai Bash run_in_background + until-loop
 
 ## Menilai issue & klaim
 
-- [Oracle issue: check timing dimension](oracle-issue-check-timing-dimension.md) — #840: oracle TIMING tak disebut ~19x > oracle body (4,13 vs 80,13ms) — pola `identityRow ? await verifyPassword(...) : false`; perbaiki body saja = security theater. Dummy hash wajib dari `hashPassword()` sendiri. Urutan nilai residu timing: arah skew → per-req vs per-proses → bisa diatribusi? → baru rasio
-- [My crude verification breaks setup](my-crude-verification-breaks-setup.md) — 5x/sesi alat verifikasi kasar SENDIRI merusak setup (sampel sekuensial, ukur setelah TRUNCATE, psql tanpa RLS, `grep -v` merusak YAML) → angka menyesatkan yang tampak seperti "kerja agent salah"; anomali (0 pass/0 fail = load error) = cacat sendiri. Tetap verifikasi, perbaiki alat
-- [Grep for marker cannot prove absence](grep-for-marker-cannot-prove-absence.md) — verifikasi "kerja agent selamat" via grep penanda fix hanya membuktikan file yang PUNYA penanda; yang perbaikannya hilang diam-diam keluar dari hasil; bandingkan `git diff --stat` per file terhadap daftar yang diharapkan
-- [Audit issue numbers unreliable](audit-issue-numbers-unreliable.md) — diagnosis struktural audit #818 kuat tapi ANGKA & RESEPnya salah di 5 issue; pisahkan observasi terverifikasi dari hipotesis
-- [Bulk insert jsonb unnest trap](bulk-insert-jsonb-unnest-trap.md) — `unnest(..., tx.array(map(JSON.stringify),"jsonb"))` MEMUNCULKAN LAGI bug #623 (SELECT balik jadi string); hanya `tx(rows)` objek polos yang fidel + dukung RETURNING/null/inet; `unnest` tetap benar utk bulk UPDATE & `(a,b) IN (SELECT * FROM unnest($1,$2))`; `count(DISTINCT xmin)` butuh `::text`
-- [xmin proves batching](xmin-proves-batching.md) — klaim "N event = 1 transaksi" diassert lewat `count(DISTINCT xmin::text)`, deterministik & loopback-safe, TANPA timing; kalau perubahan perf punya sidik jari struktural di data, assert sidik jarinya, bukan jam
-- [fail-open catch hides untested SQL](failopen-catch-hides-untested-sql.md) — #846: bulk UPDATE dalam catch fail-open + tak disentuh test = syntax error ditelan selamanya, nol test gagal; mutation test satu-satunya red-verification (stash tak berguna utk modul BARU: import error)
-- [Verify a perf issue's premise](perf-issue-premise-verify-before-trusting.md) — #833 klaim "~6 juta kunjungan" nyatanya 7.203/0,067ms (meleset ~800x); big-O judul = worst-case, short-circuit membatalkannya — HITUNG input nyata
-- [Perf claims need adversarial benchmark](perf-claims-need-adversarial-benchmark.md) — loopback Postgres menyembunyikan kemenangan round-trip; suntik `pg_sleep` untuk isolasi jalur kritis; `docker exec` tanpa `-i` melewati heredoc → angka palsu
-- [Validator exists but unwired = Critical](validator-exists-but-unwired-critical-pattern.md) — validator teruji rapi tapi tak pernah dipanggil di jalur tulis nyata; telusuri validator MUNDUR dari tiap write path, bukan maju dari test-nya
-- [Derive publish roots from registry](derive-publish-roots-from-registry-848.md) — #848: PUBLISH_ROOTS manual → derivasi (consumer non-base eventTypes → pemanggil appendDomainEvent via resolusi import ES per-file incl ternary; se-modul WAJIB import, lintas-modul FLAG bukan paksa — hindari edge yang #826 hapus). Langka: semua premis BENAR. RED via stash baris import saja, komentar path tetap
-- [Cycle detector fed an incomplete graph](cycle-detector-fed-incomplete-graph.md) — gate BENAR yang disuapi `dependencies` tulisan tangan tak bisa gagal pada edge tak-terdeklarasi; audit INPUT gate, bukan algoritmanya
+- [Oracle issue: check timing dimension](oracle-issue-check-timing-dimension.md) — #840: oracle TIMING tak disebut; `identityRow ? await verify : false`; body-only fix = security theater; dummy hash dari `hashPassword()` sendiri
+- [My crude verification breaks setup](my-crude-verification-breaks-setup.md) — 5x/sesi alat verifikasi kasar SENDIRI merusak setup (psql tanpa RLS, `grep -v` rusak YAML); anomali 0/0 = cacat sendiri; perbaiki alat
+- [Grep for marker cannot prove absence](grep-for-marker-cannot-prove-absence.md) — grep penanda fix hanya buktikan file yang PUNYA penanda; bandingkan `git diff --stat` per file vs daftar diharapkan
+- [Audit issue numbers unreliable](audit-issue-numbers-unreliable.md) — diagnosis struktural audit #818 kuat tapi ANGKA & RESEP salah di 5 issue; pisahkan observasi terverifikasi dari hipotesis
+- [Bulk insert jsonb unnest trap](bulk-insert-jsonb-unnest-trap.md) — `unnest(...tx.array(map(JSON.stringify)))` munculkan lagi #623 (SELECT balik string); hanya `tx(rows)` objek polos fidel; `unnest` benar utk bulk UPDATE
+- [xmin proves batching](xmin-proves-batching.md) — "N event = 1 transaksi" diassert via `count(DISTINCT xmin::text)`, deterministik & loopback-safe TANPA timing; assert sidik jari struktural, bukan jam
+- [fail-open catch hides untested SQL](failopen-catch-hides-untested-sql.md) — #846: bulk UPDATE dalam catch fail-open tak disentuh test = syntax error ditelan; mutation test satu-satunya red-verification (stash tak guna modul BARU)
+- [Verify a perf issue's premise](perf-issue-premise-verify-before-trusting.md) — #833 klaim "~6 juta kunjungan" nyatanya 7.203/0,067ms (~800x meleset); big-O judul = worst-case, short-circuit membatalkannya — HITUNG input nyata
+- [Perf claims need adversarial benchmark](perf-claims-need-adversarial-benchmark.md) — loopback Postgres sembunyikan kemenangan round-trip; suntik `pg_sleep` isolasi jalur kritis; `docker exec` tanpa `-i` lewati heredoc
+- [Validator exists but unwired = Critical](validator-exists-but-unwired-critical-pattern.md) — validator teruji tapi tak dipanggil di jalur tulis nyata; telusuri validator MUNDUR dari tiap write path
+- [Derive publish roots from registry](derive-publish-roots-from-registry-848.md) — #848: PUBLISH_ROOTS manual → derivasi via resolusi import ES; se-modul WAJIB, lintas-modul FLAG; RED via stash baris import
+- [Cycle detector fed an incomplete graph](cycle-detector-fed-incomplete-graph.md) — gate BENAR disuapi `dependencies` tulisan tangan tak bisa gagal pada edge tak-terdeklarasi; audit INPUT gate bukan algoritmanya
+- [N+1 batch #835 premises](n-plus-1-batch-835-premises.md) — #835: 2 premis meleset — gabung query roles mentah HILANGKAN role tanpa permission (pakai LEFT JOIN terpisah); "lock ditahan saat I/O jaringan" KELIRU (onArticlePublished tulis outbox DB tx sama, no network); bahaya nyata `FOR UPDATE` tanpa LIMIT → `LIMIT + SKIP LOCKED`
+- [Concurrent MEMORY.md writes race](concurrent-memory-index-writes-race.md) — memory dir di LUAR repo dibagi semua agent paralel; tulisan indeks MEMORY.md mereka + orchestrator saling menimpa (lost update) → baris indeks hilang jadi orphan; deteksi via cek orphan (file ada, tak terdaftar), agent tulis FILE memory-nya aman tapi jangan andalkan edit indeks konkuren
 
 ## Test: cara gagal yang menipu
 
-- [Response-vs-schema contract gate](response-vs-schema-contract-gate.md) — #844: repo nol validasi body response vs OpenAPI publish. Validator JSON-Schema tangan (ajv tolak envelope ApiSuccess karena baca allOf per-branch ketat; kontrak pakai merge). Validasi objek nyata vs schema ter-parse, bukan `source.includes`. RED via edit bundle (hapus blok utuh, bukan `grep -v` 1 baris)
-- [Audit count assertion vacuous](audit-count-assertion-vacuous.md) — nama action karangan → bandingkan 0 dgn 0, lolos vakum selamanya; action generik (create/update/…), `resource_type` diskriminatornya; assert sisi sebaliknya
-- [Filter assertion timing, bidirectional](filter-assertion-timing-bidirectional.md) — assert sisi-include filter status SEBELUM fixture keluar dari state itu, bukan sesudahnya bersama sisi-exclude
-- [Short-circuit must replicate every guard](short-circuit-must-replicate-every-guard.md) — fast-path yang melompati helper wajib ulangi SETIAP refusal-nya; assert fast-path TERHADAP slow-path, bukan status hardcoded; Issue #843
-- [bun test expect().resolves/.rejects hang](bun-test-expect-resolves-rejects-hang.md) — hang selamanya pada promise Bun.SQL mentah apa pun; selalu await-lalu-assert atau try/catch manual
+- [Response-vs-schema contract gate](response-vs-schema-contract-gate.md) — #844: nol validasi body response vs OpenAPI; validator JSON-Schema tangan (ajv tolak envelope allOf); validasi objek vs schema ter-parse bukan `source.includes`
+- [Audit count assertion vacuous](audit-count-assertion-vacuous.md) — nama action karangan → bandingkan 0 dgn 0, vakum selamanya; action generik, `resource_type` diskriminator; assert sisi sebaliknya
+- [Filter assertion timing, bidirectional](filter-assertion-timing-bidirectional.md) — assert sisi-include filter status SEBELUM fixture keluar dari state itu, bukan sesudahnya
+- [Short-circuit must replicate every guard](short-circuit-must-replicate-every-guard.md) — #843: fast-path yang melompati helper wajib ulangi SETIAP refusal-nya; assert fast-path TERHADAP slow-path bukan status hardcoded. RESOLVED 2026-07-18: keputusan no-op dipindah ke DALAM update*, descriptor-managed axis dapat parity test pertama
+- [PATCH default-in-parse resets omitted fields](patch-default-in-parse-resets-omitted-fields.md) — kelas #822/#837: route PATCH merakit input penuh dgn `typeof body.x==='string'?...:<default>` → satu-field PATCH diam-diam reset sisanya (effectiveFrom→now memotong riwayat effective-dating). absent=keep, null=clear, null pada NOT NULL=400. 4 endpoint org-structure NOL coverage PATCH; primitif `_shared/partial-patch.ts`
+- [bun test expect().resolves/.rejects hang](bun-test-expect-resolves-rejects-hang.md) — hang selamanya pada promise Bun.SQL mentah apa pun; await-lalu-assert atau try/catch manual
 - [bun test rejects.toThrow() hang](bun-test-rejects-tothrow-hang.md) — `.rejects.toThrow()` pada promise Bun.SQL memutar proses 100% CPU selamanya
-- [bun run check skips integration tests](bun-check-skips-integration-tests.md) — tanpa DATABASE_URL, *.integration.test.ts diam-diam dilewati; jalankan suite penuh lawan Postgres nyata sebelum push perubahan migration/schema
-- [bun test DB warmup flake](bun-test-db-warmup-flake.md) — gagal integration palsu tepat setelah `docker start awcms-mini-pg-515`; re-run sekali sebelum meragukan laporan
-- [Concurrent check DB contention](concurrent-check-db-contention.md) — dua `bun run check` paralel lawan dev Postgres bersama = 50-300+ gagal palsu; re-run terisolasi sebelum percaya
-- [Idle-in-transaction hang](idle-in-transaction-hang.md) — proses test terlantar bisa mengunci koneksi idle-in-transaction, benar-benar MENGHANG TRUNCATE test lain; diagnosa via pg_stat_activity, re-run TIDAK menolong
-- [Dev server smoke-test process leak](dev-server-smoke-test-process-leak.md) — `pkill -f "astro dev --port N"` bisa meleset; server bocor = 50+ timeout 5000ms palsu yang selamat dari restart container DB
-- [Shared DB migration schema drift](shared-db-migration-schema-drift.md) — migration dari satu worktree mengubah schema hidup untuk semua worktree yang berbagi Postgres; branch tak terkait bisa gagal sampai catch up
+- [bun run check skips integration tests](bun-check-skips-integration-tests.md) — tanpa DATABASE_URL, *.integration.test.ts dilewati; jalankan suite penuh lawan Postgres nyata sebelum push perubahan migration/schema
+- [bun test DB warmup flake](bun-test-db-warmup-flake.md) — gagal integration palsu tepat setelah `docker start`; re-run sekali sebelum meragukan
+- [Concurrent check DB contention](concurrent-check-db-contention.md) — dua `bun run check` paralel = 50-300+ gagal palsu; re-run terisolasi sebelum percaya
+- [Idle-in-transaction hang](idle-in-transaction-hang.md) — proses test terlantar kunci koneksi idle-in-transaction, MENGHANG TRUNCATE test lain; diagnosa pg_stat_activity, re-run tak menolong
+- [Dev server smoke-test process leak](dev-server-smoke-test-process-leak.md) — `pkill -f "astro dev --port N"` bisa meleset; server bocor = 50+ timeout palsu selamat dari restart DB
+- [Shared DB migration schema drift](shared-db-migration-schema-drift.md) — migration dari satu worktree ubah schema hidup semua worktree; branch tak terkait bisa gagal sampai catch up
 
 ## Database & Bun
 
-- [Promise.all on single tx = hang](promise-all-on-single-tx-hang.md) — 3x di repo ini, test LOLOS tiap kali (load-dependent); sapu KELASnya (grep `Promise.all` + `tx`), pisahkan pre-existing dari regresi PR; Issue #842
-- [Bun SQL array binding](bun-sql-array-binding.md) — `${array}::type[]` gagal; pakai `tx.array(values, "type")` untuk `= ANY(...)`
-- [Bun.SQL jsonb stringify trap](bun-sql-jsonb-stringify-trap.md) — `JSON.stringify(x)::jsonb` menyimpan byte identik tapi tiap SELECT balikkan STRING bukan objek; selalu bind objek polos
-- [Migration checksum strips transaction wrapper](migration-checksum-strips-transaction-wrapper.md) — db-migrate.ts hash `stripOptionalTransactionWrapper(rawSql)` bukan byte mentah; `sha256sum` polos terlihat seperti drift & menimpanya merusak baris yang benar
-- [ANALYZE silently skipped for app role](analyze-silently-skipped-app-role.md) — #849: `ANALYZE` dari peran non-owner (`awcms_mini_app`) di-skip Postgres dengan WARNING + exit 0; `last_analyze` tak berubah; suite perf ukur statistik basi. Buktikan via `last_analyze`, bukan exit code
-- [RLS defeats Seq-Scan gates](rls-defeats-seq-scan-gates.md) — #838: RLS selalu suntik `tenant_id`, jadi `DROP INDEX` sungguhan tak hasilkan Seq Scan — planner pindah index + `Sort`; gate query-plan wajib larang `Sort`/`Incremental Sort`, bukan hanya Seq Scan
-- [Shared DB ledger stale migration names](shared-db-ledger-stale-migration-names.md) — ledger `awcms_mini_schema_migrations` di dev Postgres bersama menyimpan nama file SAAT ITU; renumbering upstream membuatnya basi permanen
-- [Local Postgres connection details](local-postgres-connection-details.md) — container dev dengar di port non-5432 (cek `ps aux` untuk `-c port=`); DATABASE_URL harus role superuser
+- [Promise.all on single tx = hang](promise-all-on-single-tx-hang.md) — 3x, test LOLOS tiap kali (load-dependent); sapu KELASnya (grep `Promise.all`+`tx`); Issue #842
+- [Bun SQL array binding](bun-sql-array-binding.md) — `${array}::type[]` gagal; pakai `tx.array(values,"type")` untuk `= ANY(...)`
+- [Bun.SQL jsonb stringify trap](bun-sql-jsonb-stringify-trap.md) — `JSON.stringify(x)::jsonb` simpan byte identik tapi SELECT balik STRING bukan objek; bind objek polos
+- [Migration checksum strips transaction wrapper](migration-checksum-strips-transaction-wrapper.md) — db-migrate.ts hash `stripOptionalTransactionWrapper(rawSql)`; `sha256sum` polos terlihat drift & menimpanya merusak baris benar
+- [ANALYZE silently skipped for app role](analyze-silently-skipped-app-role.md) — #849: `ANALYZE` dari peran non-owner di-skip dgn WARNING+exit 0; suite perf ukur statistik basi; buktikan via `last_analyze` bukan exit code
+- [RLS defeats Seq-Scan gates](rls-defeats-seq-scan-gates.md) — #838: RLS selalu suntik `tenant_id`, `DROP INDEX` tak hasilkan Seq Scan — planner pindah index+`Sort`; gate wajib larang `Sort`
+- [Shared DB ledger stale migration names](shared-db-ledger-stale-migration-names.md) — ledger `awcms_mini_schema_migrations` simpan nama file saat itu; renumbering upstream membuatnya basi permanen
+- [Local Postgres connection details](local-postgres-connection-details.md) — container dev dengar port non-5432 (cek `ps aux` `-c port=`); DATABASE_URL harus role superuser
 - [Postgres 18 volume mount](postgres18-volume-mount.md) — postgres:18+ butuh volume compose di `/var/lib/postgresql` (bukan `/data`)
-- [Shrink work inside lock, not the lock](shrink-work-inside-lock-not-the-lock.md) — bulk read full-tenant di dalam advisory lock: baca hanya yang validator benar-benar baca; jangan sentuh lock/pindah baca ke luar
-- [Shared visited set multi-source walk](shared-visited-set-multisource-walk.md) — walk single-seed dipanggil per seed = O(U²) karena `visited` dialokasi ulang; 4383ms→0,83ms @10k unit; buktikan linearitas dgn MENGHITUNG lookup bukan timing
+- [Shrink work inside lock, not the lock](shrink-work-inside-lock-not-the-lock.md) — bulk read full-tenant dalam advisory lock: baca hanya yang validator baca; jangan sentuh lock/pindah baca ke luar
+- [Shared visited set multi-source walk](shared-visited-set-multisource-walk.md) — walk single-seed per seed = O(U²) karena `visited` dialokasi ulang; 4383→0,83ms @10k; buktikan linearitas dgn MENGHITUNG lookup
 
 ## Astro / arsitektur
 
-- [.astro files escape typecheck](astro-files-escape-typecheck.md) — `tsc --noEmit` tak memeriksa .astro & build pun lolos; ubah signature = grep `src/pages --include=*.astro` manual; .astro bisa punya salinan logika independen (#820)
-- [Astro layout frontmatter order](astro-layout-frontmatter-order.md) — frontmatter halaman jalan sebelum layout-nya; selesaikan nilai lintas-potong (locale, dll) di middleware bukan layout
-- [Astro middleware next(request) is a real rewrite](astro-middleware-next-request-rewrite.md) — memicu tryRewrite/route re-match, bukan transform transparan; jangan pakai untuk menukar body stream terpusat
-- [Deferring work must split by dependency](deferring-work-must-split-by-dependency.md) — `void fn()` merusak diam-diam: Astro men-serialize `context.cookies` saat middleware return → cookie hilang; antrean wajib bounded + handle rejection + flush di SIGTERM; Issue #832
-- [Library must not own process signals](library-must-not-own-process-signals.md) — listener SIGTERM apa pun di proses `bun test` ikut menyala & MEMBUNUH runner ~1s exit 143, terlihat seperti "hang" (ukur elapsed); install hook hanya dari `middleware.ts`; Issue #832
-- [SSR admin pages skip module-enabled](ssr-admin-pages-skip-module-enabled.md) — 54/55 halaman admin merender data modul yang disabled padahal route-nya 403; nav filter kosmetik; taruh gate DI DALAM helper; Issue #841
-- [Module key vs directory name divergence](module-key-vs-directory-name-divergence.md) — `workflow_approval` sebenarnya berkunci `workflow`; jangan turunkan key dari nama direktori, baca `listBaseModules()` — key turunan diam-diam tak cocok apa pun
+- [.astro files escape typecheck](astro-files-escape-typecheck.md) — `tsc --noEmit` tak periksa .astro & build lolos; grep `src/pages --include=*.astro` manual; .astro bisa punya salinan logika (#820)
+- [Astro layout frontmatter order](astro-layout-frontmatter-order.md) — frontmatter halaman jalan sebelum layout; selesaikan nilai lintas-potong (locale) di middleware bukan layout
+- [Astro middleware next(request) is a real rewrite](astro-middleware-next-request-rewrite.md) — memicu tryRewrite/route re-match bukan transform transparan; jangan pakai untuk tukar body stream terpusat
+- [Deferring work must split by dependency](deferring-work-must-split-by-dependency.md) — #832: `void fn()` merusak: Astro serialize `context.cookies` saat return → cookie hilang; antrean wajib bounded + handle rejection + flush di SIGTERM
+- [Library must not own process signals](library-must-not-own-process-signals.md) — #832: listener SIGTERM di proses `bun test` MEMBUNUH runner ~1s exit 143 (terlihat "hang", ukur elapsed); install hook hanya dari `middleware.ts`
+- [SSR admin pages skip module-enabled](ssr-admin-pages-skip-module-enabled.md) — #841: 54/55 halaman admin render data modul disabled padahal route 403; taruh gate DI DALAM helper
+- [Module key vs directory name divergence](module-key-vs-directory-name-divergence.md) — `workflow_approval` berkunci `workflow`; jangan turunkan key dari nama direktori, baca `listBaseModules()`
 
 ## Keamanan
 
-- [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (#687); pakai `ipHash` HMAC via `src/lib/security/client-fingerprint.ts`, jangan rename key
-- [Secret detection prefix exemption anchored bypass](secret-detection-prefix-exemption-anchored-bypass.md) — allow-list "prefix rujukan dikenal" wajib strip-and-recheck sisanya, jangan bebaskan seluruh string, atau `env:<secret asli>` lolos
-- [Idempotency hash missing resource id, recurring](idempotency-hash-missing-resource-id-recurring.md) — #750/#795 (banyak ronde) CLOSED 2026-07-15; grep SEMUA call site `computeRequestHash(` tiap kali, jangan percaya daftar endpoint bernama
+- [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (#687); pakai `ipHash` HMAC via `client-fingerprint.ts`, jangan rename key
+- [Secret detection prefix exemption anchored bypass](secret-detection-prefix-exemption-anchored-bypass.md) — allow-list "prefix rujukan" wajib strip-and-recheck sisanya; `env:<secret asli>` lolos kalau bebaskan seluruh string
+- [Idempotency hash missing resource id, recurring](idempotency-hash-missing-resource-id-recurring.md) — #750/#795 CLOSED; grep SEMUA call site `computeRequestHash(`, jangan percaya daftar endpoint bernama
 - [SoD hierarchy-aware matching Issue #794](sod-hierarchy-aware-matching-issue-794.md) — CLOSED via PR #800; celah sisa checkHighRiskSoDConflicts (nol telemetri) → Issue #802 (open)
-- [Document-infrastructure #787 confidentiality gating](document-infrastructure-issue-787-confidentiality-mutation-gating.md) — #751/#787: `confidentiality_level` disimpan tapi tak pernah ditegakkan di endpoint mutasi/evidence/reservation; gating diperluas ke sana
-- [mdEscape backslash bug recurs](mdescape-backslash-bug-recurs.md) — escaper `|`-saja tanpa urutan backslash-dulu = bug CodeQL incomplete-sanitization; shipped 3x di generator docs independen; selalu ketahuan CodeQL bukan test/review
-- [SQL tokenizer regex vs state machine](sql-tokenizer-regex-vs-state-machine.md) — alternasi regex tak bisa mengungkap nesting/escape stateful; naik ke state machine tulisan tangan setelah bypass kedua
-- [GitGuardian scans full PR history](gitguardian-scans-full-pr-history.md) — commit perbaikan berikutnya TIDAK membersihkan check; juga menandai secret contoh publik terkenal (JWT tutorial jwt.io) sebagai asli
+- [Document-infrastructure #787 confidentiality gating](document-infrastructure-issue-787-confidentiality-mutation-gating.md) — #751/#787: `confidentiality_level` disimpan tapi tak ditegakkan di endpoint mutasi/evidence/reservation
+- [mdEscape backslash bug recurs](mdescape-backslash-bug-recurs.md) — escaper `|`-saja tanpa backslash-dulu = bug CodeQL incomplete-sanitization; shipped 3x; ketahuan CodeQL bukan test/review
+- [SQL tokenizer regex vs state machine](sql-tokenizer-regex-vs-state-machine.md) — alternasi regex tak bisa ungkap nesting/escape stateful; naik ke state machine setelah bypass kedua
+- [GitGuardian scans full PR history](gitguardian-scans-full-pr-history.md) — commit perbaikan berikutnya TIDAK bersihkan check; menandai secret contoh publik (JWT jwt.io) sebagai asli
 - [GitHub secret-scanning alert resolution](github-secret-scanning-alert-resolution.md) — API `secret-scanning/alerts` (beda dari CodeQL/GitGuardian), cap 280 char resolution_comment
 
 ## CI / rilis / tooling
 
 - [main branch protection AKTIF](main-branch-protection-active.md) — sejak 2026-07-17: 6 required check, 0 approval, enforce_admins false; jangan wajibkan `CodeQL` polos (bisa "skipping" → deadlock)
-- [PR branch conflict blocks CI trigger](pr-branch-conflict-blocks-ci-trigger.md) — mergeStateStatus CONFLICTING bisa diam-diam menghentikan SEMUA run pull_request pada push baru; merge/rebase base branch untuk pulih
-- [PR body missing Closes keyword](pr-body-missing-closes-keyword.md) — PR merged di sini sering tak auto-close issue-nya; cross-check `gh pr list --merged` sebelum percaya `gh issue list --state open`
-- [gh pr merge transient 502](gh-pr-merge-transient-502.md) — bisa gagal di klien tapi sukses di server; cek `mergedAt` sebelum retry membabi buta
-- [changesets:policy:check false negative](changeset-policy-check-false-negative.md) — PASS palsu bila dijalankan SEBELUM commit (mendiff ke origin/main, tak lihat file untracked); jalankan setelah commit
-- [Prettier check on docs-only PRs](prettier-check-docs-only-prs.md) — `bun run lint` (bukan cuma `check:docs`/`build`) wajib sebelum push bahkan untuk perubahan .md murni
-- [Release pipeline never triggered, gaps](release-pipeline-never-triggered-gaps.md) — release.yml tak pernah benar-benar jalan; changeset:tag diam-diam melewati paket private & Environment `release` nol proteksi; keduanya diperbaiki 2026-07-15
-- [Bun + Playwright E2E setup](bun-playwright-e2e-setup.md) — wajib `bun --bun playwright test`; `playwright test`/`bunx` polos diam-diam jalan di Node.js asli, melanggar AGENTS.md #14
-- [Bun shell globstar trap](bun-shell-globstar-trap.md) — shell `bun run` tak mengembangkan `**` rekursif; script ber-glob diam-diam jalan pada subset
-- [TypeScript 7 JSDoc backtick-fence bug](typescript-7-jsdoc-backtick-fence-bug.md) — triple-backtick tak berpasangan di komentar `/** */` menelan tiap `@param` sesudahnya → implicit-any; reword, jangan tambah escape
-- [Unicode escape emits raw NUL](unicode-escape-emits-raw-nul.md) — menulis escape NUL (backslash-u-0000) via Write/Edit menghasilkan BYTE NUL asli; grep anggap file biner & diam (exit 1) padahal Read normal; perbaiki via script Bun `String.fromCharCode(0)`
-- [Docker host port blocked](docker-host-port-blocked.md) — publish bridge NAT selalu macet (bahkan di browser); pakai override `network_mode: host`
-- [Docker manual container root ownership](docker-manual-container-root-ownership.md) — `docker run` bind-mount repo tanpa `--user` meninggalkan file milik root; pakai `--user $(id -u):$(id -g)`
-- [Sandbox dir permission lockdown](sandbox-dir-permission-lockdown.md) — dir repo bisa ter-chmod 0700 oleh sandbox, merusak bind mount docker (EACCES); chmod 755 lalu ulangi
-- [Manual admin UI smoke test](manual-admin-ui-smoke-test.md) — tak ada tooling browser; resep berbasis curl untuk login sebagai user nyata & menelusuri halaman `/admin/*`
+- [PR branch conflict blocks CI trigger](pr-branch-conflict-blocks-ci-trigger.md) — mergeStateStatus CONFLICTING bisa hentikan SEMUA run pull_request pada push baru; merge/rebase base branch untuk pulih
+- [PR body missing Closes keyword](pr-body-missing-closes-keyword.md) — PR merged sering tak auto-close issue; cross-check `gh pr list --merged` sebelum percaya `gh issue list --state open`
+- [gh pr merge transient 502](gh-pr-merge-transient-502.md) — bisa gagal di klien tapi sukses di server; cek `mergedAt` sebelum retry
+- [changesets:policy:check false negative](changeset-policy-check-false-negative.md) — PASS palsu bila dijalankan SEBELUM commit (diff ke origin/main, tak lihat untracked); jalankan setelah commit
+- [Prettier check on docs-only PRs](prettier-check-docs-only-prs.md) — `bun run lint` (bukan cuma `check:docs`/`build`) wajib sebelum push bahkan untuk .md murni
+- [Release pipeline never triggered, gaps](release-pipeline-never-triggered-gaps.md) — release.yml tak pernah jalan; changeset:tag lewati paket private & Environment `release` nol proteksi (fixed 2026-07-15)
+- [Bun + Playwright E2E setup](bun-playwright-e2e-setup.md) — wajib `bun --bun playwright test`; `playwright test`/`bunx` polos diam-diam jalan di Node.js asli (langgar AGENTS.md #14)
+- [Bun shell globstar trap](bun-shell-globstar-trap.md) — shell `bun run` tak kembangkan `**` rekursif; script ber-glob jalan pada subset
+- [TypeScript 7 JSDoc backtick-fence bug](typescript-7-jsdoc-backtick-fence-bug.md) — triple-backtick tak berpasangan di `/** */` menelan tiap `@param` sesudahnya → implicit-any; reword
+- [Unicode escape emits raw NUL](unicode-escape-emits-raw-nul.md) — escape NUL via Write/Edit hasilkan BYTE NUL asli; grep anggap biner & diam (exit 1); perbaiki via script Bun `String.fromCharCode(0)`
+- [Docker host port blocked](docker-host-port-blocked.md) — publish bridge NAT selalu macet; pakai override `network_mode: host`
+- [Docker manual container root ownership](docker-manual-container-root-ownership.md) — `docker run` bind-mount repo tanpa `--user` tinggalkan file milik root; pakai `--user $(id -u):$(id -g)`
+- [Sandbox dir permission lockdown](sandbox-dir-permission-lockdown.md) — dir repo bisa ter-chmod 0700 oleh sandbox, rusak bind mount (EACCES); chmod 755 lalu ulangi
+- [Manual admin UI smoke test](manual-admin-ui-smoke-test.md) — tak ada tooling browser; resep curl untuk login user nyata & telusuri `/admin/*`
 
 ## Dokumen & konvensi repo
 
-- [Audit doc rename by date](audit-doc-rename-by-date.md) — AUDIT_STANDAR_PENGEMBANGAN_<tgl>.md itu dokumen HIDUP: git mv ke tanggal perubahan + update ~15 rujukan (kecuali CHANGELOG), jangan bikin file audit baru
-- [Skill/doc drift recurring](skill-doc-drift-recurring.md) — kejadian ke-6 2026-07-17 (#829): 5 modul tanpa skill sama sekali, 4 di antaranya sumber temuan audit itu sendiri; kini di-gate tests/unit/module-skill-coverage.test.ts
-- [ADR numbering race extends migration pattern](adr-numbering-race-extends-migration-pattern.md) — tabrakan file ADR pertama (#789 vs #784); git merge TIDAK menandainya karena nama file beda — diff `docs/adr/` manual; index README hand-merged
-- [AWPOS standard refactor](awpos-standard-refactor.md) — awcms-mini = base modular monolith standar (2026-07-04); sumber standar `/home/data/dev_bun/awpos/docs/awpos/`; legacy di branch `legacy/pre-awpos-standard`
+- [Audit doc rename by date](audit-doc-rename-by-date.md) — AUDIT_STANDAR_PENGEMBANGAN_<tgl>.md dokumen HIDUP: git mv ke tanggal + update ~15 rujukan (kecuali CHANGELOG)
+- [Skill/doc drift recurring](skill-doc-drift-recurring.md) — kejadian ke-6 (#829): 5 modul tanpa skill, 4 sumber temuan audit itu sendiri; kini di-gate tests/unit/module-skill-coverage.test.ts
+- [ADR numbering race extends migration pattern](adr-numbering-race-extends-migration-pattern.md) — tabrakan file ADR (#789 vs #784); git merge tak menandainya karena nama beda — diff `docs/adr/` manual; index README hand-merged
+- [AWPOS standard refactor](awpos-standard-refactor.md) — awcms-mini = base modular monolith standar; sumber `/home/data/dev_bun/awpos/docs/awpos/`; legacy di branch `legacy/pre-awpos-standard`
 
 ## Riwayat epic (semua CLOSED kecuali disebut)
 
-- [Post-audit hardening epic #818](post-audit-hardening-epic-818.md) — AKTIF: audit 2026-07-17 v0.24.0 → #818/#819-#835; fetchModuleMatrix akarnya 92 query/render, main tanpa branch protection, nol tag `v*`, cycle hidup lolos 2 gate
-- [fetchModuleMatrix CI timeout — FIXED](fetchmodulematrix-ci-timeout-flake.md) — #824 menutupnya (7278→755ms); salah diagnosis 2x: bukan flake, dan bukan fan-out 92 query — biang utamanya stampede `readYamlCached` mem-parse 1MB YAML 22×; ukur cold vs warm terpisah
-- [Platform-evolution epic #738 survey](platform-evolution-epic-738-survey.md) — 17 issue (#739-755) CLOSED 2026-07-15; spin-off #795/#796 difilekan; 6/6 PR Wave-3 hasilkan Critical/High di review pertama — jadikan itu ekspektasi dasar
-- [Platform hardening epic progress](platform-hardening-epic-progress.md) — epic #679 CLOSED 2026-07-12 (PR #701-#722, 22/22); 2 gelombang paralel (5-agent lalu 3-agent) memunculkan bahaya nyata
-- [News-portal + social-publishing epic progress](news-portal-social-publishing-epic-progress.md) — keduanya CLOSED 2026-07-13, 18/18 (#631-649); #636 butuh 4 percobaan sinyal tenant-state; tabrakan verify-endpoint lintas-PR di wave 5
-- [Tenant domain routing epic progress](tenant-domain-routing-epic-progress.md) — epic #555 CLOSED 2026-07-09 (PR #568-#585); catatan desain #564/#565/#566 MASIH load-bearing (identitas 1:1 per tenant, preset enable+disable, rssEnabled bukan di settings.defaults)
-- Epic CLOSED penuh, pelajaran sudah diekstrak (file detail di disk): [visitor-analytics #617-624](visitor-analytics-epic-progress.md), [auth-online #587-593](auth-online-hardening-epic-progress.md), [blog-content #536-543](blog-content-epic-progress.md) — semua 2026-07-08..10, reviewer+auditor bersih
-- [Master-data + hermes-agent deferred 2026-07-13](master-data-hermes-agent-deferred-2026-07-13.md) — owner menutup #658-664 & #669-678 sebagai tahan sementara NOT_PLANNED; JANGAN lanjutkan sampai dibuka lagi eksplisit
+- [Post-audit hardening epic #818](post-audit-hardening-epic-818.md) — AKTIF: audit 2026-07-17 v0.24.0 → #818/#819-#835; fetchModuleMatrix akarnya 92 query/render, main tanpa branch protection, nol tag `v*`
+- [fetchModuleMatrix CI timeout — FIXED](fetchmodulematrix-ci-timeout-flake.md) — #824 (7278→755ms); salah diagnosis 2x: biang stampede `readYamlCached` parse 1MB YAML 22×; ukur cold vs warm terpisah
+- [Platform-evolution epic #738 survey](platform-evolution-epic-738-survey.md) — 17 issue (#739-755) CLOSED; 6/6 PR Wave-3 hasilkan Critical/High di review pertama — ekspektasi dasar
+- [Platform hardening epic progress](platform-hardening-epic-progress.md) — epic #679 CLOSED (PR #701-#722, 22/22); 2 gelombang paralel memunculkan bahaya nyata
+- [News-portal + social-publishing epic progress](news-portal-social-publishing-epic-progress.md) — keduanya CLOSED, 18/18 (#631-649); #636 butuh 4 percobaan sinyal tenant-state; tabrakan verify-endpoint lintas-PR
+- [Tenant domain routing epic progress](tenant-domain-routing-epic-progress.md) — epic #555 CLOSED (PR #568-#585); catatan #564/#565/#566 MASIH load-bearing (identitas 1:1 per tenant, preset enable+disable)
+- Epic CLOSED penuh, detail di disk: [visitor-analytics #617-624](visitor-analytics-epic-progress.md), [auth-online #587-593](auth-online-hardening-epic-progress.md), [blog-content #536-543](blog-content-epic-progress.md) — reviewer+auditor bersih
+- [Master-data + hermes-agent deferred 2026-07-13](master-data-hermes-agent-deferred-2026-07-13.md) — owner tutup #658-664 & #669-678 sebagai tahan sementara NOT_PLANNED; JANGAN lanjutkan sampai dibuka lagi eksplisit
 `````
 
 <!-- memory-file: adr-numbering-race-extends-migration-pattern.md -->
@@ -1171,6 +1174,50 @@ Discovered repeatedly 2026-07-12 while orchestrating a parallel wave of platform
 - If a check comes back with a large number of failures (dozens to hundreds) that look totally unrelated to the actual diff, do NOT treat it as a real finding — check `ps aux` for a concurrent check/test process (yours or another agent's) and re-run in isolation before drawing any conclusion.
 - When briefing coder/reviewer/security-auditor subagents that will run `bun run check` themselves, explicitly tell them to check for concurrent `bun run check`/`bun test` processes first, since this happened to a subagent (news-media R2 checkout) too, not just the orchestrator.
 - This is a DIFFERENT issue from [[bun-test-db-warmup-flake]] (container just-started flake) and from [[bun-check-skips-integration-tests]] (missing DATABASE_URL) — this is specifically about two simultaneous full-suite runs against one shared instance.
+`````
+
+<!-- memory-file: concurrent-memory-index-writes-race.md -->
+
+`````markdown
+---
+name: concurrent-memory-index-writes-race
+description: "Direktori memory ada di LUAR repo dan dibagi semua agent paralel + orchestrator; edit MEMORY.md indeks yang bersamaan saling menimpa (lost update), meninggalkan file memory tanpa baris indeks (orphan)"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+Memory hidup di `~/.claude/projects/<slug>/memory/`, **di luar repo
+dan di luar worktree** — jadi TIDAK terisolasi per-worktree seperti kode.
+Semua agent paralel dan orchestrator menulis file `.md` DAN mengedit `MEMORY.md`
+yang **sama**.
+
+Di wave 4a epic #818 (2026-07-18, 5 agent), ini menghasilkan **lost update**
+pada `MEMORY.md`: agent A menambah baris indeks untuk memory barunya, agent B
+mengompaksi seluruh indeks berbasis snapshot lama, orchestrator mengedit —
+tulisan belakangan menimpa yang duluan. Hasilnya **2 file memory jadi orphan**
+(ada di disk, tak ada baris di indeks → tak pernah termuat ke konteks sesi
+berikut). Harness bahkan memperingatkan "file had been modified on disk since
+you last read it" saat orchestrator mengedit.
+
+**Yang AMAN:** tiap agent menulis FILE memory-nya sendiri (nama unik) — itu
+tidak balapan, semua file selamat. Yang balapan hanya `MEMORY.md` (satu file,
+banyak penulis).
+
+**How to apply:**
+- Jangan andalkan baris indeks yang ditambahkan agent paralel bertahan.
+  Setelah wave selesai, **audit orphan**: `listed=$(grep -oP '\]\(\K[^)]+\.md'
+  MEMORY.md|sort -u); for f in *.md; do echo "$listed"|grep -qx "$f"||echo
+  ORPHAN $f; done` (kecuali MEMORY.md). Tambahkan kembali baris yang hilang.
+- File memory sendiri aman — orphan berarti hanya baris indeks yang hilang,
+  bukan isinya. Deskripsi ada di frontmatter file, jadi baris bisa
+  direkonstruksi.
+- Idealnya orchestrator yang memegang `MEMORY.md` (satu penulis); minta agent
+  cukup menulis FILE memory + laporkan judul+hook, orchestrator yang menyulam ke
+  indeks setelah wave. Tapi brief saat ini membiarkan agent mengedit indeks —
+  jadi audit orphan itu wajib tiap akhir wave.
+- Lihat [[memory-snapshot-to-docs.md]]: `memory:docs:sync` juga gagal dari
+  worktree (slug diturunkan dari cwd) — jalankan dari checkout utama.
 `````
 
 <!-- memory-file: create-feature-branch-before-commit.md -->
@@ -3368,6 +3415,40 @@ Test anti-vakum di kelas ini: bandingkan respons known vs unknown **satu sama
 lain**, jangan ke status hardcoded — lalu **pin sisi server** (audit
 `login_failed.reason` benar-benar `locked`/`password_login_disabled`) supaya
 perbandingan tak lolos vakum saat cabangnya ternyata tak pernah menyala.
+`````
+
+<!-- memory-file: patch-default-in-parse-resets-omitted-fields.md -->
+
+`````markdown
+---
+name: patch-default-in-parse-resets-omitted-fields
+description: "PATCH route yang membangun input penuh dengan `typeof body.x === 'string' ? body.x : <default>` DIAM-DIAM mereset tiap field yang dihilangkan (name→'', effectiveFrom→now, effectiveTo/FK/description→null). Kelas #822/#837. Fix: absent=pertahankan, null=kosongkan, null pada NOT NULL=400. Endpoint PATCH ini sering NOL coverage."
+metadata:
+  node_type: memory
+  type: feedback
+---
+
+**Pola cacat (kelas #822 → spin-off #837):** route PATCH merakit ulang input update PENUH dengan default per-field:
+```ts
+const input = {
+  name: typeof body.name === "string" ? body.name : "",
+  effectiveFrom: typeof body.effectiveFrom === "string" ? new Date(body.effectiveFrom) : new Date(),
+  effectiveTo: typeof body.effectiveTo === "string" ? new Date(body.effectiveTo) : null,
+  description: typeof body.description === "string" ? body.description : null,
+};
+```
+Karena helper `update*` melakukan UPDATE penuh (bukan partial), **PATCH satu field diam-diam mereset semua yang lain**. Untuk unit/legal-entity effective-dated (backing `BusinessScopeHierarchyPort` #786) ini **memotong riwayat masa berlaku** tiap edit satu-field. `name→""` biasanya ketahuan (validator 400), tapi `description→null`/`effectiveTo→null` **senyap**.
+
+**Semantik benar:** absent = pertahankan, `null` eksplisit = kosongkan field nullable, `null` pada `NOT NULL` (name/effectiveFrom) = **400** (bukan default). JSON tak punya `undefined`, jadi `undefined` (dari `Object.prototype.hasOwnProperty`) = "absent" yang tak ambigu vs `null`.
+
+**How to apply:**
+- Pisahkan **parse** (body → sparse patch, hanya set key yang hadir) dan **merge** (existing row + patch → input penuh; `patch.x === undefined ? existing.x : patch.x` — jangan `??`, itu salah-fallback untuk `null`). Route: fetch existing → 404 bila null → merge → panggil `update*` yang tak berubah.
+- VALUE-level validation tetap di `validateUpdate*` domain (dijalankan sekali pada hasil merge). Contoh gotcha: legal-entity `registrationIdentifier`+`Label` adalah pasangan both-or-neither → mengosongkan **satu saja** benar-benar 400; test harus clear KEDUANYA. Ini bukti bagus validator masih jalan pasca-merge.
+- Primitif reusable ada: `src/modules/_shared/partial-patch.ts` (readRequired/NullableString/Date/Number). Per-entity parse/merge di `organization-structure/domain/patch-input.ts` & `reference-data/domain/value-set-patch.ts` (+ `code-patch.ts` yang lebih dulu).
+
+**Coverage adalah akar buta:** ke-4 endpoint PATCH organization-structure punya **NOL test PATCH** — itu sebabnya reset lolos. Selalu cek `grep 'method: "PATCH"'` di test modul sebelum percaya endpoint teruji. Test wajib: PATCH satu field → field lain TIDAK berubah (assert via GET juga, bukan cuma echo response); `null` eksplisit → benar-benar kosong; `null` pada NOT NULL → 400. Verifikasi merah via `git stash push -- <route>` (revert ke HEAD buggy) — bukan `git checkout` (menghapus fix uncommitted).
+
+**Catatan kontrak:** skema PATCH OpenAPI-nya sering ikut berbohong — `required: [name]` atau PATCH memakai ulang schema CREATE (mis. legal-entities pakai `OrganizationStructureCreateLegalEntityRequest`). Memperbaiki kode saja meninggalkan kontrak yang menuntut resend tiap field. #837 menunda ini karena regen bundle OpenAPI di luar scope task — follow-up: hapus `required:`/`default:` dari schema Update & pisahkan dari Create.
 `````
 
 <!-- memory-file: perf-claims-need-adversarial-benchmark.md -->
@@ -6294,6 +6375,8 @@ Menambahkan fast-path yang **melompati** helper (mis. short-circuit `PATCH {}` a
 - **Bentuk test yang benar:** assert jawaban fast-path **terhadap jawaban slow-path pada baris yang sama** (`expect(noop.status).toBe(realPatch.status)`), bukan terhadap status hardcoded. Hardcoded hanya menguji sumbu yang sudah kita pikirkan; assert-terhadap-slow-path menangkap drift.
 - Lebih baik lagi: **jangan duplikasi sama sekali** — pindahkan keputusan fast-path ke dalam helper (#843). Jangan menerima flag hasil hitungan pemanggil; itu mengulang cacat yang sama.
 - Verifikasi **merah** dulu dengan melepas guard-nya. Catatan: `git checkout -- <file>` me-revert ke HEAD — kalau fix-nya **belum di-commit**, itu menghapusnya. Pakai `git stash push -- <file>` lalu `stash pop`.
+
+**RESOLVED 2026-07-18 (#843):** structural fix shipped on `fix/843-837-patch-semantics`. `updateReferenceCode`/`updateTenantReferenceCode` now take the raw `ReferenceCodePatchInput` + the fetched existing row and own guard→no-op→merge in ONE place; both routes dropped their `if (Object.keys(patch).length===0)` branch. Proven by mutating the guard order (no-op BEFORE `managedByDescriptor`) → the new descriptor-managed parity test went red (`200` vs `409`), reverted after. The `managed_by_descriptor` axis had ZERO parity coverage before (only the deprecated axis got one in #839) — always add the parity test for EVERY refusal axis, not just the reviewer-caught one.
 `````
 
 <!-- memory-file: shrink-work-inside-lock-not-the-lock.md -->
