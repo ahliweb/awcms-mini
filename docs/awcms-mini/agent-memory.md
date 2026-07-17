@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 70.**
+**Jumlah memory saat snapshot terakhir: 80.**
 
 ## Sengaja TIDAK disertakan
 
@@ -43,12 +43,20 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 # Memory index
 
 - [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory hidup di luar repo & hilang saat pindah device; jalankan `bun run memory:docs:sync` tiap kali memory berubah, `memory:docs:restore` di device baru
+- [Verify a perf issue's premise](perf-issue-premise-verify-before-trusting.md) — #833 klaim "~6 juta kunjungan/detik-detikan CPU" nyatanya 7.203 kunjungan/0,067ms (meleset ~800x); big-O di judul issue = worst-case, short-circuit membatalkannya — HITUNG input nyata dulu. Klaim "perilaku identik" di jalur keamanan wajib mutation-test (2 mutasi lolos = celah test nyata: predikat subject & tenant)
+- [Unicode escape emits raw NUL](unicode-escape-emits-raw-nul.md) — menulis `\u0000` lewat Write/Edit menghasilkan BYTE NUL asli; grep lalu anggap file biner & diam (exit 1) padahal Read menampilkan barisnya normal; perbaiki via script Bun `String.fromCharCode(0)`
+- [Audit issue numbers unreliable](audit-issue-numbers-unreliable.md) — diagnosis struktural audit #818 kuat tapi ANGKA & RESEPnya salah di 5 issue; resep #834 malah bug keamanan, saran #832 merusak analytics; pisahkan observasi terverifikasi dari hipotesis
 - [Short-circuit must replicate every guard](short-circuit-must-replicate-every-guard.md) — fast-path yang melompati helper wajib ulangi SETIAP refusal-nya; gagal 2x dalam satu PR (#839); assert fast-path TERHADAP slow-path, bukan status hardcoded; Issue #843
 - [Promise.all on single tx = hang](promise-all-on-single-tx-hang.md) — 3x di repo ini, test suite LOLOS tiap kali (load-dependent); sapu KELASnya (grep `Promise.all` + `tx`), pisahkan pre-existing dari regresi PR; Issue #842
 - [Audit count assertion vacuous](audit-count-assertion-vacuous.md) — nama action karangan → bandingkan 0 dgn 0, lolos vakum selamanya; action generik (create/update/...), `resource_type` diskriminatornya; selalu assert sisi sebaliknya
 - [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (redactor #687); pakai `ipHash` HMAC via `src/lib/security/client-fingerprint.ts`, jangan rename key
 - [main branch protection AKTIF](main-branch-protection-active.md) — sejak 2026-07-17: 6 required check, 0 approval, enforce_admins false; jangan wajibkan `CodeQL` polos (bisa "skipping" → PR deadlock)
+- [Library must not own process signals](library-must-not-own-process-signals.md) — `job-runner.test.ts` pakai `process.emit("SIGTERM")` sintetis; listener SIGTERM apa pun di proses `bun test` ikut menyala dan (bila re-raise/exit) MEMBUNUH runner ~1s exit 143 — terlihat seperti "suite hang", ukur elapsed untuk membedakan. Install hook hanya dari app entry (`middleware.ts`), jangan dari `enqueue()`. Bisect `-t` menyembunyikan pemicu lintas-file. Issue #832
+- [Deferring work must split by dependency](deferring-work-must-split-by-dependency.md) — `void fn()` di call site merusak diam-diam: Astro men-serialize `context.cookies` begitu middleware return, cookie fire-and-forget hilang → semua visitor session pecah. Split by dependensi; antrean wajib bounded + handle rejection + flush di SIGTERM (adapter node standalone tak punya handler sinyal). Issue #832
+- [Perf claims need adversarial benchmark](perf-claims-need-adversarial-benchmark.md) — loopback Postgres menyembunyikan kemenangan round-trip (3.94→2.65ms); suntik `pg_sleep` trigger untuk mengisolasi jalur kritis (55.65→2.10ms). `docker exec` tanpa `-i` diam-diam melewati heredoc — assert setup-nya ada sebelum percaya angka
 - [SSR admin pages skip module-enabled](ssr-admin-pages-skip-module-enabled.md) — 54/55 halaman admin merender data modul yang di-disable padahal route-nya 403; nav filter kosmetik; Issue #841. Taruh gate DI DALAM helper, bukan call site
+- [Shared visited set multi-source walk](shared-visited-set-multisource-walk.md) — walk single-seed dipanggil per seed = O(S x depth)/O(U²) karena `visited` dialokasi ulang tiap panggilan; 4383ms→0,83ms @10k unit. Buktikan linearitas dengan MENGHITUNG lookup, bukan timing
+- [Shrink work inside lock, not the lock](shrink-work-inside-lock-not-the-lock.md) — bulk read full-tenant di dalam advisory lock: baca hanya yang validator benar-benar baca (rantai ancestor), jangan sentuh lock atau pindah baca ke luar; recursive CTE pertama repo, sengaja, jangan cargo-cult
 - [Post-audit hardening epic #818](post-audit-hardening-epic-818.md) — audit menyeluruh 2026-07-17 v0.24.0 → epic #818/#819-#835; fetchModuleMatrix flake akarnya 92 query/render (bukan flake infra), main tanpa branch protection, nol tag `v*` pernah ada, cycle hidup yang lolos 2 gate
 - [Audit doc rename by date](audit-doc-rename-by-date.md) — AUDIT_STANDAR_PENGEMBANGAN_<tgl>.md itu dokumen HIDUP: git mv ke tanggal perubahan + update ~15 rujukan (kecuali CHANGELOG), jangan bikin file audit baru
 - [Release pipeline never triggered, gaps](release-pipeline-never-triggered-gaps.md) — release.yml never actually fired in repo history; changeset:tag silently skipped the private package AND the `release` GitHub Environment had zero protection rules, both fixed 2026-07-15
@@ -76,7 +84,8 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 - [Create feature branch before commit](create-feature-branch-before-commit.md) — recurring mistake (3x): committing straight to main after merging the previous PR; always `git checkout -b` for the next issue immediately after syncing main, and check `git branch --show-current` before every commit
 - [Blog content epic progress](blog-content-epic-progress.md) — epic #536 (#537-#543) FULLY COMPLETE 2026-07-08 (PR #545-#551); module status now `active`
 - [PR body missing Closes keyword](pr-body-missing-closes-keyword.md) — merged PRs here often don't auto-close their issue; cross-check `gh pr list --merged` before trusting `gh issue list --state open`
-- [Skill/doc drift recurring](skill-doc-drift-recurring.md) — 5th occurrence 2026-07-15 (Issue #805/PR #806); scale audit to 7 parallel agents at 23-module size, always wire new skills into AGENTS.md + skills/README.md catalogs
+- [Skill/doc drift recurring](skill-doc-drift-recurring.md) — 6th occurrence 2026-07-17 (Issue #829): 5 modules had NO skill at all, 4 of them were the audit's own finding sources; now GATED by tests/unit/module-skill-coverage.test.ts (first automated check for this class)
+- [Module key vs directory name divergence](module-key-vs-directory-name-divergence.md) — `workflow_approval` is really keyed `workflow`; never derive a module key from its directory name, always read `listBaseModules()` — a derived key silently matches nothing (no-op, not an error)
 - [Tenant domain routing epic progress](tenant-domain-routing-epic-progress.md) — epic #555 FULLY COMPLETE + CLOSED 2026-07-09 (PR #568-#585); #564/#565/#566 design notes still load-bearing
 - [changesets:policy:check false negative](changeset-policy-check-false-negative.md) — memberi PASS palsu bila dijalankan SEBELUM commit (mendiff ke origin/main, tak lihat file untracked); jalankan setelah commit
 - [Prettier check on docs-only PRs](prettier-check-docs-only-prs.md) — `bun run lint` (not just `check:docs`/`build`) must run before push even for pure .md changes, or CI's Prettier check fails
@@ -106,6 +115,7 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 - [Secret detection prefix exemption anchored bypass](secret-detection-prefix-exemption-anchored-bypass.md) — a "known reference prefix" allow-list on a secret-shape heuristic must strip-and-recheck the remainder, never exempt the whole string, or `env:<real secret>` sails past every anchored check
 - [Master-data + hermes-agent deferred 2026-07-13](master-data-hermes-agent-deferred-2026-07-13.md) — owner closed #658-664 and #669-678 as temporary NOT_PLANNED holds mid-session; do NOT resume either cluster until explicitly reopened
 - [Platform-evolution epic #738 survey](platform-evolution-epic-738-survey.md) — 17-issue epic (#739-755) FULLY COMPLETE + CLOSED 2026-07-15 (PR #783 last); spin-offs #795 (idempotency defect in other modules) + #796 (test-coverage gap) filed, not epic scope
+- [Cycle detector fed an incomplete graph](cycle-detector-fed-incomplete-graph.md) — #826: a CORRECT gate fed a hand-declared `dependencies` array can't fail on an undeclared edge; audit a gate's INPUT not its algorithm. A port can't break a cycle whose plugin→runtime edge is a real value import — invert registration, then gate the silent-failure it buys
 - [Validator exists but unwired = Critical](validator-exists-but-unwired-critical-pattern.md) — PR #769/#740: a correctly-tested composition validator was never called on the real DB-write path, letting a colliding module key silently overwrite a base module; trace validators BACKWARD from every write path, not forward from their own tests
 - [TypeScript 7 JSDoc backtick-fence bug](typescript-7-jsdoc-backtick-fence-bug.md) — an unmatched raw triple-backtick anywhere in a `/** */` comment toggles TS7's parser into "in fence", silently swallowing every `@param` after it → implicit-any; reword, don't add more backtick-escaping
 - [gh token workflow scope — OUTDATED](gh-token-lacks-workflow-scope.md) — CORRECTED 2026-07-17: token NOW HAS `workflow` scope, workflow PRs mergeable again; always check `gh auth status` rather than trusting this
@@ -359,6 +369,34 @@ Ditemukan 2026-07-17 saat mengerjakan Issue #821 (audit login). Requirement "cat
 Batasnya: `ipHash` hanya sekuat `AUTH_JWT_SECRET`; merotasi secret memutus korelasi lintas batas rotasi.
 
 **Pelajaran umum**: sebelum menambah field ke audit `attributes`, cek dulu apakah namanya tertangkap redactor — kegagalannya senyap (kolom terisi `[REDACTED]`), bukan error. Terkait: [[post-audit-hardening-epic-818]].
+`````
+
+<!-- memory-file: audit-issue-numbers-unreliable.md -->
+
+`````markdown
+---
+name: audit-issue-numbers-unreliable
+description: "Diagnosis struktural audit #818 kuat, tapi ANGKA & RESEPnya salah di 5 issue (#824 #826 #832 #833 #834); resep #834 malah bug keamanan. Pisahkan observasi terverifikasi dari hipotesis; jangan tulis angka yang tak diukur"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+Audit menyeluruh 2026-07-17 ([[post-audit-hardening-epic-818]]) menghasilkan diagnosis struktural yang **kuat dan terverifikasi**, tetapi **angka dan resep perbaikannya berulang kali salah**. Terkoreksi oleh agent implementasi di 5 issue:
+
+- **#834** — resep "filter root beneran di SQL" **mustahil** (tak ada kolom `parent_id`; hierarki di tabel terpisah effective-dated) **dan** akan jadi **bug keamanan**: walk-nya load-bearing, descendant mewarisi legal entity secara struktural, memfilter root **mempersempit scope otorisasi diam-diam**. Opsi kedua ("baca map sebelum lock lalu revalidasi") membuka kembali race yang lock-nya tutup.
+- **#826** — resep "pakai port" **tak bisa** memutus cycle (arah plugin→runtime itu value import yang sah & permanen). Resep "deklarasikan dep yang hilang" hanya **memindahkan cycle ke graf terdeklarasi** (terbukti: `modules:dag:check` langsung merah). Akar sebenarnya pelanggaran layering ADR-0013 §1.
+- **#833** — magnitudo meleset **~800x** ("~6 juta kunjungan, detik-detikan CPU" → nyatanya 7.203 kunjungan, 0,067 ms). Bound worst-case `O(P×R×K×F×S)` ditulis seolah nilai terukur; nyatanya hanya 3 rule terdaftar + ada short-circuit.
+- **#832** — saran "minimal: `void collectRequestAnalytics(...)`" **merusak analytics diam-diam**: fungsi itu memanggil `context.cookies.set(...)` dan Astro men-serialize cookies begitu middleware return → cookie dibuang tanpa error, tiap request cetak visitor key baru. (Premis blocking-nya sendiri BENAR & terukur.)
+- **#824** (wave 1) — diagnosis "92 query per render" bukan biang utamanya; dominan justru cache stampede `readYamlCached` parsing YAML 1MB 22× paralel. Lih. [[fetchmodulematrix-ci-timeout-flake]].
+
+**Why:** diagnosis datang dari membaca kode (andal); angka dan resep datang dari penalaran tanpa eksekusi (tidak andal). Keduanya ditulis dengan nada percaya diri yang sama, jadi pembaca tak bisa membedakan mana yang diukur dan mana yang ditebak. Premis yang tak dikoreksi **jadi justifikasi issue berikutnya**.
+
+**How to apply:**
+- Menulis issue audit: **pisahkan tegas** "Terverifikasi (dari sumber X:baris Y)" vs "Hipotesis — perlu diukur". Jangan tulis angka yang tidak dijalankan; bound worst-case tulis sebagai bound, bukan sebagai pengukuran.
+- Resep perbaikan di issue adalah **saran, bukan spesifikasi**. Instruksikan agent implementasi: **koreksi premis lebih berharga daripada kepatuhan**. Itu yang menyelamatkan #834 dari bug keamanan.
+- Setelah wave selesai, **posting koreksi premis ke epic-nya** — bukan hanya ke PR — supaya tidak diwarisi issue berikutnya.
+- Sebelum menerima "optimasi" pada jalur otorisasi/keamanan: tuntut bukti **himpunan keputusan identik** (differential/mutation test), bukan sekadar benchmark. Lih. [[short-circuit-must-replicate-every-guard]].
 `````
 
 <!-- memory-file: auth-online-hardening-epic-progress.md -->
@@ -1066,6 +1104,84 @@ is safe and lossless *only* because the commit was never pushed — always
 check `git log origin/main --oneline -1` vs local `main` before resetting,
 and never `reset --hard`/force-push if the bad commit was already pushed
 to the shared remote.
+`````
+
+<!-- memory-file: cycle-detector-fed-incomplete-graph.md -->
+
+`````markdown
+---
+name: cycle-detector-fed-incomplete-graph
+description: "A correct cycle detector fed a hand-declared graph cannot fail on an edge nobody declared — modules:dag:check reported a valid DAG over a live cycle (Issue #826). Verify a gate's INPUT, not just its algorithm."
+metadata: 
+  node_type: memory
+  type: project
+---
+
+**Issue #826 (fixed 2026-07-17, branch `fix/826-import-cycle`).** `domain_event_runtime ⇄ integration_hub` was a live import cycle in `main` while BOTH gates were green. Neither gate was buggy — both were fed the wrong input.
+
+1. `tests/unit/module-boundary-cycles.test.ts` scanned only `application/` + `domain/`. The cycle's outgoing side was in `infrastructure/`. 258 pairs passed. **The scan was narrower than the disease.**
+2. `bun run modules:dag:check` is a correct DFS cycle detector — over each `module.ts`'s hand-written `dependencies` array, which nothing ever checked against real imports. `domain-event-runtime` declared 3 deps while importing `integration_hub` + `reporting`. **A cycle detector fed a graph missing the cycle's own edge cannot fail.**
+
+**Generalize this**: [[validator-exists-but-unwired-critical-pattern]] says "trace the validator backward to every write path." This is its sibling: a validator CAN be correctly wired and still be useless if its INPUT is derived from a hand-maintained declaration nobody reconciles with reality. When auditing any gate, ask what feeds it, not just whether it runs and whether its algorithm is right. `workflow-graph.ts detectCycle` was previously audited "optimal, don't touch" — true, and irrelevant to this failure class.
+
+**Cheap probe, reusable**: a ~40-line Bun script walking `src/modules/*/{application,domain,infrastructure,api}` with a regex per target dir, printing pairwise cycles and declared-vs-actual diffs. Found the whole picture in minutes; kept as `tests/unit/module-declared-dependencies.test.ts`. Repo had **18 undeclared edges across 11 modules** (mostly `-> logging`); shipped as a frozen baseline that can only shrink, because clearing it would touch 10 modules' lifecycle graph at once.
+
+**A port cannot break every cycle** (the issue's own suggestion, and the repo's 12-port precedent, were wrong here): a port removes the PLUGIN → runtime *type* dependency. When the plugin → runtime edge is a genuine, permanent *value* import (`integration_hub` imports `appendDomainEvent` — it IS a plugin of that runtime), the only removable direction is runtime → plugin, i.e. **invert the registration**. Underlying rule: a `system` foundation module must never import the feature modules that plug into it (ADR-0013 §1). The cycle was a symptom of that layering violation.
+
+**Inversion trades a compile-time guarantee for a runtime one — gate it.** A static array cannot be incomplete; side-effect registration can. Here it fails SILENTLY: `dispatch-domain-events.ts` iterates REGISTERED CONSUMERS, so an unregistered consumer's deliveries are never claimed — no error, no dead-letter, `pending` forever. Convention (`<module>/infrastructure/domain-event-consumer-registration.ts`) + a wiring gate that DISCOVERS files rather than listing them. Note `setLogSink`/`setAuditExportHook` are cited in-repo as the "registration is a composition-root concern" precedent but have **zero production call sites** — precedent in name only, don't lean on it.
+
+**Two traps found while building this:**
+- `workflow-approval/module.ts` declares `key: "workflow"` — any dir-name→key transform silently DROPS that module from the gate. Resolve descriptors by importing each `module.ts`.
+- A test calling the PRODUCTION `registerDomainEventConsumer` leaks across files (`bun test` shares module singletons), and a reset that preserves production registrations (which it must) won't clean it. Needed an explicit `unregisterDomainEventConsumerForTests`. Caught by `domain-event-registry-parity.test.ts` in a *different* file — real cross-file state pollution.
+
+**Treat "documented limitation" comments as live hazards, not settled decisions.** This file's header disclosed the re-export-chain gap at length while being violated by a far simpler one it never considered.
+`````
+
+<!-- memory-file: deferring-work-must-split-by-dependency.md -->
+
+`````markdown
+---
+name: deferring-work-must-split-by-dependency
+description: "Memindahkan kerja keluar dari response path: split HARUS berdasarkan dependensi (apa yang menyentuh context/request), bukan `void fn()` di call site. Astro men-serialize context.cookies begitu middleware return — fire-and-forget = cookie hilang diam-diam. Issue #832"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+Saran "minimal: `void collectRequestAnalytics(...)`" di Issue #832 **akan
+merusak visitor tracking secara diam-diam**. Fungsi itu memanggil
+`context.cookies.set(...)`, dan **Astro men-serialize `context.cookies` ke
+response begitu middleware return** — cookie yang di-set setelah itu dibuang
+tanpa error. Akibatnya tiap request mencetak visitor key baru → tiap pageview
+jadi "session" baru → data analytics hancur, tanpa satu pun test/log gagal.
+
+**Aturan**: saat memindahkan kerja keluar dari jalur kritis, split berdasarkan
+**dependensi**, bukan berdasarkan mana yang kelihatan lambat:
+
+- Apa pun yang menyentuh `context`/`request`/`response` → tetap SINKRON dan
+  inline (di #832: config, cookie plan/set/revoke, IP/geo/UA dari header —
+  semuanya pure, tanpa DB, biayanya mikrodetik).
+- Hanya bagian yang murni bergantung pada nilai biasa (lookup DB + write) yang
+  boleh di-defer, dan **tangkap nilainya dulu** sebelum enqueue —
+  `context`/`request`/`response` request-scoped dan bisa sudah di-teardown saat
+  task jalan.
+
+Konsekuensi lain yang harus dicek tiap kali defer:
+
+- **Rejection wajib ditangani di dalam antrean.** Promise tak di-await yang
+  reject = unhandled rejection = proses bisa mati. "Fail-open" yang membunuh
+  server bukan fail-open.
+- **Antrean wajib terbatas** + metrik drop. Tanpa batas, DB lambat = memori
+  tumbuh tanpa henti.
+- **Shutdown wajib di-flush.** Adapter `@astrojs/node` standalone **tidak**
+  memasang handler sinyal apa pun — tanpa hook sendiri, event pending hilang
+  saat SIGTERM. Memasang listener SIGTERM juga MEMATIKAN default terminate,
+  jadi handler wajib menyelesaikan sendiri: `process.once` lalu re-raise sinyal
+  yang sama (bukan `process.exit(0)`, yang melaporkan exit bersih untuk sesuatu
+  yang sebenarnya sinyal).
+
+Lihat `src/middleware.ts` `collectRequestAnalytics` +
+`src/modules/visitor-analytics/application/telemetry-queue.ts`.
 `````
 
 <!-- memory-file: dev-server-smoke-test-process-leak.md -->
@@ -1981,6 +2097,59 @@ If the query log/file hasn't advanced in several minutes despite the process sti
 - Root cause prevention: this happens when a test/agent process is killed or crashes mid-transaction without the framework's own cleanup running. If many coder agents are being interrupted/resumed/re-run against the same shared Postgres in one session (a recurring pattern this session, see [[subagent-background-notification-stall]]), periodically check `pg_stat_activity` for accumulating `idle in transaction` sessions as a proactive health check, rather than waiting for a hang to manifest.
 `````
 
+<!-- memory-file: library-must-not-own-process-signals.md -->
+
+`````markdown
+---
+name: library-must-not-own-process-signals
+description: "Modul library TIDAK BOLEH memasang process.on(SIGTERM) sebagai efek samping panggilan data-plane. job-runner.test.ts memakai process.emit('SIGTERM') sintetis — handler apa pun akan re-raise sinyal ASLI dan membunuh bun test (~1s, exit 143), terlihat seperti 'suite hang'. Issue #832"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+Repo ini punya ranjau spesifik: **`tests/unit/job-runner.test.ts` memanggil
+`process.emit("SIGTERM")` dan `process.emit("SIGINT")` secara sintetis** (baris
+~288/~334) untuk menguji jalur cancellation `runJob`. Itu sah dan sudah lama
+ada.
+
+Konsekuensinya: **listener SIGTERM apa pun yang terpasang di proses `bun test`
+akan ikut menyala oleh emit sintetis itu.** Handler tidak bisa — dan tidak akan
+pernah bisa — membedakan `emit()` in-process dari sinyal OS asli. Kalau handler
+itu lalu menerminasi proses (`process.kill(process.pid, sig)` atau
+`process.exit()`), ia **membunuh seluruh test runner**.
+
+**Gejalanya menipu**: terlihat seperti "suite menggantung selamanya". Padahal
+proses mati sendiri **~1 detik** dengan exit **143**, tanpa mencetak satu pun
+hasil test (bun mencetak hasil per file di akhir file). Cara membedakannya:
+**ukur elapsed-nya**. ~1s + 143 = self-kill; elapsed = nilai `timeout` = hang
+beneran. Jangan percaya kata "hang" sebelum diukur.
+
+Ranjau tambahan saat mendiagnosis: `bun test <a> <b> -t "<nama>"` memfilter
+test di KEDUA file, jadi bisecting dengan `-t` diam-diam menghilangkan
+pemicunya (`process.emit` di file lain tak pernah jalan) dan semuanya terlihat
+hijau. Pakai marker (`console.error` di `beforeAll`/`afterEach`/`afterAll`)
+untuk tahu di mana persisnya berhenti — di #832 itulah yang membuktikan file
+sudah selesai penuh (`MARK file-end` tercetak) dan matinya di antara file.
+
+**Aturan**: memasang signal handler adalah keputusan **lifecycle proses milik
+application entry**, bukan efek samping panggilan data-plane (mis.
+`enqueue()`). Kalau sebuah library butuh flush saat shutdown:
+
+- Expose `installXShutdownHook()` + `flushX()`, jangan auto-install.
+- Panggil install-nya dari entry yang membuktikan proses ini memang server —
+  di repo ini `src/middleware.ts` `onRequest` sempurna: `bun test` **tidak bisa**
+  mengevaluasinya (mengimpor virtual module `astro:middleware`), jadi test
+  aman *karena konstruksi*, bukan karena konvensi/env-check.
+- Ingat: memasang listener SIGTERM apa pun **mematikan default terminate**, jadi
+  yang memasang WAJIB menyelesaikan terminasi sendiri. Tidak ada opsi "flush
+  tapi biarkan terminasi apa adanya" — karena itu perbaikannya adalah menggeser
+  SIAPA yang memasang, bukan menghapus re-raise-nya.
+- `@astrojs/node` standalone **tidak** memasang handler sinyal apa pun, jadi
+  tanpa hook eksplisit event pending memang hilang saat SIGTERM (terbukti:
+  22/40 vs 40/40).
+`````
+
 <!-- memory-file: main-branch-protection-active.md -->
 
 `````markdown
@@ -2256,6 +2425,58 @@ See also [[shared-db-migration-schema-drift]] for the broader hazard
 this recovery pattern addresses, and
 [[sql-tokenizer-regex-vs-state-machine]] for other `db-migrate.ts`
 internals learned the hard way this session.
+`````
+
+<!-- memory-file: module-key-vs-directory-name-divergence.md -->
+
+`````markdown
+---
+name: module-key-vs-directory-name-divergence
+description: "A module's registered `key` in src/modules/*/module.ts can silently diverge from its directory name and from every doc that names it — `workflow_approval` is really keyed `workflow`; never derive a module key by transforming the directory name, always read listBaseModules()"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+Found 2026-07-17 while building the module<->skill coverage gate for
+Issue #829 (`tests/unit/module-skill-coverage.test.ts`). The gate failed
+on its very first run against a mapping that looked obviously correct.
+
+**The fact:** `src/modules/workflow-approval/module.ts` declares
+`key: "workflow"` — NOT `workflow_approval`. The directory is
+`workflow-approval`, the skill is `awcms-mini-workflow-approval`, the
+README is titled `workflow_approval`, `AGENTS.md` calls it
+`workflow_approval`, and the module-management skill/README refer to it as
+`workflow_approval`. Every human-facing name says one thing; the registry
+says another. Its permission namespace is therefore `workflow.*`, not
+`workflow_approval.*`.
+
+**Why this matters beyond one typo.** Three of the 23 base module keys do
+not map mechanically to their guidance/skill names either
+(`tenant_domain` -> `awcms-mini-tenant-domain-routing`, `logging` ->
+`awcms-mini-observability`, `sync_storage` -> `awcms-mini-sync-hmac`), so
+"transform the directory name" is wrong as a general technique here, not
+just for `workflow`. Any script/test/doc that derives a module key from a
+path (`src/modules/foo-bar` -> `foo_bar`) will silently produce a key that
+matches nothing in the registry for at least this module — and because the
+derived key simply never matches, the failure mode is a **silent no-op**
+(a lookup that finds nothing, a filter that excludes everything), not an
+error. That's the dangerous shape: it looks like "no findings."
+
+**How to apply:** Always read keys from `listBaseModules()`/`listModules()`
+(`src/modules/index.ts`) — the real registry — never from `readdirSync` on
+`src/modules/` plus a string transform. When writing any registry-driven
+gate, expect the first run to surface a real divergence rather than pass;
+if a brand-new registry-comparison gate passes green on run one, be
+suspicious that it's comparing the wrong thing.
+
+**Not fixed, deliberately.** Renaming the key to `workflow_approval` would
+move its whole `workflow.*` permission namespace (granted rows, ABAC
+checks, migration data), which was well outside #829's docs scope. The
+divergence is recorded as an inline comment in `MODULE_SKILL_MAP` in
+`tests/unit/module-skill-coverage.test.ts` so the next reader doesn't
+"correct" that line and break the gate. If it's ever worth reconciling,
+that's its own issue with a data migration, not a rename.
 `````
 
 <!-- memory-file: news-portal-social-publishing-epic-progress.md -->
@@ -2925,6 +3146,128 @@ other open issue exists to parallelize with).
 See also [[platform-hardening-epic-progress]] (the epic this repo just
 finished) and [[create-feature-branch-before-commit]] for the
 established per-issue branch/PR workflow.
+`````
+
+<!-- memory-file: perf-claims-need-adversarial-benchmark.md -->
+
+`````markdown
+---
+name: perf-claims-need-adversarial-benchmark
+description: "Benchmark TTFB di loopback Postgres MENYEMBUNYIKAN kemenangan round-trip (#832: cuma 3.94→2.65ms). Suntik latensi (trigger pg_sleep) untuk mengisolasi jalur kritis: 55.65→2.10ms. Dan verifikasi setup benchmark-nya sendiri — `docker exec` tanpa `-i` diam-diam tidak menjalankan heredoc"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+**Loopback Postgres membuat perbaikan round-trip terlihat sepele.** Di Issue
+#832 (menghapus 4-6 round trip DB dari TTFB), benchmark loopback cuma
+menunjukkan p50 3.94ms → 2.65ms — angka yang mudah dibaca "tidak worth it",
+padahal itu **best case DB** yang tidak mewakili deployment mana pun.
+
+**Cara mengisolasi jalur kritis**: suntik latensi ke operasi yang diklaim
+sudah tidak memblokir, lalu ukur ulang. Kalau benar off the critical path,
+TTFB tidak bergerak sama sekali.
+
+```sql
+CREATE FUNCTION slow_write() RETURNS trigger AS $$
+BEGIN PERFORM pg_sleep(0.05); RETURN NEW; END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER t BEFORE INSERT ON <tabel> FOR EACH ROW EXECUTE FUNCTION slow_write();
+```
+
+Hasil #832: BEFORE p50 **55.65ms** (50ms penuh masuk TTFB) vs AFTER p50
+**2.10ms** (tidak bergerak). Itu bukti kategorikal ("biayanya nol di jalur
+kritis"), bukan sekadar delta persen yang bisa didebat. Trigger yang sama juga
+memungkinkan uji kehilangan event saat shutdown jadi nyata (antrean masih
+terisi saat SIGTERM: tanpa flush hook 22/40, dengan hook 40/40).
+
+**Verifikasi setup benchmark-nya sendiri sebelum percaya hasilnya.** Dua
+jebakan yang benar-benar terjadi di sesi ini:
+
+- **`docker exec` TANPA `-i` tidak bisa membaca heredoc/stdin** — psql-nya
+  jalan tapi tidak mengeksekusi apa pun, TANPA error. Trigger tidak pernah
+  dibuat, dan run "slow DB" pertama sebenarnya cuma run normal; hasilnya
+  terlihat masuk akal (p50 3.94ms) sehingga nyaris lolos. Selalu `docker exec -i`,
+  dan **assert setup-nya benar-benar ada** (`SELECT tgname FROM pg_trigger ...`)
+  sebelum mengambil angka.
+- **`pkill -f "dist/server/entry.mjs"` mencocokkan command line shell-nya
+  sendiri** kalau string itu ada di perintah bash yang sama → script bunuh diri
+  (exit 144). Taruh di file script, jangan inline.
+
+`pg_stat_statements` butuh `shared_preload_libraries` + restart server — tidak
+bisa dipakai di Postgres dev yang dishare agent lain. Ganti dengan menghitung
+query lewat `Proxy` di sekitar client `Bun.SQL` di test integrasi (pola yang
+sudah ada di `public-tenant-resolution.integration.test.ts`); itu jadi bukti
+permanen, bukan benchmark sekali jalan.
+`````
+
+<!-- memory-file: perf-issue-premise-verify-before-trusting.md -->
+
+`````markdown
+---
+name: perf-issue-premise-verify-before-trusting
+description: "Issue #833's '~6M element visits, seconds of CPU' was a worst-case O() bound, not reality (7,203 visits / 0.067ms measured). Big-O in an issue title assumes every factor multiplies; short-circuits usually stop that. Measure the CURRENT registry before accepting the framing — and mutation-test any 'behavior is identical' claim on a security path."
+metadata:
+  node_type: memory
+  type: pattern
+---
+
+# Verify a perf issue's premise before accepting its numbers (Issue #833)
+
+Issue #833 (epic #818) claimed `detectSoDConflicts` was **O(P×R×K×F×S) ≈ 6
+million element visits per POST**, "detik-detikan CPU dengan transaksi DB
+kepegang". **Measured reality: 7,203 visits, ~0.067 ms.** Off by ~800x.
+
+**Why the bound didn't materialize:** `O(P×R×K×F×S)` assumes every permission
+triggers every rule. It doesn't — only **3 rules** are registered today (K=2),
+and `rule.conflictingPermissionKeys.includes(requestedPermissionKey)`
+short-circuits before ever touching `subjectFacts`. So the F-scan ran ~6 times,
+not 150×3 times. The `F≈1000 facts` and `S` factors were real; they just never
+multiplied by P and R the way the formula implies.
+
+**The fix was still worth shipping** — it's cheap and it removes the bad
+scaling *before* the registry grows. Benchmark (200 reps, per assignment):
+
+| Scenario                                    | Before                  | After    | Speedup |
+| ------------------------------------------- | ----------------------- | -------- | ------- |
+| Registry as it stands (3 rules, P=150, F=1000, S=20) | 0.067 ms / 7,203 visits | 0.056 ms | 1.2x    |
+| Grown registry (50 rules, P=200, F=1000, S=20)       | 1.458 ms / 332,391      | 0.166 ms | 8.8x    |
+| Large tenant (50 rules, P=200, F=5000, S=200)        | 9.564 ms / 2,173,191    | 0.393 ms | 24.4x   |
+
+Note even the worst case is **9.5 ms**, never "seconds". Report the honest
+number in the changeset/commit — an inflated premise left uncorrected becomes
+the next issue's justification.
+
+**How to apply:**
+- Before optimizing to a stated big-O, **count the real inputs** (here: `grep
+  sodRules` -> 3 rules, K=2). A worst-case bound is not a measurement.
+- Look for the **short-circuit** (`.includes()`, early `continue`, a `null` ->
+  `indeterminate` fast path) that stops the factors from multiplying. Same
+  reframing that made #802 atomic (see [[sod-hierarchy-aware-matching-issue-794]]).
+- Instrument an element-visit counter in a transcribed copy of the old code —
+  it converts "feels slow" into a number, and doubles as the differential
+  oracle below.
+
+## Mutation-test any "behavior is identical" claim (security paths)
+
+A differential test (new impl vs a **literal transcription** of the old one over
+~4000 seeded random inputs) **cannot be verified red by stashing the fix** — put
+the old code back and both sides agree by construction. The real verification is
+to **deliberately break the new implementation** and confirm the suite goes red.
+Script it: patch -> `bun test` -> restore in a `finally`.
+
+This paid off twice on #833 — two mutations **survived** and exposed genuine
+test gaps:
+- **Dropping the `subject_tenant_user_id` predicate: not caught.** Every test
+  used one subject, so any colleague's approved SoD exception would have
+  silently cleared the conflict. RLS does NOT cover this — it scopes tenant only.
+- **Dropping the statement's own `tenant_id` predicate: not caught**, because
+  RLS masks it. To pin defense-in-depth, call the function with `getAdminSql()`
+  (superuser = RLS-exempt) and assert the query still filters by tenant itself.
+
+Both became real tests. `${array}::text[]` vs `tx.array(values, "text")` was
+also confirmed red-on-mutation — proof the array binding is genuinely exercised
+against live Postgres (see [[bun-sql-array-binding]]), which typecheck can never
+show.
 `````
 
 <!-- memory-file: platform-evolution-epic-738-survey.md -->
@@ -5519,6 +5862,45 @@ Dua hal tambahan yang memakan waktu:
   menjalankan ulang test itu terhadap DB bersih sebelum percaya DoD-nya.
 `````
 
+<!-- memory-file: shared-visited-set-multisource-walk.md -->
+
+`````markdown
+---
+name: shared-visited-set-multisource-walk
+description: "Memanggil graph-walk single-seed sekali per seed = O(S x depth), worst O(U^2), karena `visited` set dialokasi ulang tiap panggilan; ganti jadi SATU traversal multi-source dengan visited BERSAMA. Buktikan linearitas dengan MENGHITUNG lookup, bukan timing. Issue #834"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+Pola bug: sebuah fungsi walk single-seed (`computeDescendants(children, seed)`)
+mengalokasi `visited = new Set()` **di dalam** dirinya. Aman dipanggil sekali.
+Tapi begitu ada caller yang memanggilnya **dalam loop atas banyak seed**, nol
+sharing antar panggilan — tiap subtree yang dipakai bersama di-walk ulang sekali
+untuk **tiap seed di atasnya**. O(S x depth), degenerasi ke **O(U^2)** kalau
+tiap unit adalah seed di rantai dalam. Ditemukan di
+`organization-structure-hierarchy-port-adapter.ts` `resolveLegalEntityScope`
+(Issue #834): 10k unit, rantai 10k-dalam → **4383 ms**; multi-source
+shared-visited → **0,83 ms** (5304x). Hasil set-nya identik — caller-nya sudah
+dedupe pakai `Set`, jadi **tidak ada gejala korektness sama sekali**, murni
+beban tersembunyi.
+
+**How to apply:**
+- Lihat loop yang memanggil fungsi walk/traversal per elemen? Cek apakah fungsi
+  itu mengalokasi `visited`/memo **di dalam**. Kalau ya, ganti ke satu traversal
+  multi-source (`computeDescendantClosure(children, seeds)`) dengan satu visited
+  bersama. Bentuk single-seed cukup jadi wrapper tipis di atasnya.
+- **Buktikan linearitas dengan MENGHITUNG lookup, bukan wall-clock.** Bungkus
+  `childrenByParent` dengan proxy yang menghitung `.get()`, assert
+  `lookups <= depth * 2`. Deterministik, tak flaky, dan **terbukti merah**
+  terhadap bentuk lama (20.100 vs bound 400). Assertion timing akan flaky dan
+  mengukur hal yang salah — yang penting kelas kompleksitasnya.
+- Untuk memverifikasi "merah" pada refactor **murni perf** (tak ada bug
+  korektness yang bisa dibikin merah): jangan karang test palsu. Rusak fix-nya
+  **sengaja** dengan beberapa cara berbeda dan tunjukkan tiap test menangkap
+  mode kegagalan yang berbeda. Itu bukti gigi yang jujur.
+`````
+
 <!-- memory-file: short-circuit-must-replicate-every-guard.md -->
 
 `````markdown
@@ -5545,13 +5927,62 @@ Menambahkan fast-path yang **melompati** helper (mis. short-circuit `PATCH {}` a
 - Verifikasi **merah** dulu dengan melepas guard-nya. Catatan: `git checkout -- <file>` me-revert ke HEAD — kalau fix-nya **belum di-commit**, itu menghapusnya. Pakai `git stash push -- <file>` lalu `stash pop`.
 `````
 
+<!-- memory-file: shrink-work-inside-lock-not-the-lock.md -->
+
+`````markdown
+---
+name: shrink-work-inside-lock-not-the-lock
+description: "Bulk read full-tenant di dalam pg_advisory_xact_lock: perkecil KERJA-nya (baca hanya yang validator benar-benar baca), jangan sentuh lock-nya atau pindah baca ke luar lock. Recursive CTE pertama repo ini ada di sini — sengaja, bukan pola baru. Issue #834"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+`reparentUnit` (`organization-unit-hierarchy-service.ts`) membaca **seluruh**
+edge map tenant di dalam `pg_advisory_xact_lock` tenant-wide → throughput
+reparent turun linear terhadap **ukuran tenant**, padahal cycle check cuma
+bergantung pada **kedalaman** hierarki.
+
+**Kunci yang menyelesaikannya:** baca apa yang validator **benar-benar baca**.
+`validateReparent` hanya memanggil `isAncestorOf(edges, candidateParentId,
+unitId)` yang berjalan **strictly ke atas** dari `candidateParentId` — jadi ia
+**tak pernah bisa** membaca entri di luar rantai itu. Map rantai-ancestor saja
+(recursive CTE) memberi verdict **bit-for-bit identik**. Lock dan urutan
+baca-setelah-lock **tak disentuh**; yang mengecil cuma kerja di dalamnya.
+Bonus: `candidateParentId === null` tak mungkin bikin cycle → skip query total.
+
+**Jangan** ambil map sebelum lock lalu revalidasi optimistic — itu justru
+membuka kembali race yang lock ini tutup (reparent konkuren dua unit berbeda
+yang bersama-sama membentuk cycle; row-lock tak bisa menangkapnya karena dua
+write menyentuh baris berbeda).
+
+**Recursive CTE:** ini yang **pertama & satu-satunya** di repo. Pola "satu bulk
+query muat seluruh adjacency tenant, walk in-memory" tetap **benar** di semua
+read path lain — di sana map penuh memang jawaban yang dihitung. Ia salah
+**khusus di sini** karena baca ini duduk di dalam lock tenant-wide dan cuma
+butuh satu jalur ke akar. Jangan cargo-cult ke read path.
+
+**Depth cap CTE wajib >= bound in-memory** (`MAX_ANCESTOR_WALK`, kini
+di-export justru untuk ini). Cap yang lebih ketat = rantai terpotong =
+`isAncestorOf` berhenti di entri hilang dan melaporkan **NO cycle** — korupsi
+hierarki senyap. Diverifikasi: CTE dipotong ke 1 level → cycle 8-hop **diterima
+(200, bukan 422)**, cycle sungguhan tertulis ke DB.
+
+**Angka (10k unit):** baca dalam lock 5,67ms → 0,40ms (wide), 4,97ms → 1,58ms
+(deep). `EXPLAIN ANALYZE`: Nested Loop + Index Scan tiap level, `shared hit=6`,
+**tanpa index baru** — index `sql/063` yang ada sudah melayaninya (planner pilih
+`..._unit_history_idx`, bukan partial `..._current_key` seperti dugaan awal —
+cek EXPLAIN, jangan asumsikan index mana yang dipakai).
+`````
+
 <!-- memory-file: skill-doc-drift-recurring.md -->
 
 `````markdown
 ---
 name: skill-doc-drift-recurring
-description: "Skills, module READMEs, and cross-cutting docs (AGENTS.md, ADRs, doc 13/18/20/21) in this repo drift from code as new modules/permissions land — a recurring class of bug, 5 confirmed occurrences now; scale audit fan-out to repo size (up to 7-way at 23 modules) and always update skill-index/catalog files whenever a fix batch creates a new skill"
-metadata:
+description: "Skills, module READMEs, and cross-cutting docs (AGENTS.md, ADRs, doc 13/18/20/21) in this repo drift from code as new modules/permissions land — a recurring class of bug, 6 confirmed occurrences now; scale audit fan-out to repo size (up to 7-way at 23 modules) and always update skill-index/catalog files whenever a fix batch creates a new skill; since #829 tests/unit/module-skill-coverage.test.ts finally GATES module-to-skill coverage plus catalog wiring — the first automated check for any of this class"
+metadata: 
+  node_type: memory
   type: project
 ---
 
@@ -5780,6 +6211,55 @@ confirmed instance of it being diff-independent, see
 no code change needed. Issue #805 auto-closed via the squash-merge's
 "Closes #805" line; branch auto-deleted both locally and remotely by
 `gh pr merge --squash --delete-branch`.
+
+**Recurred a 6th time, 2026-07-17** (Issue #829 → branch
+`docs/829-module-skills`, part of post-audit epic #818) — this time the
+audit found the drift as a *structural hole* rather than stale prose:
+FIVE active modules (`data_exchange`, `organization_structure`,
+`reference_data`, `reporting`, `domain_event_runtime`) had **no project
+skill at all**, while 18 others did. Four of the five were also the SOURCE
+of a finding in the same audit (#820 data-exchange preview guard, #822
+reference-data PATCH-as-PUT, #826 the live import cycle, #786
+organization-structure's unwired port) — strong evidence for the causal
+claim, not just correlation: **a module with no written convention
+guidance is a module whose conventions drift**. Worth treating "does every
+module have a skill?" as a first-class audit question, not a nice-to-have.
+
+**The important change is the GATE, not the five skill files.** Every prior
+round of this memory ends with advice ("always update the catalogs", "check
+module count vs README count") — i.e. *more discipline*, which is exactly
+what had already failed five times. #829 finally added enforcement:
+`tests/unit/module-skill-coverage.test.ts` (runs under `bun test`, already
+in `bun run check`) requires every module in `listBaseModules()` to be
+accounted for in EXACTLY ONE of two hand-maintained maps —
+`MODULE_SKILL_MAP` (has a dedicated skill) or
+`MODULES_COVERED_BY_CROSS_CUTTING_SKILLS` (explicit allow-list naming the
+skills that DO cover it + a rationale; those skills must exist, so the
+rationale can't rot). It also enforces the half that PR #806's reviewer had
+to catch by hand: each mapped skill's `SKILL.md` must exist, its frontmatter
+`name` must equal its directory, and it must appear in **both** catalogs
+(`AGENTS.md` + `.claude/skills/README.md`). A skill on disk that nothing
+points to now fails CI instead of a reviewer.
+
+Design notes worth reusing for the next registry-driven gate here:
+- **Hand-maintained map, not a string transform.** 4 of 23 mappings aren't
+  mechanical (`tenant_domain` -> `-tenant-domain-routing`, `logging` ->
+  `-observability`, `sync_storage` -> `-sync-hmac`, plus the `workflow` key
+  itself, see [[module-key-vs-directory-name-divergence]]).
+- **A grep heuristic is unusable as a gate here** — probed it:
+  `awcms-mini-module-management` mentions all 23 module keys, so
+  "skill mentions module name" would mark every module as covered. Explicit
+  intent beats inference.
+- **`listBaseModules()`, not `listModules()`** — a derived app's own modules
+  (via `application-registry.ts`, #740) must not be forced to carry a skill
+  in THIS repo.
+- The gate found a real divergence on run one (see
+  [[module-key-vs-directory-name-divergence]]). Verified red→green for all
+  three failure modes before trusting it.
+- **Adding any test file makes `repo:inventory:check` fail** — the generated
+  `docs/awcms-mini/repo-inventory.md` hardcodes a test-file count ("336 test
+  files under `tests/`"), so a new gate test needs
+  `bun run repo:inventory:generate` at integration time. Expected, not a bug.
 `````
 
 <!-- memory-file: sod-hierarchy-aware-matching-issue-794.md -->
@@ -6137,6 +6617,56 @@ See [[mdescape-backslash-bug-recurs]] for a structurally similar
 across this repo's tooling" pattern, though that one is about this
 repo's own markdown-escaping code rather than an upstream TS parser
 change.
+`````
+
+<!-- memory-file: unicode-escape-emits-raw-nul.md -->
+
+`````markdown
+---
+name: unicode-escape-emits-raw-nul
+description: "Typing a \\u0000 escape into Write/Edit emits a RAW NUL byte into the file, not the escape text; grep then treats the file as binary and silently reports NO matches while Read shows the line fine. Fix via a Bun script using String.fromCharCode(0)."
+metadata:
+  node_type: memory
+  type: reference
+---
+
+Writing a TS source line like `const SEP = "\u0000";` through the Write/Edit
+tools does **not** produce the 6-character escape sequence in the file — it
+produces a **raw NUL byte** inside the string literal (Issue #833,
+`sod-conflict-evaluation.ts`).
+
+**Why it's nasty:** the symptoms actively lie.
+
+- `Read` renders the line normally (`const SCOPE_KEY_SEPARATOR = "";`) — the
+  NUL is invisible, looks like an empty string.
+- `grep -n "SCOPE_KEY" file` returns **exit 1, no output**. GNU grep classifies
+  any file containing a NUL as binary and suppresses matches — so the constant
+  you just wrote appears **not to exist**, while `wc -l` proves the edit landed.
+  Chasing "did my edit apply? is my cwd wrong? is this the right worktree?" is
+  the natural (and wrong) first hypothesis.
+- A follow-up `Edit` whose `old_string` contains the escape can never match.
+- Bash rejects the command outright: `InputValidationError: command contains
+  control characters that would be hidden in the approval dialog` — this is the
+  clearest signal, and confirms the byte is real rather than a display quirk.
+
+**Fix** — never type the byte; construct it in a Bun script:
+
+```ts
+const NUL = String.fromCharCode(0);
+const src = await Bun.file(f).text();
+await Bun.write(f, src.split(NUL).join("\\u0000")); // "\\u0000" = the escape TEXT
+```
+
+**How to apply:** any composite/index key built by concatenating two fields
+(`${scopeType}\u0000${scopeId}`) — a common, legitimate pattern when replacing
+nested `.some()` scans with a `Set` lookup. Prefer a non-control separator
+(`"|"`, `"::"`) unless a collision is genuinely possible; if the fields are
+DB-controlled (enum name + uuid) a plain separator is safe and avoids all of
+this. When a NUL genuinely is warranted, write it via a script and verify with
+`grep -c` (expect a real number, not silence).
+
+Also worth knowing: prettier preserves the escape sequence once it's correct
+text, so `bun run lint` will NOT catch the raw-NUL version.
 `````
 
 <!-- memory-file: validator-exists-but-unwired-critical-pattern.md -->

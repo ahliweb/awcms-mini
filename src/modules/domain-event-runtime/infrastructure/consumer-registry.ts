@@ -121,10 +121,8 @@ export const activityRollupProjectorConsumer: DomainEventConsumerDefinition = {
  * edge is one-directional by construction, is declared in `module.ts`'s
  * `dependencies`, and is not a plugin registration.
  */
-const BASE_DOMAIN_EVENT_CONSUMERS: readonly DomainEventConsumerDefinition[] = [
-  sampleAuditProjectorConsumer,
-  activityRollupProjectorConsumer
-];
+export const BASE_DOMAIN_EVENT_CONSUMERS: readonly DomainEventConsumerDefinition[] =
+  [sampleAuditProjectorConsumer, activityRollupProjectorConsumer];
 
 /**
  * Consumers owned by OTHER modules, appended by

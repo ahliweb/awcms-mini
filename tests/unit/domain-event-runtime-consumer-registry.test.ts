@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import {
+  BASE_DOMAIN_EVENT_CONSUMERS,
   DOMAIN_EVENT_CONSUMERS,
   getConsumerByName,
   getConsumersForEventType,
@@ -157,11 +158,50 @@ describe("registerDomainEventConsumer — inverted cross-module registration (Is
   });
 
   test("the runtime's own base registry contains no consumer owned by another module", () => {
+    // Asserts BASE_DOMAIN_EVENT_CONSUMERS, not DOMAIN_EVENT_CONSUMERS. The
+    // latter is a live binding that `registerDomainEventConsumer` appends to
+    // BY DESIGN, so the moment any other test file transitively imports a
+    // module's registration file, `integration_hub.*` legitimately appears in
+    // it — and this assertion, which is about the runtime's own STATIC array,
+    // would fail for a reason that has nothing to do with the invariant it
+    // guards. It passed alone and failed in the full suite for exactly that
+    // reason; the invariant was never broken, the test was reading the wrong
+    // array. (Found by the orchestrator's full-suite run, wave 2 epic #818.)
+    //
     // `logging.*` is this runtime's own reference consumer calling into
     // foundational logging infrastructure, not a plugin registration.
-    for (const consumer of DOMAIN_EVENT_CONSUMERS) {
+    for (const consumer of BASE_DOMAIN_EVENT_CONSUMERS) {
       expect(consumer.name.startsWith("integration_hub.")).toBe(false);
       expect(consumer.name.startsWith("reporting.")).toBe(false);
+    }
+  });
+
+  test("the base registry is not the mutable binding — a plugin registration must not be able to reach it", () => {
+    const baseLength = BASE_DOMAIN_EVENT_CONSUMERS.length;
+    const fake: DomainEventConsumerDefinition = {
+      name: "integration_hub.__base_isolation_probe",
+      description:
+        "Probe: proves a plugin registration cannot reach the base array.",
+      eventTypes: [SAMPLE_RECORDED_EVENT_TYPE],
+      eventVersions: ["1"],
+      handler: (async () => {}) as DomainEventConsumerHandler
+    };
+
+    registerDomainEventConsumer(fake);
+    try {
+      // The merged view sees it...
+      expect(DOMAIN_EVENT_CONSUMERS.some((c) => c.name === fake.name)).toBe(
+        true
+      );
+      // ...the base array never does. Without this, the assertion above could
+      // pass simply because nothing had registered yet, which is precisely how
+      // the original version of this test hid its own defect.
+      expect(BASE_DOMAIN_EVENT_CONSUMERS.length).toBe(baseLength);
+      expect(
+        BASE_DOMAIN_EVENT_CONSUMERS.some((c) => c.name === fake.name)
+      ).toBe(false);
+    } finally {
+      unregisterDomainEventConsumerForTests(fake.name);
     }
   });
 });
