@@ -22,8 +22,13 @@
  *      units that together would form a cycle (row-level locking alone
  *      cannot catch that, since the two writes touch different rows).
  *      The lock auto-releases at transaction end (commit or rollback).
- *   3. Re-reads the current (`effective_to IS NULL`) adjacency map for the
- *      WHOLE tenant, fresh, now that the lock is held.
+ *   3. Re-reads the current (`effective_to IS NULL`) adjacency map, fresh,
+ *      now that the lock is held — specifically the candidate parent's
+ *      ancestor chain via `readAncestorChainEdgeMap`'s recursive CTE, which
+ *      is the only part of the map the cycle check can read (Issue #834;
+ *      this used to be a whole-tenant `readEdgeMap`, making the critical
+ *      section scale with tenant SIZE rather than hierarchy DEPTH). Still
+ *      read strictly AFTER the lock — that ordering is the race fix.
  *   4. Calls `domain/organization-unit-hierarchy.ts`'s `validateReparent`
  *      (self-parent/cycle) against that fresh map — ANY rejection
  *      increments `organization_structure_hierarchy_invalid_attempts_total`
@@ -48,6 +53,7 @@ import {
   computeAncestorChain,
   computeDescendants,
   computeMaxDepth,
+  MAX_ANCESTOR_WALK,
   validateEffectivePeriodForReparent,
   validateReparent,
   type HierarchyEdgeMap
@@ -113,6 +119,81 @@ export async function readEdgeMap(
           AND (effective_to IS NULL OR effective_to > ${asOf})
         )
       )
+  `) as {
+    organization_unit_id: string;
+    parent_organization_unit_id: string | null;
+  }[];
+
+  const map = new Map<string, string | null>();
+  for (const row of rows) {
+    map.set(row.organization_unit_id, row.parent_organization_unit_id);
+  }
+  return map;
+}
+
+/**
+ * The CURRENT (`effective_to IS NULL`) unit -> parent edges along the
+ * ancestor chain of `startUnitId` ONLY — `startUnitId`'s own edge, its
+ * parent's edge, its grandparent's edge, and so on up to the root — as a
+ * `HierarchyEdgeMap` shaped exactly like `readEdgeMap`'s, just narrower.
+ *
+ * WHY THIS EXISTS (Issue #834). `reparentUnit` must read the adjacency map
+ * AFTER taking the tenant-wide `pg_advisory_xact_lock` (reading before the
+ * lock would reintroduce the very race the lock closes). It used to call
+ * `readEdgeMap`, pulling EVERY edge in the tenant inside that critical
+ * section — so reparent throughput per tenant degraded linearly with the
+ * TENANT'S SIZE rather than with its hierarchy DEPTH, which is the only
+ * thing the cycle check actually depends on.
+ *
+ * `validateReparent` only ever calls `isAncestorOf(edges, candidateParentId,
+ * unitId)`, which walks strictly UPWARD from `candidateParentId`. It can
+ * therefore never read an entry outside that chain, so this narrower map
+ * yields a bit-for-bit identical verdict while touching O(depth) rows
+ * instead of O(tenant). The lock itself, and the read-fresh-under-the-lock
+ * ordering, are UNCHANGED — only the amount of work inside the lock shrinks.
+ *
+ * This is the repo's FIRST and (today) ONLY recursive CTE. The prevailing
+ * "one bulk query loads the whole tenant adjacency, walk it in memory"
+ * pattern is genuinely right everywhere else — those are unlocked read
+ * paths where the full map is the actual answer being computed. It is wrong
+ * *here* specifically because this read sits inside a tenant-wide lock and
+ * needs a single root-ward path, so the bulk read's cost is pure contention
+ * with no compensating benefit. Do not cargo-cult it into the read paths.
+ *
+ * NO NEW INDEX/MIGRATION IS NEEDED: each recursive step is a point lookup on
+ * `(tenant_id, organization_unit_id)`, already served by sql/063's existing
+ * indexes — `EXPLAIN ANALYZE` at 10k units confirms a Nested Loop driving an
+ * Index Scan per level (the planner picks `..._unit_history_idx`; the
+ * partial `..._current_key` covers the same predicate), no sequential scan.
+ *
+ * DEPTH CAP: bounded at `MAX_ANCESTOR_WALK + 1` levels, one MORE than the
+ * in-memory walk's own bound, so a corrupted (cyclic) graph terminates the
+ * recursion here while still handing `isAncestorOf` enough rows to reach its
+ * own limit and report `max_depth_exceeded`. Capping BELOW the in-memory
+ * bound would truncate the chain into a false "no cycle" verdict.
+ */
+export async function readAncestorChainEdgeMap(
+  tx: Bun.SQL,
+  tenantId: string,
+  startUnitId: string
+): Promise<HierarchyEdgeMap> {
+  const rows = (await tx`
+    WITH RECURSIVE ancestor_chain AS (
+      SELECT h.organization_unit_id, h.parent_organization_unit_id, 1 AS depth
+      FROM awcms_mini_organization_unit_hierarchies h
+      WHERE h.tenant_id = ${tenantId}
+        AND h.organization_unit_id = ${startUnitId}
+        AND h.effective_to IS NULL
+      UNION ALL
+      SELECT h.organization_unit_id, h.parent_organization_unit_id, chain.depth + 1
+      FROM awcms_mini_organization_unit_hierarchies h
+      JOIN ancestor_chain chain
+        ON h.organization_unit_id = chain.parent_organization_unit_id
+      WHERE h.tenant_id = ${tenantId}
+        AND h.effective_to IS NULL
+        AND chain.depth <= ${MAX_ANCESTOR_WALK}
+    )
+    SELECT organization_unit_id, parent_organization_unit_id FROM ancestor_chain
   `) as {
     organization_unit_id: string;
     parent_organization_unit_id: string | null;
@@ -213,10 +294,20 @@ export async function reparentUnit(
   }
 
   // Tenant-wide serialization point — see file header. MUST happen before
-  // reading the adjacency map used for cycle validation below.
+  // reading the adjacency map used for cycle validation below: reading it
+  // BEFORE the lock (or revalidating an optimistically pre-fetched map) is
+  // exactly the race this lock exists to close, so the read stays here,
+  // inside the critical section. Issue #834 only shrank WHAT is read (the
+  // candidate parent's ancestor chain, O(depth)) from the whole tenant's
+  // edge map (O(tenant size)) — the lock, and this ordering, are unchanged.
   await acquireHierarchyAdvisoryLock(tx, tenantId);
 
-  const currentEdges = await readEdgeMap(tx, tenantId, null);
+  // `null` (move to top-level) can never create a cycle, so `validateReparent`
+  // returns early without reading the map at all — skip the query entirely.
+  const currentEdges: HierarchyEdgeMap =
+    candidateParentId === null
+      ? new Map()
+      : await readAncestorChainEdgeMap(tx, tenantId, candidateParentId);
 
   const structuralErrors = validateReparent({
     unitId,
