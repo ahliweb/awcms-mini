@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 67.**
+**Jumlah memory saat snapshot terakhir: 69.**
 
 ## Sengaja TIDAK disertakan
 
@@ -43,6 +43,8 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 # Memory index
 
 - [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory hidup di luar repo & hilang saat pindah device; jalankan `bun run memory:docs:sync` tiap kali memory berubah, `memory:docs:restore` di device baru
+- [Promise.all on single tx = hang](promise-all-on-single-tx-hang.md) — 3x di repo ini, test suite LOLOS tiap kali (load-dependent); sapu KELASnya (grep `Promise.all` + `tx`), pisahkan pre-existing dari regresi PR; Issue #842
+- [Audit count assertion vacuous](audit-count-assertion-vacuous.md) — nama action karangan → bandingkan 0 dgn 0, lolos vakum selamanya; action generik (create/update/...), `resource_type` diskriminatornya; selalu assert sisi sebaliknya
 - [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (redactor #687); pakai `ipHash` HMAC via `src/lib/security/client-fingerprint.ts`, jangan rename key
 - [main branch protection AKTIF](main-branch-protection-active.md) — sejak 2026-07-17: 6 required check, 0 approval, enforce_admins false; jangan wajibkan `CodeQL` polos (bisa "skipping" → PR deadlock)
 - [SSR admin pages skip module-enabled](ssr-admin-pages-skip-module-enabled.md) — 54/55 halaman admin merender data modul yang di-disable padahal route-nya 403; nav filter kosmetik; Issue #841. Taruh gate DI DALAM helper, bukan call site
@@ -287,6 +289,29 @@ Reserve `next(request)` for genuine rewrites — changing which route
 handles a request (i18n fallback, canonical-URL redirects handled as
 rewrites, etc.) — not for decorating the request every handler already
 receives.
+`````
+
+<!-- memory-file: audit-count-assertion-vacuous.md -->
+
+`````markdown
+---
+name: audit-count-assertion-vacuous
+description: "Menghitung audit event dengan nama action KARANGAN membandingkan 0 dengan 0 dan lolos vakum selamanya; action di repo ini generik (create/update/delete/restore), resource_type yang jadi diskriminator"
+metadata: 
+  node_type: memory
+  type: feedback
+---
+
+Saat menulis test yang meng-assert "tidak ada audit event baru", nyaris lolos versi yang menghitung `action = 'tenant_code_updated'` / `'code_updated'`. **Nama itu tidak pernah ada.** Query mengembalikan 0 sebelum maupun sesudah perbaikan → assertion **lolos secara vakum selamanya**, terlepas dari apakah bug-nya ada.
+
+Di repo ini `recordAuditEvent` memakai `action` **generik**: `"create"`, `"update"`, `"delete"`, `"restore"`. Yang membedakan jenis resource adalah **`resource_type`** (mis. `reference_code` vs `reference_tenant_code`). Jadi hitungannya harus memaku **pasangan** `action` + `resource_type`.
+
+**Why:** assertion "count tidak bertambah" gagal-aman ke arah yang salah — filter yang salah ketik/dikarang menghasilkan himpunan kosong, dan himpunan kosong selalu memenuhi "tidak bertambah". Bentuk assertion ini **tidak bisa gagal**, jadi ia tidak membuktikan apa pun.
+
+**How to apply:**
+- **Grep nilai `action:`/`resourceType:` yang sebenarnya** di modul terkait sebelum menulis query audit — jangan tebak dari nama endpoint atau nama issue.
+- Setiap assertion "X tidak bertambah" wajib berpasangan dengan sisi sebaliknya: **"aksi nyata TETAP menambah X"**. Tanpa itu, menghapus jalur write sama sekali pun ikut lolos. Ini varian dari [[filter-assertion-timing-bidirectional]].
+- Verifikasi **merah** dulu terhadap fix yang di-revert (`git stash push -- <file sumber>`, jalankan, `git stash pop`) sebelum menerima hijau. Itu satu-satunya bukti test-nya load-bearing — lih. pelajaran test paritas di [[ssr-admin-pages-skip-module-enabled]].
 `````
 
 <!-- memory-file: audit-doc-rename-by-date.md -->
@@ -5113,6 +5138,33 @@ Always run `bun run lint` (or `prettier --write` on the touched files) locally b
 **Why**: PR #573 (Issue #561, docs-only: README/ADR/skill markdown edits written by the `awcms-mini-coder` agent) passed `bun run check:docs` and `bun run build` locally but failed CI's "Quality (lint + docs + typecheck + test)" job on the Prettier check across all 5 touched `.md` files. The `check:docs` script (mermaid/link/naming validation) does not run Prettier — it's a separate check. Required a follow-up "chore: apply prettier formatting" commit to fix.
 
 **How to apply**: before pushing any PR — code or docs — run `bun run lint` locally as a final step, not just the more targeted checks (`check:docs`, `build`, `typecheck`). Treat "docs-only" as no exemption from the formatting gate.
+`````
+
+<!-- memory-file: promise-all-on-single-tx-hang.md -->
+
+`````markdown
+---
+name: promise-all-on-single-tx-hang
+description: "Promise.all beberapa query di atas SATU tx = hang nyata (bukan sekadar lambat); sudah 3x di repo ini, test suite LOLOS tiap kali. Sapu kelasnya (grep semua Promise.all yang argumennya pakai tx), jangan instansnya. Issue #842"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+Satu koneksi Postgres melayani **satu query pada satu waktu**. `Promise.all([q1(tx), q2(tx)])` di atas `tx` yang sama **menghang sungguhan** — bukan sekadar hilang paralelismenya. Terdokumentasi eksplisit di `src/modules/reporting/application/projection-reconciliation.ts:89-94`: hang-nya meninggalkan koneksi tersangkut yang lalu merusak `resetDatabase()` **setiap test sesudahnya**, jadi gejalanya muncul jauh dari penyebabnya (lih. [[idle-in-transaction-hang]]).
+
+**Sudah 3+ kejadian**, dan **test suite lolos setiap kali** — sifatnya load-dependent:
+
+1. `projection-reconciliation.ts` — ditemukan empiris, kini jadi catatan rujukan repo.
+2. `health-registry.ts` `prepareModuleHealthContext` (4 query) — regresi dari perbaikan Issue #824, ketahuan review bot PR #839, bukan oleh test.
+3. `module-matrix.ts:118` + `data-exchange/imports/[id]/preview.ts:185` (2 query each) — pre-existing dari #579/#782 → **Issue #842**.
+
+**How to apply:**
+- Melihat `Promise.all` di file yang menyentuh DB? **Cek apakah argumennya memakai `tx` yang sama.** Kalau ya, jadikan await berurutan.
+- Setelah menemukan satu instans, **grep kelasnya di seluruh tree** (`Promise.all` + `tx`), jangan berhenti di yang dilaporkan. Sapuan itulah yang memunculkan #842.
+- Pisahkan yang **pre-existing** dari **regresi PR ini** via `git log -L`/`git diff origin/main...HEAD` sebelum ikut memperbaiki — filekan yang lama sebagai issue terpisah agar PR tidak melebar diam-diam.
+- Optimasi fan-out query **tidak butuh konkurensi**: kemenangan #824 adalah meruntuhkan ≈92 query per render jadi 4 query total. Await berurutan mempertahankan itu sepenuhnya. Jangan tukar hang-risk demi paralelisme yang bukan sumber kemenangannya.
+- `Promise.all` di atas map **murni** (tanpa query) aman — mis. `module-matrix.ts:152`. Jangan ikut "diperbaiki".
 `````
 
 <!-- memory-file: release-pipeline-never-triggered-gaps.md -->
