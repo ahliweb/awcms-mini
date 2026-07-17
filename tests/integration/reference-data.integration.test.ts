@@ -1889,3 +1889,245 @@ suite("reference_data integration", () => {
     ).toBe(validFrom);
   });
 });
+
+/**
+ * PR #839 review findings. The OpenAPI request body documents `{}` as a valid
+ * no-op, but the handler reached the unconditional `update*` path for it, and
+ * `readJsonBody(...) ?? {}` silently manufactured that same `{}` out of an
+ * absent or non-object body.
+ *
+ * These assert the MECHANISM, not the status code: a 200 alone cannot tell a
+ * genuine no-op apart from a write that happened to preserve every value, so
+ * each test pins `updated_at` and the audit trail — the things a spurious
+ * write actually moves.
+ */
+describe("reference-data PATCH no-op and body-shape handling", () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  /**
+   * `action` alone is "update" for BOTH code kinds — `resource_type` is the
+   * discriminator, so both are pinned here. Counting on a made-up action name
+   * would return 0 before and after the change and pass vacuously.
+   */
+  async function updateAuditCountFor(
+    owner: Bootstrap,
+    resourceType: "reference_code" | "reference_tenant_code"
+  ): Promise<number> {
+    const sql = getTestSql();
+    const rows = await withTenant(sql, owner.tenantId, async (tx) => {
+      return (await tx`
+        SELECT count(*)::int AS count
+        FROM awcms_mini_audit_events
+        WHERE tenant_id = ${owner.tenantId}
+          AND module_key = 'reference_data'
+          AND action = 'update'
+          AND resource_type = ${resourceType}
+      `) as { count: number }[];
+    });
+    return rows[0]!.count;
+  }
+
+  async function tenantCodeUpdatedAt(
+    owner: Bootstrap,
+    tenantCodeId: string
+  ): Promise<string> {
+    const sql = getTestSql();
+    const rows = await withTenant(sql, owner.tenantId, async (tx) => {
+      return (await tx`
+        SELECT updated_at
+        FROM awcms_mini_reference_tenant_codes
+        WHERE tenant_id = ${owner.tenantId} AND id = ${tenantCodeId}
+      `) as { updated_at: Date }[];
+    });
+    return rows[0]!.updated_at.toISOString();
+  }
+
+  async function createTenantCodeFixture(owner: Bootstrap): Promise<string> {
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+    const created = await invoke<{ data: { tenantCode: { id: string } } }>(
+      createTenantCode,
+      {
+        method: "POST",
+        path: "/api/v1/reference-data/tenant-codes",
+        headers: authHeaders(owner, idKey()),
+        body: {
+          valueSet: "currency",
+          baseCodeId: null,
+          code: "EXT_NOOP",
+          labels: [{ locale: "en", label: "Unchanged" }],
+          sortOrder: 7,
+          metadata: { keep: true },
+          validFrom: "2026-01-01T00:00:00.000Z",
+          validTo: null
+        }
+      }
+    );
+    expect(created.status).toBe(200);
+    return created.body.data.tenantCode.id;
+  }
+
+  test("REGRESSION (PR #839, tenant-codes PATCH): the documented no-op `PATCH {}` must NOT bump updated_at or append an audit event -- pre-fix it ran the full unconditional update for a request that changes nothing", async () => {
+    const owner = await bootstrap();
+    const tenantCodeId = await createTenantCodeFixture(owner);
+
+    const updatedAtBefore = await tenantCodeUpdatedAt(owner, tenantCodeId);
+    const auditsBefore = await updateAuditCountFor(
+      owner,
+      "reference_tenant_code"
+    );
+
+    // A second of separation, so an `updated_at` bump cannot hide inside the
+    // timestamp resolution and pass this test by accident.
+    await Bun.sleep(1100);
+
+    const noop = await invoke<{
+      data: {
+        tenantCode: {
+          sortOrder: number;
+          metadata: Record<string, unknown>;
+          labels: { label: string }[];
+        };
+      };
+    }>(updateTenantCode, {
+      method: "PATCH",
+      path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+      params: { id: tenantCodeId },
+      headers: authHeaders(owner, idKey()),
+      body: {}
+    });
+
+    // Still the documented 200 with the current representation -- the fix must
+    // not turn a documented no-op into an error.
+    expect(noop.status).toBe(200);
+    expect(noop.body.data.tenantCode.sortOrder).toBe(7);
+    expect(noop.body.data.tenantCode.metadata).toEqual({ keep: true });
+    expect(noop.body.data.tenantCode.labels[0]!.label).toBe("Unchanged");
+
+    expect(await tenantCodeUpdatedAt(owner, tenantCodeId)).toBe(
+      updatedAtBefore
+    );
+    expect(await updateAuditCountFor(owner, "reference_tenant_code")).toBe(
+      auditsBefore
+    );
+  });
+
+  test("REGRESSION (PR #839, tenant-codes PATCH): an ABSENT body is rejected 400, not silently normalized into the no-op `{}`", async () => {
+    const owner = await bootstrap();
+    const tenantCodeId = await createTenantCodeFixture(owner);
+    const updatedAtBefore = await tenantCodeUpdatedAt(owner, tenantCodeId);
+
+    const response = await invoke<{ error: { code: string } }>(
+      updateTenantCode,
+      {
+        method: "PATCH",
+        path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+        params: { id: tenantCodeId },
+        headers: authHeaders(owner, idKey())
+        // no `body` at all
+      }
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(await tenantCodeUpdatedAt(owner, tenantCodeId)).toBe(
+      updatedAtBefore
+    );
+  });
+
+  test.each([
+    ["a JSON array", [] as unknown],
+    ["a literal null", null as unknown],
+    ["a JSON scalar", 5 as unknown]
+  ])(
+    "REGRESSION (PR #839, tenant-codes PATCH): %s body is rejected 400 -- a field-by-field patch parser reads no known keys off it and would otherwise report a clean empty patch",
+    async (_label, body) => {
+      const owner = await bootstrap();
+      const tenantCodeId = await createTenantCodeFixture(owner);
+      const updatedAtBefore = await tenantCodeUpdatedAt(owner, tenantCodeId);
+
+      const response = await invoke<{ error: { code: string } }>(
+        updateTenantCode,
+        {
+          method: "PATCH",
+          path: `/api/v1/reference-data/tenant-codes/${tenantCodeId}`,
+          params: { id: tenantCodeId },
+          headers: authHeaders(owner, idKey()),
+          body
+        }
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("VALIDATION_ERROR");
+      expect(await tenantCodeUpdatedAt(owner, tenantCodeId)).toBe(
+        updatedAtBefore
+      );
+    }
+  );
+
+  test("REGRESSION (PR #839, value-sets/codes PATCH): the no-op `PATCH {}` must NOT append a code_updated audit event, and a real patch on the same code still must", async () => {
+    const owner = await bootstrap();
+    await createValueSetFixture(
+      owner,
+      "currency",
+      "tenant_extend_and_override"
+    );
+    const created = await invoke(createCode, {
+      method: "POST",
+      path: "/api/v1/reference-data/value-sets/currency/codes",
+      params: { key: "currency" },
+      headers: authHeaders(owner, idKey()),
+      body: {
+        code: "IDR",
+        labels: [{ locale: "en", label: "Rupiah" }],
+        sortOrder: 1,
+        metadata: {},
+        validFrom: "2026-01-01T00:00:00.000Z",
+        validTo: null
+      }
+    });
+    expect(created.status).toBe(200);
+
+    const auditsBefore = await updateAuditCountFor(owner, "reference_code");
+
+    const noop = await invoke<{ data: { code: { sortOrder: number } } }>(
+      updateCode,
+      {
+        method: "PATCH",
+        path: "/api/v1/reference-data/value-sets/currency/codes/IDR",
+        params: { key: "currency", code: "IDR" },
+        headers: authHeaders(owner, idKey()),
+        body: {}
+      }
+    );
+    expect(noop.status).toBe(200);
+    expect(noop.body.data.code.sortOrder).toBe(1);
+    expect(await updateAuditCountFor(owner, "reference_code")).toBe(
+      auditsBefore
+    );
+
+    // The bidirectional half: the short-circuit must not have disabled the
+    // real update path. Without this, deleting the update call entirely would
+    // still pass the assertion above.
+    const real = await invoke<{ data: { code: { sortOrder: number } } }>(
+      updateCode,
+      {
+        method: "PATCH",
+        path: "/api/v1/reference-data/value-sets/currency/codes/IDR",
+        params: { key: "currency", code: "IDR" },
+        headers: authHeaders(owner, idKey()),
+        body: { sortOrder: 99 }
+      }
+    );
+    expect(real.status).toBe(200);
+    expect(real.body.data.code.sortOrder).toBe(99);
+    expect(await updateAuditCountFor(owner, "reference_code")).toBe(
+      auditsBefore + 1
+    );
+  });
+});

@@ -15269,7 +15269,7 @@ One localized label/description for a reference code (Issue
 
 ### Schema: ReferenceDataUpdateCodeRequest
 
-Partial PATCH body. Every property is optional: a property that is ABSENT from the body leaves the stored value untouched. A property sent as explicit null CLEARS/resets it (sortOrder -> 0, metadata -> {}, validTo -> null). labels and validFrom reject null -- at least one label is always required and valid_from is NOT NULL -- so omit them instead of nulling them. Sending {} is a valid no-op update.
+Partial PATCH body. Every property is optional: a property that is ABSENT from the body leaves the stored value untouched. A property sent as explicit null CLEARS/resets it (sortOrder -> 0, metadata -> {}, validTo -> null). labels and validFrom reject null -- at least one label is always required and valid_from is NOT NULL -- so omit them instead of nulling them. Sending {} is a valid no-op update: it returns the current representation with 200 and is genuinely inert -- updated_at is not bumped and no audit or domain event is emitted. The body itself is required and must be a JSON object; an absent, malformed, non-object (null, array, scalar) body is rejected with 400 VALIDATION_ERROR rather than being treated as {}.
 
 | Field       | Type                                                        | Required | Nullable | Description                                                                                       |
 | ----------- | ----------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------- |
@@ -15299,7 +15299,7 @@ Partial PATCH body. Every property is optional: a property that is ABSENT from t
 
 ### Schema: ReferenceDataUpdateTenantCodeRequest
 
-Partial PATCH body. Every property is optional: a property that is ABSENT from the body leaves the stored value untouched. A property sent as explicit null CLEARS/resets it (sortOrder -> 0, metadata -> {}, validTo -> null). labels and validFrom reject null -- at least one label is always required and valid_from is NOT NULL -- so omit them instead of nulling them. Sending {} is a valid no-op update.
+Partial PATCH body. Every property is optional: a property that is ABSENT from the body leaves the stored value untouched. A property sent as explicit null CLEARS/resets it (sortOrder -> 0, metadata -> {}, validTo -> null). labels and validFrom reject null -- at least one label is always required and valid_from is NOT NULL -- so omit them instead of nulling them. Sending {} is a valid no-op update: it returns the current representation with 200 and is genuinely inert -- updated_at is not bumped and no audit or domain event is emitted. The body itself is required and must be a JSON object; an absent, malformed, non-object (null, array, scalar) body is rejected with 400 VALIDATION_ERROR rather than being treated as {}.
 
 | Field       | Type                                                        | Required | Nullable | Description                                                                                       |
 | ----------- | ----------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------- |

@@ -14,7 +14,9 @@ import {
 import { hashSessionToken } from "../../../../../lib/auth/session-token";
 import {
   bodyTooLargeResponse,
-  readJsonBody
+  invalidJsonObjectBodyResponse,
+  readJsonBody,
+  readJsonObjectBody
 } from "../../../../../lib/security/request-body-limit";
 import {
   computeRequestHash,
@@ -105,12 +107,10 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
     );
   }
 
-  const bodyRead = await readJsonBody<Record<string, unknown>>(
-    request,
-    "default"
-  );
+  const bodyRead = await readJsonObjectBody(request, "default");
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
-  const body = bodyRead.value ?? {};
+  if (!bodyRead.ok) return invalidJsonObjectBodyResponse(bodyRead.reason);
+  const body = bodyRead.value;
 
   const parsed = parseReferenceCodePatchInput(body);
   if (!parsed.ok) {
@@ -160,6 +160,28 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
 
     const existing = await fetchTenantReferenceCodeById(tx, tenantId, id);
     if (!existing) return fail(404, "NOT_FOUND", "Tenant code not found.");
+
+    // `{}` is a documented valid no-op (see the OpenAPI request-body note),
+    // but `updateTenantReferenceCode` is unconditional: it would bump
+    // `updated_at`, re-write the translation rows, emit an audit event and
+    // append a `reference-code-updated` domain event for a request that
+    // changes nothing. Answer with the current representation instead, so a
+    // no-op stays observably a no-op. Deliberately AFTER authorization and the
+    // 404/idempotency-replay checks — an empty patch must not become a way to
+    // probe for a code's existence without holding the update permission.
+    if (Object.keys(parsed.patch).length === 0) {
+      const noopResponse = ok({ tenantCode: existing });
+      await saveIdempotencyRecord(
+        tx,
+        tenantId,
+        UPDATE_IDEMPOTENCY_SCOPE,
+        idempotencyKey,
+        requestHash,
+        200,
+        await noopResponse.clone().json()
+      );
+      return noopResponse;
+    }
 
     const result = await updateTenantReferenceCode(
       tx,
