@@ -66,6 +66,7 @@ import { GET as getReconciliation } from "../../src/pages/api/v1/data-exchange/r
 import { hashPassword } from "../../src/lib/auth/password";
 import { hashSessionToken } from "../../src/lib/auth/session-token";
 import { fetchGrantedPermissionKeys } from "../../src/modules/identity-access/application/auth-context";
+import { syncModuleDescriptors } from "../../src/modules/module-management/application/descriptor-sync";
 import { getDatabaseClient } from "../../src/lib/database/client";
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { runDataExchangeWorkerPassForTenant } from "../../src/modules/data-exchange/application/data-exchange-worker";
@@ -1360,9 +1361,13 @@ suite("data_exchange integration", () => {
       expect(ssrPermissions.has("data_exchange.imports.read")).toBe(true);
 
       expect(
-        isDescriptorPermissionGranted(
-          ssrPermissions,
-          syntheticDescriptor.requiredPermission
+        await withTenant(appSql, owner.tenantId, (tx) =>
+          isDescriptorPermissionGranted(
+            tx,
+            owner.tenantId,
+            ssrPermissions,
+            syntheticDescriptor.requiredPermission
+          )
         )
       ).toBe(false);
 
@@ -1394,9 +1399,13 @@ suite("data_exchange integration", () => {
       );
 
       expect(
-        isDescriptorPermissionGranted(
-          grantedPermissions,
-          syntheticDescriptor.requiredPermission
+        await withTenant(appSql, owner.tenantId, (tx) =>
+          isDescriptorPermissionGranted(
+            tx,
+            owner.tenantId,
+            grantedPermissions,
+            syntheticDescriptor.requiredPermission
+          )
         )
       ).toBe(true);
 
@@ -1410,6 +1419,117 @@ suite("data_exchange integration", () => {
         )
       );
       expect(routeAllow.allowed).toBe(true);
+    });
+
+    /**
+     * PR #839 security review, SECOND parity finding — the axis the test
+     * above could not see.
+     *
+     * That test compares SSR and route on ONE axis (does the caller hold the
+     * key?), so it stayed green while the two gates disagreed on a different
+     * one entirely. `authorizeInTransaction` denies `403 MODULE_DISABLED` via
+     * `resolveModuleEnabled` BEFORE evaluating RBAC, and
+     * `fetchGrantedPermissionKeys` never filters disabled modules out of the
+     * SSR permission set — so with the owning module switched off, every
+     * route refused while the page happily rendered the staged rows.
+     *
+     * The lesson this test encodes: pin the SSR and route decisions together
+     * on every axis the route's guard actually consults, not just the one the
+     * bug of the day happened to be about.
+     */
+    test("the SSR page gate agrees with the route gate when the tenant DISABLES the module", async () => {
+      const owner = await bootstrap();
+      const limited = await bootstrapLimitedUser(owner, [
+        { moduleKey: "data_exchange", activityCode: "imports", action: "read" },
+        {
+          moduleKey: "identity_access",
+          activityCode: "user_management",
+          action: "read"
+        }
+      ]);
+
+      const syntheticDescriptor: ExchangeDescriptor = {
+        key: "data_exchange.synthetic_test_descriptor",
+        ownerModuleKey: "data_exchange",
+        direction: "both",
+        formats: ["csv"],
+        schemaVersion: "1.0",
+        limits: { maxFileBytes: 1024, maxRowCount: 10, maxFieldsPerRow: 5 },
+        adapterRegistryKey: "reference_items",
+        requiredPermission: "identity_access.user_management.read",
+        sensitiveFields: { fieldNames: [] },
+        description:
+          "synthetic descriptor for the SSR-vs-route module-enabled parity test"
+      };
+
+      const appSql = getDatabaseClient();
+      const admin = getAdminSql();
+      const limitedTokenHash = hashSessionToken(limited.token);
+
+      const ssrDecision = () =>
+        withTenant(appSql, owner.tenantId, async (tx) =>
+          isDescriptorPermissionGranted(
+            tx,
+            owner.tenantId,
+            await fetchGrantedPermissionKeys(
+              tx,
+              owner.tenantId,
+              limited.tenantUserId
+            ),
+            syntheticDescriptor.requiredPermission
+          )
+        );
+
+      const routeDecision = () =>
+        withTenant(appSql, owner.tenantId, (tx) =>
+          authorizeExchangeDescriptorPermission(
+            tx,
+            owner.tenantId,
+            limitedTokenHash,
+            new Date(),
+            syntheticDescriptor
+          )
+        );
+
+      // Baseline: module enabled (no row at all — resolveModuleEnabled's
+      // documented "missing row = enabled" default), permission held. BOTH
+      // allow, so a later divergence can only come from the module state.
+      expect(await ssrDecision()).toBe(true);
+      expect((await routeDecision()).allowed).toBe(true);
+
+      // The registry FK requires awcms_mini_modules to be populated first —
+      // this test writes a tenant_modules row directly (bypassing the
+      // enable/disable endpoints, which auto-sync), so it syncs explicitly.
+      // Same reason and same call as module-tenant-lifecycle's own setup.
+      await syncModuleDescriptors(admin);
+
+      // The tenant switches the descriptor's owning module off.
+      await admin`
+        INSERT INTO awcms_mini_tenant_modules (tenant_id, module_key, enabled, disabled_at)
+        VALUES (${owner.tenantId}, 'identity_access', false, now())
+        ON CONFLICT (tenant_id, module_key) DO UPDATE SET enabled = false, disabled_at = now()
+      `;
+
+      // The permission key is STILL granted — this is the mechanism of the
+      // bug, not an incidental detail. Nothing revoked it; the module was
+      // merely disabled, and the SSR permission set cannot tell.
+      const stillGranted = await withTenant(appSql, owner.tenantId, (tx) =>
+        fetchGrantedPermissionKeys(tx, owner.tenantId, limited.tenantUserId)
+      );
+      expect(stillGranted.has("identity_access.user_management.read")).toBe(
+        true
+      );
+
+      // The route denies...
+      const routeAfter = await routeDecision();
+      expect(routeAfter.allowed).toBe(false);
+      if (!routeAfter.allowed) {
+        expect(routeAfter.denied.status).toBe(403);
+      }
+
+      // ...so the SSR page must deny too. THIS is the assertion that fails
+      // against a gate built on `permissions.has()` alone.
+      expect(await ssrDecision()).toBe(false);
     });
 
     // Issue #820 Cacat 3: this test used to pass `null` (an unresolvable

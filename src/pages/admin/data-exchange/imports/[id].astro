@@ -22,6 +22,7 @@ import {
   type StagedRowRow
 } from "../../../../modules/data-exchange/application/staged-row-directory";
 import { isDescriptorPermissionGranted } from "../../../../modules/data-exchange/application/descriptor-authorization";
+import { resolveModuleEnabled } from "../../../../modules/identity-access/application/auth-context";
 import { listReconciliationReports } from "../../../../modules/data-exchange/application/reconciliation-service";
 import { createTranslator } from "../../../../lib/i18n/translate";
 import { logAdminPageError } from "../../../../lib/logging/error-log";
@@ -96,6 +97,21 @@ if (CAN_READ && batchId) {
       batch = await getImportBatchById(tx, context.tenantId, batchId);
       if (!batch) return;
 
+      // `context.permissions` is NOT the whole gate the API applies:
+      // `authorizeInTransaction` denies `403 MODULE_DISABLED` before it ever
+      // looks at RBAC, and `fetchGrantedPermissionKeys` (which builds the SSR
+      // permission set) never filters disabled modules out. So the `CAN_*`
+      // constants above are all still true for a tenant that has switched
+      // `data_exchange` off — the page would render staged rows while every
+      // route answered 403 (PR #839 security review, second parity finding).
+      if (
+        !(await resolveModuleEnabled(tx, context.tenantId, "data_exchange"))
+      ) {
+        descriptorDenied = true;
+        batch = null;
+        return;
+      }
+
       const descriptor = resolveImportDescriptor(batch.importKey);
 
       // An unresolvable descriptor (owning module disabled/removed via
@@ -113,13 +129,21 @@ if (CAN_READ && batchId) {
 
       // The OWNING module's own permission, on top of the generic
       // `data_exchange.imports.read` gate above — the same check the six API
-      // routes make with `authorizeExchangeDescriptorPermission` (a
-      // malformed key fails closed there and here).
+      // routes make with `authorizeExchangeDescriptorPermission` (a malformed
+      // key, and a key whose module this tenant disabled, both fail closed
+      // there and here).
+      //
+      // MUST stay awaited: this returns a Promise, and an un-awaited Promise
+      // is truthy, so a dropped `await` here inverts the gate into a silent
+      // fail-OPEN. `tsc` does not check `.astro`, so nothing but this comment
+      // and the integration test guards that.
       if (
-        !isDescriptorPermissionGranted(
+        !(await isDescriptorPermissionGranted(
+          tx,
+          context.tenantId,
           context.permissions,
           descriptor.requiredPermission
-        )
+        ))
       ) {
         descriptorDenied = true;
         batch = null;
@@ -134,12 +158,20 @@ if (CAN_READ && batchId) {
       let project: (row: StagedRowRow) => StagedRowRow = maskAllFields;
       if (policy) {
         // The descriptor's OWN permission, never a generic data_exchange one.
-        // `rawValuePermission` is a `module.activity.action` key — the exact
-        // format `context.permissions` holds.
+        // Goes through the same helper as `requiredPermission` above rather
+        // than reading `context.permissions` directly: the route's raw-value
+        // gate is `authorizeDescriptorPermissionKey`, which resolves module
+        // state too, so a bare `permissions.has()` here would unmask values
+        // the route masks once the declaring module is disabled.
         const canSeeRaw =
           policy.fieldNames.length === 0 ||
           (policy.rawValuePermission !== undefined &&
-            context.permissions.has(policy.rawValuePermission));
+            (await isDescriptorPermissionGranted(
+              tx,
+              context.tenantId,
+              context.permissions,
+              policy.rawValuePermission
+            )));
         project = canSeeRaw
           ? (row) => row
           : (row) => maskSensitiveFields(row, policy);
