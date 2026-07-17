@@ -153,6 +153,18 @@ function parseGenerated(doc: string): Map<string, string> {
   while ((m = re.exec(body)) !== null) {
     const [, name, content] = m;
     if (!name || content === undefined) continue;
+    // `name` comes from Markdown, and `restore` joins it onto the memory
+    // directory before writing — so a crafted marker
+    // (`<!-- memory-file: ../../../../.bashrc -->`) would write outside that
+    // directory entirely. Accept only a plain `.md` basename; anything else is
+    // a malformed or hostile snapshot, and failing loudly beats writing
+    // somewhere unexpected.
+    if (name !== path.basename(name) || !name.endsWith(".md")) {
+      throw new Error(
+        `Nama file memory tidak valid dalam snapshot: ${JSON.stringify(name)}. ` +
+          `Harus berupa basename ".md" tunggal, tanpa komponen path.`
+      );
+    }
     out.set(name, `${content}\n`);
   }
   return out;
