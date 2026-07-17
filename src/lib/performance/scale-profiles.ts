@@ -47,8 +47,21 @@ export type TableRowCounts = {
   objectSyncQueue: number;
   /** `awcms_mini_idempotency_keys` — idempotency store shape. */
   idempotencyKeys: number;
-  /** `awcms_mini_blog_posts` — representative tenant-scoped business/content table (also the full-text search query-plan budget's driving table). */
+  /** `awcms_mini_blog_posts` — representative tenant-scoped business/content table (also the full-text search and admin-list query-plan budgets' driving table). */
   blogPosts: number;
+  /**
+   * `awcms_mini_blog_pages` — the admin **page** list query-plan budget's
+   * driving table (Issue #838). Added after Issue #830's
+   * `(tenant_id, updated_at DESC)` indexes made an admin-list budget
+   * possible: `blog-page-directory.ts`'s `listBlogPagesForAdmin` is a
+   * near-verbatim copy of `blog-post-directory.ts`'s post list, so it
+   * carries exactly the same regression risk — but this table was not
+   * seeded at all before, and a budget over an EMPTY table is a vacuous
+   * gate (PostgreSQL Seq Scans a 0-row table no matter what indexes
+   * exist). Deliberately smaller than `blogPosts`: a real CMS tenant has
+   * far more posts than pages, and this ratio is what the fixture is for.
+   */
+  blogPages: number;
 };
 
 export type PerformanceScaleProfile = {
@@ -75,7 +88,8 @@ export const SAFE_SCALE_PROFILE: PerformanceScaleProfile = {
     syncOutbox: 300,
     objectSyncQueue: 300,
     idempotencyKeys: 150,
-    blogPosts: 300
+    blogPosts: 300,
+    blogPages: 200
   },
   noisyNeighborMultiplier: 6,
   soakDurationMs: 0
@@ -92,7 +106,8 @@ export const STANDARD_SCALE_PROFILE: PerformanceScaleProfile = {
     syncOutbox: 4000,
     objectSyncQueue: 4000,
     idempotencyKeys: 2000,
-    blogPosts: 2000
+    blogPosts: 2000,
+    blogPages: 800
   },
   noisyNeighborMultiplier: 10,
   soakDurationMs: 60_000
@@ -109,7 +124,8 @@ export const LARGE_SCALE_PROFILE: PerformanceScaleProfile = {
     syncOutbox: 15000,
     objectSyncQueue: 15000,
     idempotencyKeys: 8000,
-    blogPosts: 6000
+    blogPosts: 6000,
+    blogPages: 2500
   },
   noisyNeighborMultiplier: 15,
   soakDurationMs: 10 * 60_000

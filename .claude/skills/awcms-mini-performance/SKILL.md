@@ -103,6 +103,34 @@ threshold yang sudah ada wajib diff yang direview, bukan flag runtime.
 Lihat [`performance-suite.md`](../../../docs/awcms-mini/performance-suite.md)
 untuk arsitektur lengkap, safe subset vs full lane, dan format artefak.
 
+**JANGAN salin `forbiddenNodeTypes: ["Seq Scan"]` dari budget yang sudah
+ada tanpa mengukur.** Pelajaran Issue #838: RLS selalu menyuntikkan
+`tenant_id = current_setting(...)` dan hampir setiap tabel di sini punya
+index ber-leading `(tenant_id, ...)` — jadi saat index yang kamu ingin
+kunci hilang, planner **tidak** jatuh ke Seq Scan; ia memakai index lain
+lalu menambah node `Sort`. Budget "Seq Scan saja" akan LULUS pada regresi
+yang justru jadi alasan budget itu dibuat (terukur: `Limit -> Index Scan`
+cost 62 → `Limit -> Sort -> Bitmap Heap Scan` cost 940, nol Seq Scan).
+
+Karena itu, sebelum mendaftarkan budget:
+
+1. **Ukur regresi sungguhan**: `DROP INDEX` beneran (di transaksi yang
+   di-rollback, atau `finally` yang membuatnya kembali), lalu `EXPLAIN`
+   ulang. **Assert setup-nya benar-benar terjadi** (`pg_indexes` = 0)
+   sebelum percaya angkanya.
+2. **Pilih sinyal dari bentuk plan yang benar-benar berubah** — untuk
+   query `ORDER BY ... LIMIT` itu biasanya `Sort`/`Incremental Sort`,
+   bukan `Seq Scan`.
+3. **Pastikan tabel pendorongnya di-seed** (`scale-profiles.ts`); budget
+   di atas tabel kosong = gate vakum (Postgres Seq Scan tabel 0 baris apa
+   pun index-nya).
+4. **Jangan bertumpu pada `maxTotalCost` sebagai sinyal utama**: statistik
+   planner di suite ini sering basi (peran `awcms_mini_app` bukan owner →
+   `ANALYZE` di-skip diam-diam dengan WARNING, bukan error), sehingga cost
+   estimate bisa tidak bermakna sementara bentuk plan tetap benar.
+5. **Buktikan gate-nya menyala** dengan test yang gagal pada plan regresi
+   terukur — termasuk assertion bahwa varian naif TIDAK menangkapnya.
+
 ## Skill terkait
 
 `awcms-mini-new-migration` (tambah index via migration berurutan), `awcms-mini-integration` (I/O eksternal & outbox), `awcms-mini-testing` (benchmark/load test), `awcms-mini-production-preflight` (`db:pool:health`).

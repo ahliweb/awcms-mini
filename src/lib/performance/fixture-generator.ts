@@ -89,7 +89,8 @@ function scaleRowCounts(
     syncOutbox: Math.round(counts.syncOutbox * multiplier),
     objectSyncQueue: Math.round(counts.objectSyncQueue * multiplier),
     idempotencyKeys: Math.round(counts.idempotencyKeys * multiplier),
-    blogPosts: Math.round(counts.blogPosts * multiplier)
+    blogPosts: Math.round(counts.blogPosts * multiplier),
+    blogPages: Math.round(counts.blogPages * multiplier)
   };
 }
 
@@ -458,9 +459,32 @@ export type BlogPostFixtureRow = {
   locale: string;
   publishedAt: Date | null;
   createdAt: Date;
+  /**
+   * Issue #838: previously not generated at all, so every seeded row fell
+   * back to the column's `DEFAULT now()` and a whole tenant's posts shared
+   * ONE `updated_at` value (measured: 5 distinct values across 3000 rows,
+   * i.e. one per seeding transaction). The admin-list budgets registered
+   * in `query-plan-budgets.ts` gate `ORDER BY updated_at DESC` — ordering
+   * a constant column is not a meaningful proxy for the real query, so the
+   * fixture now spreads `updated_at` the way real edit traffic does.
+   * Always >= `createdAt` (a row cannot be updated before it exists).
+   */
+  updatedAt: Date;
 };
 
 const BLOG_STATUSES = ["draft", "review", "published", "archived"] as const;
+
+/**
+ * A realistic post-creation edit offset: most content is edited shortly
+ * after being written, a long tail much later. Derived from the same seeded
+ * PRNG as everything else here, so it stays deterministic.
+ */
+function syntheticUpdatedAt(prng: Prng, createdAt: Date, anchor: Date): Date {
+  const maxOffsetMs = Math.max(0, anchor.getTime() - createdAt.getTime());
+  const offsetMs = prng.nextInt(0, maxOffsetMs);
+
+  return new Date(createdAt.getTime() + offsetMs);
+}
 
 export function generateBlogPosts(
   tenant: TenantFixturePlan,
@@ -491,7 +515,80 @@ export function generateBlogPosts(
       visibility: "public",
       locale: "id",
       publishedAt: status === "published" ? createdAt : null,
-      createdAt
+      createdAt,
+      updatedAt: syntheticUpdatedAt(prng, createdAt, anchor)
+    });
+  }
+
+  return rows;
+}
+
+export type BlogPageFixtureRow = {
+  tenantId: string;
+  authorTenantUserId: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  contentJson: Record<string, unknown>;
+  contentText: string;
+  status: string;
+  visibility: string;
+  locale: string;
+  pageType: string;
+  menuOrder: number;
+  publishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const BLOG_PAGE_TYPES = ["standard", "landing"] as const;
+
+/**
+ * Issue #838 — mirrors `generateBlogPosts` for `awcms_mini_blog_pages`, the
+ * driving table of the `blog-pages-admin-list` query-plan budget.
+ * `blog-page-directory.ts`'s `listBlogPagesForAdmin` is itself a
+ * near-verbatim copy of the post list, so the fixture mirrors it too rather
+ * than inventing a different shape.
+ *
+ * `parent_page_id` is deliberately always NULL: it is a self-referencing FK
+ * (migration 026), so generating one would require a two-pass insert to
+ * guarantee the parent exists first, and NOTHING in the admin-list query
+ * this fixture exists to gate reads or joins that column. Adding it would
+ * be fixture complexity that buys no signal.
+ */
+export function generateBlogPages(
+  tenant: TenantFixturePlan,
+  seed: string,
+  anchor: Date
+): BlogPageFixtureRow[] {
+  const prng = createPrng(`${seed}:blog-pages:${tenant.tenantId}`);
+  const rows: BlogPageFixtureRow[] = [];
+
+  for (let i = 0; i < tenant.rowCounts.blogPages; i++) {
+    const status = prng.pick(BLOG_STATUSES);
+    const title = `${synthesizeSentence(prng, 3)} page ${i}`;
+    const contentText = synthesizeSentence(prng, 40);
+    const createdAt = syntheticTimestamp(prng, 400, anchor);
+
+    rows.push({
+      tenantId: tenant.tenantId,
+      authorTenantUserId: deterministicUuid(prng),
+      title,
+      slug: `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${i}-${prng.hex(6)}`,
+      excerpt: synthesizeSentence(prng, 10),
+      contentJson: {
+        synthetic: true,
+        blocks: [{ type: "paragraph", text: contentText }]
+      },
+      contentText,
+      status,
+      visibility: "public",
+      locale: "id",
+      pageType: prng.pick(BLOG_PAGE_TYPES),
+      menuOrder: prng.nextInt(0, 50),
+      publishedAt: status === "published" ? createdAt : null,
+      createdAt,
+      updatedAt: syntheticUpdatedAt(prng, createdAt, anchor)
     });
   }
 

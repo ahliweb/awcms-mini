@@ -49,6 +49,30 @@ describe("scale profiles", () => {
     expect(LARGE_SCALE_PROFILE.soakDurationMs).toBeGreaterThan(0);
   });
 
+  /**
+   * Issue #838: `awcms_mini_blog_pages` was not seeded at all before this
+   * profile field existed, and the `blog-pages-admin-list` query-plan
+   * budget is worthless over an empty table — PostgreSQL Seq Scans a 0-row
+   * relation no matter which indexes exist, so the gate would neither pass
+   * honestly nor fail on a real regression. Every table that DRIVES a
+   * registered budget must therefore be seeded at every profile.
+   */
+  test("every profile seeds every query-plan budget's driving table with a non-zero row count", () => {
+    for (const profile of [
+      SAFE_SCALE_PROFILE,
+      STANDARD_SCALE_PROFILE,
+      LARGE_SCALE_PROFILE
+    ]) {
+      for (const [table, count] of Object.entries(profile.rowsPerTenant)) {
+        expect([profile.id, table, count > 0]).toEqual([
+          profile.id,
+          table,
+          true
+        ]);
+      }
+    }
+  });
+
   test("resolveScaleProfile falls back to safe for an unknown/missing id", () => {
     expect(resolveScaleProfile(undefined)).toBe(SAFE_SCALE_PROFILE);
     expect(resolveScaleProfile("bogus")).toBe(SAFE_SCALE_PROFILE);
