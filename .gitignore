@@ -42,3 +42,8 @@ blob-report/
 
 # Claude Code user-local settings (jangan commit)
 .claude/settings.local.json
+
+# Worktree agent Claude Code (isolation: "worktree") — dibuat DI DALAM repo,
+# jadi tanpa aturan ini `git add -A` bisa meng-commit seluruh checkout agent.
+# Terungkap saat epic #818 gelombang 1 menjalankan 6 agent paralel.
+.claude/worktrees/
