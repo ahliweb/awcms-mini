@@ -211,6 +211,41 @@ suite("public blog routes", () => {
     expect(detail.text).toContain("Hello world");
   });
 
+  test("hostile ?page= values never 500 and never reach the query unclamped (Issue #819)", async () => {
+    const owner = await bootstrap();
+    await createAndPublishPost(owner, { slug: "public-post" });
+
+    // `abc`/`Infinity` used to reach `OFFSET NaN` (500); `1e8` used to reach
+    // `OFFSET 1e9` — a deep-offset scan on an unauthenticated route.
+    for (const pageParam of ["abc", "1e8", "-1", "1.5", "Infinity", ""]) {
+      const response = await invokeRaw(publicIndex, {
+        method: "GET",
+        path: `/blog/${owner.tenantCode}?page=${encodeURIComponent(pageParam)}`,
+        params: { tenantCode: owner.tenantCode }
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.text).not.toContain("NaN");
+    }
+
+    // Every hostile value clamps to page 1, which still renders the post.
+    const junk = await invokeRaw(publicIndex, {
+      method: "GET",
+      path: `/blog/${owner.tenantCode}?page=abc`,
+      params: { tenantCode: owner.tenantCode }
+    });
+    expect(junk.text).toContain("public-post");
+
+    // The upper clamp is a real page, not an error: page 10,000 is simply empty.
+    const deep = await invokeRaw(publicIndex, {
+      method: "GET",
+      path: `/blog/${owner.tenantCode}?page=1e8`,
+      params: { tenantCode: owner.tenantCode }
+    });
+    expect(deep.status).toBe(200);
+    expect(deep.text).not.toContain("public-post");
+  });
+
   test("draft post is never publicly visible (index or detail)", async () => {
     const owner = await bootstrap();
     const created = await invoke<{ data: { id: string; slug: string } }>(

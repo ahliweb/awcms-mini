@@ -77,7 +77,23 @@ export async function fetchModulePermissionSyncReport(
   tx: Bun.SQL,
   moduleKey: string
 ): Promise<ModulePermissionSyncReport | null> {
-  const catalogPermissions = await fetchCatalogPermissions(tx, moduleKey);
+  return buildModulePermissionSyncReport(
+    moduleKey,
+    await fetchCatalogPermissions(tx, moduleKey)
+  );
+}
+
+/**
+ * The pure half of `fetchModulePermissionSyncReport` — same comparison, but
+ * fed already-fetched catalog rows instead of running its own query. Exists so
+ * a caller reporting on MANY modules at once (`fetchModuleHealthReports`,
+ * Issue #824) can pay for one catalog query total instead of one per module,
+ * without re-deriving the compare logic.
+ */
+export function buildModulePermissionSyncReport(
+  moduleKey: string,
+  catalogPermissions: CatalogPermission[]
+): ModulePermissionSyncReport | null {
   const descriptorExists = listModules().some((d) => d.key === moduleKey);
 
   if (!descriptorExists && catalogPermissions.length === 0) {
@@ -90,4 +106,23 @@ export async function fetchModulePermissionSyncReport(
   );
 
   return { moduleKey, entries };
+}
+
+/** Whole catalog in ONE query, grouped by module key — the batch feed for `buildModulePermissionSyncReport` (Issue #824). */
+export async function fetchCatalogPermissionsByModule(
+  tx: Bun.SQL
+): Promise<Map<string, CatalogPermission[]>> {
+  const byModule = new Map<string, CatalogPermission[]>();
+
+  for (const permission of await fetchCatalogPermissions(tx)) {
+    const existing = byModule.get(permission.moduleKey);
+
+    if (existing) {
+      existing.push(permission);
+    } else {
+      byModule.set(permission.moduleKey, [permission]);
+    }
+  }
+
+  return byModule;
 }

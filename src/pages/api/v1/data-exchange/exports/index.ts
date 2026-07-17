@@ -150,14 +150,21 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     );
     if (!auth.allowed) return auth.denied;
 
-    const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
-      tx,
-      tenantId,
-      tokenHash,
-      now,
-      resolveExportDescriptor(exportKey)
-    );
-    if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
+    // An unknown exportKey answers 404 further below (`Unknown exportKey`)
+    // — this route's own handling of an unresolvable descriptor, which
+    // `authorizeExchangeDescriptorPermission` no longer accepts as an
+    // implicit allow (Issue #820 Cacat 3).
+    const createDescriptor = resolveExportDescriptor(exportKey);
+    if (createDescriptor) {
+      const descriptorPermCheck = await authorizeExchangeDescriptorPermission(
+        tx,
+        tenantId,
+        tokenHash,
+        now,
+        createDescriptor
+      );
+      if (!descriptorPermCheck.allowed) return descriptorPermCheck.denied;
+    }
 
     const existingIdempotency = await findIdempotencyRecord(
       tx,

@@ -17,7 +17,9 @@ import {
 import {
   countStagedRows,
   listStagedRows,
-  maskSensitiveFields
+  maskAllFields,
+  maskSensitiveFields,
+  type StagedRowRow
 } from "../../../../modules/data-exchange/application/staged-row-directory";
 import { listReconciliationReports } from "../../../../modules/data-exchange/application/reconciliation-service";
 import { createTranslator } from "../../../../lib/i18n/translate";
@@ -50,9 +52,15 @@ const CAN_RETRY = context.permissions.has(
 const CAN_MANAGE = context.permissions.has(
   permissionKey("data_exchange", "imports", "manage")
 );
-const CAN_SEE_RAW = context.permissions.has(
-  permissionKey("data_exchange", "preview_errors", "read")
-);
+// Issue #820: this screen does NOT go through
+// `GET /api/v1/data-exchange/imports/{id}/preview` — it queries and projects
+// staged rows itself, and so had its own independent copy of every defect
+// that issue fixes in the route (default-allow on an undeclared policy, a
+// hardcoded `data_exchange.preview_errors.read` in place of the
+// descriptor's own `rawValuePermission`, and no handling of a descriptor
+// that stopped resolving). The raw-value decision is made below, from the
+// descriptor, exactly as the route makes it — there is deliberately no
+// page-level `CAN_SEE_RAW` constant to drift from it again.
 
 const clientStrings = {
   actionSuccess: t("admin.data_exchange.imports.action_success"),
@@ -76,18 +84,31 @@ if (CAN_READ && batchId) {
       if (!batch) return;
 
       const descriptor = resolveImportDescriptor(batch.importKey);
-      const sensitiveFieldNames = descriptor?.sensitiveFields?.fieldNames ?? [];
+      const policy = descriptor?.sensitiveFields;
+
+      // Default-deny, same as the route: an unresolvable descriptor (owning
+      // module disabled after staging) and a descriptor declaring no policy
+      // both mask everything — including `naturalKey`, which is the only
+      // staged VALUE this table actually renders.
+      let project: (row: StagedRowRow) => StagedRowRow = maskAllFields;
+      if (policy) {
+        // The descriptor's OWN permission, never a generic data_exchange one.
+        // `rawValuePermission` is a `module.activity.action` key — the exact
+        // format `context.permissions` holds.
+        const canSeeRaw =
+          policy.fieldNames.length === 0 ||
+          (policy.rawValuePermission !== undefined &&
+            context.permissions.has(policy.rawValuePermission));
+        project = canSeeRaw
+          ? (row) => row
+          : (row) => maskSensitiveFields(row, policy);
+      }
 
       const fetchedRows = await listStagedRows(tx, context.tenantId, batchId, {
         offset: 0,
         limit: 50
       });
-      rows =
-        sensitiveFieldNames.length === 0 || CAN_SEE_RAW
-          ? fetchedRows
-          : fetchedRows.map((row) =>
-              maskSensitiveFields(row, sensitiveFieldNames)
-            );
+      rows = fetchedRows.map(project);
       totalRows = await countStagedRows(tx, context.tenantId, batchId);
       reconciliation = await listReconciliationReports(
         tx,

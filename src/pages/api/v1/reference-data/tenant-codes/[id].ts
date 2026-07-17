@@ -26,7 +26,10 @@ import {
   fetchTenantReferenceCodeById,
   updateTenantReferenceCode
 } from "../../../../../modules/reference-data/application/tenant-code-directory";
-import type { ReferenceCodeLabelInput } from "../../../../../modules/reference-data/domain/code";
+import {
+  mergeReferenceCodePatchInput,
+  parseReferenceCodePatchInput
+} from "../../../../../modules/reference-data/domain/code-patch";
 
 const UPDATE_IDEMPOTENCY_SCOPE = "reference_data_tenant_code_update";
 const DEPRECATE_IDEMPOTENCY_SCOPE = "reference_data_tenant_code_deprecate";
@@ -46,21 +49,6 @@ const DELETE_GUARD = {
   activityCode: "tenant_codes",
   action: "delete" as const
 };
-
-function parseLabels(value: unknown): ReferenceCodeLabelInput[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter(
-      (entry): entry is Record<string, unknown> =>
-        !!entry && typeof entry === "object"
-    )
-    .map((entry) => ({
-      locale: typeof entry.locale === "string" ? entry.locale : "",
-      label: typeof entry.label === "string" ? entry.label : "",
-      description:
-        typeof entry.description === "string" ? entry.description : null
-    }));
-}
 
 export const GET: APIRoute = async ({ request, cookies, params }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
@@ -91,7 +79,14 @@ export const GET: APIRoute = async ({ request, cookies, params }) => {
   });
 };
 
-/** `PATCH /api/v1/reference-data/tenant-codes/{id}` — update mutable attributes. Requires `Idempotency-Key`. */
+/**
+ * `PATCH /api/v1/reference-data/tenant-codes/{id}` — partial update of mutable
+ * attributes. Requires `Idempotency-Key`.
+ *
+ * True `PATCH` semantics: an omitted field keeps its stored value; an explicit
+ * `null` clears/resets it (`sortOrder` -> `0`, `metadata` -> `{}`, `validTo` ->
+ * `null`). `validFrom` and `labels` reject `null` (both are always required).
+ */
 export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
   if (!tenantId)
@@ -117,19 +112,16 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
   if (bodyRead.tooLarge) return bodyTooLargeResponse(bodyRead.limitBytes);
   const body = bodyRead.value ?? {};
 
-  const input = {
-    labels: parseLabels(body.labels),
-    sortOrder: typeof body.sortOrder === "number" ? body.sortOrder : 0,
-    metadata:
-      body.metadata && typeof body.metadata === "object"
-        ? (body.metadata as Record<string, unknown>)
-        : {},
-    validFrom:
-      typeof body.validFrom === "string"
-        ? new Date(body.validFrom)
-        : new Date(),
-    validTo: typeof body.validTo === "string" ? new Date(body.validTo) : null
-  };
+  const parsed = parseReferenceCodePatchInput(body);
+  if (!parsed.ok) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      parsed.errors
+        .map((error) => `${error.field}: ${error.message}`)
+        .join("; ")
+    );
+  }
 
   const requestHash = computeRequestHash({ ...body, id, action: "update" });
   const sql = getDatabaseClient();
@@ -166,12 +158,15 @@ export const PATCH: APIRoute = async ({ request, cookies, params, locals }) => {
       });
     }
 
+    const existing = await fetchTenantReferenceCodeById(tx, tenantId, id);
+    if (!existing) return fail(404, "NOT_FOUND", "Tenant code not found.");
+
     const result = await updateTenantReferenceCode(
       tx,
       tenantId,
       auth.context.tenantUserId,
       id,
-      input,
+      mergeReferenceCodePatchInput(existing, parsed.patch),
       correlationId
     );
 
