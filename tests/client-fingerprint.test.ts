@@ -8,6 +8,7 @@ import {
   hashClientIp,
   summarizeUserAgent
 } from "../src/lib/security/client-fingerprint";
+import { findConfigVarEntry } from "../src/lib/config/registry";
 import { redactSensitiveAttributes } from "../src/modules/_shared/redaction";
 
 const SECRET = "unit-test-ip-hash-secret";
@@ -76,6 +77,38 @@ describe("hashClientIp", () => {
       expect(() => hashClientIp("203.0.113.10")).toThrow(/AUTH_JWT_SECRET/);
     }
   );
+
+  /**
+   * The placeholder is non-empty, so it sails past the check above — and
+   * `scripts/validate-env.ts`'s `checkAuthJwtSecretNotDefault`, which does
+   * catch it, only runs when someone runs `bun run config:validate`. Neither
+   * `bun run dev` nor `bun run start` does. A deployment copied from
+   * `.env.example` would therefore key this HMAC with a value published in a
+   * public repo, making every persisted `ipHash` reversible. (Review finding,
+   * PR #839.)
+   *
+   * The placeholder is read from the registry rather than typed here, so this
+   * test cannot drift from the value the code rejects or from `.env.example`.
+   */
+  test("throws on the documented .env.example placeholder -- it is non-empty, so the unset/empty guard alone lets it through", () => {
+    const placeholder = findConfigVarEntry("AUTH_JWT_SECRET")?.default;
+
+    // Guard the guard: if the registry ever stops carrying a default, this
+    // test would silently assert nothing.
+    expect(typeof placeholder).toBe("string");
+    expect(placeholder!.length).toBeGreaterThan(0);
+
+    process.env.AUTH_JWT_SECRET = placeholder!;
+
+    expect(() => hashClientIp("203.0.113.10")).toThrow(/placeholder/i);
+  });
+
+  test("a high-entropy secret that merely CONTAINS the placeholder is accepted -- the check is exact-match, not a substring ban", () => {
+    const placeholder = findConfigVarEntry("AUTH_JWT_SECRET")?.default;
+    process.env.AUTH_JWT_SECRET = `${placeholder}-but-actually-rotated-9f3a2b`;
+
+    expect(() => hashClientIp("203.0.113.10")).not.toThrow();
+  });
 
   /**
    * The whole reason this helper exists: `ip`/`clientIp`/`ipAddress` are

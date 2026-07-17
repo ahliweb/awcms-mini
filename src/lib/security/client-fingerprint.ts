@@ -1,5 +1,7 @@
 import { createHmac } from "node:crypto";
 
+import { findConfigVarEntry } from "../config/registry";
+
 /**
  * Issue #821 — audit attributes for authentication events need to answer
  * "which source is this?" (brute-force / credential-stuffing forensics)
@@ -44,10 +46,22 @@ const IP_HASH_PREFIX = "hmac-sha256:";
  * persisted `ipHash` would become trivially reversible, silently, with no
  * error anywhere. A hard failure inside the auth path is strictly preferable
  * to an auth trail that quietly becomes a log of plaintext addresses.
- * `scripts/validate-env.ts` (`checkRequiredVars` +
- * `checkAuthJwtSecretNotDefault`) rejects both an unset value and the
- * documented placeholder at boot, so a correctly validated deployment never
- * reaches this throw.
+ *
+ * The documented placeholder is rejected HERE, not only by
+ * `scripts/validate-env.ts`'s `checkAuthJwtSecretNotDefault`. That validator
+ * is correct and wired into `runEnvValidation`, but nothing forces it to run:
+ * `bun run dev` and `bun run start` invoke the server directly, never
+ * `config:validate`. A deployment copied from `.env.example` therefore boots
+ * happily with `AUTH_JWT_SECRET` still set to a value published in a PUBLIC
+ * repo — keying this HMAC with public knowledge and making every persisted
+ * `ipHash` reversible, which is the one property the whole pseudonym exists
+ * to provide. A check that only runs when an operator remembers to run it is
+ * not a control; this one cannot be bypassed by any entry path.
+ * (Review finding, PR #839.)
+ *
+ * The placeholder is read from the registry entry's own `default` rather than
+ * re-typed here, exactly as `checkAuthJwtSecretNotDefault` does, so the two
+ * cannot drift from each other or from `.env.example`.
  *
  * Read per call, not cached at module load, so a test (or a rotated secret)
  * that changes `process.env.AUTH_JWT_SECRET` takes effect immediately.
@@ -58,6 +72,13 @@ function resolveIpHashKey(): string {
   if (key === undefined || key.length === 0) {
     throw new Error(
       "AUTH_JWT_SECRET is required: it keys the audit `ipHash` HMAC (src/lib/security/client-fingerprint.ts). Refusing to fall back to an unkeyed digest, which would make every persisted ipHash reversible."
+    );
+  }
+
+  const placeholder = findConfigVarEntry("AUTH_JWT_SECRET")?.default;
+  if (placeholder !== undefined && key === placeholder) {
+    throw new Error(
+      "AUTH_JWT_SECRET is still the documented .env.example placeholder: it keys the audit `ipHash` HMAC (src/lib/security/client-fingerprint.ts), and that placeholder is published in a public repo. Refusing to key the pseudonym with public knowledge, which would make every persisted ipHash reversible. Set a high-entropy secret, then re-run `bun run config:validate`."
     );
   }
 
