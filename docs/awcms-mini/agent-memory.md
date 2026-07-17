@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 63.**
+**Jumlah memory saat snapshot terakhir: 66.**
 
 ## Sengaja TIDAK disertakan
 
@@ -43,6 +43,8 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 # Memory index
 
 - [Memory snapshot to docs](memory-snapshot-to-docs.md) — memory hidup di luar repo & hilang saat pindah device; jalankan `bun run memory:docs:sync` tiap kali memory berubah, `memory:docs:restore` di device baru
+- [Audit IP collides with redactor](audit-ip-collides-with-redactor.md) — IP mentah di audit attributes tersimpan `[REDACTED]` permanen (redactor #687); pakai `ipHash` HMAC via `src/lib/security/client-fingerprint.ts`, jangan rename key
+- [main branch protection AKTIF](main-branch-protection-active.md) — sejak 2026-07-17: 6 required check, 0 approval, enforce_admins false; jangan wajibkan `CodeQL` polos (bisa "skipping" → PR deadlock)
 - [Post-audit hardening epic #818](post-audit-hardening-epic-818.md) — audit menyeluruh 2026-07-17 v0.24.0 → epic #818/#819-#835; fetchModuleMatrix flake akarnya 92 query/render (bukan flake infra), main tanpa branch protection, nol tag `v*` pernah ada, cycle hidup yang lolos 2 gate
 - [Audit doc rename by date](audit-doc-rename-by-date.md) — AUDIT_STANDAR_PENGEMBANGAN_<tgl>.md itu dokumen HIDUP: git mv ke tanggal perubahan + update ~15 rujukan (kecuali CHANGELOG), jangan bikin file audit baru
 - [Release pipeline never triggered, gaps](release-pipeline-never-triggered-gaps.md) — release.yml never actually fired in repo history; changeset:tag silently skipped the private package AND the `release` GitHub Environment had zero protection rules, both fixed 2026-07-15
@@ -61,6 +63,7 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 - [Postgres 18 volume mount](postgres18-volume-mount.md) — postgres:18+ needs the compose volume at `/var/lib/postgresql` (not `/data`) or it won't start
 - [Bun SQL array binding](bun-sql-array-binding.md) — `${array}::type[]` fails; use `tx.array(values, "type")` for `= ANY(...)` queries
 - [bun run check skips integration tests](bun-check-skips-integration-tests.md) — no DATABASE_URL means *.integration.test.ts silently skipped; run full suite against real Postgres before pushing migration/schema changes
+- [.astro files escape typecheck](astro-files-escape-typecheck.md) — `tsc --noEmit` tidak memeriksa .astro & build pun lolos; ubah signature = grep `src/pages --include=*.astro` manual. Halaman .astro juga bisa punya salinan logika independen (#820)
 - [Astro layout frontmatter order](astro-layout-frontmatter-order.md) — page frontmatter runs before its layout's; resolve cross-cutting values (locale, etc.) in middleware, not the layout
 - [awcms-mini-coder self-delegation trap](awcms-mini-coder-self-delegation-trap.md) — agent's own description can be misread as self-instruction, causing a no-op recursive spawn chain; verify with git/gh before trusting "launched" reports
 - [Sandbox dir permission lockdown](sandbox-dir-permission-lockdown.md) — repo dir can get chmod'd 0700 by the sandbox, breaking docker bind mounts (EACCES on package.json); chmod 755 and retry
@@ -101,8 +104,8 @@ Konsekuensi yang disengaja: `MEMORY.md` dan beberapa memory lain **tetap** meruj
 - [Platform-evolution epic #738 survey](platform-evolution-epic-738-survey.md) — 17-issue epic (#739-755) FULLY COMPLETE + CLOSED 2026-07-15 (PR #783 last); spin-offs #795 (idempotency defect in other modules) + #796 (test-coverage gap) filed, not epic scope
 - [Validator exists but unwired = Critical](validator-exists-but-unwired-critical-pattern.md) — PR #769/#740: a correctly-tested composition validator was never called on the real DB-write path, letting a colliding module key silently overwrite a base module; trace validators BACKWARD from every write path, not forward from their own tests
 - [TypeScript 7 JSDoc backtick-fence bug](typescript-7-jsdoc-backtick-fence-bug.md) — an unmatched raw triple-backtick anywhere in a `/** */` comment toggles TS7's parser into "in fence", silently swallowing every `@param` after it → implicit-any; reword, don't add more backtick-escaping
-- [gh token lacks workflow scope](gh-token-lacks-workflow-scope.md) — `gh pr merge` hard-fails (server-side) on any PR touching `.github/workflows/*.yml`; not flaky, don't retry, ask user to merge manually or grant the scope
-- [fetchModuleMatrix CI timeout — NOT a flake](fetchmodulematrix-ci-timeout-flake.md) — CORRECTED 2026-07-17: root cause is ≈92 query/render pool saturation (Issue #824), not infra; STOP rerunning, fix the fan-out
+- [gh token workflow scope — OUTDATED](gh-token-lacks-workflow-scope.md) — CORRECTED 2026-07-17: token NOW HAS `workflow` scope, workflow PRs mergeable again; always check `gh auth status` rather than trusting this
+- [fetchModuleMatrix CI timeout — FIXED](fetchmodulematrix-ci-timeout-flake.md) — #824 closed it 2026-07-17 (7278ms→755ms). Diagnosed wrong TWICE: not a flake, and not mainly the 92-query fan-out — dominant cost was a `readYamlCached` stampede parsing 1MB YAML 22× in parallel. Measure cold vs warm separately
 - [ADR numbering race extends migration pattern](adr-numbering-race-extends-migration-pattern.md) — first confirmed ADR-file collision (PR #789 vs #784, both claimed `docs/adr/0019-*.md`); git merge does NOT flag it since filenames differ — must diff `docs/adr/` filenames manually; `docs/adr/README.md`'s index table is hand-merged (not generated) — use python to splice by conflict-marker index when Edit's string-match fails on prettier padding drift
 `````
 
@@ -198,6 +201,31 @@ Background agents launched without `isolation: "worktree"` operate in the same r
 **How to apply, updated**: before running ANY git command that touches the working tree or HEAD (`checkout`, `pull`, `merge`, `reset`, `stash`) in the shared orchestrator directory — not just after dispatching a review agent, but as a standing habit any time other agents might be running in the background — run `git status --short` first. If it shows unexpected modified/untracked files while a sibling implementation agent is known to still be in-flight, STOP: do not pull, checkout, reset, or stash. Also run `git worktree list` occasionally when managing several parallel implementation agents to confirm every one of them actually landed in an isolated worktree, not the shared checkout — an agent working the shared checkout can't be safely git-manipulated by the orchestrator until it finishes and either commits+pushes or is confirmed idle.
 `````
 
+<!-- memory-file: astro-files-escape-typecheck.md -->
+
+`````markdown
+---
+name: astro-files-escape-typecheck
+description: "`tsc --noEmit` TIDAK memeriksa file .astro dan `bun run build` juga lolos — mengubah signature fungsi yang dipakai halaman .astro bisa crash saat runtime dengan semua gate hijau; grep .astro manual setiap kali mengubah signature"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+Ditemukan 2026-07-17 (Issue #820). `bun run typecheck` (`tsc --noEmit`) **tidak memeriksa isi file `.astro`**, dan `bun run build` juga tidak menangkapnya. Akibatnya: mengubah signature fungsi application-layer yang dipanggil halaman `.astro` bisa **crash saat runtime** sementara typecheck, lint, dan build semuanya hijau.
+
+Di #820, `maskSensitiveFields` berubah signature-nya — `src/pages/admin/data-exchange/imports/[id].astro` memanggilnya dan akan meledak saat halaman dibuka. Nol gate yang menangkapnya.
+
+**Why:** halaman `.astro` adalah permukaan runtime nyata (SSR), tapi berada di luar jangkauan `tsc`. Ini membuat "typecheck hijau" memberi rasa aman yang keliru untuk perubahan lintas-layer.
+
+**How to apply:**
+- Setiap mengubah signature/kontrak fungsi yang mungkin dipakai UI: `grep -rn "<namaFungsi>" src/pages --include=*.astro` **secara manual**. Jangan andalkan typecheck.
+- Halaman `.astro` juga bisa menyimpan **salinan independen logika** yang disangka terpusat. Di #820, `imports/[id].astro` tidak melewati route API sama sekali — ia punya query staged-row, proyeksi, dan konstanta `CAN_SEE_RAW` **sendiri**, mereplikasi keempat cacat keamanan yang diperbaiki di route. Memperbaiki route saja meninggalkan kebocoran identik di UI.
+- Saat mengaudit sebuah kelas cacat, **selalu sertakan `src/pages/**/*.astro` dalam pencarian** — bukan hanya `src/pages/api/**` dan `src/modules/**`.
+
+Terkait: [[validator-exists-but-unwired-critical-pattern]] (kelas serumpun: yang benar di satu tempat, diputuskan lain di tempat lain), [[post-audit-hardening-epic-818]].
+`````
+
 <!-- memory-file: astro-layout-frontmatter-order.md -->
 
 `````markdown
@@ -282,6 +310,28 @@ Saat memperbarui audit repo AWCMS-Mini: **jangan membuat file audit baru** (mis.
 4. **KECUALIKAN `CHANGELOG.md`** — entri lama merujuk nama file saat itu dan akurat secara historis; skill `awcms-mini-release` melarang mengedit entri CHANGELOG lama.
 
 Aturan ini sudah ditulis sebagai AGENTS.md aturan #15. Terkait: [[skill-doc-drift-recurring]], [[post-audit-hardening-epic-818]].
+`````
+
+<!-- memory-file: audit-ip-collides-with-redactor.md -->
+
+`````markdown
+---
+name: audit-ip-collides-with-redactor
+description: "Menulis IP mentah ke audit attributes akan tersimpan sebagai \"[REDACTED]\" permanen — redactor"
+metadata: 
+  node_type: memory
+  type: project
+---
+
+Ditemukan 2026-07-17 saat mengerjakan Issue #821 (audit login). Requirement "catat IP di audit log" **bertabrakan diam-diam** dengan redactor Issue #687: key `ip`, `ipAddress`, `clientIp`, `remoteAddr`, dan `x-forwarded-for` semuanya diperlakukan sensitif, sehingga IP mentah di `attributes` audit tersimpan sebagai `"[REDACTED]"` — kolomnya ada, isinya kosong selamanya, dan tak ada yang gagal keras untuk memberi tahu.
+
+**Why:** dua kontrol keamanan yang sama-sama benar saling meniadakan. Solusi yang menggoda — rename key jadi sesuatu yang tak dikenali redactor — adalah **regresi keamanan**: itu mengakali redaksi, bukan menyelesaikannya. Hash tak bergaram juga tak berguna di sini: IPv4 hanya 2^32, jadi sha256 polos bisa di-bruteforce seketika.
+
+**How to apply:** simpan `ipHash` = **HMAC-SHA256 berkunci** (`AUTH_JWT_SECRET`, sudah wajib ada) lewat `src/lib/security/client-fingerprint.ts` (`hashClientIp`/`summarizeUserAgent`). Baris audit tetap bisa dikelompokkan per sumber tanpa jejaknya menjadi log alamat. **Pin dua arah dengan unit test** — `ipHash` selamat dari redaksi, `clientIp` tidak — supaya perubahan daftar key redaksi di masa depan tidak diam-diam mengosongkan sumber di setiap baris auth.
+
+Batasnya: `ipHash` hanya sekuat `AUTH_JWT_SECRET`; merotasi secret memutus korelasi lintas batas rotasi.
+
+**Pelajaran umum**: sebelum menambah field ke audit `attributes`, cek dulu apakah namanya tertangkap redactor — kegagalannya senyap (kolom terisi `[REDACTED]`), bukan error. Terkait: [[post-audit-hardening-epic-818]].
 `````
 
 <!-- memory-file: auth-online-hardening-epic-progress.md -->
@@ -1251,22 +1301,35 @@ narrower, already-disclosed gap-closure rather than new functionality).
 `````markdown
 ---
 name: fetchmodulematrix-ci-timeout-flake
-description: fetchModuleMatrix CI timeout — ROOT CAUSE FOUND 2026-07-17 (Issue #824), NOT an infra flake — ≈92 query/render pool saturation; STOP using `gh run rerun` as the fix
+description: fetchModuleMatrix CI timeout — FIXED via Issue #824 (2026-07-17). Was never a flake; dominant cost was a readYamlCached cache stampede parsing a 1MB YAML 22x in parallel, NOT the query fan-out first suspected
 metadata:
   type: pattern
 ---
 
-**DIKOREKSI 2026-07-17 — jangan lagi rerun.** Memori ini sebelumnya menyimpulkan bahwa timeout `"tenant-module matrix admin screen (fetchModuleMatrix + real API)"` adalah flake CI-environment dan menyarankan `gh run rerun --failed`. **Kesimpulan itu salah.** Audit performa menemukan akarnya (Issue **#824**, epic [[post-audit-hardening-epic-818]]):
+**SELESAI 2026-07-17 via Issue #824.** Test `"tenant-module matrix admin screen (fetchModuleMatrix + real API)"`: **7278ms → 755ms** (budget 5000ms, margin 6.6×). Cold render **3841ms → 361ms**.
 
-`module-matrix.ts:204-213` memanggil `fetchModuleHealthReport` **per modul** (23×); tiap panggilan → `computeGenericSignals` (`health-registry.ts:289-305`) = 6 await berurutan, 4 di antaranya query DB ⇒ **≈92 query serentak per render**. Terburuk: `migrationsAppliedSignal` (`health-registry.ts:63-81`) **tidak menerima `moduleKey`** — hasilnya invariant untuk 23 modul — tapi tetap menjalankan `readdir` (tanpa cache) + full-table scan `awcms_mini_schema_migrations`, **23×, 22× terbuang**.
+## Riwayat koreksi — dua kali salah sebelum benar
 
-**Why rerun tampak "memperbaiki":** ini **saturasi pool**, bukan keacakan. Runner lengang ⇒ 92 query lolos <5000ms; runner sedikit sibuk ⇒ tidak. Rerun mengubah *timing*, bukan menghapus masalah. Biayanya juga **tumbuh linear terhadap jumlah modul** (repo 17→23 modul), jadi frekuensi merahnya akan naik tiap modul baru.
+1. **Awalnya disimpulkan "flake CI-environment"** → saran: `gh run rerun --failed`. **Salah.** Lolos saat rerun + muncul di PR docs-only membuktikan penyebabnya bukan diff-nya, **tapi tidak** membuktikan penyebabnya infrastruktur.
+2. **Lalu didiagnosis "≈92 query/render, saturasi pool"** (audit #818) → hoist `migrationsAppliedSignal` yang invariant. **Benar tapi bukan penyebab dominan.**
+3. **Akar sesungguhnya (#824): cache stampede.** `readYamlCached` men-`set` cache **setelah** `await`, sehingga 22 modul yang mendeklarasikan `openapi/awcms-mini-public-api.openapi.yaml` (**~1 MB**) yang sama semuanya **miss serentak** di dalam `Promise.all` dan mem-parse file itu **22× paralel**. Memperbaikinya (cache **Promise in-flight**, bukan hasilnya) = 5652ms → 361ms.
 
-**Bukti eskalasi:** 2026-07-17 CI `main` gagal **3 run beruntun** pada **7278ms vs budget 5000ms** (lewat 45%) — 3/3 bukan lagi "intermiten". Menaikkan timeout hanya menunda.
+**Ironi yang mahal**: `readYamlCached` justru dikutip audit sebagai "preseden cache yang benar untuk ditiru" — fungsi yang jadi biang keroknya.
 
-**How to apply:** kalau test ini merah, **jangan rerun dan jangan naikkan timeout** — kerjakan #824: hoist `migrationsAppliedSignal` keluar loop, batch query registry/permission, cache `listMigrationFileNames` di module scope (presedennya sudah ada di file yang sama: `readYamlCached`, `health-registry.ts:220-232`). Target: O(M) query → O(1).
+## Bukti pembeda yang seharusnya dicari lebih awal
 
-Pelajaran metodologis: "lolos saat rerun" + "muncul di PR docs-only" membuktikan penyebabnya **bukan diff-nya** — tapi **tidak** membuktikan penyebabnya infrastruktur. Beban global yang tak terkait diff terlihat identik dengan flake.
+Dengan 94 query, **render kedua di proses yang sama hanya 10ms** → seluruh biaya DB ≈10ms, bukan 5.6 detik. **Ukur cold vs warm terpisah**: kalau warm cepat tapi cold lambat, biayanya di inisialisasi/cache, bukan di query.
+
+Query per render tetap dibatasi (**94 → 6**; `includeHealth:false` → 2, flag dihormati) — batching dipertahankan karena ia yang menghapus **pertumbuhan linear terhadap jumlah modul** dan risiko saturasi pool di CI, meski bukan penyumbang waktu terbesar.
+
+**How to apply:**
+- **N+1 adalah hipotesis termudah, bukan otomatis biaya terbesar.** Ukur sebelum memercayainya. Resep hitung query via `Proxy` apply-trap ada di skill `awcms-mini-performance` §Verifikasi.
+- Pola cache `if (cache.has(k)) return cache.get(k); const v = await f(); cache.set(k, v)` **bukan cache** di bawah konkurensi — ia stampede. Cache **Promise**-nya, bukan hasilnya.
+- Jangan cache kegagalan `readdir`/IO — akan mengunci signal jadi `fail` selamanya.
+
+Sisa peluang (kandidat isu terpisah): `openapi.yaml` 1 MB masih di-parse penuh hanya untuk mengecek keberadaan `basePath`; indeks path yang di-precompute saat build akan menghapus sisa 361ms itu.
+
+Terkait: [[post-audit-hardening-epic-818]], [[concurrent-check-db-contention]].
 `````
 
 <!-- memory-file: filter-assertion-timing-bidirectional.md -->
@@ -1332,48 +1395,36 @@ metadata:
 `````markdown
 ---
 name: gh-token-lacks-workflow-scope
-description: The gh CLI token available in this environment cannot merge PRs that add or modify .github/workflows/*.yml files — GitHub refuses server-side with "refusing to allow an OAuth App to create or update workflow ... without workflow scope"; this is a hard permission wall, not something to retry or work around
+description: OUTDATED as of 2026-07-17 — the gh token NOW HAS `workflow` scope; PRs touching .github/workflows/*.yml can be merged again. Kept as history; re-verify with `gh auth status` before assuming either way
 metadata:
   type: project
 ---
 
-While clearing a batch of Dependabot PRs (2026-07-13, PRs #757-#765),
-`gh pr merge --squash` consistently failed for every PR that touched
-`.github/workflows/*.yml` (action-version bumps like
-`actions/cache`, `docker/login-action`, `docker/setup-buildx-action`,
-`actions/attest-sbom`), with:
+**DIKOREKSI 2026-07-17 — batasan ini SUDAH TIDAK BERLAKU.** Verifikasi langsung:
+
+```
+$ gh auth status
+- Token scopes: 'gist', 'read:org', 'repo', 'workflow'
+```
+
+Token **punya** `workflow` scope sekarang. PR yang menyentuh `.github/workflows/*.yml` **bisa** di-merge lewat `gh pr merge`. Jangan lagi menghindari/menunda pekerjaan workflow atau meminta user merge manual atas dasar memory ini.
+
+**How to apply:** cek `gh auth status` **sebelum** menyimpulkan apa pun soal scope — ini state akun yang bisa berubah kapan saja di luar sesi, bukan sifat repo. Memory ini sendiri contoh kenapa: ia benar 2026-07-13, salah 4 hari kemudian, dan kalau dipercaya buta akan membuat pekerjaan yang sah ditolak tanpa alasan.
+
+---
+
+## Riwayat (2026-07-13, sudah tidak berlaku)
+
+Saat membersihkan batch Dependabot PR (#757-#765), `gh pr merge --squash` gagal konsisten untuk tiap PR yang menyentuh `.github/workflows/*.yml`:
 
 ```
 GraphQL: refusing to allow an OAuth App to create or update workflow
 `.github/workflows/release.yml` without `workflow` scope (mergePullRequest)
 ```
 
-This is GitHub's own server-side restriction: an OAuth App/token without
-the `workflow` scope cannot push a commit (including a squash-merge
-commit) that changes files under `.github/workflows/`. One PR (#761,
-also touching `release.yml`) merged successfully once before this
-started reproducing consistently — inconsistent, but every retry after
-that point failed identically, so treat it as a hard wall, not a flaky
-check worth retrying.
+Ini restriksi server-side GitHub: token tanpa scope `workflow` tak bisa push commit (termasuk squash-merge commit) yang mengubah `.github/workflows/`. PR non-workflow tidak terpengaruh.
 
-**Non-workflow-file PRs are unaffected**: PRs touching only
-`package.json`/`bun.lock` (regular dependency bumps) merged fine via the
-same `gh pr merge` command. The restriction is specifically about the
-`.github/workflows/` path, not about Dependabot PRs or squash-merges in
-general.
-
-**How to apply**: before attempting to merge a batch of PRs, check
-`gh pr view <n> --json files` for any path under `.github/workflows/`.
-If present, don't spend time retrying `gh pr merge` — it will not
-succeed with the current token. Either ask the user to merge it manually
-(via the GitHub web UI, or a `gh auth login`/token with the `workflow`
-scope), or ask the user whether they want to grant that scope. Do not
-attempt workarounds like direct `git push` to main bypassing the PR
-(would skip branch protection/review) or stripping the workflow file
-from the merge commit (would silently drop the actual change) — both
-subvert the intent of the restriction rather than legitimately obtaining
-permission. This surfaced together with [[typescript-7-jsdoc-backtick-fence-bug]]
-during the same dependency-bump-clearing session.
+Yang tetap berlaku sebagai prinsip: **jangan** akali batasan izin dengan `git push` langsung ke main (melewati branch protection/review) atau menanggalkan file workflow dari merge commit (diam-diam membuang perubahannya) — keduanya menyubversi maksud restriksi, bukan memperoleh izin secara sah. Terkait: [[typescript-7-jsdoc-backtick-fence-bug]].
 `````
 
 <!-- memory-file: gitguardian-scans-full-pr-history.md -->
@@ -1901,6 +1952,42 @@ If the query log/file hasn't advanced in several minutes despite the process sti
 - This is a DESTRUCTIVE action on a shared resource (killing a database session) — get explicit user confirmation before doing it, even when the diagnosis is clear-cut and the session appears to belong to nothing currently active. The auto-mode classifier will block an unprompted `pg_terminate_backend` call for exactly this reason.
 - After terminating, the ALREADY-RUNNING check that was stuck will likely still report failures for whatever hook-timeout errors already accumulated during the stuck window — don't trust that run's final pass/fail count; kill it (or let it finish) and start a completely fresh `bun run check` once the lock is confirmed cleared.
 - Root cause prevention: this happens when a test/agent process is killed or crashes mid-transaction without the framework's own cleanup running. If many coder agents are being interrupted/resumed/re-run against the same shared Postgres in one session (a recurring pattern this session, see [[subagent-background-notification-stall]]), periodically check `pg_stat_activity` for accumulating `idle in transaction` sessions as a proactive health check, rather than waiting for a hang to manifest.
+`````
+
+<!-- memory-file: main-branch-protection-active.md -->
+
+`````markdown
+---
+name: main-branch-protection-active
+description: main SUDAH diproteksi sejak 2026-07-17 (Issue
+metadata: 
+  node_type: memory
+  type: project
+---
+
+`main` **sudah diproteksi** sejak 2026-07-17 (Issue #823, epic [[post-audit-hardening-epic-818]]). Sebelumnya nol proteksi (`404 Branch not protected`) — CI berjalan tapi **advisory**, PR merah bisa merge.
+
+Konfigurasi (user memilihnya lewat AskUserQuestion 2026-07-17):
+
+| Setelan | Nilai |
+| --- | --- |
+| Required checks | `Quality (lint + docs + contracts + typecheck + test)`, `Repo hygiene (Bun-only + no secrets)`, `E2E smoke (Playwright)`, `Changeset required for behavior changes`, `Analyze (javascript-typescript)`, `Analyze (actions)` |
+| `strict` | `false` |
+| Approval wajib | `0` |
+| `enforce_admins` | `false` |
+| Force push / hapus branch | diblokir |
+| `required_conversation_resolution` | `true` |
+
+**Why:** CI advisory adalah akar beberapa temuan #818. 0 approval dipilih agar alur agent tetap bisa me-merge PR hijau; `enforce_admins: false` menyisakan jalan darurat (saat itu `main` sedang merah karena #824).
+
+**How to apply:**
+- **Jangan wajibkan `CodeQL` (yang polos)** — ia melapor `skipping` pada sebagian run; required check yang bisa skip = **PR menggantung selamanya**. Pakai job `Analyze (...)`.
+- Nama check harus **verbatim** sama dengan `name:` job di workflow.
+- Konsekuensi nyata: PR **tidak bisa** di-merge sampai 6 check hijau. Bila sebuah PR terblokir oleh kegagalan yang **juga merah di `main`** (mis. #824), perbaiki penyebabnya — jangan bypass lewat admin, kecuali user memintanya eksplisit.
+- `strict=false` artinya PR bisa hijau terhadap `main` yang basi. Pertimbangkan `strict=true` setelah epic #818 selesai.
+- Ubah via `gh api -X PUT repos/ahliweb/awcms-mini/branches/main/protection --input <json>`. Verifikasi selalu dengan GET setelahnya.
+
+Terkait: [[main-branch-protection-active]] mengoreksi asumsi lama "main tak diproteksi" di `docs/awcms-mini/branch-protection.md` (doc sudah diperbarui).
 `````
 
 <!-- memory-file: manual-admin-ui-smoke-test.md -->
@@ -5353,6 +5440,23 @@ in this case) with zero risk to the shared `awcms-mini` database or any
 sibling worktree using it. Safe, fast (~seconds), and fully isolates one
 agent's `bun run check`/integration-test run from cross-worktree drift
 without needing a whole new container.
+
+**Kambuh lagi 2026-07-17 (epic #818, gelombang 5 agent paralel)** — teknik di
+atas terkonfirmasi ulang dan sekarang layak dijadikan **langkah default**, bukan
+upaya terakhir. Gejalanya: `db:migrate` gagal dengan `policy
+"awcms_mini_data_lifecycle_legal_holds_tenant_isolation" for table ... already
+exists`. `CREATE DATABASE "awcms-verify"` lalu arahkan `DATABASE_URL` ke situ →
+integration test langsung 22/22 hijau tanpa menyentuh DB `awcms-mini` bersama.
+
+Dua hal tambahan yang memakan waktu:
+- **Container-nya bisa dalam keadaan mati** (`Exited`), bukan hanya drift —
+  `docker start awcms-mini-pg-515`, lalu **tunggu readiness pada port
+  non-default**: `pg_isready` tanpa `-p 25515` melapor "no response" padahal
+  server sedang naik. Port dicek via `docker exec <c> ps aux | grep -o "\-c port=[0-9]*"`.
+- Subagent yang menemukan "tidak ada DATABASE_URL / container mati" akan
+  melaporkan integration test-nya **ditulis tapi tak terverifikasi** (lih.
+  [[bun-check-skips-integration-tests]] — skip-nya senyap). Orchestrator wajib
+  menjalankan ulang test itu terhadap DB bersih sebelum percaya DoD-nya.
 `````
 
 <!-- memory-file: skill-doc-drift-recurring.md -->
