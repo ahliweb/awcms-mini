@@ -138,12 +138,32 @@ async function recordLoginFailure(
   tx: Bun.SQL,
   input: {
     tenantId: string;
+    tenantExists: boolean;
     identityId?: string;
     reason: LoginAuditFailureReason;
     audit: LoginAuditContext;
     correlationId?: string;
   }
 ): Promise<void> {
+  // `awcms_mini_audit_events.tenant_id` is `NOT NULL REFERENCES
+  // awcms_mini_tenants (id)`, so there is no tenant-scoped audit row to write
+  // for a tenant that does not exist — attempting it violates the FK, aborts
+  // the transaction, and turns this endpoint's intended 403 into a 500. A
+  // well-formed but unknown tenant header is reachable by any unauthenticated
+  // caller, so that would be a trivial way to force 500s.
+  //
+  // The attempt is not lost: it goes to the structured log instead, which is
+  // not tenant-scoped. Nothing tenant-scoped can be recorded here by
+  // definition — there is no tenant.
+  if (!input.tenantExists) {
+    log("warning", "identity_access.login_failed.unknown_tenant", {
+      reason: input.reason,
+      correlationId: input.correlationId,
+      ...input.audit
+    });
+    return;
+  }
+
   await recordAuditEvent(tx, {
     tenantId: input.tenantId,
     moduleKey: "identity_access",
@@ -189,8 +209,15 @@ async function recordLoginFailureOutOfBand(
 ): Promise<void> {
   try {
     await withTenant(sql, input.tenantId, async (tx) => {
+      // Re-checked here rather than threaded in: this runs after the login
+      // transaction unwound, so nothing it computed can be trusted to still
+      // hold. Without it an unknown-tenant header would trip the audit table's
+      // tenant FK and this recovery write would fail for the wrong reason.
+      const rows =
+        await tx`SELECT 1 FROM awcms_mini_tenants WHERE id = ${input.tenantId}`;
       await recordLoginFailure(tx, {
         tenantId: input.tenantId,
+        tenantExists: rows.length > 0,
         reason: "internal_error",
         audit: input.audit,
         correlationId: input.correlationId
@@ -366,6 +393,7 @@ export const POST: APIRoute = async ({
       // before it commits.
       await recordLoginFailure(tx, {
         tenantId,
+        tenantExists: tenantRows.length > 0,
         identityId: identityRow?.id,
         reason: result.reason,
         audit: auditContext,
