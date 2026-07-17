@@ -343,7 +343,7 @@ Alasan:
 - `AGENTS.md`
 - `README.md`
 - `CHANGELOG.md` + `.changeset/` (versioning via Changesets)
-- `.claude/skills/` (39 skill proyek + katalog README)
+- `.claude/skills/` (50 skill proyek + katalog README)
 - `.claude/agents/` (3 subagent: coder, reviewer, security-auditor)
 - `package.json`
 - `astro.config.mjs`
