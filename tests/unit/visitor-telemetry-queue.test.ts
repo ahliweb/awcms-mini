@@ -137,6 +137,47 @@ describe("enqueueVisitorTelemetry — fail-open is really fail-open", () => {
   });
 });
 
+describe("enqueueVisitorTelemetry — must not touch process lifecycle", () => {
+  // Regression guard for the epic #818 wave-2 integration failure. The first
+  // version installed SIGTERM/SIGINT handlers lazily on first `enqueue`,
+  // which meant merely queueing a telemetry event rewrote the whole
+  // PROCESS's termination semantics. `tests/unit/job-runner.test.ts`
+  // legitimately does `process.emit("SIGTERM")` to exercise `runJob`'s
+  // cancellation; that synthetic emit is indistinguishable from a real
+  // signal, so the handler flushed and re-raised a REAL SIGTERM, killing the
+  // entire `bun test` runner ~1s in. Either file alone passed — only the
+  // pair failed, and it looked like a hang rather than a self-kill.
+  //
+  // The handler now installs only from `src/middleware.ts` (a real HTTP
+  // server, which `bun test` can never evaluate). These assertions fail if
+  // anyone reintroduces auto-installation.
+  test("enqueue adds no SIGTERM/SIGINT listener (a data-plane call must not own process lifecycle)", async () => {
+    const before = {
+      sigterm: process.listenerCount("SIGTERM"),
+      sigint: process.listenerCount("SIGINT")
+    };
+
+    enqueueVisitorTelemetry(async () => {});
+    enqueueVisitorTelemetry(async () => {});
+    await flushVisitorTelemetryQueue();
+
+    expect(process.listenerCount("SIGTERM")).toBe(before.sigterm);
+    expect(process.listenerCount("SIGINT")).toBe(before.sigint);
+  });
+
+  test("a synthetic process.emit('SIGTERM') does not kill this test process", async () => {
+    // The exact call `job-runner.test.ts` makes. Reaching the assertion at
+    // all is the proof: under the old design this line terminated the runner.
+    enqueueVisitorTelemetry(async () => {});
+    await flushVisitorTelemetryQueue();
+
+    process.emit("SIGTERM");
+    await Bun.sleep(50);
+
+    expect(true).toBe(true);
+  });
+});
+
 describe("enqueueVisitorTelemetry — bounded backpressure", () => {
   test("drops new events past MAX_QUEUE_DEPTH instead of growing without bound", async () => {
     let executed = 0;

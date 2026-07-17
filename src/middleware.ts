@@ -36,7 +36,10 @@ import {
   collectVisitorTelemetry,
   shouldCollectRequest
 } from "./modules/visitor-analytics/application/collector";
-import { enqueueVisitorTelemetry } from "./modules/visitor-analytics/application/telemetry-queue";
+import {
+  enqueueVisitorTelemetry,
+  installVisitorTelemetryShutdownHook
+} from "./modules/visitor-analytics/application/telemetry-queue";
 
 const PROTECTED_PREFIX = "/admin";
 const API_PREFIX = "/api/";
@@ -413,6 +416,16 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // Issue #698 — captured as the very first statement so recorded latency
   // includes everything below, not just `next()`'s own render time.
   const requestStartedAt = performance.now();
+
+  // Issue #832: the visitor-telemetry queue's SIGTERM/SIGINT flush is
+  // installed HERE, from the only code path that proves this process is a
+  // real HTTP server, and never from `enqueueVisitorTelemetry` itself.
+  // Installing a signal handler is a process-lifecycle decision the app
+  // entry owns — a library doing it as a side effect of queueing data gave
+  // every `bun test` process a SIGTERM handler that killed the whole test
+  // runner when `job-runner.test.ts` synthesized `process.emit("SIGTERM")`
+  // (see that function's docblock). Idempotent: one boolean check.
+  installVisitorTelemetryShutdownHook();
 
   context.locals.correlationId = resolveCorrelationId(context.request);
   // Cookie-only resolution (no DB call) for every request — good enough for
