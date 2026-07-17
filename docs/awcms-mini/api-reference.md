@@ -8000,12 +8000,12 @@ Writes ONLY to the caller's own tenant-scoped table (RLS FORCE) -- never the glo
 | 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
-### `PATCH /api/v1/reference-data/tenant-codes/{id}` — Update a tenant reference code override/extension
+### `PATCH /api/v1/reference-data/tenant-codes/{id}` — Partially update a tenant reference code override/extension
 
 - **operationId**: `referenceDataTenantCodesUpdate`
 - **Security**: bearerAuth + tenantHeader
 
-Requires Idempotency-Key.
+True PATCH semantics -- omitted fields keep their stored value, explicit null clears/resets (see ReferenceDataUpdateTenantCodeRequest). Requires Idempotency-Key.
 
 **Parameters**
 
@@ -8304,12 +8304,12 @@ Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key
 | 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
-### `PATCH /api/v1/reference-data/value-sets/{key}/codes/{code}` — Update a reference code's mutable attributes
+### `PATCH /api/v1/reference-data/value-sets/{key}/codes/{code}` — Partially update a reference code's mutable attributes
 
 - **operationId**: `referenceDataCodesUpdate`
 - **Security**: bearerAuth + tenantHeader
 
-Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key. Rejected for descriptor-managed codes.
+True PATCH semantics -- omitted fields keep their stored value, explicit null clears/resets (see ReferenceDataUpdateCodeRequest). Writes to the GLOBAL baseline shared by every tenant -- requires Idempotency-Key. Rejected for descriptor-managed codes.
 
 **Parameters**
 
@@ -15269,13 +15269,15 @@ One localized label/description for a reference code (Issue
 
 ### Schema: ReferenceDataUpdateCodeRequest
 
-| Field       | Type                                                        | Required | Nullable | Description |
-| ----------- | ----------------------------------------------------------- | -------- | -------- | ----------- |
-| `labels`    | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | yes      | no       |             |
-| `sortOrder` | integer                                                     | no       | no       |             |
-| `metadata`  | object                                                      | no       | no       |             |
-| `validFrom` | string (date-time)                                          | no       | no       |             |
-| `validTo`   | string (date-time)                                          | no       | yes      |             |
+Partial PATCH body. Every property is optional: a property that is ABSENT from the body leaves the stored value untouched. A property sent as explicit null CLEARS/resets it (sortOrder -> 0, metadata -> {}, validTo -> null). labels and validFrom reject null -- at least one label is always required and valid_from is NOT NULL -- so omit them instead of nulling them. Sending {} is a valid no-op update.
+
+| Field       | Type                                                        | Required | Nullable | Description                                                                                       |
+| ----------- | ----------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `labels`    | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | no       | no       | Replaces ALL stored labels for this code. Omit to keep them; null is rejected.                    |
+| `sortOrder` | integer                                                     | no       | yes      | Omit to keep the stored value; null resets to 0.                                                  |
+| `metadata`  | object                                                      | no       | yes      | Replaces the stored metadata wholesale (not a deep merge). Omit to keep it; null clears it to {}. |
+| `validFrom` | string (date-time)                                          | no       | no       | Omit to keep the stored value; null is rejected.                                                  |
+| `validTo`   | string (date-time)                                          | no       | yes      | Omit to keep the stored value; null clears the end of validity.                                   |
 
 **Example**
 
@@ -15297,13 +15299,15 @@ One localized label/description for a reference code (Issue
 
 ### Schema: ReferenceDataUpdateTenantCodeRequest
 
-| Field       | Type                                                        | Required | Nullable | Description |
-| ----------- | ----------------------------------------------------------- | -------- | -------- | ----------- |
-| `labels`    | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | yes      | no       |             |
-| `sortOrder` | integer                                                     | no       | no       |             |
-| `metadata`  | object                                                      | no       | no       |             |
-| `validFrom` | string (date-time)                                          | no       | no       |             |
-| `validTo`   | string (date-time)                                          | no       | yes      |             |
+Partial PATCH body. Every property is optional: a property that is ABSENT from the body leaves the stored value untouched. A property sent as explicit null CLEARS/resets it (sortOrder -> 0, metadata -> {}, validTo -> null). labels and validFrom reject null -- at least one label is always required and valid_from is NOT NULL -- so omit them instead of nulling them. Sending {} is a valid no-op update.
+
+| Field       | Type                                                        | Required | Nullable | Description                                                                                       |
+| ----------- | ----------------------------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `labels`    | array of [`ReferenceCodeLabel`](#schema-referencecodelabel) | no       | no       | Replaces ALL stored labels for this code. Omit to keep them; null is rejected.                    |
+| `sortOrder` | integer                                                     | no       | yes      | Omit to keep the stored value; null resets to 0.                                                  |
+| `metadata`  | object                                                      | no       | yes      | Replaces the stored metadata wholesale (not a deep merge). Omit to keep it; null clears it to {}. |
+| `validFrom` | string (date-time)                                          | no       | no       | Omit to keep the stored value; null is rejected.                                                  |
+| `validTo`   | string (date-time)                                          | no       | yes      | Omit to keep the stored value; null clears the end of validity.                                   |
 
 **Example**
 
