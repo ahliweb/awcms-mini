@@ -864,7 +864,11 @@ describe("publish — R2 image validation (Issue #645)", () => {
             ? input.href
             : (input as Request).url;
 
-      if (requestUrl.startsWith(trustedMediaBase)) {
+      // Origin-exact match (not substring `startsWith`) so the rerouting is
+      // precise and does not trip CodeQL `js/incomplete-url-substring-sanitization`
+      // (see skill awcms-mini-codeql-triage §3); behaviour is identical for the
+      // absolute media URL this shim reroutes.
+      if (new URL(requestUrl).origin === trustedMediaBase) {
         return realFetch(
           requestUrl.replace(
             trustedMediaBase,
