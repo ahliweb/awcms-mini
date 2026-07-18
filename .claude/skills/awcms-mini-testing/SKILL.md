@@ -42,6 +42,8 @@ Product search < 300ms · add item < 300ms · post transaksi < 1.5s · receipt P
 
 Konvensi nyata repo ini (bukan sub-folder per domain): file **flat** langsung di `tests/`, satu file per area — `<area>.test.ts` (unit, tanpa DB) dan `tests/integration/<area>.integration.test.ts` (butuh `DATABASE_URL`, di-skip otomatis tanpanya — **jangan asumsikan `bun test` tanpa `DATABASE_URL` berarti semua test lulus**, integration test-nya cuma dilewati diam-diam). Contoh: `tests/access-control.test.ts`, `tests/module-management-tenant-lifecycle.test.ts`, `tests/integration/module-tenant-lifecycle.integration.test.ts`.
 
+Gating skip itu bukan otomatis — setiap file integration mendeklarasikan helper `const suite = integrationEnabled ? describe : describe.skip;` dan **setiap blok top-level WAJIB memakai `suite(...)`** (atau `describe.skipIf(!integrationEnabled)(...)`). Blok top-level `describe(...)` telanjang berjalan tanpa syarat dan menggagalkan `bun run check`/`bun test` saat `DATABASE_URL` kosong (kelas bug Issue #858; CI tak menangkapnya karena job Quality selalu menyetel `DATABASE_URL`). Gate `tests/unit/integration-suite-gating.test.ts` (unit murni, jalan justru tanpa DB) menegakkan ini — memindai semua `tests/integration/*.integration.test.ts` dan gagal bila ada `describe(`/`describe.only(` di kolom-0.
+
 ## Aturan
 
 - Setiap fitur baru minimal punya unit test logic + satu integration/contract test.

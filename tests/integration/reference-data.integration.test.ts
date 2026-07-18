@@ -1901,7 +1901,7 @@ suite("reference_data integration", () => {
  * each test pins `updated_at` and the audit trail — the things a spurious
  * write actually moves.
  */
-describe("reference-data PATCH no-op and body-shape handling", () => {
+suite("reference-data PATCH no-op and body-shape handling", () => {
   beforeEach(async () => {
     await resetDatabase();
   });
