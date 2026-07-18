@@ -14,15 +14,28 @@ describe("news_portal module descriptor (Issue #632, extended #634)", () => {
     expect(newsPortalModule.key).toBe("news_portal");
     expect(newsPortalModule.status).toBe("active");
     expect(newsPortalModule.type).toBe("domain");
-    // Deliberately NOT blog_content/tenant_domain/visitor_analytics — see
-    // module.ts's own comment: a hard dependency would block disabling
-    // those modules for every tenant (news_portal is enabled by default),
-    // which broke existing integration tests when first tried. The
-    // relationship is prose-only + enforced by preset-application
+    // Still deliberately NOT blog_content/tenant_domain/visitor_analytics —
+    // see module.ts's own comment: a hard dependency on those would block
+    // disabling them for every tenant (news_portal is enabled by default),
+    // which broke existing integration tests when first tried. That
+    // relationship stays prose-only + enforced by preset-application
     // ordering, not the module dependency graph.
+    //
+    // Issue #845 (epic #818) DID add `module_management` + `logging`:
+    // `application/apply-news-portal-preset.ts` imports
+    // `module_management`'s `applyModulePreset` (value import) and several
+    // `application/*` files call `logging`'s `recordAuditEvent`. Both are
+    // real, previously-undeclared value imports the Issue #826/#845
+    // declared-dependency gate now demands. Unlike the content modules
+    // above, `module_management`/`logging` are foundation modules that are
+    // never disabled per-tenant, so declaring them does NOT arm the
+    // reverse-dependency guard against any optional business module — the
+    // reason the content-module edges stay undeclared does not apply here.
     expect(newsPortalModule.dependencies).toEqual([
       "tenant_admin",
-      "identity_access"
+      "identity_access",
+      "module_management",
+      "logging"
     ]);
   });
 

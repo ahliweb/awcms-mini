@@ -9,7 +9,15 @@ export const referenceDataModule = defineModule({
   type: "domain",
   description:
     "Optional, provider-neutral reference-data foundation (Issue #750, epic `platform-evolution` #738 Wave 3, ADR-0021). Admitted as an Official Optional Business Foundation module — opt-in per tenant, generic across every derived application, never an ERP/domain-specific implementation. Adds GLOBAL (no tenant_id, reviewed RLS-exempt, ADR-0021 §8) effective-dated value sets (`awcms_mini_reference_value_sets`) and codes (`awcms_mini_reference_codes` + `awcms_mini_reference_code_translations`) with provenance, deprecation/supersession, and a validated import pipeline (`awcms_mini_reference_imports`, dry-run/diff non-mutating, commit re-validates INSIDE the same transaction and rejects destructive replacement of codes already referenced by tenant data), plus a TENANT-SCOPED (RLS FORCE, predicate always and only tenant_id) override/extension layer (`awcms_mini_reference_tenant_codes` + `awcms_mini_reference_tenant_code_translations`) that NEVER mutates the global baseline. Provides `ReferenceDataPort` (`_shared/ports/reference-data-port.ts`) for resolving codes/snapshots, and a static module-contribution mechanism (`ModuleDescriptor.referenceData.contributesValueSets`) letting other modules register their own reference catalogs without direct table imports (`application/contribution-sync.ts`, `bun run reference-data:contributions:sync`). Ships currency/unit-of-measure/fiscal-calendar as neutral, non-authoritative examples of its own mechanism (`application/seed-contributions.ts`). `idn_admin_regions` remains module-owned and is NOT duplicated or migrated into this module's generic tables (ADR-0021 §4).",
-  dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"],
+  // `logging` declared for Issue #845 (epic #818): the import/value-set/
+  // code/tenant-code directories all call `logging`'s `recordAuditEvent`.
+  // Acyclic.
+  dependencies: [
+    "tenant_admin",
+    "identity_access",
+    "domain_event_runtime",
+    "logging"
+  ],
   capabilities: {
     provides: ["reference_data_resolution"]
   },

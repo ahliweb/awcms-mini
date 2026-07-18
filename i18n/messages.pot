@@ -3163,7 +3163,7 @@ msgid "admin.layout.nav_aria_label"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/blog-content/module.ts:45
+#: src/modules/blog-content/module.ts:57
 msgid "admin.layout.nav_blog"
 msgstr ""
 
@@ -3177,17 +3177,17 @@ msgid "admin.layout.nav_dashboard"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/document-infrastructure/module.ts:40
+#: src/modules/document-infrastructure/module.ts:48
 msgid "admin.layout.nav_document_infrastructure_classifications"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/document-infrastructure/module.ts:34
+#: src/modules/document-infrastructure/module.ts:42
 msgid "admin.layout.nav_document_infrastructure_documents"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/document-infrastructure/module.ts:46
+#: src/modules/document-infrastructure/module.ts:54
 msgid "admin.layout.nav_document_infrastructure_sequences"
 msgstr ""
 
@@ -3207,52 +3207,52 @@ msgid "admin.layout.nav_integration_hub_subscriptions"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/module-management/module.ts:25
+#: src/modules/module-management/module.ts:31
 msgid "admin.layout.nav_module_matrix"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/module-management/module.ts:19
+#: src/modules/module-management/module.ts:25
 msgid "admin.layout.nav_modules"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/news-portal/module.ts:40
+#: src/modules/news-portal/module.ts:54
 msgid "admin.layout.nav_news_portal_ad_placements"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/news-portal/module.ts:34
+#: src/modules/news-portal/module.ts:48
 msgid "admin.layout.nav_news_portal_homepage_sections"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/organization-structure/module.ts:71
+#: src/modules/organization-structure/module.ts:78
 msgid "admin.layout.nav_organization_structure_assignments"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/organization-structure/module.ts:59
+#: src/modules/organization-structure/module.ts:66
 msgid "admin.layout.nav_organization_structure_hierarchy"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/organization-structure/module.ts:41
+#: src/modules/organization-structure/module.ts:48
 msgid "admin.layout.nav_organization_structure_legal_entities"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/organization-structure/module.ts:65
+#: src/modules/organization-structure/module.ts:72
 msgid "admin.layout.nav_organization_structure_locations"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/organization-structure/module.ts:47
+#: src/modules/organization-structure/module.ts:54
 msgid "admin.layout.nav_organization_structure_unit_types"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/organization-structure/module.ts:53
+#: src/modules/organization-structure/module.ts:60
 msgid "admin.layout.nav_organization_structure_units"
 msgstr ""
 
@@ -3267,17 +3267,17 @@ msgid "admin.layout.nav_profile_identity_parties"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/reference-data/module.ts:39
+#: src/modules/reference-data/module.ts:47
 msgid "admin.layout.nav_reference_data_codes"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/reference-data/module.ts:45
+#: src/modules/reference-data/module.ts:53
 msgid "admin.layout.nav_reference_data_tenant_codes"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/reference-data/module.ts:33
+#: src/modules/reference-data/module.ts:41
 msgid "admin.layout.nav_reference_data_value_sets"
 msgstr ""
 
@@ -3296,17 +3296,17 @@ msgid "admin.layout.nav_settings"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:52
+#: src/modules/social-publishing/module.ts:71
 msgid "admin.layout.nav_social_publishing_accounts"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:64
+#: src/modules/social-publishing/module.ts:83
 msgid "admin.layout.nav_social_publishing_jobs"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:58
+#: src/modules/social-publishing/module.ts:77
 msgid "admin.layout.nav_social_publishing_rules"
 msgstr ""
 

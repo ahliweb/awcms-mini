@@ -145,12 +145,36 @@ describe("resolveProtectedModuleKeys", () => {
     const { listModules } = await import("../../src/modules/index");
     const result = resolveProtectedModuleKeys(listModules());
 
+    // The protected set is `module_management` (the only `isCore` module)
+    // unioned with the full transitive closure of ITS OWN `dependencies`.
+    // Issue #845 (epic #818) declared two previously-undeclared value
+    // imports that `module_management` already makes — `application/
+    // module-presets.ts` calls `logging`'s `recordAuditEvent`, and
+    // `application/health-registry.ts` calls `email`'s
+    // `resolveEmailProvider` — so `module_management.dependencies` is now
+    // `["tenant_admin", "identity_access", "logging", "email"]`. That pulls
+    // `logging` and `email` (and their own closures, already fully contained
+    // in the pre-#845 set) into the protected closure. `email` in turn
+    // depends on `profile_identity`/`identity_access`, and `logging` on
+    // `tenant_admin` — all already present. So the closure grows by exactly
+    // `logging` + `email` and nothing else.
+    //
+    // Behavioural consequence (accepted as correct per epic #818's Opsi A):
+    // `logging` and `email` are now PROTECTED for preset-planning — the
+    // `minimal` preset no longer disables them, and no preset ever lists
+    // them as disable candidates. This is consistent with reality: nothing
+    // can ever disable `module_management` (`isCore`), and `module_management`
+    // now genuinely needs `logging`/`email` at runtime, so the reverse-
+    // dependency guard would reject disabling them anyway while
+    // `module_management` stays enabled (which it always does).
     expect(result).toEqual(
       new Set([
         "module_management",
         "tenant_admin",
         "identity_access",
-        "profile_identity"
+        "profile_identity",
+        "logging",
+        "email"
       ])
     );
   });

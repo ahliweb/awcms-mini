@@ -6,8 +6,8 @@ export const identityAccessModule = defineModule({
   version: "1.0.0",
   status: "active",
   description:
-    'Login identity, password hashing, tenant user membership, session-based authentication, and RBAC/ABAC access control (roles, permissions, assignments, decision log). `dependencies: ["tenant_admin", "profile_identity"]` was already correct (Issue #680, epic #679) — the registry-wide 3-cycle this issue fixed came entirely from `tenant_admin` ALSO listing `profile_identity`/`identity_access` as its own dependencies (removed there), not from this module\'s own array.',
-  dependencies: ["tenant_admin", "profile_identity"],
+    'Login identity, password hashing, tenant user membership, session-based authentication, and RBAC/ABAC access control (roles, permissions, assignments, decision log). `dependencies: ["tenant_admin", "profile_identity"]` was already correct (Issue #680, epic #679) — the registry-wide 3-cycle this issue fixed came entirely from `tenant_admin` ALSO listing `profile_identity`/`identity_access` as its own dependencies (removed there), not from this module\'s own array. Issue #845 (epic #818) then added `logging` to the array below: `application/business-scope-assignment-service.ts`/`business-scope-expiry-job.ts`/`sod-exception-service.ts` all call `logging`\'s `recordAuditEvent` (required by the `awcms-mini-audit-log` skill for these high-risk actions), a real value import that was previously undeclared. Declaring it keeps `modules:dag:check` acyclic because `logging` itself depends only on `tenant_admin` — it never reaches back to `identity_access`/`profile_identity`, so no cycle is formed even though `logging` sits in the System layer above this Core module in ADR-0013\'s layer model.',
+  dependencies: ["tenant_admin", "profile_identity", "logging"],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1"

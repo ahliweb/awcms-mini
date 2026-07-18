@@ -15,7 +15,9 @@ export const formDraftsModule = defineModule({
   status: "active",
   description:
     "Generic, domain-agnostic server-side draft store for the reusable wizard pattern (create/update/read/submit/delete a tenant-scoped JSONB payload, denylist-validated against secret-shaped fields). No domain-specific logic — a derived module owns what a draft's payload actually means.",
-  dependencies: ["identity_access"],
+  // `logging` declared for Issue #845 (epic #818): `application/
+  // form-draft-purge.ts` calls `logging`'s `recordAuditEvent`. Acyclic.
+  dependencies: ["identity_access", "logging"],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/form-drafts"
