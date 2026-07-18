@@ -65,7 +65,7 @@ Tiga cacat, satu jalur, **saling menguat** menjadi kebocoran NIK/NPWP mentah:
 
 - **`main` tidak diproteksi** (`404 Branch not protected`) ⇒ CI **advisory**.
 - **CI merah 3 run beruntun** — `fetchModuleMatrix` **7278ms vs budget 5000ms**.
-- **Nol rilis pernah terjadi**: v0.24.0, nol tag `v*`. `changeset tag` → `awcms-mini@0.24.0`; release.yml trigger `v*.*.*`. **Saling meniadakan.** `sign + attest + publish` belum pernah dieksekusi end-to-end. _(RESOLVED kode 2026-07-18, PR #854: trigger diselaraskan ke `awcms-mini@*` + `normalizeTagVersion` strip prefix; sisa `sign+attest+publish` end-to-end = tindakan owner pada environment `release`, lih. #825.)_
+- **Nol rilis pernah terjadi**: v0.24.0, nol tag `v*`. `changeset tag` → `awcms-mini@0.24.0`; release.yml trigger `v*.*.*`. **Saling meniadakan.** `sign + attest + publish` belum pernah dieksekusi end-to-end. _(RESOLVED 2026-07-18: diagnosis awal keliru — `changeset:tag` memancarkan `vX.Y.Z` (bukan `awcms-mini@*`), jadi trigger asli `v*.*.*` benar. #854 sempat menyalahkan trigger ke `awcms-mini@*` lalu di-revert; plus dua bug format (`release-verify` + awk RELEASE_NOTES menuntut `## [X.Y.Z]` vs changeset `## X.Y.Z`) diperbaiki. Rehearsal sign+attest+publish terbukti end-to-end (run 29640049800). Lih. #825.)_
 - **Lima gate `check` absen dari ci.yml** — kejadian **keempat** untuk kelas yang sama.
 - **Nol cron selain CodeQL**; `resilience-dr-verification.md:196` & `performance-suite.md:26` **menjanjikan lane terjadwal yang tidak ada**.
 

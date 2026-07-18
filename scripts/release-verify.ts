@@ -35,13 +35,13 @@ export type ReleaseVerifyProblem = {
 /**
  * Extracts the bare "X.Y.Z" version from a release tag ref.
  *
- * The canonical tag this repo actually ships is the package-scoped tag
- * Changesets emits for this private package — `awcms-mini@X.Y.Z` (Issue
- * #825: `.changeset/config.json` `privatePackages.tag: true` +
- * `.github/workflows/release.yml`'s `push: tags: awcms-mini@*` trigger).
- * `refs/tags/` (raw `GITHUB_REF`) and a bare/`v`-prefixed form are also
- * tolerated so a manually-typed `bun run release:verify awcms-mini@X.Y.Z`
- * / `v X.Y.Z` / `X.Y.Z` all normalize identically.
+ * The canonical tag this repo actually ships is the one Changesets emits
+ * for this single-package repo — `vX.Y.Z` (Issue #825: `changeset:tag`
+ * produces `v<version>` here, matched by `release.yml`'s
+ * `push: tags: v*.*.*` trigger). `refs/tags/` (raw `GITHUB_REF`), the
+ * legacy `awcms-mini@X.Y.Z` shape, and a bare form are also tolerated so a
+ * manually-typed `bun run release:verify vX.Y.Z` / `awcms-mini@X.Y.Z` /
+ * `X.Y.Z` all normalize identically.
  *
  * Accepts "awcms-mini@1.2.3", "refs/tags/awcms-mini@1.2.3", "v1.2.3",
  * "refs/tags/v1.2.3", or a bare "1.2.3".
@@ -82,19 +82,30 @@ export function checkChangelogHasVersionSection(
   // metacharacter (`(`, `[`, `*`, `+`, `|`, `^`, `$`, `\`) survived
   // unescaped (regex injection), and the escaping itself was unsound for
   // input containing a literal backslash (incomplete string escaping).
-  const expectedHeading = `## [${version}]`;
+  // Accept BOTH heading shapes with plain string comparison (no RegExp
+  // built from `version` — CodeQL high-severity findings on PR #715):
+  //  - `## X.Y.Z`   — what `changeset:version` emits (current source of truth)
+  //  - `## [X.Y.Z]` — legacy Keep-a-Changelog form still in old entries
+  // A trailing " " covers `## X.Y.Z - date` / `## [X.Y.Z] - date`; the exact
+  // match covers the bare Changesets header. (Issue #825: the bracket-only
+  // check rejected every changeset-generated release.)
+  const plainHeading = `## ${version}`;
+  const bracketHeading = `## [${version}]`;
   const hasSection = changelogContent
     .split("\n")
     .some(
       (line) =>
-        line === expectedHeading || line.startsWith(`${expectedHeading} `)
+        line === plainHeading ||
+        line.startsWith(`${plainHeading} `) ||
+        line === bracketHeading ||
+        line.startsWith(`${bracketHeading} `)
     );
 
   if (!hasSection) {
     return {
       check: "changelog-has-version-section",
       message:
-        `CHANGELOG.md tidak memiliki seksi "## [${version}]". Jalankan bun run ` +
+        `CHANGELOG.md tidak memiliki seksi "## ${version}". Jalankan bun run ` +
         "changeset:version sebelum membuat tag rilis, lalu commit hasilnya."
     };
   }
