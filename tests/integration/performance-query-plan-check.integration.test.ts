@@ -27,6 +27,11 @@ import {
   evaluateQueryPlan,
   QUERY_PLAN_BUDGETS
 } from "../../src/lib/performance/query-plan-budgets";
+import {
+  analyzeQueryPlanFixtures,
+  QUERY_PLAN_ANALYZE_TABLES,
+  type QueryPlanAnalyzeResult
+} from "../../src/lib/performance/analyze-fixtures";
 import { buildFixturePlan } from "../../src/lib/performance/fixture-generator";
 import { seedPerformanceFixtures } from "../../src/lib/performance/fixture-seeder";
 import {
@@ -40,21 +45,11 @@ import { SAFE_SCALE_PROFILE } from "../../src/lib/performance/scale-profiles";
 
 const suite = integrationEnabled ? describe : describe.skip;
 
-const ANALYZED_TABLES = [
-  "awcms_mini_audit_events",
-  "awcms_mini_abac_decision_logs",
-  "awcms_mini_blog_posts",
-  // Issue #838 — now seeded (scale-profiles.ts `blogPages`) and the
-  // `blog-pages-admin-list` budget's driving table, so it needs the same
-  // fresh statistics as every other budget's table.
-  "awcms_mini_blog_pages",
-  "awcms_mini_object_sync_queue"
-];
-
 suite(
   "performance query-plan budgets (Issue #744) — real Postgres, adversarial proof",
   () => {
     let tenantId: string;
+    let analyzeResults: QueryPlanAnalyzeResult[];
 
     beforeAll(async () => {
       await applyMigrations();
@@ -65,13 +60,34 @@ suite(
       await seedPerformanceFixtures(getTestSql(), plan);
       tenantId = plan.tenants[0]!.tenantId;
 
-      // Fresh planner statistics — autovacuum ANALYZE may not have run yet
-      // right after a bulk seed, and stale/absent stats can bias the
-      // planner toward a Seq Scan even for a genuinely selective, indexed
-      // query, which would make the "good" budgets flaky rather than a
-      // real signal.
-      for (const table of ANALYZED_TABLES) {
-        await getTestSql().unsafe(`ANALYZE ${table}`);
+      // Fresh, ACCURATE planner statistics. Issue #849: an `ANALYZE` issued
+      // on `getTestSql()` (the least-privilege `awcms_mini_app` role) is
+      // SILENTLY SKIPPED — the role does not own these tables, so PostgreSQL
+      // emits a WARNING and returns success WITHOUT refreshing anything. The
+      // budgets below would then pass or fail by accident of autovacuum
+      // timing rather than a real measurement. Running `ANALYZE` via the
+      // PRIVILEGED (owner) `getAdminSql()` connection — and PROVING it
+      // advanced `pg_stat_user_tables.analyze_count` for every table
+      // (`analyzeQueryPlanFixtures` throws otherwise) — is what makes this
+      // suite deterministic. Reverting to `getTestSql()` here makes this
+      // `beforeAll` throw, which is the red half of the Issue #849 fix.
+      analyzeResults = await analyzeQueryPlanFixtures(
+        getAdminSql(),
+        QUERY_PLAN_ANALYZE_TABLES
+      );
+    });
+
+    test("Issue #849: the beforeAll ANALYZE genuinely refreshed planner statistics (not a silent no-op)", () => {
+      expect(analyzeResults.length).toBe(QUERY_PLAN_ANALYZE_TABLES.length);
+
+      // analyze_count strictly advanced for EVERY driving table — the honest,
+      // resolution-independent proof that ANALYZE actually ran, rather than
+      // trusting the exit code of a command PostgreSQL skips silently.
+      for (const result of analyzeResults) {
+        expect([
+          result.table,
+          result.analyzeCountAfter > result.analyzeCountBefore
+        ]).toEqual([result.table, true]);
       }
     });
 
@@ -218,74 +234,40 @@ suite(
         ).toBe(true);
         expect(regressed.findings.some((f) => f.includes("Sort"))).toBe(true);
 
-        // NOTE — deliberately NOT asserting `rootTotalCost >
-        // budget.maxTotalCost` here, even though the same DROP measures
-        // 939.88 vs a 200 budget against a properly-ANALYZEd database.
-        // In THIS suite the regressed plan's estimated cost is ~8: the
-        // `ANALYZE` in `beforeAll` above is a silent no-op, because
-        // `getTestSql()` is the least-privilege `awcms_mini_app` role and
-        // PostgreSQL skips (with a WARNING, not an error) an ANALYZE of a
-        // table the role does not own — verified directly against
-        // pg_stat_user_tables: `last_analyze` never changes. So the
-        // planner is working from absent/stale statistics and its cost
-        // ESTIMATE is not meaningful here, while the plan SHAPE still is.
-        //
-        // That asymmetry is the whole reason this budget leads with a
-        // plan-shape rule instead of a cost threshold: the shape signal
-        // survives a statistics regime that makes the cost signal
-        // worthless. `tests/unit/performance-query-plan-budgets.test.ts`
-        // covers the cost bound against the real measured 939.88 plan.
-        //
-        // Fixing that no-op ANALYZE is deliberately out of scope for Issue
-        // #838 and needs its own approved threshold change: with accurate
-        // statistics the PRE-EXISTING `blog-posts-fulltext-search` budget
-        // measures 939.5 against its approved maxTotalCost of 800 (same
-        // stale-stats calibration Issue #782 already root-caused for
-        // `audit-events-tenant-activity-reporting`), so it would go red the
-        // moment the ANALYZE starts working.
+        // The cost dimension is ALSO asserted now (Issue #849). Before this
+        // issue, the `beforeAll` ANALYZE was a silent no-op — issued on the
+        // least-privilege `getTestSql()` role, which does not own these
+        // tables, so PostgreSQL skipped it with a WARNING and the planner
+        // ran on absent/stale statistics whose cost ESTIMATE was meaningless
+        // (the dropped-index plan estimated ~8, indistinguishable from the
+        // index-present plan). This suite now ANALYZEs via the owning
+        // `getAdminSql()` connection and proves it ran, so the estimate is
+        // real: the index-present plan measures ~57 (Index Scan, asserted
+        // green by `before` above) and the dropped-index plan measures
+        // ~316-472 (Bitmap Heap Scan + Sort) against this budget's
+        // `maxTotalCost` of 200. Both the plan SHAPE and the COST now carry
+        // signal, and both are asserted.
+        expect([
+          budgetId,
+          "regressed cost",
+          regressed.rootTotalCost > budget.maxTotalCost
+        ]).toEqual([budgetId, "regressed cost", true]);
+        expect(regressed.findings.some((f) => f.includes("Total Cost"))).toBe(
+          true
+        );
 
         // ...and the index is physically back afterwards, proving the
         // `finally` above really did put the schema back for every later
         // test in this database.
         //
-        // This is asserted STRUCTURALLY (the index's own definition in
-        // pg_indexes) rather than by re-running EXPLAIN and expecting the
-        // green plan to return. Re-EXPLAINing looks like the stronger
-        // check but is actually unsound HERE, and it was measured, not
-        // guessed — the restored plan legitimately comes back as
-        // `Limit -> Sort -> Result -> Index Scan(..._tenant_deleted_idx)`
-        // at cost 8.19 vs the index-ordered plan's 8.3. The two candidate
-        // plans are TIED to within ~1%, and the planner picks the
-        // marginally cheaper one:
-        //
-        //   pg_class state                          | plan                       | cost
-        //   ----------------------------------------|----------------------------|------
-        //   reltuples=-1 (pristine, never analyzed) | Index Scan(tenant_updated) |  8.3
-        //   reltuples=2000, ZERO column statistics  | Sort + Scan(tenant_deleted)|  8.19
-        //   fully ANALYZEd (any real database)      | Index Scan(tenant_updated) | 57.17
-        //
-        // The middle row is the state THIS test creates and nothing else
-        // does: `CREATE INDEX` updates `pg_class.reltuples`/`relpages` as
-        // a side effect (-1/0 -> 2000/334), so the planner suddenly knows
-        // the real row count while still having NO column statistics at
-        // all (`pg_statistic` = 0 rows, `last_autoanalyze` = null — see
-        // Issue #849: this suite's ANALYZE is a silent no-op because the
-        // app role does not own these tables). That half-informed state
-        // does not exist in any real deployment, where autovacuum's
-        // ANALYZE produces the third row — index-ordered, no sort, which
-        // is exactly what this budget encodes and what Issue #830's own
-        // EXPLAIN evidence showed.
-        //
-        // Restoring the index is a SCHEMA fact, so assert the schema. The
-        // plan-shape guarantee is already covered by `before` above, and
-        // deliberately NOT re-asserted here against a statistics regime
-        // this suite does not have. (Fixing it by ANALYZEing in the
-        // `finally` is rejected on purpose: CI runs `bun test` and
-        // `performance:query-plan:check` against the SAME database, so
-        // ANALYZEing `awcms_mini_blog_posts` from inside a test would make
-        // the pre-existing `blog-posts-fulltext-search` budget — latently
-        // red at 939.5 vs its approved 800 — fail in the later script run.
-        // Also tracked in Issue #849.)
+        // Asserted STRUCTURALLY (the index's own normalized definition in
+        // pg_indexes) rather than by re-running EXPLAIN: restoring the index
+        // is a SCHEMA fact, so assert the schema. The plan-shape/cost
+        // guarantee for the restored index is already covered by `before`
+        // above. (Note: `CREATE INDEX` refreshes `pg_class.reltuples`/
+        // `relpages` but NOT `pg_statistic` column histograms, so re-EXPLAIN
+        // after the restore would run on half-refreshed stats — the schema
+        // round-trip below is the clean, timing-independent assertion.)
         const restoredDef = await indexDefinition(indexName);
 
         // Not merely "an index with that name exists" — PostgreSQL's own
