@@ -312,7 +312,7 @@ flowchart LR
   Merge --> Rel[Rilis: bun run changeset:version]
   Rel --> Bump[Bump versi package.json]
   Rel --> Log[Update CHANGELOG.md]
-  Bump --> Tag[Tag vX.Y.Z + release]
+  Bump --> Tag[changeset:tag → awcms-mini@X.Y.Z<br/>memicu release.yml]
 ```
 
 Aturan:
