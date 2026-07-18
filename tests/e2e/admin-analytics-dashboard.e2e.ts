@@ -33,9 +33,58 @@
  * Run: `bun run test:e2e tests/e2e/admin-analytics-dashboard.e2e.ts`.
  */
 import { test, expect } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { seedAnalyticsFixture } from "./helpers/seed-analytics-fixture";
 import type { SeededAnalyticsFixture } from "./helpers/seed-analytics-fixture";
+
+/**
+ * Wait for the sessions table to hold at least one row, reloading the page to
+ * re-run the load if it doesn't yet — the fix for Issue #883's ~100% flake.
+ *
+ * The sessions table is populated by a SINGLE client-side fetch on page load
+ * (`loadSessionsPage(null)` in `src/pages/admin/analytics.astro`); the SSR
+ * `<tbody />` is empty and there is no client-side re-fetch. That one fetch
+ * races the deferred visitor-telemetry write for the page's own visit:
+ * collection is queued OFF the response path and flushed by a ~200ms
+ * per-tenant batcher linger (Issues #832/#846), so on a fast run the fetch
+ * completes before any session row is in the DB and the table stays empty
+ * indefinitely. A fixed `toBeVisible({ timeout })` cannot recover from that,
+ * because the DOM never changes again after the single fetch resolves empty —
+ * the timeout just runs out on an empty table.
+ *
+ * Reloading re-runs the fetch, and each reload is itself another collected
+ * admin visit (`/admin/*` is collected when `collectAdmin` is on) whose
+ * deferred write has, by the next reload, had ample time to flush. This keeps
+ * the assertion's meaning intact — a real, middleware-collected session row is
+ * visible to this caller — while making it deterministic instead of racing the
+ * flush. It is NOT a bare timeout bump: the recovery is a re-query, not a
+ * longer wait on a request that already lost.
+ */
+async function expectSessionRowEventuallyVisible(
+  page: Page,
+  sessionsTable: Locator
+): Promise<void> {
+  const firstRow = sessionsTable.locator("tbody tr").first();
+  const maxReloads = 6;
+  const perAttemptTimeoutMs = 2_500;
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await firstRow.waitFor({
+        state: "visible",
+        timeout: perAttemptTimeoutMs
+      });
+
+      return;
+    } catch (error) {
+      if (attempt >= maxReloads) throw error;
+    }
+
+    await page.reload();
+    await expect(page.locator(".analytics-dashboard")).toBeVisible();
+  }
+}
 
 test.describe
   .serial("admin/analytics — aggregate view + raw-detail gating", () => {
@@ -62,6 +111,10 @@ test.describe
       !process.env.E2E_SEED_DATABASE_URL,
       "E2E_SEED_DATABASE_URL not set — see this file's own header comment."
     );
+    // Headroom for the bounded reload-poll in
+    // `expectSessionRowEventuallyVisible` (Issue #883) on top of login +
+    // navigation; the default 30s can be exhausted by the poll's worst case.
+    test.setTimeout(60_000);
 
     await page.goto("/login");
     await page.locator("#tenant-id").fill(fixture.tenantId);
@@ -100,10 +153,9 @@ test.describe
     ).toBeVisible();
 
     // The client script populates at least one session row (this very
-    // page visit is itself collected by the middleware).
-    await expect(sessionsTable.locator("tbody tr").first()).toBeVisible({
-      timeout: 10_000
-    });
+    // page visit is itself collected by the middleware). Deferred-write vs
+    // one-shot client fetch race — see `expectSessionRowEventuallyVisible`.
+    await expectSessionRowEventuallyVisible(page, sessionsTable);
   });
 
   test("a caller without raw_detail.read never sees a raw ip hash/user-agent hash in the sessions table", async ({
@@ -113,6 +165,9 @@ test.describe
       !process.env.E2E_SEED_DATABASE_URL,
       "E2E_SEED_DATABASE_URL not set — see this file's own header comment."
     );
+    // Headroom for the bounded reload-poll in
+    // `expectSessionRowEventuallyVisible` (Issue #883); see the owner test.
+    test.setTimeout(60_000);
 
     await page.goto("/login");
     await page.locator("#tenant-id").fill(fixture.tenantId);
@@ -150,10 +205,10 @@ test.describe
     // The table still populates (tenant-wide session listing includes the
     // owner's own earlier session row from the previous test) — proving
     // this is a real render with real data, not an empty/broken table
-    // that would trivially "pass" the no-leak assertion below.
-    await expect(sessionsTable.locator("tbody tr").first()).toBeVisible({
-      timeout: 10_000
-    });
+    // that would trivially "pass" the no-leak assertion below. Same
+    // one-shot-fetch-vs-deferred-write race as the owner test — see
+    // `expectSessionRowEventuallyVisible`.
+    await expectSessionRowEventuallyVisible(page, sessionsTable);
 
     // No raw ip/user-agent hash value (a `sha256:`-prefixed string, the
     // real shape `domain/analytics-response-shaping.ts` produces) ever
