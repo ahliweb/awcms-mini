@@ -669,6 +669,72 @@ describe("publish — R2 image validation (Issue #645)", () => {
     expect(calledPathnames).not.toContain("/rest/images");
   });
 
+  test("no mediaPort injected at all — a valid image URL still degrades to a link-share post (Issue #859 core safety guarantee)", async () => {
+    // The core guarantee of the #859 port inversion: when the composition
+    // root does NOT inject a `NewsMediaPort` (e.g. the SSR verify path, or a
+    // deployment with `news_portal` disabled), `resolveMediaPublicBaseUrl` is
+    // never called, the trusted base URL is `""`, EVERY image is untrusted,
+    // and the adapter must degrade to a link-share post — never uploading an
+    // image, never emitting `content.media`. This exercises `mediaPort ===
+    // undefined` directly with a non-null `imageUrl` (previously only covered
+    // transitively).
+    const calledPathnames: string[] = [];
+    const captured: { postsBody: string | null } = { postsBody: null };
+
+    using server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const pathname = new URL(request.url).pathname;
+        calledPathnames.push(pathname);
+
+        if (pathname === "/rest/organizationAcls") {
+          return Response.json({
+            elements: [{ role: "ADMINISTRATOR", state: "APPROVED" }]
+          });
+        }
+        if (pathname === "/rest/posts") {
+          captured.postsBody = await request.text();
+          return new Response(null, {
+            status: 201,
+            headers: { "x-restli-id": "urn:li:share:no-port" }
+          });
+        }
+        return new Response("not found", { status: 404 });
+      }
+    });
+
+    const env = buildEnv();
+    // NO `mediaPort` — the whole point of this test.
+    const adapter = createLinkedInProviderAdapter({
+      apiBaseUrl: `http://127.0.0.1:${server.port}`,
+      env
+    });
+
+    const result = await adapter.publish(
+      buildRequest({
+        content: {
+          title: "Test",
+          excerptOrCaption: "Caption",
+          canonicalUrl: "https://news.example.com/news/test",
+          // A perfectly valid, non-null image URL — but with no port to
+          // resolve a trusted base against, it must still be treated as
+          // untrusted.
+          imageUrl: `http://127.0.0.1:${server.port}/would-be-image.jpg`
+        }
+      })
+    );
+
+    expect(result.outcome).toBe("published");
+    // Never attempted the image upload flow...
+    expect(calledPathnames).not.toContain("/rest/images");
+    // ...and posted a link-share (`content.article`), not an image post
+    // (`content.media`).
+    expect(captured.postsBody).not.toBeNull();
+    const postedBody = JSON.parse(captured.postsBody!);
+    expect(postedBody.content.article).toBeDefined();
+    expect(postedBody.content.media).toBeUndefined();
+  });
+
   test("trusted R2 image URL triggers the real upload flow and an image-attached post", async () => {
     const calledPathnames: string[] = [];
     const captured: { postsBody: string | null } = { postsBody: null };
