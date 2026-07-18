@@ -55,6 +55,33 @@ type AssignmentRow = {
   status: "pending" | "decided" | "reassigned" | "skipped";
 };
 
+/**
+ * Thrown when a decision cannot be recorded because the assignment/decision was
+ * already finalised by a concurrent (or prior) request — the losing side of the
+ * READ COMMITTED TOCTOU race that the assignment row-lock (`findEligibleAssignment`
+ * `FOR UPDATE`), the `status = 'pending'` UPDATE predicate, and the partial
+ * unique index on `awcms_mini_workflow_decisions` (`sql/078`) jointly close
+ * (Issue #851 — quorum-'all' bypass). The route maps this to a
+ * `409 IDEMPOTENCY_CONFLICT`, mirroring the existing "task no longer pending"
+ * 409 rather than surfacing a raw unique-violation as a 500. It also covers the
+ * SEQUENTIAL variant where one user is both a direct assignee AND an active
+ * delegate of a second assignee on the same task (two eligible assignments, one
+ * decider) — the unique index refuses the second vote, which lands here.
+ */
+export class WorkflowTaskDecisionConflictError extends Error {
+  readonly taskId: string;
+  readonly decidingTenantUserId: string;
+
+  constructor(taskId: string, decidingTenantUserId: string) {
+    super(
+      `A decision by tenant user "${decidingTenantUserId}" on task "${taskId}" was already recorded by a concurrent or prior request.`
+    );
+    this.name = "WorkflowTaskDecisionConflictError";
+    this.taskId = taskId;
+    this.decidingTenantUserId = decidingTenantUserId;
+  }
+}
+
 type DelegationDbRow = {
   id: string;
   delegator_tenant_user_id: string;
@@ -105,6 +132,18 @@ export async function fetchTaskWithInstanceForDecision(
  * `null` means the caller is not an eligible decider for this task at
  * all (distinct from a permission/self-approval denial, which the route
  * already checked separately via ABAC).
+ *
+ * SECURITY (Issue #851): the SELECT takes `FOR UPDATE` on the task's
+ * assignment rows so that concurrent decision requests on the same task
+ * serialise here (blocking wait, chosen over `SKIP LOCKED` so a losing racer
+ * observes the WINNER's committed state rather than silently skipping it).
+ * Under READ COMMITTED, a second same-assignee request blocks until the first
+ * commits, then re-reads the row as `decided` and the `status !== 'pending'`
+ * guard below skips it → the caller is reported as ineligible (route → 403)
+ * instead of both requests recording a vote. `ORDER BY id` gives a
+ * deterministic lock-acquisition order so two DIFFERENT deciders racing on the
+ * same task cannot deadlock. This closes the READ COMMITTED TOCTOU window that
+ * let one approver satisfy a quorum-'all' task single-handedly.
  */
 export async function findEligibleAssignment(
   tx: Bun.SQL,
@@ -120,6 +159,8 @@ export async function findEligibleAssignment(
     FROM awcms_mini_workflow_task_assignments
     WHERE tenant_id = ${tenantId} AND workflow_task_id = ${taskId}
       AND status IN ('pending', 'decided')
+    ORDER BY id
+    FOR UPDATE
   `) as AssignmentRow[];
 
   const delegationRows = (await tx`
@@ -185,7 +226,13 @@ export async function recordWorkflowTaskDecision(
   const tenantId = assertUuid(params.tenantId);
   const taskId = assertUuid(params.taskId);
 
-  await tx`
+  // Integrity backstop (Issue #851): the partial unique index from `sql/078`
+  // (one ordinary decision per tenant/task/decider) refuses a duplicate vote.
+  // `ON CONFLICT ... DO NOTHING` turns that into a clean typed conflict instead
+  // of a raw 23505 — covering both the concurrent same-assignee race (already
+  // gated by the `FOR UPDATE` in `findEligibleAssignment`) and the sequential
+  // "assignee is also a delegate of a second assignee" double-vote.
+  const insertedDecision = (await tx`
     INSERT INTO awcms_mini_workflow_decisions
       (tenant_id, workflow_task_id, decision, decided_by_tenant_user_id,
        on_behalf_of_tenant_user_id, reason)
@@ -194,13 +241,38 @@ export async function recordWorkflowTaskDecision(
       ${params.assignment.tenant_user_id === params.decidingTenantUserId ? null : params.assignment.tenant_user_id},
       ${params.reason ?? null}
     )
-  `;
+    ON CONFLICT (tenant_id, workflow_task_id, decided_by_tenant_user_id)
+      WHERE is_administrative_override = false
+      DO NOTHING
+    RETURNING id
+  `) as { id: string }[];
 
-  await tx`
+  if (insertedDecision.length === 0) {
+    throw new WorkflowTaskDecisionConflictError(
+      taskId,
+      params.decidingTenantUserId
+    );
+  }
+
+  // `status = 'pending'` predicate (Issue #851): reject a double transition —
+  // the losing racer's UPDATE must not overwrite an already-`decided` row.
+  // `findEligibleAssignment`'s `FOR UPDATE` makes this always match on the happy
+  // path; 0 rows here means the assignment was finalised concurrently, so we
+  // surface the same conflict rather than silently proceeding to quorum eval.
+  const updatedAssignment = (await tx`
     UPDATE awcms_mini_workflow_task_assignments
     SET status = 'decided', decided_at = ${params.now}
     WHERE tenant_id = ${tenantId} AND id = ${params.assignment.id}
-  `;
+      AND status = 'pending'
+    RETURNING id
+  `) as { id: string }[];
+
+  if (updatedAssignment.length === 0) {
+    throw new WorkflowTaskDecisionConflictError(
+      taskId,
+      params.decidingTenantUserId
+    );
+  }
 
   const eligibleCountRows = (await tx`
     SELECT COUNT(*) AS count

@@ -390,107 +390,97 @@ suite("workflow-approval decision hardening (Issue #827)", () => {
     expect(taskBStatus[0]!.status).toBe("pending");
   });
 
-  // KNOWN BUG (reported: ahliweb/awcms-mini#851) — quorum 'all' bypass via
+  // REGRESSION GUARD (fixed: ahliweb/awcms-mini#851) — quorum 'all' bypass via
   // concurrent same-assignee double-submit with different Idempotency-Keys.
-  // This test embeds the CORRECT security invariant but is marked
-  // `test.failing`: while the bug is present the invariant assertions throw, so
-  // the runner reports the test as an EXPECTED failure (green CI). The DAY the
-  // bug is fixed (add `SELECT ... FOR UPDATE` on the assignment / a `status =
-  // 'pending'` predicate on its UPDATE / a UNIQUE constraint on
-  // `awcms_mini_workflow_decisions (workflow_task_id, decided_by_tenant_user_id)`),
-  // the invariant will start holding, the test will "unexpectedly pass", and
-  // the runner will flip it RED — signalling whoever fixed it to delete the
-  // `.failing` marker and keep the assertions as a permanent regression guard.
+  // This test was originally committed `test.failing` (green CI while the bug
+  // was live); the fix below flips it to a permanent RED-on-regression guard.
   //
-  // Root cause: `findEligibleAssignment` reads the assignment with a plain
-  // SELECT (no row lock) and `recordWorkflowTaskDecision` UPDATEs it to
-  // 'decided' WITHOUT a `status = 'pending'` predicate, so under READ COMMITTED
-  // two concurrent same-assignee requests both observe 'pending' and both
-  // record a decision. With no unique constraint on the decisions table, ONE
-  // assignee can thereby satisfy an 'all' quorum that legitimately requires TWO
-  // distinct assignees — the instance transitions to `approved` single-handedly.
-  test.failing(
-    "concurrency: two same-assignee decisions racing on one 'all'-quorum task must not let a single assignee satisfy quorum twice",
-    async () => {
-      const owner = await bootstrap();
-      const approver1 = await provisionApprover(
-        owner.tenantId,
-        "c1@example.com"
+  // Was: `findEligibleAssignment` read the assignment with a plain SELECT (no
+  // row lock) and `recordWorkflowTaskDecision` UPDATEd it to 'decided' WITHOUT
+  // a `status = 'pending'` predicate, so under READ COMMITTED two concurrent
+  // same-assignee requests both observed 'pending' and both recorded a
+  // decision. With no unique constraint on the decisions table, ONE assignee
+  // could satisfy an 'all' quorum that legitimately requires TWO distinct
+  // assignees — the instance transitioned to `approved` single-handedly.
+  //
+  // Fixed by: (1) `SELECT ... ORDER BY id FOR UPDATE` on the task's assignment
+  // rows in `findEligibleAssignment` (blocking wait serialises racers; the
+  // loser re-reads 'decided' and is reported ineligible → 403); (2) an
+  // `AND status = 'pending'` predicate on the assignment UPDATE; (3) a partial
+  // UNIQUE index `awcms_mini_workflow_decisions (tenant_id, workflow_task_id,
+  // decided_by_tenant_user_id) WHERE is_administrative_override = false`
+  // (sql/078). One racer wins with 200; the other gets 403/409 and records
+  // nothing, so a 2-assignee 'all' quorum can never be met by one person.
+  test("concurrency: two same-assignee decisions racing on one 'all'-quorum task must not let a single assignee satisfy quorum twice", async () => {
+    const owner = await bootstrap();
+    const approver1 = await provisionApprover(owner.tenantId, "c1@example.com");
+    const approver2 = await provisionApprover(owner.tenantId, "c2@example.com");
+
+    // Two independent race attempts against fresh tasks so a single scheduling
+    // fluke cannot let the (currently vulnerable) path masquerade as safe.
+    let worstTotalDecisions = 0;
+    let anySingleAssigneeApproval = false;
+    let worstSuccessCount = 0;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const workflowKey = `wf_race_${attempt}`;
+      // Quorum 'all' with TWO distinct assignees: legitimately needs BOTH.
+      await createAndPublishDefinition(
+        owner,
+        workflowKey,
+        [approver1.tenantUserId, approver2.tenantUserId],
+        "all"
       );
-      const approver2 = await provisionApprover(
-        owner.tenantId,
-        "c2@example.com"
+      const taskId = await startAndGetTaskId(
+        owner,
+        workflowKey,
+        `r-race-${attempt}`
       );
 
-      // Two independent race attempts against fresh tasks so a single scheduling
-      // fluke cannot let the (currently vulnerable) path masquerade as safe.
-      let worstTotalDecisions = 0;
-      let anySingleAssigneeApproval = false;
-      let worstSuccessCount = 0;
+      // approver1 fires TWO concurrent approvals with DIFFERENT idempotency
+      // keys — the same-key idempotency guard does NOT cover this path.
+      const fire = (key: string) =>
+        invoke<{ data: { instanceStatus?: string } }>(decideTask, {
+          method: "POST",
+          path: `/api/v1/workflows/tasks/${taskId}/decisions`,
+          headers: { ...authHeaders(approver1), "idempotency-key": key },
+          params: { id: taskId },
+          body: { decision: "approve" }
+        });
 
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const workflowKey = `wf_race_${attempt}`;
-        // Quorum 'all' with TWO distinct assignees: legitimately needs BOTH.
-        await createAndPublishDefinition(
-          owner,
-          workflowKey,
-          [approver1.tenantUserId, approver2.tenantUserId],
-          "all"
-        );
-        const taskId = await startAndGetTaskId(
-          owner,
-          workflowKey,
-          `r-race-${attempt}`
-        );
+      const results = await Promise.all([
+        fire(crypto.randomUUID()),
+        fire(crypto.randomUUID())
+      ]);
+      worstSuccessCount = Math.max(
+        worstSuccessCount,
+        results.filter((r) => r.status === 200).length
+      );
 
-        // approver1 fires TWO concurrent approvals with DIFFERENT idempotency
-        // keys — the same-key idempotency guard does NOT cover this path.
-        const fire = (key: string) =>
-          invoke<{ data: { instanceStatus?: string } }>(decideTask, {
-            method: "POST",
-            path: `/api/v1/workflows/tasks/${taskId}/decisions`,
-            headers: { ...authHeaders(approver1), "idempotency-key": key },
-            params: { id: taskId },
-            body: { decision: "approve" }
-          });
-
-        const results = await Promise.all([
-          fire(crypto.randomUUID()),
-          fire(crypto.randomUUID())
-        ]);
-        worstSuccessCount = Math.max(
-          worstSuccessCount,
-          results.filter((r) => r.status === 200).length
-        );
-
-        const admin = getAdminSql();
-        const rows = (await admin`
+      const admin = getAdminSql();
+      const rows = (await admin`
           SELECT COUNT(*)::int AS total_count
           FROM awcms_mini_workflow_decisions
           WHERE tenant_id = ${owner.tenantId} AND workflow_task_id = ${taskId}
         `) as { total_count: number }[];
-        worstTotalDecisions = Math.max(
-          worstTotalDecisions,
-          rows[0]!.total_count
-        );
+      worstTotalDecisions = Math.max(worstTotalDecisions, rows[0]!.total_count);
 
-        const instanceRow = (await admin`
+      const instanceRow = (await admin`
           SELECT i.status FROM awcms_mini_workflow_instances i
           JOIN awcms_mini_workflow_tasks t ON t.workflow_instance_id = i.id
           WHERE t.tenant_id = ${owner.tenantId} AND t.id = ${taskId}
         `) as { status: string }[];
-        if (instanceRow[0]!.status === "approved") {
-          anySingleAssigneeApproval = true;
-        }
+      if (instanceRow[0]!.status === "approved") {
+        anySingleAssigneeApproval = true;
       }
-
-      // INVARIANT (currently violated by the bug): a single assignee must never
-      // record more than one decision on one task, at most one of the two
-      // concurrent requests may succeed, and a 2-assignee 'all' quorum can never
-      // be satisfied — hence approved — by approver1 alone.
-      expect(worstTotalDecisions).toBeLessThanOrEqual(1);
-      expect(worstSuccessCount).toBeLessThanOrEqual(1);
-      expect(anySingleAssigneeApproval).toBe(false);
     }
-  );
+
+    // INVARIANT (currently violated by the bug): a single assignee must never
+    // record more than one decision on one task, at most one of the two
+    // concurrent requests may succeed, and a 2-assignee 'all' quorum can never
+    // be satisfied — hence approved — by approver1 alone.
+    expect(worstTotalDecisions).toBeLessThanOrEqual(1);
+    expect(worstSuccessCount).toBeLessThanOrEqual(1);
+    expect(anySingleAssigneeApproval).toBe(false);
+  });
 });

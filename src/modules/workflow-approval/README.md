@@ -86,6 +86,16 @@ Reassign (`POST /workflows/tasks/{id}/reassign`), cancel (`POST /workflows/insta
 
 Every high-risk mutation here (`decisions`, `reassign`, `force-decision`, `publish`, `retire`, `DELETE .../definitions/{id}`, `.../instances/{id}/cancel`, `.../delegations` create, `.../delegations/{id}/revoke`) requires `Idempotency-Key`, using the same generic `awcms_mini_idempotency_keys` store (migration `012`) — same key + same request hash replays the stored response; same key + different hash -> `409 IDEMPOTENCY_CONFLICT`.
 
+## Decision concurrency safety (Issue #851)
+
+The `Idempotency-Key` store only de-duplicates a **reused** key. A single approver could therefore satisfy a quorum-`all` task **alone** by firing two _concurrent_ approvals with _different_ keys — a READ COMMITTED TOCTOU race: both transactions read the assignment as `pending`, both record a decision, and the instance transitions to `approved` on one person's say-so. Closed with three layered defenses:
+
+1. **Row lock** — `findEligibleAssignment` selects the task's assignment rows `ORDER BY id FOR UPDATE` (blocking wait, not `SKIP LOCKED`, and a deterministic lock order so two different deciders can't deadlock). The losing concurrent request blocks until the winner commits, then re-reads the row as `decided` and is reported ineligible (`403`).
+2. **Guarded transition** — the assignment `UPDATE ... SET status = 'decided'` carries an `AND status = 'pending'` predicate; a lost race affects zero rows.
+3. **Integrity invariant** — migration `078` adds a **partial** unique index `awcms_mini_workflow_decisions (tenant_id, workflow_task_id, decided_by_tenant_user_id) WHERE is_administrative_override = false` — one ordinary vote per decider per task. Administrative overrides (`is_administrative_override = true`, `forceWorkflowTaskDecision`) are deliberately excluded (they are a sanctioned quorum bypass, already limited to one per task by their own `status = 'pending'` guard). This also closes the sequential variant where one user is both a direct assignee **and** an active delegate of a second assignee on the same task.
+
+A duplicate decision (concurrent or sequential) surfaces as `409 IDEMPOTENCY_CONFLICT` via `WorkflowTaskDecisionConflictError`, never a raw `500`. Regression guard: `tests/integration/workflow-approval-decision-hardening.integration.test.ts` (the concurrency test — previously committed `test.failing` while the bug was live, now a permanent RED-on-regression assertion).
+
 ## Security-auditor findings fixed (PR #778, before merge)
 
 - **`force-decision` self-approval bypass (High)** — the route authorized via `workflow.recovery.force_decide` without populating `resourceAttributes.requestedByTenantUserId`, and `access-control.ts`'s self-approval-deny check was hardwired to the `"approve"` action only — so a caller who filed their own instance and held `force_decide` could force-approve their own request, bypassing quorum entirely. Fixed by looking up the task/instance before the guard (same pattern `decisions.ts` uses) and extending the self-approval-deny check to also cover `"force_decide"` (blocks both force-approve and force-reject of one's own instance).

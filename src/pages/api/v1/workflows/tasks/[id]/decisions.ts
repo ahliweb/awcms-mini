@@ -26,7 +26,8 @@ import { validateWorkflowDecisionRequestBody } from "../../../../../../modules/w
 import {
   fetchTaskWithInstanceForDecision,
   findEligibleAssignment,
-  recordWorkflowTaskDecision
+  recordWorkflowTaskDecision,
+  WorkflowTaskDecisionConflictError
 } from "../../../../../../modules/workflow-approval/application/workflow-instance-decision";
 import { createEmailWorkflowNotificationAdapter } from "../../../../../../modules/email/application/workflow-notification-port-adapter";
 
@@ -96,146 +97,167 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
   const correlationId = locals.correlationId;
   const decisionStartedAt = Date.now();
 
-  return withTenant(
-    sql,
-    tenantId,
-    async (tx) => {
-      // Look up the task/instance BEFORE the real guard so self-approval
-      // resourceAttributes are populated — see doc comment above.
-      const task = await fetchTaskWithInstanceForDecision(tx, tenantId, taskId);
-
-      const guardRequest = {
-        ...GUARD_ACTIVITY,
-        action: "approve" as const,
-        resourceType: "workflow_task",
-        resourceId: taskId,
-        resourceAttributes: {
+  try {
+    return await withTenant(
+      sql,
+      tenantId,
+      async (tx) => {
+        // Look up the task/instance BEFORE the real guard so self-approval
+        // resourceAttributes are populated — see doc comment above.
+        const task = await fetchTaskWithInstanceForDecision(
+          tx,
           tenantId,
-          requestedByTenantUserId: task?.requested_by_tenant_user_id
+          taskId
+        );
+
+        const guardRequest = {
+          ...GUARD_ACTIVITY,
+          action: "approve" as const,
+          resourceType: "workflow_task",
+          resourceId: taskId,
+          resourceAttributes: {
+            tenantId,
+            requestedByTenantUserId: task?.requested_by_tenant_user_id
+          }
+        };
+
+        const auth = await authorizeInTransaction(
+          tx,
+          tenantId,
+          tokenHash,
+          now,
+          guardRequest
+        );
+
+        if (!auth.allowed) {
+          return auth.denied;
         }
-      };
 
-      const auth = await authorizeInTransaction(
-        tx,
-        tenantId,
-        tokenHash,
-        now,
-        guardRequest
-      );
+        const existingIdempotency = await findIdempotencyRecord(
+          tx,
+          tenantId,
+          IDEMPOTENCY_SCOPE,
+          idempotencyKey
+        );
 
-      if (!auth.allowed) {
-        return auth.denied;
-      }
+        if (existingIdempotency) {
+          if (existingIdempotency.requestHash !== requestHash) {
+            return fail(
+              409,
+              "IDEMPOTENCY_CONFLICT",
+              "Idempotency-Key was already used with a different request."
+            );
+          }
+          return jsonResponse(existingIdempotency.responseBody, {
+            status: existingIdempotency.responseStatus
+          });
+        }
 
-      const existingIdempotency = await findIdempotencyRecord(
-        tx,
-        tenantId,
-        IDEMPOTENCY_SCOPE,
-        idempotencyKey
-      );
+        if (!task) {
+          return fail(404, "RESOURCE_NOT_FOUND", "Workflow task not found.");
+        }
 
-      if (existingIdempotency) {
-        if (existingIdempotency.requestHash !== requestHash) {
+        if (task.status !== "pending") {
           return fail(
             409,
             "IDEMPOTENCY_CONFLICT",
-            "Idempotency-Key was already used with a different request."
+            "Task decision has already been recorded."
           );
         }
-        return jsonResponse(existingIdempotency.responseBody, {
-          status: existingIdempotency.responseStatus
-        });
-      }
 
-      if (!task) {
-        return fail(404, "RESOURCE_NOT_FOUND", "Workflow task not found.");
-      }
-
-      if (task.status !== "pending") {
-        return fail(
-          409,
-          "IDEMPOTENCY_CONFLICT",
-          "Task decision has already been recorded."
+        const assignment = await findEligibleAssignment(
+          tx,
+          tenantId,
+          taskId,
+          auth.context.tenantUserId,
+          task.workflow_key,
+          task.resource_type,
+          now
         );
-      }
 
-      const assignment = await findEligibleAssignment(
-        tx,
-        tenantId,
-        taskId,
-        auth.context.tenantUserId,
-        task.workflow_key,
-        task.resource_type,
-        now
-      );
-
-      if (!assignment) {
-        return fail(
-          403,
-          "ACCESS_DENIED",
-          "You are not an eligible decider for this task (not directly assigned, and no active delegation names you)."
-        );
-      }
-
-      const result = await recordWorkflowTaskDecision(tx, {
-        tenantId,
-        taskId,
-        task,
-        assignment,
-        decidingTenantUserId: auth.context.tenantUserId,
-        decision,
-        reason,
-        now,
-        correlationId,
-        notificationPort
-      });
-
-      await recordAuditEvent(tx, {
-        tenantId,
-        actorTenantUserId: auth.context.tenantUserId,
-        moduleKey: "workflow",
-        action: decision,
-        resourceType: "workflow_instance",
-        resourceId: result.instanceId,
-        severity: "warning",
-        message: `Workflow task decision recorded: ${decision}.`,
-        attributes: { decision, reason, taskId },
-        correlationId
-      });
-
-      recordHistogram(
-        "workflow_task_decision_duration_ms",
-        Date.now() - decisionStartedAt,
-        {
-          outcome:
-            result.instanceStatus ??
-            (decision === "approve" ? "approved" : "rejected")
+        if (!assignment) {
+          return fail(
+            403,
+            "ACCESS_DENIED",
+            "You are not an eligible decider for this task (not directly assigned, and no active delegation names you)."
+          );
         }
+
+        const result = await recordWorkflowTaskDecision(tx, {
+          tenantId,
+          taskId,
+          task,
+          assignment,
+          decidingTenantUserId: auth.context.tenantUserId,
+          decision,
+          reason,
+          now,
+          correlationId,
+          notificationPort
+        });
+
+        await recordAuditEvent(tx, {
+          tenantId,
+          actorTenantUserId: auth.context.tenantUserId,
+          moduleKey: "workflow",
+          action: decision,
+          resourceType: "workflow_instance",
+          resourceId: result.instanceId,
+          severity: "warning",
+          message: `Workflow task decision recorded: ${decision}.`,
+          attributes: { decision, reason, taskId },
+          correlationId
+        });
+
+        recordHistogram(
+          "workflow_task_decision_duration_ms",
+          Date.now() - decisionStartedAt,
+          {
+            outcome:
+              result.instanceStatus ??
+              (decision === "approve" ? "approved" : "rejected")
+          }
+        );
+
+        const responseData = {
+          taskId,
+          decision,
+          instanceId: result.instanceId,
+          taskCompleted: result.taskCompleted,
+          instanceFinished: result.instanceFinished,
+          instanceStatus: result.instanceStatus ?? "pending"
+        };
+        const successResponse = ok(responseData, { correlationId });
+        const successBody = await successResponse.clone().json();
+
+        await saveIdempotencyRecord(
+          tx,
+          tenantId,
+          IDEMPOTENCY_SCOPE,
+          idempotencyKey,
+          requestHash,
+          200,
+          successBody
+        );
+
+        return successResponse;
+      },
+      { workClass: "interactive" }
+    );
+  } catch (error) {
+    // The row-lock + `status = 'pending'` predicate + partial unique index
+    // (Issue #851) can reject a concurrent/sequential duplicate decision by
+    // throwing `WorkflowTaskDecisionConflictError`; surface it as the same
+    // 409 the "task no longer pending" path already returns, not a 500. Any
+    // other error (incl. `IdempotencyRaceLostError`, handled inside
+    // `withTenant`) propagates unchanged.
+    if (error instanceof WorkflowTaskDecisionConflictError) {
+      return fail(
+        409,
+        "IDEMPOTENCY_CONFLICT",
+        "Task decision has already been recorded."
       );
-
-      const responseData = {
-        taskId,
-        decision,
-        instanceId: result.instanceId,
-        taskCompleted: result.taskCompleted,
-        instanceFinished: result.instanceFinished,
-        instanceStatus: result.instanceStatus ?? "pending"
-      };
-      const successResponse = ok(responseData, { correlationId });
-      const successBody = await successResponse.clone().json();
-
-      await saveIdempotencyRecord(
-        tx,
-        tenantId,
-        IDEMPOTENCY_SCOPE,
-        idempotencyKey,
-        requestHash,
-        200,
-        successBody
-      );
-
-      return successResponse;
-    },
-    { workClass: "interactive" }
-  );
+    }
+    throw error;
+  }
 };
