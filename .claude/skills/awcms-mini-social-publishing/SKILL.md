@@ -826,14 +826,22 @@ mengimpor `news-portal/domain/news-media-r2-config.ts`'s
 SATU-SATUNYA penyebab `social_publishing` dulu mendeklarasikan `news_portal`
 sebagai dependency HARD di `module.ts` — bertentangan dengan
 `capabilities.consumes` (`news_media`, `optional: true`) modul ini sendiri.
-Setelah inversi: `news_portal` **dihapus dari `dependencies`** dan kembali
-benar-benar opsional (tenant boleh disable `news_portal` selagi
-`social_publishing` aktif). Bila port tak di-inject (proses SSR verify via
+Setelah inversi: `news_portal` **dihapus dari `dependencies`** — perubahan
+LIFECYCLE (tenant kini boleh disable `news_portal` selagi `social_publishing`
+aktif TANPA blok reverse-dependency). **PENTING (bukan gap):** kepercayaan/
+upload gambar bersifat DEPLOYMENT-WIDE, bukan per-tenant — bucket R2 +
+`NEWS_MEDIA_R2_PUBLIC_BASE_URL` adalah config level-deployment, port
+di-inject process-wide oleh dispatcher, jadi gambar R2 yang sudah `verified`
+tetap diunggah tanpa memandang status `news_portal` tenant mana pun (identik
+perilaku pra-#859; jalur gambar TIDAK menjadi tenant-aware). Degradasi ke
+link-share terjadi bila port tak di-inject (proses SSR verify via
 `linkedin-provider-registration.ts` yang tak pernah `publish`) atau
-`NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong → `publicBaseUrl` = `""` → semua
-gambar tak terpercaya → degradasi aman ke link-share. Pola inversi ini SAMA
-dengan `NewsMediaPort.resolveMediaReferences` yang sudah ada (ADR-0011),
-bukan pengecualian baru. `blog_content` TETAP dependency HARD
+`NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong → `publicBaseUrl` = `""` → semua gambar
+tak terpercaya — BUKAN karena tenant mematikan `news_portal`. Pola inversi ini
+SAMA dengan `NewsMediaPort.resolveMediaReferences` yang sudah ada (ADR-0011),
+bukan pengecualian baru. Versi kapabilitas `news_media` dinaikkan `1.0.0` →
+`1.1.0` di `capability-contract-versions.ts` (method additive
+`resolveMediaPublicBaseUrl`; MINOR). `blog_content` TETAP dependency HARD
 (`social-publishing-port-adapter.ts` sengaja impor
 `fetchEffectivePublicRouteSettings`).
 

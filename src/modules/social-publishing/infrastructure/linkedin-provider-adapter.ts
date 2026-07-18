@@ -103,10 +103,14 @@ export type LinkedInProviderAdapterConfig = {
    * injected at the composition root — the ONLY thing that resolves the
    * trusted R2 public base URL this adapter's image-trust check compares
    * against. Optional (mirroring the `capabilities.consumes` `news_media`
-   * `optional: true` declaration): when ABSENT (or `news_portal` is
-   * disabled), every image URL is treated as untrusted and the adapter
-   * degrades to a link-share post — the exact same safe fallback an unset
-   * `NEWS_MEDIA_R2_PUBLIC_BASE_URL` already produced. This replaces the
+   * `optional: true` declaration): when ABSENT, every image URL is treated
+   * as untrusted and the adapter degrades to a link-share post — the exact
+   * same safe fallback an unset `NEWS_MEDIA_R2_PUBLIC_BASE_URL` already
+   * produced. Whether a given TENANT has `news_portal` enabled does NOT
+   * decide this: the port and the R2 base URL are DEPLOYMENT-wide config, and
+   * the real publish path always injects the port, so a verified R2 image is
+   * uploaded regardless of a single tenant's `news_portal` toggle. This
+   * replaces the
    * former static `import { resolveNewsMediaR2Config } from
    * "../../news-portal/domain/news-media-r2-config"`, which had forced
    * `news_portal` to be a HARD lifecycle dependency of `social_publishing`.

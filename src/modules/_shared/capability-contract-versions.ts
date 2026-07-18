@@ -50,8 +50,17 @@
  */
 export const CAPABILITY_CONTRACT_VERSIONS: Readonly<Record<string, string>> =
   Object.freeze({
-    // news_portal provides — consumed by blog_content (ADR-0011).
-    news_media: "1.0.0",
+    // news_portal provides — consumed by blog_content (ADR-0011) and, since
+    // Issue #859 (epic #818), social_publishing. Bumped 1.0.0 -> 1.1.0 in that
+    // same issue: the port interface (`_shared/ports/news-media-port.ts`)
+    // gained the additive `resolveMediaPublicBaseUrl` method (the config
+    // resolver social_publishing's LinkedIn adapter now consumes through the
+    // port instead of a static `resolveNewsMediaR2Config` import). A MINOR
+    // bump per this registry's own rule — additive to the port surface,
+    // backward-compatible for every existing consumer written against 1.0.0
+    // (`isVersionSupported`: declared.minor <= actual.minor), while a consumer
+    // that needs the new method can now correctly `requires` news_media 1.1.0.
+    news_media: "1.1.0",
     // blog_content provides — consumed by news_portal (ADR-0011) and
     // social_publishing.
     public_content: "1.0.0",

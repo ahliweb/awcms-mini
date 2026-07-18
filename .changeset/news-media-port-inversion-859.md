@@ -24,9 +24,17 @@ di-inject atau `NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong, `publicBaseUrl` menjadi
 string kosong → semua gambar dianggap tak terpercaya → degradasi aman ke
 link-share (perilaku fallback yang sama seperti sebelumnya).
 
-Dampak: edge `social_publishing -> news_portal` dihapus dari `dependencies`.
-`news_portal` kembali optional/disableable per tenant selama `social_publishing`
-aktif (post gambar terdegradasi ke link-share bila `news_portal` mati).
+Dampak: edge `social_publishing -> news_portal` dihapus dari `dependencies`
+(perubahan lifecycle — tenant kini boleh disable `news_portal` selagi
+`social_publishing` aktif tanpa blok reverse-dependency). Kepercayaan/upload
+gambar tetap DEPLOYMENT-WIDE (bucket R2 + `NEWS_MEDIA_R2_PUBLIC_BASE_URL` level
+deployment, port di-inject process-wide di dispatcher) — identik dengan
+perilaku pra-#859; degradasi ke link-share terjadi hanya bila port tak
+di-inject atau R2 base URL kosong, BUKAN karena tenant mematikan `news_portal`.
+Versi kontrak kapabilitas `news_media` di `capability-contract-versions.ts`
+dinaikkan `1.0.0` → `1.1.0` (penambahan method additive
+`resolveMediaPublicBaseUrl` pada port; MINOR/backward-compatible) agar app
+turunan bisa mendeklarasikan `requires news_media 1.1.0`.
 `social_publishing -> blog_content` TETAP dependency HARD (tidak diubah).
 `isTrustedR2MediaUrl` kini fungsi murni `(url, publicBaseUrl)` (signature
 berubah, hanya dipakai internal + unit test). Gate declared-dependency #826/#845

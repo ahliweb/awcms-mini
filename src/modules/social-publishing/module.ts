@@ -25,11 +25,20 @@ export const socialPublishingModule = defineModule({
   // (`news_media`, `optional: true`). Issue #859 routes that config
   // resolution through `NewsMediaPort.resolveMediaPublicBaseUrl` (injected at
   // the composition root, exactly like `resolveMediaReferences`), so
-  // `news_portal` is a genuinely OPTIONAL capability again: a tenant may
-  // disable `news_portal` while `social_publishing` stays enabled (image
-  // posts simply degrade to link-share, the same safe fallback an unset R2
-  // base URL already produced). All declared edges keep `modules:dag:check`
-  // acyclic (none depend back on `social_publishing`).
+  // `news_portal` is a genuinely OPTIONAL capability again. Removing the edge
+  // is a LIFECYCLE change: a tenant may now disable `news_portal` while
+  // `social_publishing` stays enabled WITHOUT a reverse-dependency block, and
+  // social publishing keeps working. NOTE (deliberate, not a gap): image
+  // trust/upload is a DEPLOYMENT-WIDE property, not per-tenant — the R2 bucket
+  // and `NEWS_MEDIA_R2_PUBLIC_BASE_URL` are single deployment-level config, so
+  // `scripts/social-publish-dispatch.ts` injects the port process-wide and an
+  // already-verified R2 image is still uploaded regardless of any single
+  // tenant's `news_portal` enablement — identical to the pre-#859 behaviour,
+  // which read the same deployment env. Degradation to a link-share post
+  // happens when the port is not injected (non-publishing processes such as
+  // the SSR verify route) or the deployment has no R2 base URL configured —
+  // NOT because a tenant toggled `news_portal` off. All declared edges keep
+  // `modules:dag:check` acyclic (none depend back on `social_publishing`).
   dependencies: ["tenant_admin", "identity_access", "blog_content", "logging"],
   type: "domain",
   // Consumes `blog_content`'s `public_content` capability is NOT declared
