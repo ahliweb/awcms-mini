@@ -227,7 +227,29 @@ dokumen ini, yang keliru mengklaim keduanya identik):
   **tidak** memvalidasi protokol. Ini justru persis kelas pengecekan
   lemah yang pelajaran Issue #635 hindari untuk Meta — belum
   di-hardening ke pola `URL.host` yang sama (dicatat sebagai gap nyata,
-  bukan diklaim sudah setara).
+  bukan diklaim sudah setara). **Issue #859 (epic #818)**: `publicBaseUrl`
+  sekarang di-resolve lewat `NewsMediaPort.resolveMediaPublicBaseUrl`
+  (di-inject di composition root `scripts/social-publish-dispatch.ts`),
+  **bukan** lagi lewat import statis
+  `news-portal/domain/news-media-r2-config.ts`'s `resolveNewsMediaR2Config`.
+  Import statis itulah satu-satunya penyebab `social_publishing` dulu harus
+  mendeklarasikan `news_portal` sebagai dependency HARD — yang bertentangan
+  dengan `capabilities.consumes` (`news_media`, `optional: true`) modul ini
+  sendiri. Setelah inversi port, penghapusan edge itu adalah perubahan
+  **lifecycle**: sebuah tenant kini boleh men-disable `news_portal` selagi
+  `social_publishing` tetap aktif TANPA blok reverse-dependency, dan social
+  publishing tetap berjalan. **Kepercayaan/upload gambar bersifat
+  DEPLOYMENT-WIDE, bukan per-tenant** — bucket R2 dan
+  `NEWS_MEDIA_R2_PUBLIC_BASE_URL` adalah satu config level-deployment, jadi
+  dispatcher (`scripts/social-publish-dispatch.ts`) menyuntikkan port
+  process-wide dan gambar R2 yang sudah `verified` tetap diunggah tanpa
+  memandang status `news_portal` per tenant mana pun (identik dengan
+  perilaku pra-#859 yang membaca env deployment yang sama; #859 tidak
+  mengubah tenant-awareness jalur gambar sama sekali). Degradasi ke
+  link-share terjadi bila port tidak di-inject (mis. proses SSR verify yang
+  tak pernah publish) atau `NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong sehingga
+  `publicBaseUrl` menjadi string kosong → semua gambar dianggap tak
+  terpercaya — **bukan** karena sebuah tenant mematikan `news_portal`.
 
 Kedua pengecekan tetap murni **defense-in-depth** (bukan mekanisme
 enforcement baru — data sudah diverifikasi lebih dulu oleh

@@ -13,30 +13,33 @@ describe("social_publishing module descriptor (Issue #643)", () => {
     expect(socialPublishingModule.key).toBe("social_publishing");
     expect(socialPublishingModule.status).toBe("active");
     expect(socialPublishingModule.type).toBe("domain");
-    // Issue #845 (epic #818) declared three previously-undeclared real value
-    // imports the #826/#845 declared-dependency gate now demands:
+    // Issue #845 (epic #818) declared real value imports the #826/#845
+    // declared-dependency gate demands:
     //  - `application/social-publishing-port-adapter.ts` imports
     //    `blog_content`'s `fetchEffectivePublicRouteSettings` (resolves the
     //    canonical `publicBasePath` for a published article's social link);
-    //  - `infrastructure/linkedin-provider-adapter.ts` imports
-    //    `news_portal`'s `resolveNewsMediaR2Config` (R2 public base URL for
-    //    the image the LinkedIn post references);
     //  - several `application/*` files call `logging`'s `recordAuditEvent`.
+    // Both make `blog_content`/`logging` HARD lifecycle dependencies.
     //
-    // Declaring `blog_content`/`news_portal` makes them HARD lifecycle
-    // dependencies: with social_publishing enabled (the default), a tenant
-    // can no longer disable blog_content or news_portal until it first
-    // disables social_publishing. That reverse-dependency constraint is
-    // accepted as correct new behaviour per epic #818's Opsi A — social
-    // publishing exists to fan a tenant's published blog/news content out to
-    // social channels and genuinely cannot run without those content
-    // modules. All three edges keep `modules:dag:check` acyclic (none depend
-    // back on social_publishing).
+    // `news_portal` is DELIBERATELY ABSENT (Issue #859, epic #818). #845 had
+    // declared it solely because `infrastructure/linkedin-provider-adapter.ts`
+    // statically imported `news_portal`'s `resolveNewsMediaR2Config` (the R2
+    // public base URL for a LinkedIn image post) — a single edge that
+    // directly contradicted this module's own `capabilities.consumes`
+    // declaration (`news_media`, `optional: true`). #859 routes that config
+    // read through `NewsMediaPort.resolveMediaPublicBaseUrl`, injected at the
+    // composition root exactly like `resolveMediaReferences`, so the static
+    // cross-module import is gone and `news_portal` is optional/disableable
+    // per tenant again (image posts degrade to link-share when it is off).
+    // The remaining edges keep `modules:dag:check` acyclic (none depend back
+    // on social_publishing). See the `capabilities.consumes` assertion below:
+    // consuming `news_media` optionally is now consistent with NOT declaring
+    // `news_portal` a hard dependency — that consistency is the whole point of
+    // #859.
     expect(socialPublishingModule.dependencies).toEqual([
       "tenant_admin",
       "identity_access",
       "blog_content",
-      "news_portal",
       "logging"
     ]);
   });

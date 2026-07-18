@@ -53,6 +53,7 @@
  */
 import { isFullOnlineR2ModeAppliedForTenant } from "./news-portal-tenant-state";
 import { evaluateNewsPortalFullOnlineR2Readiness } from "../domain/news-portal-preset-readiness";
+import { resolveNewsMediaR2Config } from "../domain/news-media-r2-config";
 import {
   fetchNewsMediaObjectById,
   fetchNewsMediaObjectsByIds,
@@ -118,5 +119,15 @@ export const newsMediaPortAdapter: NewsMediaPort = {
     }
 
     return resolved;
+  },
+
+  resolveMediaPublicBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
+    // Issue #859 (epic #818): the config-resolution capability the LinkedIn
+    // provider adapter (social_publishing) consumes through this port instead
+    // of importing `resolveNewsMediaR2Config` statically — which had forced
+    // `news_portal` to be a HARD dependency of `social_publishing`. The
+    // config knowledge (the `NEWS_MEDIA_R2_*` var naming/defaults, its
+    // deliberate deviations) stays here, in `news_portal`, where it belongs.
+    return resolveNewsMediaR2Config(env).publicBaseUrl;
   }
 };

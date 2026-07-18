@@ -69,4 +69,27 @@ export type NewsMediaPort = {
     tenantId: string,
     mediaObjectIds: readonly string[]
   ): Promise<ReadonlyMap<string, ResolvedNewsMediaReferenceDTO>>;
+
+  /**
+   * The deployment-configured public base URL that verified news-media R2
+   * objects are served from (empty string when unset). A PURE config read —
+   * no DB, no tenant scope — the config-resolution half of the `news_media`
+   * capability, deliberately synchronous so a consumer can call it inline in
+   * a hot path. Lets a consumer recognise a URL that genuinely originated
+   * from this deployment's own trusted R2 bucket (e.g. the LinkedIn provider
+   * adapter's last-mile "is this image safe to hand a third-party API"
+   * defense-in-depth check) WITHOUT statically importing `news_portal`'s
+   * config module.
+   *
+   * Issue #859 (epic #818): that static import
+   * (`social-publishing/infrastructure/linkedin-provider-adapter.ts` ->
+   * `news-portal/domain/news-media-r2-config.ts`'s `resolveNewsMediaR2Config`)
+   * was the SOLE reason `social_publishing` had to declare `news_portal` a
+   * HARD lifecycle dependency, directly contradicting its own
+   * `capabilities.consumes` (`news_media`, `optional: true`). Routing it
+   * through this port (injected at the composition root, exactly like
+   * `resolveMediaReferences`) makes `news_portal` genuinely optional/
+   * disableable per tenant again.
+   */
+  resolveMediaPublicBaseUrl(env?: NodeJS.ProcessEnv): string;
 };

@@ -11,8 +11,37 @@ import {
   resetSocialProviderRegistryForTests
 } from "../../src/modules/social-publishing/infrastructure/social-provider-registry";
 import type { SocialProviderPublishRequest } from "../../src/modules/social-publishing/domain/social-provider-adapter";
+import type {
+  NewsMediaPort,
+  ResolvedNewsMediaReferenceDTO
+} from "../../src/modules/_shared/ports/news-media-port";
 
 const TEST_TOKEN = "fake-bearer-token-value-1234567890";
+
+/**
+ * Minimal fake of `news_portal`'s `news_media` capability (Issue #859):
+ * the LinkedIn adapter only ever calls `resolveMediaPublicBaseUrl` to decide
+ * whether an image URL is trusted, so the DB-backed methods are inert. This
+ * stands in for the real `newsMediaPortAdapter` the dispatch composition root
+ * injects, so these tests exercise the trusted-image path without a static
+ * cross-module import.
+ */
+function fakeMediaPort(publicBaseUrl: string): NewsMediaPort {
+  return {
+    async isFullOnlineR2ModeActiveForTenant() {
+      return false;
+    },
+    async isMediaReferenceSafe() {
+      return false;
+    },
+    async resolveMediaReferences() {
+      return new Map<string, ResolvedNewsMediaReferenceDTO>();
+    },
+    resolveMediaPublicBaseUrl() {
+      return publicBaseUrl;
+    }
+  };
+}
 
 function buildEnv(
   overrides: NodeJS.ProcessEnv = {} as NodeJS.ProcessEnv
@@ -562,27 +591,31 @@ describe("publish — secret redaction (Issue #645)", () => {
   });
 });
 
-describe("isTrustedR2MediaUrl (Issue #645)", () => {
-  test("true only when the URL starts with the configured R2 public base URL", () => {
-    const env = {
-      NEWS_MEDIA_R2_PUBLIC_BASE_URL: "https://media.example.com"
-    } as NodeJS.ProcessEnv;
-
-    expect(
-      isTrustedR2MediaUrl("https://media.example.com/photo.jpg", env)
-    ).toBe(true);
-    expect(
-      isTrustedR2MediaUrl("https://attacker.example.com/photo.jpg", env)
-    ).toBe(false);
-  });
-
-  test("false when NEWS_MEDIA_R2_PUBLIC_BASE_URL is unset", () => {
+describe("isTrustedR2MediaUrl (Issue #645, signature updated #859)", () => {
+  // Issue #859 (epic #818): `isTrustedR2MediaUrl` is now a pure
+  // (url, publicBaseUrl) prefix check — the public base URL is resolved by
+  // the injected `NewsMediaPort` at the composition root, NOT read from a
+  // static `resolveNewsMediaR2Config(env)` cross-module import. That removes
+  // the sole `social_publishing -> news_portal` import edge.
+  test("true only when the URL starts with the given R2 public base URL", () => {
     expect(
       isTrustedR2MediaUrl(
         "https://media.example.com/photo.jpg",
-        {} as NodeJS.ProcessEnv
+        "https://media.example.com"
+      )
+    ).toBe(true);
+    expect(
+      isTrustedR2MediaUrl(
+        "https://attacker.example.com/photo.jpg",
+        "https://media.example.com"
       )
     ).toBe(false);
+  });
+
+  test("false when the public base URL is empty (port not injected / R2 unconfigured)", () => {
+    expect(isTrustedR2MediaUrl("https://media.example.com/photo.jpg", "")).toBe(
+      false
+    );
   });
 });
 
@@ -611,12 +644,13 @@ describe("publish — R2 image validation (Issue #645)", () => {
       }
     });
 
-    const env = buildEnv({
-      NEWS_MEDIA_R2_PUBLIC_BASE_URL: `http://127.0.0.1:${server.port}`
-    } as NodeJS.ProcessEnv);
+    const env = buildEnv();
     const adapter = createLinkedInProviderAdapter({
       apiBaseUrl: `http://127.0.0.1:${server.port}`,
-      env
+      env,
+      // Trusted base IS configured (via the injected port, Issue #859) — the
+      // image below still mismatches it, so it must be treated as untrusted.
+      mediaPort: fakeMediaPort(`http://127.0.0.1:${server.port}`)
     });
 
     const result = await adapter.publish(
@@ -633,6 +667,72 @@ describe("publish — R2 image validation (Issue #645)", () => {
 
     expect(result.outcome).toBe("published");
     expect(calledPathnames).not.toContain("/rest/images");
+  });
+
+  test("no mediaPort injected at all — a valid image URL still degrades to a link-share post (Issue #859 core safety guarantee)", async () => {
+    // The core guarantee of the #859 port inversion: when the composition
+    // root does NOT inject a `NewsMediaPort` (e.g. the SSR verify path, or a
+    // deployment with `news_portal` disabled), `resolveMediaPublicBaseUrl` is
+    // never called, the trusted base URL is `""`, EVERY image is untrusted,
+    // and the adapter must degrade to a link-share post — never uploading an
+    // image, never emitting `content.media`. This exercises `mediaPort ===
+    // undefined` directly with a non-null `imageUrl` (previously only covered
+    // transitively).
+    const calledPathnames: string[] = [];
+    const captured: { postsBody: string | null } = { postsBody: null };
+
+    using server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const pathname = new URL(request.url).pathname;
+        calledPathnames.push(pathname);
+
+        if (pathname === "/rest/organizationAcls") {
+          return Response.json({
+            elements: [{ role: "ADMINISTRATOR", state: "APPROVED" }]
+          });
+        }
+        if (pathname === "/rest/posts") {
+          captured.postsBody = await request.text();
+          return new Response(null, {
+            status: 201,
+            headers: { "x-restli-id": "urn:li:share:no-port" }
+          });
+        }
+        return new Response("not found", { status: 404 });
+      }
+    });
+
+    const env = buildEnv();
+    // NO `mediaPort` — the whole point of this test.
+    const adapter = createLinkedInProviderAdapter({
+      apiBaseUrl: `http://127.0.0.1:${server.port}`,
+      env
+    });
+
+    const result = await adapter.publish(
+      buildRequest({
+        content: {
+          title: "Test",
+          excerptOrCaption: "Caption",
+          canonicalUrl: "https://news.example.com/news/test",
+          // A perfectly valid, non-null image URL — but with no port to
+          // resolve a trusted base against, it must still be treated as
+          // untrusted.
+          imageUrl: `http://127.0.0.1:${server.port}/would-be-image.jpg`
+        }
+      })
+    );
+
+    expect(result.outcome).toBe("published");
+    // Never attempted the image upload flow...
+    expect(calledPathnames).not.toContain("/rest/images");
+    // ...and posted a link-share (`content.article`), not an image post
+    // (`content.media`).
+    expect(captured.postsBody).not.toBeNull();
+    const postedBody = JSON.parse(captured.postsBody!);
+    expect(postedBody.content.article).toBeDefined();
+    expect(postedBody.content.media).toBeUndefined();
   });
 
   test("trusted R2 image URL triggers the real upload flow and an image-attached post", async () => {
@@ -690,12 +790,14 @@ describe("publish — R2 image validation (Issue #645)", () => {
 
     serverPort = server.port ?? 0;
 
-    const env = buildEnv({
-      NEWS_MEDIA_R2_PUBLIC_BASE_URL: `http://127.0.0.1:${server.port}`
-    } as NodeJS.ProcessEnv);
+    const env = buildEnv();
     const adapter = createLinkedInProviderAdapter({
       apiBaseUrl: `http://127.0.0.1:${server.port}`,
-      env
+      env,
+      // Trusted R2 public base URL supplied via the injected port (Issue
+      // #859) — the image below is served from it, so the real upload flow
+      // must run.
+      mediaPort: fakeMediaPort(`http://127.0.0.1:${server.port}`)
     });
 
     const result = await adapter.publish(

@@ -7,26 +7,39 @@ export const socialPublishingModule = defineModule({
   status: "active",
   description:
     "Provider-neutral social auto-posting outbox and connector foundation (Issue #643, epic `social_publishing` #643-#647). Full-online-only feature — see `domain/social-publishing-config.ts`'s `SOCIAL_PUBLISHING_ENABLED`/`SOCIAL_PUBLISHING_PROFILE` deployment gate (mirrors `AUTH_ONLINE_SECURITY_ENABLED`/`AUTH_ONLINE_SECURITY_PROFILE`'s established pattern), never applies to offline/LAN profiles. Adds account connections (`awcms_mini_social_accounts`, tokens stored only as opaque `token_reference` pointers into external secret storage — never plain-text), publish rules (`awcms_mini_social_publish_rules`, one per account/trigger-event, optional approval gate), caption templates (`awcms_mini_social_publish_templates`), an idempotent outbox (`awcms_mini_social_publish_jobs`, one row per article/account/action via a deterministic idempotency key), an append-only per-attempt audit trail (`awcms_mini_social_publish_attempts`), and a per-tenant auto-posting master switch (`awcms_mini_social_publishing_settings`). `domain/social-provider-adapter.ts` defines the pluggable interface and `infrastructure/social-provider-registry.ts` is the registry each adapter issue populates from its own composition root. Three real adapters are registered: Issue #644 adds `meta_facebook_page` (Facebook Page link posts) and `meta_instagram` (Instagram Business image posts), `infrastructure/meta/`, gated by their own adapter-level `META_PROVIDER_ENABLED` switch (independent of this module's deployment-wide gate); Issue #645 adds `linkedin_organization` (`infrastructure/linkedin-provider-adapter.ts`, conditional on `LINKEDIN_PROVIDER_ENABLED`); Issue #646 adds `telegram_channel` (`infrastructure/telegram-provider-adapter.ts`, gated by `TELEGRAM_PROVIDER_ENABLED`). Job creation (`application/create-social-publish-jobs.ts`) is invoked by `blog_content`'s publish route/scheduled-publish worker via the `SocialPublishingPort` (`_shared/ports/social-publishing-port.ts`) right after an ELIGIBLE (public + published, never draft/private/archived/review/soft-deleted) article publishes — plain DB outbox-row writes inside the SAME transaction (ADR-0006 compliant: no external call happens there). The actual provider call happens later, entirely outside any DB transaction, via `application/social-publish-dispatch.ts` (`bun run social-publishing:dispatch`) — a claim/call/finalize outbox dispatcher with per-provider circuit breaker, timeout, and exponential retry/backoff to a terminal `failed` state, mirroring `sync-storage/application/object-dispatch.ts`'s established shape. See `.claude/skills/awcms-mini-social-publishing/SKILL.md` for full design rationale.",
-  // `blog_content` + `news_portal` + `logging` declared for Issue #845
-  // (epic #818). All three are real value imports: `application/
-  // social-publishing-port-adapter.ts` calls `blog_content`'s
-  // `fetchEffectivePublicRouteSettings`, `infrastructure/
-  // linkedin-provider-adapter.ts` calls `news_portal`'s
-  // `resolveNewsMediaR2Config`, and several `application/*` files call
-  // `logging`'s `recordAuditEvent`. `blog_content`/`news_portal` are genuine
-  // lifecycle dependencies — social publishing exists to fan a tenant's
-  // published blog/news content out to social channels, so it cannot run
-  // without those content modules present; the resulting reverse-dependency
-  // constraint (a tenant may not disable blog_content/news_portal while
-  // social_publishing is enabled) is correct, not incidental. All three keep
+  // `blog_content` + `logging` are real value imports and genuine HARD
+  // lifecycle dependencies: `application/social-publishing-port-adapter.ts`
+  // calls `blog_content`'s `fetchEffectivePublicRouteSettings`, and several
+  // `application/*` files call `logging`'s `recordAuditEvent`. `blog_content`
+  // stays a hard dependency (defensible — social publishing exists to fan a
+  // tenant's published content out to social channels; the resulting
+  // reverse-dependency constraint, a tenant may not disable blog_content
+  // while social_publishing is enabled, is correct).
+  //
+  // `news_portal` is DELIBERATELY NOT declared here (Issue #859, epic #818).
+  // It was added in #845 solely because `infrastructure/
+  // linkedin-provider-adapter.ts` statically imported `news_portal`'s
+  // `resolveNewsMediaR2Config` — a single pure config getter for the R2
+  // public base URL. That static import was the ONLY thing forcing the edge,
+  // and it directly contradicted this module's own `capabilities.consumes`
+  // (`news_media`, `optional: true`). Issue #859 routes that config
+  // resolution through `NewsMediaPort.resolveMediaPublicBaseUrl` (injected at
+  // the composition root, exactly like `resolveMediaReferences`), so
+  // `news_portal` is a genuinely OPTIONAL capability again. Removing the edge
+  // is a LIFECYCLE change: a tenant may now disable `news_portal` while
+  // `social_publishing` stays enabled WITHOUT a reverse-dependency block, and
+  // social publishing keeps working. NOTE (deliberate, not a gap): image
+  // trust/upload is a DEPLOYMENT-WIDE property, not per-tenant — the R2 bucket
+  // and `NEWS_MEDIA_R2_PUBLIC_BASE_URL` are single deployment-level config, so
+  // `scripts/social-publish-dispatch.ts` injects the port process-wide and an
+  // already-verified R2 image is still uploaded regardless of any single
+  // tenant's `news_portal` enablement — identical to the pre-#859 behaviour,
+  // which read the same deployment env. Degradation to a link-share post
+  // happens when the port is not injected (non-publishing processes such as
+  // the SSR verify route) or the deployment has no R2 base URL configured —
+  // NOT because a tenant toggled `news_portal` off. All declared edges keep
   // `modules:dag:check` acyclic (none depend back on `social_publishing`).
-  dependencies: [
-    "tenant_admin",
-    "identity_access",
-    "blog_content",
-    "news_portal",
-    "logging"
-  ],
+  dependencies: ["tenant_admin", "identity_access", "blog_content", "logging"],
   type: "domain",
   // Consumes `blog_content`'s `public_content` capability is NOT declared
   // here — the composition root (route/script) already has the published

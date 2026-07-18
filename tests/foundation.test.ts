@@ -192,22 +192,21 @@ describe("module registry", () => {
       key: "social_publishing",
       status: "active",
       type: "domain",
-      // Issue #845 (epic #818): `blog_content` + `news_portal` + `logging`
-      // newly declared, all real value imports — `application/
-      // social-publishing-port-adapter.ts` imports `blog_content`'s
-      // `fetchEffectivePublicRouteSettings`, `infrastructure/
-      // linkedin-provider-adapter.ts` imports `news_portal`'s
-      // `resolveNewsMediaR2Config`, and several `application/*` files call
-      // `logging`'s `recordAuditEvent`. `blog_content`/`news_portal` are HARD
-      // lifecycle dependencies now, which means a tenant may no longer
-      // disable either while social_publishing is enabled — accepted as
-      // correct new behaviour per epic #818's Opsi A (a content-fan-out
-      // module genuinely needs its content sources present).
+      // Issue #845 (epic #818) declared `blog_content` + `logging` (real
+      // value imports: `application/social-publishing-port-adapter.ts`
+      // imports `blog_content`'s `fetchEffectivePublicRouteSettings`, several
+      // `application/*` files call `logging`'s `recordAuditEvent`) — both HARD
+      // lifecycle dependencies. `news_portal` was ALSO declared in #845 but
+      // Issue #859 REMOVED it: its sole cause was a static
+      // `linkedin-provider-adapter.ts` -> `resolveNewsMediaR2Config` import,
+      // now routed through `NewsMediaPort.resolveMediaPublicBaseUrl` (injected
+      // at the composition root). `news_portal` is a genuinely OPTIONAL
+      // `news_media` capability again — a tenant may disable `news_portal`
+      // while `social_publishing` stays enabled.
       dependencies: [
         "tenant_admin",
         "identity_access",
         "blog_content",
-        "news_portal",
         "logging"
       ]
     });
