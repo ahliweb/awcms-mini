@@ -1702,9 +1702,14 @@ components:
           nullable: true
     ReferenceDataUpdateValueSetRequest:
       type: object
-      required:
-        - name
       additionalProperties: false
+      description: >-
+        Issue #837 -- true partial-PATCH body. Every property is optional: an
+        ABSENT property keeps its stored value. description sent as explicit null
+        CLEARS it. name is NOT NULL, so an explicit null is rejected 400 -- omit
+        it to keep the stored value rather than nulling it. The pre-#837 route
+        defaulted an omitted description to null, so a PATCH that changed only
+        name silently cleared the stored description.
       properties:
         name:
           type: string
