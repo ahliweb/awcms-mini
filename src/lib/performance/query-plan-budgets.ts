@@ -183,7 +183,13 @@ export const QUERY_PLAN_BUDGETS: QueryPlanBudget[] = [
     // independent reproductions, 1132.46) while still failing hard on an
     // actual regression (e.g. a dropped index) — those spike into the
     // tens of thousands via a forbidden Seq Scan, not a few hundred
-    // points of cost.
+    // points of cost. Issue #849 (epic #818) makes this measurement
+    // deterministic rather than autovacuum-timing-dependent: the check
+    // now forces an owner `ANALYZE` before evaluating (verified via
+    // pg_stat_user_tables.analyze_count — src/lib/performance/
+    // analyze-fixtures.ts), so this budget's evaluated cost is the real
+    // accurately-analyzed ~1132, every run, not the lucky-snapshot ~11
+    // this comment's history warns about.
     maxTotalCost: 1300,
     maxExecutionTimeMs: 80,
     approval: {

@@ -158,7 +158,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OrganizationStructureCreateLegalEntityRequest"
+              $ref: "#/components/schemas/OrganizationStructureUpdateLegalEntityRequest"
       responses:
         "200":
           description: Legal entity updated.
@@ -458,18 +458,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [name]
-              additionalProperties: false
-              properties:
-                name:
-                  type: string
-                  minLength: 1
-                  maxLength: 200
-                description:
-                  type: string
-                  nullable: true
-                  maxLength: 2000
+              $ref: "#/components/schemas/OrganizationStructureUpdateUnitTypeRequest"
       responses:
         "200":
           description: Organization-unit type updated.
@@ -1298,7 +1287,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/OrganizationStructureCreateLocationRequest"
+              $ref: "#/components/schemas/OrganizationStructureUpdateLocationRequest"
       responses:
         "200":
           description: Operational location updated.
@@ -1911,14 +1900,67 @@ components:
         effectiveTo: { type: string, format: date-time, nullable: true }
     OrganizationStructureUpdateUnitRequest:
       type: object
-      required: [name]
       additionalProperties: false
+      description: >-
+        Issue #837 -- true partial-PATCH body. Every property is optional: an
+        ABSENT property keeps its stored value. A nullable property sent as
+        explicit null CLEARS it (legalEntityId/unitTypeId -> null, effectiveTo ->
+        open-ended). name and effectiveFrom are NOT NULL, so an explicit null for
+        either is rejected 400 -- omit them to keep the stored value rather than
+        nulling them.
       properties:
         name: { type: string, minLength: 1, maxLength: 200 }
         legalEntityId: { type: string, format: uuid, nullable: true }
         unitTypeId: { type: string, format: uuid, nullable: true }
         effectiveFrom: { type: string, format: date-time }
         effectiveTo: { type: string, format: date-time, nullable: true }
+    OrganizationStructureUpdateLegalEntityRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Issue #837 -- true partial-PATCH body. Every property is optional: an
+        ABSENT property keeps its stored value. A nullable property sent as
+        explicit null CLEARS it (registrationIdentifier[Label] -> null,
+        effectiveTo -> open-ended). name and effectiveFrom are NOT NULL, so an
+        explicit null for either is rejected 400 -- omit them to keep the stored
+        value rather than nulling them.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 300 }
+        registrationIdentifier: { type: string, nullable: true, maxLength: 200 }
+        registrationIdentifierLabel:
+          { type: string, nullable: true, maxLength: 120 }
+        effectiveFrom: { type: string, format: date-time }
+        effectiveTo: { type: string, format: date-time, nullable: true }
+    OrganizationStructureUpdateUnitTypeRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Issue #837 -- true partial-PATCH body. Every property is optional: an
+        ABSENT property keeps its stored value. description sent as explicit null
+        CLEARS it. name is NOT NULL, so an explicit null is rejected 400 -- omit
+        it to keep the stored value rather than nulling it.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, nullable: true, maxLength: 2000 }
+    OrganizationStructureUpdateLocationRequest:
+      type: object
+      additionalProperties: false
+      description: >-
+        Issue #837 -- true partial-PATCH body. Every property is optional: an
+        ABSENT property keeps its stored value. A nullable property sent as
+        explicit null CLEARS it (address/city/region/postalCode/countryCode/
+        latitude/longitude -> null). name is NOT NULL, so an explicit null is
+        rejected 400 -- omit it to keep the stored value rather than nulling it.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        addressLine1: { type: string, nullable: true, maxLength: 300 }
+        addressLine2: { type: string, nullable: true, maxLength: 300 }
+        city: { type: string, nullable: true, maxLength: 300 }
+        region: { type: string, nullable: true, maxLength: 300 }
+        postalCode: { type: string, nullable: true, maxLength: 300 }
+        countryCode: { type: string, nullable: true, pattern: "^[A-Z]{2}$" }
+        latitude: { type: number, nullable: true, minimum: -90, maximum: 90 }
+        longitude: { type: number, nullable: true, minimum: -180, maximum: 180 }
     OrganizationStructureTreeNode:
       type: object
       description: Issue #749 -- one node of the nested hierarchy tree.

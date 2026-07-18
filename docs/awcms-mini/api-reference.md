@@ -7297,7 +7297,7 @@ High-risk mutation -- requires Idempotency-Key, audited critical, rejects self-p
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
-**Request body** (required): [`OrganizationStructureCreateLegalEntityRequest`](#schema-organizationstructurecreatelegalentityrequest)
+**Request body** (required): [`OrganizationStructureUpdateLegalEntityRequest`](#schema-organizationstructureupdatelegalentityrequest)
 
 **Responses**
 
@@ -7530,7 +7530,7 @@ High-risk mutation -- requires Idempotency-Key.
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
-**Request body** (required): [`OrganizationStructureCreateLocationRequest`](#schema-organizationstructurecreatelocationrequest)
+**Request body** (required): [`OrganizationStructureUpdateLocationRequest`](#schema-organizationstructureupdatelocationrequest)
 
 **Responses**
 
@@ -7685,7 +7685,7 @@ High-risk mutation -- requires Idempotency-Key.
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
-**Request body** (required): object
+**Request body** (required): [`OrganizationStructureUpdateUnitTypeRequest`](#schema-organizationstructureupdateunittyperequest)
 
 **Responses**
 
@@ -14838,11 +14838,69 @@ Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
 }
 ```
 
+### Schema: OrganizationStructureUpdateLegalEntityRequest
+
+Issue #837 -- true partial-PATCH body. Every property is optional: an ABSENT property keeps its stored value. A nullable property sent as explicit null CLEARS it (registrationIdentifier[Label] -> null, effectiveTo -> open-ended). name and effectiveFrom are NOT NULL, so an explicit null for either is rejected 400 -- omit them to keep the stored value rather than nulling them.
+
+| Field                         | Type               | Required | Nullable | Description |
+| ----------------------------- | ------------------ | -------- | -------- | ----------- |
+| `name`                        | string             | no       | no       |             |
+| `registrationIdentifier`      | string             | no       | yes      |             |
+| `registrationIdentifierLabel` | string             | no       | yes      |             |
+| `effectiveFrom`               | string (date-time) | no       | no       |             |
+| `effectiveTo`                 | string (date-time) | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "registrationIdentifier": "string",
+  "registrationIdentifierLabel": "string",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: OrganizationStructureUpdateLocationRequest
+
+Issue #837 -- true partial-PATCH body. Every property is optional: an ABSENT property keeps its stored value. A nullable property sent as explicit null CLEARS it (address/city/region/postalCode/countryCode/ latitude/longitude -> null). name is NOT NULL, so an explicit null is rejected 400 -- omit it to keep the stored value rather than nulling it.
+
+| Field          | Type   | Required | Nullable | Description |
+| -------------- | ------ | -------- | -------- | ----------- |
+| `name`         | string | no       | no       |             |
+| `addressLine1` | string | no       | yes      |             |
+| `addressLine2` | string | no       | yes      |             |
+| `city`         | string | no       | yes      |             |
+| `region`       | string | no       | yes      |             |
+| `postalCode`   | string | no       | yes      |             |
+| `countryCode`  | string | no       | yes      |             |
+| `latitude`     | number | no       | yes      |             |
+| `longitude`    | number | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "addressLine1": "string",
+  "addressLine2": "string",
+  "city": "string",
+  "region": "string",
+  "postalCode": "string",
+  "countryCode": "string",
+  "latitude": -90,
+  "longitude": -180
+}
+```
+
 ### Schema: OrganizationStructureUpdateUnitRequest
+
+Issue #837 -- true partial-PATCH body. Every property is optional: an ABSENT property keeps its stored value. A nullable property sent as explicit null CLEARS it (legalEntityId/unitTypeId -> null, effectiveTo -> open-ended). name and effectiveFrom are NOT NULL, so an explicit null for either is rejected 400 -- omit them to keep the stored value rather than nulling them.
 
 | Field           | Type               | Required | Nullable | Description |
 | --------------- | ------------------ | -------- | -------- | ----------- |
-| `name`          | string             | yes      | no       |             |
+| `name`          | string             | no       | no       |             |
 | `legalEntityId` | string (uuid)      | no       | yes      |             |
 | `unitTypeId`    | string (uuid)      | no       | yes      |             |
 | `effectiveFrom` | string (date-time) | no       | no       |             |
@@ -14857,6 +14915,24 @@ Locale code (2-letter, e.g. "en", "id") to string. Must include an "en" entry.
   "unitTypeId": "00000000-0000-0000-0000-000000000000",
   "effectiveFrom": "2026-01-01T00:00:00.000Z",
   "effectiveTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: OrganizationStructureUpdateUnitTypeRequest
+
+Issue #837 -- true partial-PATCH body. Every property is optional: an ABSENT property keeps its stored value. description sent as explicit null CLEARS it. name is NOT NULL, so an explicit null is rejected 400 -- omit it to keep the stored value rather than nulling it.
+
+| Field         | Type   | Required | Nullable | Description |
+| ------------- | ------ | -------- | -------- | ----------- |
+| `name`        | string | no       | no       |             |
+| `description` | string | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "description": "string"
 }
 ```
 
@@ -15331,9 +15407,11 @@ Partial PATCH body. Every property is optional: a property that is ABSENT from t
 
 ### Schema: ReferenceDataUpdateValueSetRequest
 
+Issue #837 -- true partial-PATCH body. Every property is optional: an ABSENT property keeps its stored value. description sent as explicit null CLEARS it. name is NOT NULL, so an explicit null is rejected 400 -- omit it to keep the stored value rather than nulling it. The pre-#837 route defaulted an omitted description to null, so a PATCH that changed only name silently cleared the stored description.
+
 | Field         | Type   | Required | Nullable | Description |
 | ------------- | ------ | -------- | -------- | ----------- |
-| `name`        | string | yes      | no       |             |
+| `name`        | string | no       | no       |             |
 | `description` | string | no       | yes      |             |
 
 **Example**

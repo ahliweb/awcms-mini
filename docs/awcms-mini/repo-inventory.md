@@ -36,7 +36,7 @@
 
 ## Migrations
 
-77 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `077_awcms_mini_performance_missing_indexes.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
+78 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `078_awcms_mini_workflow_decisions_one_per_decider_unique.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -117,6 +117,7 @@
 | 075 | `075_awcms_mini_reference_data_schema.sql`                               |
 | 076 | `076_awcms_mini_reference_data_permissions.sql`                          |
 | 077 | `077_awcms_mini_performance_missing_indexes.sql`                         |
+| 078 | `078_awcms_mini_workflow_decisions_one_per_decider_unique.sql`           |
 
 ## Tables & Row-Level Security
 

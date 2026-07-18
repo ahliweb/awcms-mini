@@ -265,10 +265,19 @@ jobs:
       # bad plan lives in a dedicated integration test (never run as part
       # of this CI step, which only ever evaluates the real, currently-
       # registered budgets).
+      # Issue #849 (epic #818): `PERF_ANALYZE_DATABASE_URL` is the PRIVILEGED
+      # (migration-owner) role — the query-plan check refreshes planner
+      # statistics through it (`ANALYZE` needs table ownership; the app role's
+      # ANALYZE is silently skipped) while its EXPLAINs still run RLS-enforced
+      # as the least-privilege `awcms_mini_app` role in `DATABASE_URL`. The
+      # owner URL is the same non-secret dev default this job assembles for
+      # migrations (see "Assemble DATABASE_URL" above); without it the check
+      # now FAILS loudly rather than measuring budgets on stale statistics.
       - name: Performance query-plan budget check
         env:
           APP_ENV: test
           DATABASE_URL: "postgres://awcms_mini_app:ci-performance-app-role-password@localhost:5432/awcms-mini"
+          PERF_ANALYZE_DATABASE_URL: "postgres://awcms-mini:awcms_mini_password@localhost:5432/awcms-mini"
         run: bun run performance:query-plan:check -- --confirm-non-production=test
 
       - name: Build Astro foundation

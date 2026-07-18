@@ -32,10 +32,24 @@ export type ReleaseVerifyProblem = {
   message: string;
 };
 
-/** Accepts "v1.2.3", "refs/tags/v1.2.3", or a bare "1.2.3". */
+/**
+ * Extracts the bare "X.Y.Z" version from a release tag ref.
+ *
+ * The canonical tag this repo actually ships is the package-scoped tag
+ * Changesets emits for this private package — `awcms-mini@X.Y.Z` (Issue
+ * #825: `.changeset/config.json` `privatePackages.tag: true` +
+ * `.github/workflows/release.yml`'s `push: tags: awcms-mini@*` trigger).
+ * `refs/tags/` (raw `GITHUB_REF`) and a bare/`v`-prefixed form are also
+ * tolerated so a manually-typed `bun run release:verify awcms-mini@X.Y.Z`
+ * / `v X.Y.Z` / `X.Y.Z` all normalize identically.
+ *
+ * Accepts "awcms-mini@1.2.3", "refs/tags/awcms-mini@1.2.3", "v1.2.3",
+ * "refs/tags/v1.2.3", or a bare "1.2.3".
+ */
 export function normalizeTagVersion(tagRef: string): string {
   const withoutRefsPrefix = tagRef.replace(/^refs\/tags\//, "");
-  return withoutRefsPrefix.replace(/^v/, "");
+  const withoutPackagePrefix = withoutRefsPrefix.replace(/^awcms-mini@/, "");
+  return withoutPackagePrefix.replace(/^v/, "");
 }
 
 export function checkVersionMatchesTag(

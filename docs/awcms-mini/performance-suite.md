@@ -52,6 +52,8 @@ src/lib/performance/
   query-plan-budgets.ts      pure: versioned regression-budget registry +
                               EXPLAIN (FORMAT JSON) evaluator
   query-plan-runner.ts       I/O: runs EXPLAIN under RLS, rolled back always
+  analyze-fixtures.ts        I/O: owner ANALYZE + verify analyze_count
+                              advanced (Issue #849 — no silent no-op)
   workload.ts                I/O: one real, withTenant-gated operation per
                               work class (interactive/critical_transaction/
                               reporting/background_sync/maintenance)
@@ -270,61 +272,70 @@ test goes further and performs the real `DROP INDEX` (restoring it in a
 `finally`), which is the check Issue #838's own Definition of Done asks
 for.
 
-### Known limitation: the budgets' cost bound rides on stale statistics
+### Deterministic planner statistics (Issue #849)
 
-The `EXPLAIN` cost a budget compares against is only meaningful if
-PostgreSQL's planner statistics are accurate, and in this suite they
-generally are **not**:
+A budget's `EXPLAIN` cost — and, for the `admin_list` budgets, even its
+plan SHAPE — is only meaningful if PostgreSQL's planner statistics are
+accurate. Before Issue #849 (epic #818) they were **not deterministically
+so**, and the budgets passed or failed by accident of autovacuum timing:
 
-- Both scripts and the integration harness run as the least-privilege
-  `awcms_mini_app` role, which does not own these tables. PostgreSQL
-  **skips** an `ANALYZE` of a table the role does not own with a WARNING,
-  not an error — so `beforeAll`'s `ANALYZE` in
-  `performance-query-plan-check.integration.test.ts` is a silent no-op
-  (verified against `pg_stat_user_tables.last_analyze`, which never
-  changes).
-- Issue #782 already root-caused the same class of problem for
-  `audit-events-tenant-activity-reporting` (~11 pre-ANALYZE vs ~1088 once
-  autovacuum catches up).
+- Both scripts and the integration harness run their queries as the
+  least-privilege `awcms_mini_app` role (correctly — so FORCE'd RLS is
+  exercised), which does not own these tables. PostgreSQL **silently
+  skips** an `ANALYZE` of a table the issuing role does not own — a
+  WARNING, never an error, exit status success — so `beforeAll`'s
+  `ANALYZE` in `performance-query-plan-check.integration.test.ts` was a
+  no-op (verified against `pg_stat_user_tables`, whose `analyze_count`
+  never advanced), and the script never issued an `ANALYZE` at all.
+- The check then rode on whatever stale/absent statistics happened to be
+  in place. Measured both directions of the resulting flake at the `safe`
+  scale: the `admin_list` budgets go RED with a spurious `Sort` under
+  absent column statistics, and `blog-posts-fulltext-search` goes RED at
+  ~874 (vs its 800 budget) on the bloated post-`DELETE` script path until
+  autovacuum's background `ANALYZE` happens to catch up.
 
-Consequences worth knowing before trusting or recalibrating any number
-here:
+**The fix** (`src/lib/performance/analyze-fixtures.ts`,
+`analyzeQueryPlanFixtures`): refresh statistics through a PRIVILEGED
+(table-owner) connection before evaluating, and PROVE it worked by
+asserting `pg_stat_user_tables.analyze_count` strictly advanced for every
+driving table — throwing (test: `beforeAll` fails; script: exit 1 with an
+actionable message) if any `ANALYZE` was silently skipped. The integration
+harness passes `getAdminSql()`; the script reads `PERF_ANALYZE_DATABASE_URL`
+(an owner/superuser URL), falling back to `DATABASE_URL`. There is no
+silent no-op path left.
 
-- Plan-SHAPE assertions survive a bad statistics regime; cost assertions
-  do not. Measured: with the index dropped, the same regression costs
-  939.88 against an accurately-ANALYZEd database but ~8 in the integration
-  suite — while the `Sort` node is present in **both**. This is the
-  concrete reason `admin_list` budgets lead with shape.
-- **`CREATE INDEX` half-fixes the statistics, and that is worse than not
-  fixing them.** Building an index updates `pg_class.reltuples`/`relpages`
-  as a side effect (measured on `awcms_mini_blog_pages`: `-1/0` →
-  `2000/334`), so the planner suddenly knows the real row count while
-  still having **zero** column statistics. For the blog admin lists that
-  half-informed state is the only one in which the budget's own index
-  loses:
+Once statistics are accurate the existing budgets are correct as-is — no
+threshold change was needed. Measured at the `safe` scale with a verified
+owner `ANALYZE` (both the clean single-seed and the accumulated CI
+script-path regimes):
 
-  | `pg_class` state                          | plan                                    | cost  |
-  | ----------------------------------------- | --------------------------------------- | ----- |
-  | `reltuples=-1` (pristine, never analyzed) | `Index Scan(..._tenant_updated_idx)`    | 8.3   |
-  | `reltuples` real, ZERO column statistics  | `Sort` + `Scan(..._tenant_deleted_idx)` | 8.19  |
-  | fully `ANALYZE`d (any real deployment)    | `Index Scan(..._tenant_updated_idx)`    | 57.17 |
+| budget                              | accurate cost | `maxTotalCost` |
+| ----------------------------------- | ------------: | -------------: |
+| `blog-posts-fulltext-search`        |     472 – 667 |            800 |
+| `audit-events-tenant-activity-…`    |    562 – 1132 |           1300 |
+| `blog-posts-admin-list` / `-pages-` |       57 – 71 |            200 |
 
-  The two plans are tied to within ~1%, so the planner takes the
-  marginally cheaper one — a coin flip, not a judgement. The middle row
-  does not occur in any real database (autovacuum's ANALYZE produces the
-  third), and it is the reason the `DROP INDEX` proof asserts its
-  restoration against `pg_indexes.indexdef` rather than by re-running
-  `EXPLAIN`: restoring an index is a schema fact, so it is asserted as
-  one.
+(The earlier note that `blog-posts-fulltext-search` was "latently red at
+939.5 vs 800" once statistics became accurate did **not** reproduce —
+accurate-statistics cost never exceeds ~667 for that query at this scale.
+The ~874 figure only exists in the _stale_, no-`ANALYZE` regime this fix
+eliminates.)
 
-- `blog-posts-fulltext-search` currently passes CI only because of this.
-  Against a `VACUUM FULL ANALYZE`d database at the same `safe` scale it
-  measures **939.5 against its approved `maxTotalCost` of 800** — i.e. it
-  is latently red and would fail the moment the statistics become
-  accurate. Fixing the no-op `ANALYZE` therefore requires recalibrating
-  that budget in the same reviewed change (an approved threshold change,
-  per the governance rule above) and is deliberately NOT bundled into
-  Issue #838.
+With accurate statistics the `DROP INDEX` adversarial proof now asserts
+BOTH dimensions: the index-present plan measures ~57 (`Index Scan`, green)
+and the dropped-index plan measures ~316–472 (`Bitmap Heap Scan` + `Sort`)
+against the 200 budget — so both the forbidden `Sort` node AND the cost
+overrun are checked, where before only the shape carried signal. The
+`admin_list` budgets still LEAD with plan shape (an index that stops
+serving the `ORDER BY` is the invariant they encode), but the cost bound
+is no longer worthless.
+
+Note on the restore assertion: `CREATE INDEX` refreshes
+`pg_class.reltuples`/`relpages` but NOT `pg_statistic` column histograms,
+so re-`EXPLAIN`ing immediately after the `finally`-block restore would run
+on half-refreshed statistics. The proof therefore asserts the restored
+index against `pg_indexes.indexdef` (a schema fact) rather than by
+re-running `EXPLAIN`.
 
 ## Machine-readable + human report artifacts
 

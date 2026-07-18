@@ -24,6 +24,7 @@
  *     [--seed=<string>] [--json-output=<path>]
  */
 import { getDatabaseClient } from "../src/lib/database/client";
+import { analyzeQueryPlanFixtures } from "../src/lib/performance/analyze-fixtures";
 import { buildFixturePlan } from "../src/lib/performance/fixture-generator";
 import {
   resetPerformanceFixtureRows,
@@ -106,6 +107,40 @@ async function main() {
   console.log(
     `performance-query-plan-check: seeded ${plan.tenants.length} tenants in ${seedSummary.durationMs.toFixed(0)}ms.\n`
   );
+
+  // Issue #849 (epic #818): refresh planner statistics DETERMINISTICALLY
+  // before evaluating budgets, so a budget's PASS/FAIL reflects a real
+  // measurement instead of whatever stale/absent statistics autovacuum
+  // happened (or failed) to refresh in time. `ANALYZE` requires table
+  // OWNERSHIP: issued on `sql` (the least-privilege `awcms_mini_app` role
+  // this script otherwise runs as, so its EXPLAINs stay RLS-enforced) it is
+  // SILENTLY skipped with only a WARNING. So run it on a separate PRIVILEGED
+  // (owner/superuser) connection and PROVE it advanced
+  // `pg_stat_user_tables.analyze_count` — `analyzeQueryPlanFixtures` throws
+  // otherwise, and this script then fails loudly rather than reporting
+  // budgets measured on stale statistics. In CI that privileged URL is
+  // `PERF_ANALYZE_DATABASE_URL` (the migration-owner role); it falls back to
+  // `DATABASE_URL` for the common case where the operator already points the
+  // script at an owning role.
+  const analyzeUrl = process.env.PERF_ANALYZE_DATABASE_URL ?? databaseUrl;
+  const analyzeSql = new Bun.SQL(analyzeUrl);
+  try {
+    const analyzeResults = await analyzeQueryPlanFixtures(analyzeSql);
+    console.log(
+      `performance-query-plan-check: refreshed planner statistics for ` +
+        `${analyzeResults.length} driving tables via ` +
+        `${process.env.PERF_ANALYZE_DATABASE_URL ? "PERF_ANALYZE_DATABASE_URL" : "DATABASE_URL"} ` +
+        `(analyze_count advanced on every table).\n`
+    );
+  } catch (error) {
+    console.error(
+      `\nperformance-query-plan-check: BLOCKED — ${(error as Error).message}\n`
+    );
+    process.exitCode = 1;
+    return;
+  } finally {
+    await analyzeSql.end();
+  }
 
   // A deterministic, non-noisy-neighbor tenant — representative of ordinary
   // per-tenant query volume rather than the deliberately skewed tenant.
