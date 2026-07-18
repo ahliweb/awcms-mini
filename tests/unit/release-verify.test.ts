@@ -14,6 +14,14 @@ describe("normalizeTagVersion", () => {
     expect(normalizeTagVersion("v1.2.3")).toBe("1.2.3");
     expect(normalizeTagVersion("1.2.3")).toBe("1.2.3");
   });
+
+  test("strips the changeset package-scoped 'awcms-mini@' prefix (Issue #825)", () => {
+    // The canonical tag `bun run changeset:tag` emits for this private
+    // package, and exactly what `release.yml`'s `awcms-mini@*` trigger
+    // fires on — GITHUB_REF arrives as refs/tags/awcms-mini@X.Y.Z.
+    expect(normalizeTagVersion("awcms-mini@0.24.0")).toBe("0.24.0");
+    expect(normalizeTagVersion("refs/tags/awcms-mini@0.24.0")).toBe("0.24.0");
+  });
 });
 
 describe("checkVersionMatchesTag", () => {
@@ -78,6 +86,17 @@ describe("runReleaseVerify", () => {
     const problems = runReleaseVerify({
       packageVersion: "0.24.0",
       tagRef: "v0.24.0",
+      changelogContent: "## [0.24.0] - 2026-07-12\n",
+      changesetFileNames: ["config.json", "README.md"]
+    });
+
+    expect(problems).toEqual([]);
+  });
+
+  test("accepts the real changeset-emitted tag 'awcms-mini@X.Y.Z' (Issue #825)", () => {
+    const problems = runReleaseVerify({
+      packageVersion: "0.24.0",
+      tagRef: "refs/tags/awcms-mini@0.24.0",
       changelogContent: "## [0.24.0] - 2026-07-12\n",
       changesetFileNames: ["config.json", "README.md"]
     });
