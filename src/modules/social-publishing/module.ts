@@ -7,7 +7,26 @@ export const socialPublishingModule = defineModule({
   status: "active",
   description:
     "Provider-neutral social auto-posting outbox and connector foundation (Issue #643, epic `social_publishing` #643-#647). Full-online-only feature — see `domain/social-publishing-config.ts`'s `SOCIAL_PUBLISHING_ENABLED`/`SOCIAL_PUBLISHING_PROFILE` deployment gate (mirrors `AUTH_ONLINE_SECURITY_ENABLED`/`AUTH_ONLINE_SECURITY_PROFILE`'s established pattern), never applies to offline/LAN profiles. Adds account connections (`awcms_mini_social_accounts`, tokens stored only as opaque `token_reference` pointers into external secret storage — never plain-text), publish rules (`awcms_mini_social_publish_rules`, one per account/trigger-event, optional approval gate), caption templates (`awcms_mini_social_publish_templates`), an idempotent outbox (`awcms_mini_social_publish_jobs`, one row per article/account/action via a deterministic idempotency key), an append-only per-attempt audit trail (`awcms_mini_social_publish_attempts`), and a per-tenant auto-posting master switch (`awcms_mini_social_publishing_settings`). `domain/social-provider-adapter.ts` defines the pluggable interface and `infrastructure/social-provider-registry.ts` is the registry each adapter issue populates from its own composition root. Three real adapters are registered: Issue #644 adds `meta_facebook_page` (Facebook Page link posts) and `meta_instagram` (Instagram Business image posts), `infrastructure/meta/`, gated by their own adapter-level `META_PROVIDER_ENABLED` switch (independent of this module's deployment-wide gate); Issue #645 adds `linkedin_organization` (`infrastructure/linkedin-provider-adapter.ts`, conditional on `LINKEDIN_PROVIDER_ENABLED`); Issue #646 adds `telegram_channel` (`infrastructure/telegram-provider-adapter.ts`, gated by `TELEGRAM_PROVIDER_ENABLED`). Job creation (`application/create-social-publish-jobs.ts`) is invoked by `blog_content`'s publish route/scheduled-publish worker via the `SocialPublishingPort` (`_shared/ports/social-publishing-port.ts`) right after an ELIGIBLE (public + published, never draft/private/archived/review/soft-deleted) article publishes — plain DB outbox-row writes inside the SAME transaction (ADR-0006 compliant: no external call happens there). The actual provider call happens later, entirely outside any DB transaction, via `application/social-publish-dispatch.ts` (`bun run social-publishing:dispatch`) — a claim/call/finalize outbox dispatcher with per-provider circuit breaker, timeout, and exponential retry/backoff to a terminal `failed` state, mirroring `sync-storage/application/object-dispatch.ts`'s established shape. See `.claude/skills/awcms-mini-social-publishing/SKILL.md` for full design rationale.",
-  dependencies: ["tenant_admin", "identity_access"],
+  // `blog_content` + `news_portal` + `logging` declared for Issue #845
+  // (epic #818). All three are real value imports: `application/
+  // social-publishing-port-adapter.ts` calls `blog_content`'s
+  // `fetchEffectivePublicRouteSettings`, `infrastructure/
+  // linkedin-provider-adapter.ts` calls `news_portal`'s
+  // `resolveNewsMediaR2Config`, and several `application/*` files call
+  // `logging`'s `recordAuditEvent`. `blog_content`/`news_portal` are genuine
+  // lifecycle dependencies — social publishing exists to fan a tenant's
+  // published blog/news content out to social channels, so it cannot run
+  // without those content modules present; the resulting reverse-dependency
+  // constraint (a tenant may not disable blog_content/news_portal while
+  // social_publishing is enabled) is correct, not incidental. All three keep
+  // `modules:dag:check` acyclic (none depend back on `social_publishing`).
+  dependencies: [
+    "tenant_admin",
+    "identity_access",
+    "blog_content",
+    "news_portal",
+    "logging"
+  ],
   type: "domain",
   // Consumes `blog_content`'s `public_content` capability is NOT declared
   // here — the composition root (route/script) already has the published

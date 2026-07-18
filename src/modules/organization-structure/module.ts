@@ -7,7 +7,14 @@ export const organizationStructureModule = defineModule({
   status: "active",
   description:
     'Optional, tenant-scoped organization-structure foundation (Issue #749, epic `platform-evolution` #738 Wave 2, ADR-0016 admission decision, ADR-0013 §2/§4 tenant vs legal entity vs organization unit vocabulary). Admitted as an Official Optional Business Foundation module — opt-in per tenant, generic across every derived application, never an ERP implementation. Adds tenant-scoped legal entities (`awcms_mini_legal_entities`, generic opaque registration identifier pair, never government-specific fields), tenant-configurable organization-unit types (`awcms_mini_organization_unit_types`), effective-dated organization units (`awcms_mini_organization_units`, optionally linked to a legal entity — never required — and optionally typed), a versioned/effective-dated (SCD Type 2 style) parent-child hierarchy (`awcms_mini_organization_unit_hierarchies`, reparenting NEVER mutates a parent_id column in place — it closes the current period and opens a new one, no-cycle/self-parent/overlap validated transactionally with a tenant-wide `pg_advisory_xact_lock`), operational locations (`awcms_mini_operational_locations`, optional lat/lng validated to [-90,90]/[-180,180]), an explicit location-to-unit many-to-many relationship (`awcms_mini_location_unit_relationships`), and effective-dated party/unit assignments (`awcms_mini_organization_unit_assignments`, referencing `identity_access`\'s existing `awcms_mini_tenant_users` — never a duplicate person/party registry, ADR-0013 §4). Provides a REAL implementation of `BusinessScopeHierarchyPort` (`_shared/ports/business-scope-hierarchy-port.ts`) for `scopeType` "legal_entity"/"organization_unit" (`application/organization-structure-hierarchy-port-adapter.ts`) — `identity_access` has no lifecycle or capability dependency on this module in either direction (Core never depends on Optional, ADR-0013 §1); a composition root chooses which adapter to inject. Tenant and legal entity/organization unit remain distinct concepts everywhere (ADR-0013 §2) — every table\'s RLS predicate is always and only `tenant_id`.',
-  dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"],
+  // `logging` declared for Issue #845 (epic #818): every directory/service
+  // here calls `logging`'s `recordAuditEvent`. Acyclic.
+  dependencies: [
+    "tenant_admin",
+    "identity_access",
+    "domain_event_runtime",
+    "logging"
+  ],
   type: "domain",
   // This module PROVIDES an implementation of `BusinessScopeHierarchyPort`
   // for identity-access's business-scope assignment/SoD machinery to

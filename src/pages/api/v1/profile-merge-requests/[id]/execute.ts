@@ -21,6 +21,14 @@ import {
   MergePartyNotFoundError
 } from "../../../../../modules/profile-identity/application/merge-workflow";
 import { CrossTenantMergeError } from "../../../../../modules/profile-identity/domain/merge";
+// Composition root (Issue #845): this route is the ONLY place that wires
+// `domain_event_runtime`'s concrete outbox producer into
+// `profile_identity`'s merge workflow. `src/pages/**` is not scanned by the
+// module dependency-declaration gate, so importing the event runtime here
+// does not (and must not) reintroduce the `profile_identity ->
+// domain_event_runtime` edge that would cycle. See
+// `_shared/ports/domain-event-append-port.ts`.
+import { appendDomainEvent } from "../../../../../modules/domain-event-runtime/application/append-domain-event";
 
 const EXECUTE_GUARD = {
   moduleKey: "profile_identity",
@@ -117,6 +125,7 @@ export const POST: APIRoute = async ({ request, params, cookies, locals }) => {
         tenantId,
         auth.context.tenantUserId,
         mergeRequestId,
+        appendDomainEvent,
         correlationId
       );
     } catch (error) {

@@ -56,6 +56,11 @@ import {
 import { POST as decideMergeRequestRoute } from "../../src/pages/api/v1/profile-merge-requests/[id]/decisions";
 import { POST as executeMergeRequestRoute } from "../../src/pages/api/v1/profile-merge-requests/[id]/execute";
 
+// Issue #845: `executeMergeRequest` now takes the outbox producer as an
+// injected port (broke the `profile_identity -> domain_event_runtime` cycle);
+// this direct-call test wires the real `appendDomainEvent` the same way the
+// route composition root does.
+import { appendDomainEvent } from "../../src/modules/domain-event-runtime/application/append-domain-event";
 import {
   createMergeRequest,
   executeMergeRequest
@@ -1003,7 +1008,8 @@ suite(
             tx,
             tenantA.tenantId,
             tenantA.tenantUserId,
-            mergeRequestId
+            mergeRequestId,
+            appendDomainEvent
           );
         })
       ).rejects.toBeInstanceOf(CrossTenantMergeError);

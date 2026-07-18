@@ -7,7 +7,13 @@ export const moduleManagementModule = defineModule({
   status: "active",
   description:
     "Database-backed, tenant-aware module registry (epic #510): syncs trusted code descriptors (`listModules()`) into the database, tracks per-tenant module enablement, dependency validation, non-secret settings, permission sync/status, admin navigation, job/command registry, and health/readiness. Generic infrastructure for managing every other registered module — not a domain-specific feature. Module catalog API (`GET /api/v1/modules[/{moduleKey}]`, `POST /api/v1/modules/sync`) added Issue #514.",
-  dependencies: ["tenant_admin", "identity_access"],
+  // `logging` + `email` declared for Issue #845 (epic #818): `application/
+  // module-presets.ts` calls `logging`'s `recordAuditEvent`, and
+  // `application/health-registry.ts` calls `email`'s
+  // `resolveEmailProvider` to probe provider health. Both are real value
+  // imports; both keep `modules:dag:check` acyclic (`logging`/`email` never
+  // depend back on `module_management`).
+  dependencies: ["tenant_admin", "identity_access", "logging", "email"],
   type: "system",
   isCore: true,
   api: {

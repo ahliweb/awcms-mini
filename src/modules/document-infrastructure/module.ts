@@ -7,7 +7,15 @@ export const documentInfrastructureModule = defineModule({
   status: "active",
   description:
     "Optional, tenant-scoped generic document METADATA infrastructure (Issue #751, epic `platform-evolution` #738 Wave 3, ADR-0017 admission decision). Admitted as an Official Optional Business Foundation module — opt-in per tenant, generic across every derived application, never a domain document schema (no letters/invoices/POs/journal batches/medical records/contracts here). Adds a document classification catalog (`awcms_mini_document_classifications`), the document registry itself (`awcms_mini_documents`, stable id + owner module + document type + classification + status + a PRIMARY generic resource reference), IMMUTABLE append-only versions (`awcms_mini_document_versions`, content referenced through an approved managed-object storage contract — never a binary blob column), additional typed generic resource relations (`awcms_mini_document_resource_relations`, written ONLY through the capability port, never a direct cross-module table write), concurrency-safe effective-dated numbering sequence definitions (`awcms_mini_document_number_sequences`, SCD Type 2 style — revising the format never resets or reuses the counter), atomic number reservations (`awcms_mini_document_number_reservations`, reserve/commit/cancel, `UNIQUE (sequence_id, reserved_number)` makes silent reuse structurally impossible), and an append-only evidence trail (`awcms_mini_document_evidence`). Provides `document_resource_relations` as a capability other modules IMPORT AND CALL DIRECTLY (in-process function, ADR-0011 pattern) to attach a document to one of THEIR OWN resources — this module never reads/writes another module's tables (ADR-0013 §6 no-shared-table-write).",
-  dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"],
+  // `logging` declared for Issue #845 (epic #818): every directory/service
+  // here calls `logging`'s `recordAuditEvent`. Acyclic — `logging` only
+  // depends on `tenant_admin`.
+  dependencies: [
+    "tenant_admin",
+    "identity_access",
+    "domain_event_runtime",
+    "logging"
+  ],
   type: "domain",
   // This module PROVIDES the generic document<->resource attachment
   // capability — it does NOT declare any `consumes` entry (deliberately

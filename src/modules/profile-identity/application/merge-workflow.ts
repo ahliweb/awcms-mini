@@ -1,6 +1,14 @@
 import { recordAuditEvent } from "../../logging/application/audit-log";
 import { recordCounter } from "../../../lib/observability/metrics-port";
-import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";
+// Issue #845 (epic #818): the outbox producer is injected as a port instead
+// of imported directly from `domain_event_runtime` — a direct import here
+// would close the real cycle `profile_identity -> domain_event_runtime ->
+// identity_access -> profile_identity` (`domain_event_runtime` depends on
+// `identity_access`, which depends on this module). The concrete
+// `appendDomainEvent` is wired at the composition root
+// (`pages/api/v1/profile-merge-requests/[id]/execute.ts`). See
+// `_shared/ports/domain-event-append-port.ts`.
+import type { DomainEventAppendPort } from "../../_shared/ports/domain-event-append-port";
 import {
   PROFILE_MERGED_EVENT_TYPE,
   PROFILE_MERGED_EVENT_VERSION
@@ -394,6 +402,10 @@ export async function executeMergeRequest(
   tenantId: string,
   actorTenantUserId: string,
   mergeRequestId: string,
+  // Injected at the composition root (Issue #845) — `domain_event_runtime`'s
+  // `appendDomainEvent`. Required (no default) so this module never imports
+  // the event runtime itself; see the port's header for the cycle it breaks.
+  appendDomainEvent: DomainEventAppendPort,
   correlationId?: string
 ): Promise<ExecuteMergeRequestResult> {
   const rows = (await tx`
