@@ -5,22 +5,18 @@ description: Jalankan proses rilis AWCMS-Mini dengan Changesets. Gunakan saat di
 
 # AWCMS-Mini — Release (Changesets)
 
-> ## ⚠️ RUSAK per 2026-07-17 — jangan percaya alur di bawah sampai #825 selesai
+> ## ℹ️ Status trigger rilis (#825) — alur sudah diperbaiki, sisa satu langkah owner
 >
-> **Pipeline rilis ini belum pernah menghasilkan satu rilis pun.** `package.json` ada di **v0.24.0**; repo **tidak punya satu pun tag `v*`** (`git tag` → hanya `awcms-mini@0.0.1..0.0.3`).
+> Trigger rilis dulu **saling meniadakan** (changeset memancarkan `awcms-mini@X.Y.Z`, tapi `release.yml` memicu `v*.*.*`) sehingga jalur otomatis mati dan **belum pernah menghasilkan satu rilis pun**. **Sudah diperbaiki** (Issue #825, kode merged PR #854):
 >
-> **Akarnya — dua mekanisme saling meniadakan:**
+> | Sisi                            | Nilai final                                                                                                        |
+> | ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+> | `.changeset/config.json:11`     | `"privatePackages": { "version": true, "tag": true }` → `bun run changeset:tag` memancarkan **`awcms-mini@X.Y.Z`** |
+> | `.github/workflows/release.yml` | trigger `push: tags: awcms-mini@*` — **sumber kebenaran yang sama** dengan tag generator; tak ada `vX.Y.Z` manual  |
 >
-> | Sisi                                  | Nilai                                                                                                       |
-> | ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-> | `.changeset/config.json:11`           | `"privatePackages": { "version": true, "tag": true }` → `changeset tag` memancarkan **`awcms-mini@0.24.0`** |
-> | `.github/workflows/release.yml:31-33` | trigger `push: tags: ["v*.*.*"]`                                                                            |
+> Jadi **langkah 6 di bawah kini BENAR**: `changeset:tag` → `git push --tags` **memicu** `release.yml`. `scripts/release-verify.ts` (`normalizeTagVersion`) sudah strip prefix `awcms-mini@` agar job `validate` tidak menolak tag rilis nyata pertama.
 >
-> `awcms-mini@0.24.0` **tidak akan pernah** cocok `v*.*.*`. Jadi **langkah 6 di bawah salah**: `changeset:tag` **tidak** memicu `release.yml`. Hanya `git tag vX.Y.Z` manual (`release-process.md:22`) yang memicunya.
->
-> **Akibat kedua**: tahap `sign + attest + publish` **belum pernah dieksekusi end-to-end** — satu-satunya rehearsal (`29461398291`) menggantung >26 jam menunggu `required_reviewers` environment `release`. Jadi cosign/provenance/publish di langkah 6 adalah **klaim yang belum terbukti**, bukan fakta.
->
-> Sebelum merilis apa pun: selesaikan **#825**, lalu perbarui skill ini + `release-process.md` sesuai mekanisme final.
+> **Yang masih tersisa — owner-only (bukan langkah lokal skill ini):** tahap `sign + attest + publish` **belum terbukti end-to-end**. Rehearsal `29461398291` menggantung >26 jam menunggu `required_reviewers` environment `release`. Sebelum rilis production pertama, owner harus: (1) set/tinjau `required_reviewers` env `release`, (2) approve satu rehearsal (`workflow_dispatch`) menembus cosign/provenance/publish. Lihat `release-process.md` §Dry-run/rehearsal & §Environment approval.
 
 Ikuti `docs/awcms-mini/09_roadmap_repository_commit.md` §Versioning dan `.changeset/README.md`. Sejak Issue #692 (epic #679, platform-hardening), langkah dari "push tag" sampai "GitHub Release + image + SBOM + signature + provenance" **sudah otomatis** lewat `.github/workflows/release.yml` — lihat [`docs/awcms-mini/release-process.md`](../../../docs/awcms-mini/release-process.md) untuk detail lengkap (SBOM tool, keyless signing, attestation, environment approval, dry-run/rehearsal, verifikasi konsumen, rollback/yank). Skill ini tetap mendokumentasikan langkah lokal (changeset → version bump → tag) yang masih manual.
 
@@ -45,7 +41,7 @@ flowchart LR
 3. `bun run changeset:version` — konsumsi changeset → bump `package.json` + entri `CHANGELOG.md`.
 4. Review diff; pastikan versi cocok peta doc 09 (0.1.0 Foundation … 1.0.0 production MVP).
 5. Commit: `chore(release): vX.Y.Z` (sertakan CHANGELOG + package.json + penghapusan file changeset), push ke `main`.
-6. `bun run changeset:tag` lalu `git push --tags`. **⚠️ Lihat peringatan di atas — langkah ini TIDAK memicu `release.yml` hari ini** (format tag tidak cocok, #825). Setelah #825 selesai, ini seharusnya **memicu** `.github/workflows/release.yml`: guard ancestor-of-`main`, `bun run release:verify` (versi/CHANGELOG/changeset tersisa harus konsisten), full quality gate, lalu — setelah disetujui lewat `release` environment (lihat doc `release-process.md` §Environment approval) — build image, dua SBOM CycloneDX (source + image), checksums, `cosign sign` keyless, `actions/attest-build-provenance`/`attest-sbom`, push `ghcr.io/ahliweb/awcms-mini`, dan `gh release create` dengan asset terlampir.
+6. `bun run changeset:tag` lalu `git push --tags` — ini memancarkan tag `awcms-mini@X.Y.Z` yang **memicu** `.github/workflows/release.yml` (#825, PR #854): guard ancestor-of-`main`, `bun run release:verify` (versi/CHANGELOG/changeset tersisa harus konsisten), full quality gate, lalu — setelah disetujui lewat `release` environment (lihat doc `release-process.md` §Environment approval) — build image, dua SBOM CycloneDX (source + image), checksums, `cosign sign` keyless, `actions/attest-build-provenance`/`attest-sbom`, push `ghcr.io/ahliweb/awcms-mini` (image tag **`X.Y.Z` polos** + `:sha-<commit>` + `:latest`, bukan `v`-prefixed), dan `gh release create` dengan asset terlampir. Catatan: sebelum rilis production pertama, tahap `sign + attest + publish` perlu satu rehearsal owner yang benar-benar disetujui (lihat kotak status di atas).
 7. **Jangan** lagi menjalankan `gh release create` manual — itu sekarang bagian dari `release.yml`; menjalankannya manual sebelum workflow selesai akan bentrok dengan asset yang coba di-attach otomatis.
 
 ## Aturan
@@ -53,10 +49,10 @@ flowchart LR
 - Jangan rilis dari branch selain `main` (atau `release/vX.Y.Z` sesuai doc 09) — `release.yml` menolak tag yang bukan ancestor `origin/main`.
 - Jangan edit CHANGELOG entri lama; koreksi lewat entri baru.
 - Pra-1.0.0: minor boleh memuat penyesuaian belum stabil; tetap catat breaking di ringkasan changeset.
-- Tag `vX.Y.Z` harus menunjuk commit rilis, bukan commit sesudahnya — `bun run release:verify` menolak bila `package.json`/CHANGELOG tidak cocok dengan tag.
+- Tag `awcms-mini@X.Y.Z` (format yang dipancarkan `changeset:tag`) harus menunjuk commit rilis, bukan commit sesudahnya — `bun run release:verify` menolak bila `package.json`/CHANGELOG tidak cocok dengan tag.
 - Sebelum tag rilis production pertama, jalankan rehearsal (`gh workflow run release.yml --ref main`) minimal sekali dan pastikan reviewer benar-benar approve gerbang environment `release` — lihat doc `release-process.md` §Dry-run/rehearsal.
 
 ## Verifikasi
 
 - `git tag --points-at HEAD` menunjukkan tag baru; CHANGELOG punya seksi versi; `package.json` versi sama dengan tag.
-- Setelah `release.yml` selesai: `gh attestation verify oci://ghcr.io/ahliweb/awcms-mini:vX.Y.Z --owner ahliweb` dan `cosign verify ...` (perintah lengkap di `release-process.md` §Verification) — tidak butuh akses repo secret.
+- Setelah `release.yml` selesai: `gh attestation verify oci://ghcr.io/ahliweb/awcms-mini:X.Y.Z --owner ahliweb` (image tag polos, bukan `v`-prefixed) dan `cosign verify ...` (perintah lengkap di `release-process.md` §Verification) — tidak butuh akses repo secret.
