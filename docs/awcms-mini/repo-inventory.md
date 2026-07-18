@@ -27,7 +27,7 @@
 | `profile_identity`        | `1.1.0` | `active`       | `-`      | `tenant_admin`, `logging`                                                          |
 | `reference_data`          | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`, `logging`               |
 | `reporting`               | `1.2.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email`, `domain_event_runtime` |
-| `social_publishing`       | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `blog_content`, `news_portal`, `logging`        |
+| `social_publishing`       | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `blog_content`, `logging`                       |
 | `sync_storage`            | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                                     |
 | `tenant_admin`            | `1.0.0` | `active`       | `-`      | -                                                                                  |
 | `tenant_domain`           | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                                                  |

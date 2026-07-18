@@ -37,9 +37,14 @@ murni parameter fungsi biasa:
 Tiga port nyata saat ini:
 
 - **`ports/news-media-port.ts` — `NewsMediaPort`** — kapabilitas milik
-  `news_portal`, dikonsumsi `blog_content`: cek apakah mode full-online
-  R2-only aktif untuk tenant, validasi sebuah referensi media aman
-  (same-tenant, verified), dan resolve id media ke URL publik/alt text.
+  `news_portal`, dikonsumsi `blog_content` dan (Issue #859)
+  `social_publishing`: cek apakah mode full-online R2-only aktif untuk
+  tenant, validasi sebuah referensi media aman (same-tenant, verified),
+  resolve id media ke URL publik/alt text, dan (Issue #859)
+  `resolveMediaPublicBaseUrl` — resolusi config murni (base URL publik R2)
+  yang di-inject ke adapter LinkedIn `social_publishing` menggantikan import
+  statis `resolveNewsMediaR2Config`, sehingga `news_portal` tidak lagi jadi
+  dependency HARD `social_publishing`.
 - **`ports/public-content-port.ts` — `PublicContentPort`** — kapabilitas
   milik `blog_content`, dikonsumsi `news_portal`: query post/kategori
   publik read-only (existence check, ringkasan post by id, kategori by

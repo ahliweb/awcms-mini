@@ -377,7 +377,6 @@
         "tenant_admin",
         "identity_access",
         "blog_content",
-        "news_portal",
         "logging"
       ],
       "capabilitiesProvided": ["social_publishing"],

@@ -29,6 +29,18 @@
  *     above.
  *   - `src/pages/api/v1/social-publishing/accounts/[id]/verify.ts` (the
  *     admin "verify connection" endpoint, Issue #646) — imports this file.
+ *
+ * Issue #859 (epic #818): this side-effect wrapper deliberately registers the
+ * adapter WITHOUT a `NewsMediaPort` (see
+ * `registerLinkedInProviderAdapterIfEnabled`'s `mediaPort` parameter). It
+ * MUST NOT import `news_portal`'s concrete adapter — that cross-module import
+ * from a `social_publishing/infrastructure` file is exactly the coupling
+ * Issue #859 removed (it forced `news_portal` to be a hard dependency). The
+ * only consumer of this wrapper is the SSR verify route, which calls
+ * `verifyCredentials` and never `publish`, so it never needs the image-trust
+ * check the port feeds. The real publish path
+ * (`scripts/social-publish-dispatch.ts`) injects the port itself, at the
+ * composition root, where importing `news_portal` is legitimate.
  */
 import { registerLinkedInProviderAdapterIfEnabled } from "./linkedin-provider-adapter";
 

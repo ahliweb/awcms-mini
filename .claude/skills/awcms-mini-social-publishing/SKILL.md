@@ -807,14 +807,43 @@ konsep dari versi API).
 `content.imageUrl` (sudah dijamin berasal dari objek R2 terverifikasi oleh
 `create-social-publish-jobs.ts`'s `NewsMediaPort.resolveMediaReferences`)
 diperiksa ULANG (defense-in-depth, `isTrustedR2MediaUrl`, membandingkan
-terhadap `NEWS_MEDIA_R2_PUBLIC_BASE_URL` — import lintas modul yang
-sengaja dan sempit, sama pola Keputusan kunci #6's "Catatan khusus" di
-atas) sebelum adapter melakukan alur upload gambar LinkedIn asli
+terhadap `NEWS_MEDIA_R2_PUBLIC_BASE_URL`) sebelum adapter melakukan alur
+upload gambar LinkedIn asli
 (`initializeUpload` -> fetch bytes -> `PUT`) dan memposting sebagai
 `content.media`. Gambar tidak-terpercaya/tidak ada, atau kegagalan APA PUN
 selama upload, terdegradasi dengan baik ke post link-share
 (`content.article`, `source: canonicalUrl`) — gambar bersifat non-esensial
 dan tidak boleh pernah memblokir publish yang sah.
+
+**Issue #859 (epic #818) — `isTrustedR2MediaUrl` kini via port, bukan
+import statis.** `isTrustedR2MediaUrl(url, publicBaseUrl)` sekarang fungsi
+murni prefix-check; `publicBaseUrl` di-resolve lewat
+`NewsMediaPort.resolveMediaPublicBaseUrl(env)` yang di-inject di composition
+root (`scripts/social-publish-dispatch.ts` menyuntikkan
+`newsMediaPortAdapter` dari `news_portal`). Adapter LinkedIn TIDAK lagi
+mengimpor `news-portal/domain/news-media-r2-config.ts`'s
+`resolveNewsMediaR2Config` secara statis. Import statis itu adalah
+SATU-SATUNYA penyebab `social_publishing` dulu mendeklarasikan `news_portal`
+sebagai dependency HARD di `module.ts` — bertentangan dengan
+`capabilities.consumes` (`news_media`, `optional: true`) modul ini sendiri.
+Setelah inversi: `news_portal` **dihapus dari `dependencies`** — perubahan
+LIFECYCLE (tenant kini boleh disable `news_portal` selagi `social_publishing`
+aktif TANPA blok reverse-dependency). **PENTING (bukan gap):** kepercayaan/
+upload gambar bersifat DEPLOYMENT-WIDE, bukan per-tenant — bucket R2 +
+`NEWS_MEDIA_R2_PUBLIC_BASE_URL` adalah config level-deployment, port
+di-inject process-wide oleh dispatcher, jadi gambar R2 yang sudah `verified`
+tetap diunggah tanpa memandang status `news_portal` tenant mana pun (identik
+perilaku pra-#859; jalur gambar TIDAK menjadi tenant-aware). Degradasi ke
+link-share terjadi bila port tak di-inject (proses SSR verify via
+`linkedin-provider-registration.ts` yang tak pernah `publish`) atau
+`NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong → `publicBaseUrl` = `""` → semua gambar
+tak terpercaya — BUKAN karena tenant mematikan `news_portal`. Pola inversi ini
+SAMA dengan `NewsMediaPort.resolveMediaReferences` yang sudah ada (ADR-0011),
+bukan pengecualian baru. Versi kapabilitas `news_media` dinaikkan `1.0.0` →
+`1.1.0` di `capability-contract-versions.ts` (method additive
+`resolveMediaPublicBaseUrl`; MINOR). `blog_content` TETAP dependency HARD
+(`social-publishing-port-adapter.ts` sengaja impor
+`fetchEffectivePublicRouteSettings`).
 
 ### Idempotensi & redaksi
 

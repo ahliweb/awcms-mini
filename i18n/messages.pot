@@ -3296,17 +3296,17 @@ msgid "admin.layout.nav_settings"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:71
+#: src/modules/social-publishing/module.ts:84
 msgid "admin.layout.nav_social_publishing_accounts"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:83
+#: src/modules/social-publishing/module.ts:96
 msgid "admin.layout.nav_social_publishing_jobs"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/social-publishing/module.ts:77
+#: src/modules/social-publishing/module.ts:90
 msgid "admin.layout.nav_social_publishing_rules"
 msgstr ""
 
