@@ -82,14 +82,7 @@ import type {
   SocialProviderPublishResult
 } from "../domain/social-provider-adapter";
 import { registerSocialProviderAdapter } from "./social-provider-registry";
-// Narrow, documented cross-module import of a single pure config getter —
-// same precedent `social-publishing-port-adapter.ts` already established
-// for `blog-content/application/public-route-settings.ts`'s
-// `fetchEffectivePublicRouteSettings` (see
-// `.claude/skills/awcms-mini-social-publishing/SKILL.md`'s §643 Keputusan
-// kunci #6 "Catatan khusus"): no DB access, no side effects, not the
-// application-layer port-adapter re-import pattern Issue #681 fixed.
-import { resolveNewsMediaR2Config } from "../../news-portal/domain/news-media-r2-config";
+import type { NewsMediaPort } from "../../_shared/ports/news-media-port";
 
 export const LINKEDIN_PROVIDER_KEY = "linkedin_organization";
 
@@ -105,6 +98,23 @@ export type LinkedInProviderAdapterConfig = {
   env?: NodeJS.ProcessEnv;
   /** Injectable for tests (`Bun.serve`-backed fake LinkedIn server) — defaults to the global `fetch`. */
   fetchImpl?: typeof fetch;
+  /**
+   * `news_portal`'s `news_media` capability (Issue #859, epic #818),
+   * injected at the composition root — the ONLY thing that resolves the
+   * trusted R2 public base URL this adapter's image-trust check compares
+   * against. Optional (mirroring the `capabilities.consumes` `news_media`
+   * `optional: true` declaration): when ABSENT (or `news_portal` is
+   * disabled), every image URL is treated as untrusted and the adapter
+   * degrades to a link-share post — the exact same safe fallback an unset
+   * `NEWS_MEDIA_R2_PUBLIC_BASE_URL` already produced. This replaces the
+   * former static `import { resolveNewsMediaR2Config } from
+   * "../../news-portal/domain/news-media-r2-config"`, which had forced
+   * `news_portal` to be a HARD lifecycle dependency of `social_publishing`.
+   * Only the real publish path (`scripts/social-publish-dispatch.ts`)
+   * injects it; the SSR "verify connection" route never publishes, so its
+   * registration deliberately leaves it unset.
+   */
+  mediaPort?: NewsMediaPort;
 };
 
 type OrganizationRoleCheckResult =
@@ -189,13 +199,17 @@ function buildHeaders(bearerToken: string, apiVersion: string): HeadersInit {
  * which only ever resolves verified/attached, same-tenant R2 objects. This
  * re-check ensures a bug or future refactor elsewhere can never cause this
  * adapter to hand an arbitrary caller-influenced URL to a third-party API.
+ *
+ * `publicBaseUrl` is resolved by the injected `NewsMediaPort`
+ * (`resolveMediaPublicBaseUrl`) at the composition root (Issue #859) rather
+ * than read from a static `news_portal` import — an empty string (port not
+ * injected, or `NEWS_MEDIA_R2_PUBLIC_BASE_URL` unset) means "trust nothing",
+ * so the adapter safely degrades to a link-share post.
  */
 export function isTrustedR2MediaUrl(
   url: string,
-  env: NodeJS.ProcessEnv = process.env
+  publicBaseUrl: string
 ): boolean {
-  const publicBaseUrl = resolveNewsMediaR2Config(env).publicBaseUrl;
-
   if (!publicBaseUrl) {
     return false;
   }
@@ -268,6 +282,15 @@ export function createLinkedInProviderAdapter(
     config.callTimeoutMs ?? LINKEDIN_DEFAULT_CALL_TIMEOUT_MS;
   const env = config.env ?? process.env;
   const fetchImpl = config.fetchImpl ?? fetch;
+  const mediaPort = config.mediaPort;
+
+  // Resolved through the injected `news_media` port (Issue #859) — empty
+  // string when no port was injected (SSR verify path) or `news_portal`
+  // has no configured R2 public base URL, in which case every image URL is
+  // untrusted and the adapter degrades to a link-share post.
+  const trustedMediaBaseUrl = mediaPort
+    ? mediaPort.resolveMediaPublicBaseUrl(env)
+    : "";
 
   async function checkOrganizationRole(
     organizationUrn: string,
@@ -485,7 +508,7 @@ export function createLinkedInProviderAdapter(
 
       if (
         request.content.imageUrl &&
-        isTrustedR2MediaUrl(request.content.imageUrl, env)
+        isTrustedR2MediaUrl(request.content.imageUrl, trustedMediaBaseUrl)
       ) {
         const uploadResult = await uploadOrganizationImage(
           organizationUrn,
@@ -751,13 +774,25 @@ export function createLinkedInProviderAdapter(
  * a broken adapter, never throws) when `LINKEDIN_PROVIDER_ENABLED` is not
  * `"true"` — config completeness beyond that flag is reported separately by
  * `checkLinkedInProviderReadiness`, not gated here.
+ *
+ * `mediaPort` (Issue #859, epic #818) is `news_portal`'s `news_media`
+ * capability, injected by the composition root that needs the LinkedIn
+ * adapter to actually PUBLISH images (`scripts/social-publish-dispatch.ts`).
+ * It is OPTIONAL: a call site that never publishes — the SSR "verify
+ * connection" route via `linkedin-provider-registration.ts` — omits it, and
+ * the adapter then treats every image as untrusted (safe link-share
+ * fallback). Omitting it is precisely what keeps `news_portal` from being a
+ * hard, undisableable dependency of `social_publishing`.
  */
 export function registerLinkedInProviderAdapterIfEnabled(
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  mediaPort?: NewsMediaPort
 ): void {
   if (!isLinkedInProviderEnabled(env)) {
     return;
   }
 
-  registerSocialProviderAdapter(createLinkedInProviderAdapter({ env }));
+  registerSocialProviderAdapter(
+    createLinkedInProviderAdapter({ env, mediaPort })
+  );
 }

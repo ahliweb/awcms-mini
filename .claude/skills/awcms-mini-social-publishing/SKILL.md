@@ -807,14 +807,35 @@ konsep dari versi API).
 `content.imageUrl` (sudah dijamin berasal dari objek R2 terverifikasi oleh
 `create-social-publish-jobs.ts`'s `NewsMediaPort.resolveMediaReferences`)
 diperiksa ULANG (defense-in-depth, `isTrustedR2MediaUrl`, membandingkan
-terhadap `NEWS_MEDIA_R2_PUBLIC_BASE_URL` — import lintas modul yang
-sengaja dan sempit, sama pola Keputusan kunci #6's "Catatan khusus" di
-atas) sebelum adapter melakukan alur upload gambar LinkedIn asli
+terhadap `NEWS_MEDIA_R2_PUBLIC_BASE_URL`) sebelum adapter melakukan alur
+upload gambar LinkedIn asli
 (`initializeUpload` -> fetch bytes -> `PUT`) dan memposting sebagai
 `content.media`. Gambar tidak-terpercaya/tidak ada, atau kegagalan APA PUN
 selama upload, terdegradasi dengan baik ke post link-share
 (`content.article`, `source: canonicalUrl`) — gambar bersifat non-esensial
 dan tidak boleh pernah memblokir publish yang sah.
+
+**Issue #859 (epic #818) — `isTrustedR2MediaUrl` kini via port, bukan
+import statis.** `isTrustedR2MediaUrl(url, publicBaseUrl)` sekarang fungsi
+murni prefix-check; `publicBaseUrl` di-resolve lewat
+`NewsMediaPort.resolveMediaPublicBaseUrl(env)` yang di-inject di composition
+root (`scripts/social-publish-dispatch.ts` menyuntikkan
+`newsMediaPortAdapter` dari `news_portal`). Adapter LinkedIn TIDAK lagi
+mengimpor `news-portal/domain/news-media-r2-config.ts`'s
+`resolveNewsMediaR2Config` secara statis. Import statis itu adalah
+SATU-SATUNYA penyebab `social_publishing` dulu mendeklarasikan `news_portal`
+sebagai dependency HARD di `module.ts` — bertentangan dengan
+`capabilities.consumes` (`news_media`, `optional: true`) modul ini sendiri.
+Setelah inversi: `news_portal` **dihapus dari `dependencies`** dan kembali
+benar-benar opsional (tenant boleh disable `news_portal` selagi
+`social_publishing` aktif). Bila port tak di-inject (proses SSR verify via
+`linkedin-provider-registration.ts` yang tak pernah `publish`) atau
+`NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong → `publicBaseUrl` = `""` → semua
+gambar tak terpercaya → degradasi aman ke link-share. Pola inversi ini SAMA
+dengan `NewsMediaPort.resolveMediaReferences` yang sudah ada (ADR-0011),
+bukan pengecualian baru. `blog_content` TETAP dependency HARD
+(`social-publishing-port-adapter.ts` sengaja impor
+`fetchEffectivePublicRouteSettings`).
 
 ### Idempotensi & redaksi
 

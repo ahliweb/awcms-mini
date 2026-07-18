@@ -25,6 +25,9 @@ function fakePort(options: {
     },
     async resolveMediaReferences() {
       return new Map<string, ResolvedNewsMediaReferenceDTO>();
+    },
+    resolveMediaPublicBaseUrl() {
+      return "";
     }
   };
 }

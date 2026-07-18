@@ -11,8 +11,37 @@ import {
   resetSocialProviderRegistryForTests
 } from "../../src/modules/social-publishing/infrastructure/social-provider-registry";
 import type { SocialProviderPublishRequest } from "../../src/modules/social-publishing/domain/social-provider-adapter";
+import type {
+  NewsMediaPort,
+  ResolvedNewsMediaReferenceDTO
+} from "../../src/modules/_shared/ports/news-media-port";
 
 const TEST_TOKEN = "fake-bearer-token-value-1234567890";
+
+/**
+ * Minimal fake of `news_portal`'s `news_media` capability (Issue #859):
+ * the LinkedIn adapter only ever calls `resolveMediaPublicBaseUrl` to decide
+ * whether an image URL is trusted, so the DB-backed methods are inert. This
+ * stands in for the real `newsMediaPortAdapter` the dispatch composition root
+ * injects, so these tests exercise the trusted-image path without a static
+ * cross-module import.
+ */
+function fakeMediaPort(publicBaseUrl: string): NewsMediaPort {
+  return {
+    async isFullOnlineR2ModeActiveForTenant() {
+      return false;
+    },
+    async isMediaReferenceSafe() {
+      return false;
+    },
+    async resolveMediaReferences() {
+      return new Map<string, ResolvedNewsMediaReferenceDTO>();
+    },
+    resolveMediaPublicBaseUrl() {
+      return publicBaseUrl;
+    }
+  };
+}
 
 function buildEnv(
   overrides: NodeJS.ProcessEnv = {} as NodeJS.ProcessEnv
@@ -562,27 +591,31 @@ describe("publish — secret redaction (Issue #645)", () => {
   });
 });
 
-describe("isTrustedR2MediaUrl (Issue #645)", () => {
-  test("true only when the URL starts with the configured R2 public base URL", () => {
-    const env = {
-      NEWS_MEDIA_R2_PUBLIC_BASE_URL: "https://media.example.com"
-    } as NodeJS.ProcessEnv;
-
-    expect(
-      isTrustedR2MediaUrl("https://media.example.com/photo.jpg", env)
-    ).toBe(true);
-    expect(
-      isTrustedR2MediaUrl("https://attacker.example.com/photo.jpg", env)
-    ).toBe(false);
-  });
-
-  test("false when NEWS_MEDIA_R2_PUBLIC_BASE_URL is unset", () => {
+describe("isTrustedR2MediaUrl (Issue #645, signature updated #859)", () => {
+  // Issue #859 (epic #818): `isTrustedR2MediaUrl` is now a pure
+  // (url, publicBaseUrl) prefix check — the public base URL is resolved by
+  // the injected `NewsMediaPort` at the composition root, NOT read from a
+  // static `resolveNewsMediaR2Config(env)` cross-module import. That removes
+  // the sole `social_publishing -> news_portal` import edge.
+  test("true only when the URL starts with the given R2 public base URL", () => {
     expect(
       isTrustedR2MediaUrl(
         "https://media.example.com/photo.jpg",
-        {} as NodeJS.ProcessEnv
+        "https://media.example.com"
+      )
+    ).toBe(true);
+    expect(
+      isTrustedR2MediaUrl(
+        "https://attacker.example.com/photo.jpg",
+        "https://media.example.com"
       )
     ).toBe(false);
+  });
+
+  test("false when the public base URL is empty (port not injected / R2 unconfigured)", () => {
+    expect(isTrustedR2MediaUrl("https://media.example.com/photo.jpg", "")).toBe(
+      false
+    );
   });
 });
 
@@ -611,12 +644,13 @@ describe("publish — R2 image validation (Issue #645)", () => {
       }
     });
 
-    const env = buildEnv({
-      NEWS_MEDIA_R2_PUBLIC_BASE_URL: `http://127.0.0.1:${server.port}`
-    } as NodeJS.ProcessEnv);
+    const env = buildEnv();
     const adapter = createLinkedInProviderAdapter({
       apiBaseUrl: `http://127.0.0.1:${server.port}`,
-      env
+      env,
+      // Trusted base IS configured (via the injected port, Issue #859) — the
+      // image below still mismatches it, so it must be treated as untrusted.
+      mediaPort: fakeMediaPort(`http://127.0.0.1:${server.port}`)
     });
 
     const result = await adapter.publish(
@@ -690,12 +724,14 @@ describe("publish — R2 image validation (Issue #645)", () => {
 
     serverPort = server.port ?? 0;
 
-    const env = buildEnv({
-      NEWS_MEDIA_R2_PUBLIC_BASE_URL: `http://127.0.0.1:${server.port}`
-    } as NodeJS.ProcessEnv);
+    const env = buildEnv();
     const adapter = createLinkedInProviderAdapter({
       apiBaseUrl: `http://127.0.0.1:${server.port}`,
-      env
+      env,
+      // Trusted R2 public base URL supplied via the injected port (Issue
+      // #859) — the image below is served from it, so the real upload flow
+      // must run.
+      mediaPort: fakeMediaPort(`http://127.0.0.1:${server.port}`)
     });
 
     const result = await adapter.publish(

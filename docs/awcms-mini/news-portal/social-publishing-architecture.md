@@ -227,7 +227,20 @@ dokumen ini, yang keliru mengklaim keduanya identik):
   **tidak** memvalidasi protokol. Ini justru persis kelas pengecekan
   lemah yang pelajaran Issue #635 hindari untuk Meta — belum
   di-hardening ke pola `URL.host` yang sama (dicatat sebagai gap nyata,
-  bukan diklaim sudah setara).
+  bukan diklaim sudah setara). **Issue #859 (epic #818)**: `publicBaseUrl`
+  sekarang di-resolve lewat `NewsMediaPort.resolveMediaPublicBaseUrl`
+  (di-inject di composition root `scripts/social-publish-dispatch.ts`),
+  **bukan** lagi lewat import statis
+  `news-portal/domain/news-media-r2-config.ts`'s `resolveNewsMediaR2Config`.
+  Import statis itulah satu-satunya penyebab `social_publishing` dulu harus
+  mendeklarasikan `news_portal` sebagai dependency HARD — yang bertentangan
+  dengan `capabilities.consumes` (`news_media`, `optional: true`) modul ini
+  sendiri. Setelah inversi port, `news_portal` kembali benar-benar
+  opsional/dapat di-disable per tenant selama `social_publishing` aktif;
+  bila port tidak di-inject (mis. proses SSR verify yang tak pernah
+  publish) atau `NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong, `publicBaseUrl`
+  menjadi string kosong → semua gambar dianggap tak terpercaya → degradasi
+  aman ke link-share.
 
 Kedua pengecekan tetap murni **defense-in-depth** (bukan mekanisme
 enforcement baru — data sudah diverifikasi lebih dulu oleh

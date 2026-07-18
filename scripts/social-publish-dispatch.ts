@@ -20,6 +20,12 @@ import { getWorkerDatabaseClient } from "../src/lib/database/client";
 import { logScriptFailure } from "../src/lib/logging/error-log";
 import { dispatchSocialPublishQueue } from "../src/modules/social-publishing/application/social-publish-dispatch";
 import { registerLinkedInProviderAdapterIfEnabled } from "../src/modules/social-publishing/infrastructure/linkedin-provider-adapter";
+// Issue #859 (epic #818): this dispatcher is the real publish path, so it is
+// the composition root that injects `news_portal`'s `news_media` capability
+// (the R2 public base URL the LinkedIn adapter's image-trust check needs)
+// into the adapter — replacing the former static cross-module import that had
+// forced `news_portal` to be a HARD dependency of `social_publishing`.
+import { newsMediaPortAdapter } from "../src/modules/news-portal/application/news-media-port-adapter";
 // Issue #646 — side-effect import registers the real Telegram adapter into
 // `social-provider-registry.ts` for this process. See
 // `telegram-provider-registration.ts`'s own header comment for why this is
@@ -35,7 +41,11 @@ async function main() {
   // LINKEDIN_PROVIDER_ENABLED=true. Future adapter issues (#644 Meta, #646
   // Telegram) add their own equivalent registration call here, each
   // independently — see `social-provider-registry.ts`'s header comment.
-  registerLinkedInProviderAdapterIfEnabled();
+  // The `newsMediaPortAdapter` argument (Issue #859) supplies the trusted R2
+  // public base URL for image posts; this is the ONLY process that both
+  // publishes AND needs that capability, so it is the one place the concrete
+  // `news_portal` adapter is wired in.
+  registerLinkedInProviderAdapterIfEnabled(process.env, newsMediaPortAdapter);
 
   // Issue #683 (epic #679): `awcms_mini_worker` role — see migration 045.
   const sql = getWorkerDatabaseClient();

@@ -39,6 +39,9 @@ function fakePort(options: {
         }
       }
       return map;
+    },
+    resolveMediaPublicBaseUrl() {
+      return "";
     }
   };
 }
