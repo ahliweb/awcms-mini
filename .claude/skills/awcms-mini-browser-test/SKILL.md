@@ -143,6 +143,21 @@ test:e2e` (atau `bunx playwright test`) diam-diam menjalankan proses
    spec menguji jalur error, assert isi pesan TIDAK mengandung kata kunci
    seperti "stack"/"postgres"/nama fungsi internal, bukan cuma assert
    "ada pesan error" (lihat contoh di `login.e2e.ts`'s kedua test).
+6. **Jangan assert data _deferred-write_ / dikumpulkan asinkron pada tabel
+   yang diisi SEKALI (single client fetch atau SSR one-shot).** Kalau
+   halaman mengisi `tbody`/list lewat satu `fetch` saat load tanpa
+   re-fetch (mis. `loadSessionsPage(null)` di `admin/analytics.astro`,
+   `<tbody />` SSR kosong), fetch itu **balapan** dengan write yang
+   di-defer off-response-path (mis. visitor telemetry: ~200ms batcher
+   linger, #832/#846). Begitu fetch resolve kosong, DOM tak berubah lagi
+   — menaikkan `toBeVisible({ timeout })` **sia-sia**, timeout hanya
+   habis pada tabel kosong (ini persis regresi flake #883,
+   `admin-analytics-dashboard.e2e.ts:104`, yang sempat ~100% merah dan
+   memblok merge queue). Pola benar: **poll dengan `page.reload()` /
+   re-navigate** sampai baris muncul dalam cap generous (reload = re-query
+   - kunjungan baru yang write-nya sudah flush di reload berikutnya), atau
+     **seed baris deterministik** — bukan sekadar timeout lebih besar.
+     Beri test headroom timeout (`test.setTimeout(...)`) untuk loop poll.
 
 ## File referensi
 
