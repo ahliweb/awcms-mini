@@ -591,25 +591,80 @@ describe("publish — secret redaction (Issue #645)", () => {
   });
 });
 
-describe("isTrustedR2MediaUrl (Issue #645, signature updated #859)", () => {
-  // Issue #859 (epic #818): `isTrustedR2MediaUrl` is now a pure
-  // (url, publicBaseUrl) prefix check — the public base URL is resolved by
-  // the injected `NewsMediaPort` at the composition root, NOT read from a
-  // static `resolveNewsMediaR2Config(env)` cross-module import. That removes
-  // the sole `social_publishing -> news_portal` import edge.
-  test("true only when the URL starts with the given R2 public base URL", () => {
+describe("isTrustedR2MediaUrl (Issue #645, signature updated #859, hardened #862)", () => {
+  // Issue #859 (epic #818): `isTrustedR2MediaUrl` is a pure
+  // (url, publicBaseUrl) check — the public base URL is resolved by the
+  // injected `NewsMediaPort` at the composition root, NOT read from a static
+  // `resolveNewsMediaR2Config(env)` cross-module import. That removed the sole
+  // `social_publishing -> news_portal` import edge.
+  //
+  // Issue #862 (epic #818): the underlying comparison was a bypassable
+  // `url.startsWith(publicBaseUrl)` prefix check. It now delegates to the
+  // shared `isMediaUrlFromTrustedBase` helper — parse via `new URL()`, require
+  // `https:`, and compare parsed `host` exactly — the SAME equally-strong
+  // validation the Meta path (`isAcceptableProviderMediaUrl`) uses. These tests
+  // mirror `meta-publish-content.test.ts`'s bypass cases.
+  test("accepts an https URL whose host matches the configured R2 base exactly", () => {
     expect(
       isTrustedR2MediaUrl(
         "https://media.example.com/photo.jpg",
         "https://media.example.com"
       )
     ).toBe(true);
+  });
+
+  test("rejects a different host", () => {
     expect(
       isTrustedR2MediaUrl(
         "https://attacker.example.com/photo.jpg",
         "https://media.example.com"
       )
     ).toBe(false);
+  });
+
+  test("rejects a prefix-collision host (media.example.com.evil.com)", () => {
+    // The former prefix check `url.startsWith("https://media.example.com")`
+    // returned TRUE here — the parsed-host check does not.
+    expect(
+      isTrustedR2MediaUrl(
+        "https://media.example.com.evil.com/photo.jpg",
+        "https://media.example.com"
+      )
+    ).toBe(false);
+  });
+
+  test("rejects an @-userinfo host smuggle (media.example.com@evil.com)", () => {
+    // Parsed `host` is `evil.com`; the former prefix check accepted this.
+    expect(
+      isTrustedR2MediaUrl(
+        "https://media.example.com@evil.com/photo.jpg",
+        "https://media.example.com"
+      )
+    ).toBe(false);
+  });
+
+  test("rejects a trailing-dot FQDN bypass attempt (Issue #635 lesson)", () => {
+    expect(
+      isTrustedR2MediaUrl(
+        "https://media.example.com./photo.jpg",
+        "https://media.example.com"
+      )
+    ).toBe(false);
+  });
+
+  test("rejects a non-https scheme even on the right host", () => {
+    expect(
+      isTrustedR2MediaUrl(
+        "http://media.example.com/photo.jpg",
+        "https://media.example.com"
+      )
+    ).toBe(false);
+  });
+
+  test("rejects an unparseable URL", () => {
+    expect(isTrustedR2MediaUrl("not-a-url", "https://media.example.com")).toBe(
+      false
+    );
   });
 
   test("false when the public base URL is empty (port not injected / R2 unconfigured)", () => {
@@ -790,14 +845,47 @@ describe("publish — R2 image validation (Issue #645)", () => {
 
     serverPort = server.port ?? 0;
 
+    // Issue #862: `isTrustedR2MediaUrl` now requires `https:` and an exact
+    // parsed-host match, so the trusted image must live on a real https origin
+    // (`https://media.example.com`) rather than the plain-http local fake. This
+    // `fetchImpl` shim reroutes only that image GET back to the local fake
+    // server; every other call (already on the http apiBaseUrl / upload target)
+    // passes through untouched.
+    const trustedMediaBase = "https://media.example.com";
+    const realFetch = fetch;
+    const fetchImpl = ((
+      input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1]
+    ) => {
+      const requestUrl =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : (input as Request).url;
+
+      if (requestUrl.startsWith(trustedMediaBase)) {
+        return realFetch(
+          requestUrl.replace(
+            trustedMediaBase,
+            `http://127.0.0.1:${serverPort}`
+          ),
+          init
+        );
+      }
+
+      return realFetch(input, init);
+    }) as typeof fetch;
+
     const env = buildEnv();
     const adapter = createLinkedInProviderAdapter({
       apiBaseUrl: `http://127.0.0.1:${server.port}`,
       env,
+      fetchImpl,
       // Trusted R2 public base URL supplied via the injected port (Issue
       // #859) — the image below is served from it, so the real upload flow
       // must run.
-      mediaPort: fakeMediaPort(`http://127.0.0.1:${server.port}`)
+      mediaPort: fakeMediaPort(trustedMediaBase)
     });
 
     const result = await adapter.publish(
@@ -806,7 +894,7 @@ describe("publish — R2 image validation (Issue #645)", () => {
           title: "Test",
           excerptOrCaption: "Caption",
           canonicalUrl: "https://news.example.com/news/test",
-          imageUrl: `http://127.0.0.1:${server.port}/fake-r2-image.jpg`
+          imageUrl: `${trustedMediaBase}/fake-r2-image.jpg`
         }
       })
     );

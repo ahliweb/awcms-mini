@@ -82,6 +82,7 @@ import type {
   SocialProviderPublishResult
 } from "../domain/social-provider-adapter";
 import { registerSocialProviderAdapter } from "./social-provider-registry";
+import { isMediaUrlFromTrustedBase } from "../domain/provider-media-trust";
 import type { NewsMediaPort } from "../../_shared/ports/news-media-port";
 
 export const LINKEDIN_PROVIDER_KEY = "linkedin_organization";
@@ -209,16 +210,24 @@ function buildHeaders(bearerToken: string, apiVersion: string): HeadersInit {
  * than read from a static `news_portal` import — an empty string (port not
  * injected, or `NEWS_MEDIA_R2_PUBLIC_BASE_URL` unset) means "trust nothing",
  * so the adapter safely degrades to a link-share post.
+ *
+ * ## Issue #862 — parsed `URL.host` equality, not a prefix check
+ *
+ * This delegates to the SHARED `isMediaUrlFromTrustedBase` helper so this
+ * adapter uses the EXACT same, equally-strong validation as the Meta path
+ * (`isAcceptableProviderMediaUrl`, `domain/meta-publish-content.ts`): parse via
+ * `new URL()`, require `protocol === "https:"`, and compare the parsed `host`
+ * for exact equality. The former `url.startsWith(publicBaseUrl)` prefix check
+ * was bypassable (trailing-dot FQDN, `@`-userinfo, and prefix-collision
+ * `media.example.com.evil.com`) — the same weak-check class Issue #635's
+ * trailing-dot lesson already removed from the Meta side. The exported name is
+ * retained for existing call sites/tests; only the underlying logic changed.
  */
 export function isTrustedR2MediaUrl(
   url: string,
   publicBaseUrl: string
 ): boolean {
-  if (!publicBaseUrl) {
-    return false;
-  }
-
-  return url.startsWith(publicBaseUrl);
+  return isMediaUrlFromTrustedBase(url, publicBaseUrl);
 }
 
 function buildLinkedInPostRequestBody(params: {

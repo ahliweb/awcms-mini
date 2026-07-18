@@ -14,6 +14,7 @@
  * the same phase boundary the dispatcher itself already enforces (Keputusan
  * kunci #5, `.claude/skills/awcms-mini-social-publishing/SKILL.md`).
  */
+import { isMediaUrlFromTrustedBase } from "./provider-media-trust";
 import type { SocialPublishContentSnapshot } from "./social-provider-adapter";
 
 export type MetaContentEligibilityResult =
@@ -113,36 +114,22 @@ export function validateInstagramPublishEligibility(
  * lets an unverified URL onto a job row) fails CLOSED here rather than
  * silently sending an arbitrary URL to Meta's servers.
  *
- * Compares the URL's `origin`+`host` exactly against the configured news
- * media public base — never a substring/prefix check (Issue #635's
+ * Compares the URL's `host` exactly against the configured news media public
+ * base — never a substring/prefix check (Issue #635's
  * `checkNewsMediaR2PublicBaseUrlProductionSafe` review found substring/
  * prefix-style hostname checks bypassable via a trailing-dot FQDN; an exact
  * `URL.host` comparison sidesteps that whole bug class rather than
- * re-deriving the same fix here).
+ * re-deriving the same fix here). Issue #862 lifted the actual comparison into
+ * the shared `isMediaUrlFromTrustedBase` helper so the LinkedIn adapter's
+ * `isTrustedR2MediaUrl` uses byte-for-byte the same, equally-strong check;
+ * this function only resolves the configured base URL from `env` and delegates.
  */
 export function isAcceptableProviderMediaUrl(
   url: string,
   env: NodeJS.ProcessEnv = process.env
 ): boolean {
-  const configuredBase = env.NEWS_MEDIA_R2_PUBLIC_BASE_URL;
-
-  if (!configuredBase) {
-    return false;
-  }
-
-  let target: URL;
-  let base: URL;
-
-  try {
-    target = new URL(url);
-    base = new URL(configuredBase);
-  } catch {
-    return false;
-  }
-
-  if (target.protocol !== "https:") {
-    return false;
-  }
-
-  return target.host === base.host;
+  return isMediaUrlFromTrustedBase(
+    url,
+    env.NEWS_MEDIA_R2_PUBLIC_BASE_URL ?? ""
+  );
 }
