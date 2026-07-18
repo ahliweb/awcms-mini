@@ -1617,6 +1617,30 @@ kontrak `effective_entitlement` read-only, bukan FK/table write. Batas
 secret provider berada **di luar database** (`process.env`/secret store
 deployment), bukan tabel apa pun.
 
+**Dua invariant tambahan yang diikat ADR-0022 (bukan sekadar prosa):**
+
+- **No "soft super-tenant" (ADR-0022 §6 High-1).** Selain melarang atribut
+  `BYPASSRLS`, ADR-0022 **melarang eksplisit** memperluas predikat RLS
+  tenant dengan klausa platform-claim (`OR current_setting('app.is_platform')
+= 't'` / `OR has_platform_claim()`) — celah yang lolos `security-
+readiness.ts` (ia memeriksa atribut role, bukan isi predikat). Baca
+  operator lintas-tenant hanya via konteks per-tenant audited; agregat lewat
+  read-model purpose-built permission-gated.
+- **`effective_entitlement` fail-closed (ADR-0022 §4 High-2).** Entitlement
+  absent/indeterminate/unavailable = **DENY**, tak pernah grant-all; gate di
+  helper capability (bukan per-route). Axis berbeda dari ABAC permission
+  default-deny — keduanya harus lolos.
+
+**Pemetaan ke matriks standar existing (Low, tanpa mengklaim sertifikasi):**
+
+| Ancaman control-plane         | OWASP API Security Top 10 (2023)                | OWASP Top 10 (2021) / ASVS               | ISO/IEC                          |
+| ----------------------------- | ----------------------------------------------- | ---------------------------------------- | -------------------------------- |
+| Cross-tenant access           | API1 Broken Object-Level Auth (BOLA)            | A01 Broken Access Control / ASVS V4      | 27017 (isolasi multi-tenant)     |
+| Operator abuse                | API5 Broken Function-Level Auth                 | A01 / ASVS V1 (arsitektur), V4           | 27001 A.5.15/A.5.18 (akses, SoD) |
+| Entitlement bypass            | API3 Broken Object Property-Level / broken auth | A01 / ASVS V4                            | 27001 A.8.3 (pembatasan akses)   |
+| Webhook replay/forgery        | API8 Security Misconfiguration                  | A08 Software & Data Integrity / ASVS V13 | 27001 A.8.26 (keamanan aplikasi) |
+| Secret leakage / PII envelope | API2 Broken Authentication                      | A02 Cryptographic Failures / ASVS V6, V7 | 27018 (PII PII processor), 27701 |
+
 ### Batasan yang dicatat, bukan diabaikan (SaaS Control Plane)
 
 - **"Default-disabled" belum jadi mekanisme runtime.** Hari ini

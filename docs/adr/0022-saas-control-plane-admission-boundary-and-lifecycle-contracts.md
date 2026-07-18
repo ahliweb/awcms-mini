@@ -141,23 +141,31 @@ dilonggarkan).
 
 ### 3. Kepemilikan data control-plane vs tenant-plane (unambiguous)
 
-| Data                                                                      | Pemilik (control-plane modul)                    | Kelas tabel                                                                          | Cara tenant-plane berinteraksi                                                                                       |
-| ------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Plan/offer/fitur/kuota/harga katalog (identik untuk semua tenant)         | `service_catalog`                                | **Global baseline** (tanpa `tenant_id`, RLS-exempt terdaftar³)                       | Baca lewat capability `service_catalog_read`; tidak pernah tulis                                                     |
-| Record tenant (`awcms_mini_tenants`)                                      | **Core `tenant_admin`** (bukan control-plane)    | Sudah ada (ADR-0003)                                                                 | Control-plane mereferensikan lewat FK/port, tidak membuat registry tenant duplikat                                   |
-| Entitlement efektif + override tenant                                     | `tenant_entitlement`                             | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`                                 | Modul bisnis membaca **hanya** kontrak `effective_entitlement` (read-only), tidak query tabel entitlement langsung   |
-| Subscription/invoice/credit/dunning tenant                                | `subscription_billing`                           | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`                                 | Read-only lewat port `billing_document_state`; **tidak pernah** menyatu dengan sales invoice/GL tenant (ADR-0013 §3) |
-| Provider reference (checkout id, charge id, refund id) + webhook envelope | `payment_gateway`                                | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`; envelope via `integration_hub` | Tidak dibaca modul bisnis; hanya `subscription_billing` lewat `payment_outcome`                                      |
-| Usage record + agregat                                                    | `usage_metering`                                 | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`; append-only⁴                   | Read-only lewat `usage_aggregate`                                                                                    |
-| Provisioning run + langkah kompensasi + tenant lifecycle state            | `tenant_provisioning` / `tenant_lifecycle`       | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`                                 | Lifecycle state dibaca API/SSR/routing/worker lewat `tenant_lifecycle_state` untuk perilaku akses                    |
-| **Secret provider** (API key, webhook signing secret)                     | **`process.env` / secret store deployment saja** | **BUKAN tabel** (tenant-readable maupun global)                                      | Tidak pernah ada di tabel apa pun; rotasi = konfigurasi deployment (§6)                                              |
+| Data                                                                                                              | Pemilik (control-plane modul)                    | Kelas tabel                                                                                                                                                          | Cara tenant-plane berinteraksi                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Plan/offer/fitur/kuota/harga katalog — **hanya baris `published` + effective-dated** (identik untuk semua tenant) | `service_catalog`                                | **Global baseline `published` saja** (tanpa `tenant_id`, RLS-exempt terdaftar³); draft/deprecated + harga internal/offer operator-only **tidak** RLS-free (Medium-1) | Baca lewat capability `service_catalog_read` (hanya `published`); tidak pernah tulis                                 |
+| Record tenant (`awcms_mini_tenants`)                                                                              | **Core `tenant_admin`** (bukan control-plane)    | Sudah ada (ADR-0003)                                                                                                                                                 | Control-plane mereferensikan lewat FK/port, tidak membuat registry tenant duplikat                                   |
+| Entitlement efektif + override tenant                                                                             | `tenant_entitlement`                             | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`                                                                                                                 | Modul bisnis membaca **hanya** kontrak `effective_entitlement` (read-only), tidak query tabel entitlement langsung   |
+| Subscription/invoice/credit/dunning tenant                                                                        | `subscription_billing`                           | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`                                                                                                                 | Read-only lewat port `billing_document_state`; **tidak pernah** menyatu dengan sales invoice/GL tenant (ADR-0013 §3) |
+| Provider reference (checkout id, charge id, refund id) + webhook envelope **ter-mask**                            | `payment_gateway`                                | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`; envelope via `integration_hub`; **PII di envelope di-mask doc 04 SEBELUM persist** (Medium-2)                  | Tidak dibaca modul bisnis; hanya `subscription_billing` lewat `payment_outcome`                                      |
+| Usage record + agregat                                                                                            | `usage_metering`                                 | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`; append-only⁴                                                                                                   | Read-only lewat `usage_aggregate`                                                                                    |
+| Provisioning run + langkah kompensasi + tenant lifecycle state                                                    | `tenant_provisioning` / `tenant_lifecycle`       | **Tenant-scoped** `tenant_id` + `ENABLE`+`FORCE RLS`                                                                                                                 | Lifecycle state dibaca API/SSR/routing/worker lewat `tenant_lifecycle_state` untuk perilaku akses                    |
+| **Secret provider** (API key, webhook signing secret)                                                             | **`process.env` / secret store deployment saja** | **BUKAN tabel** (tenant-readable maupun global)                                                                                                                      | Tidak pernah ada di tabel apa pun; rotasi = konfigurasi deployment (§6)                                              |
 
 ³ Pola identik `reference_data`/`awcms_mini_permissions`/`idn_admin_regions`
 (ADR-0021 §8): tabel global baseline didaftarkan eksplisit ke
 `RLS_FREE_TABLES` + `ALLOWED_GLOBAL_TABLE_GRANTS` di `scripts/security-
 readiness.ts` (RLS-exempt ter-review, bukan celah). Mutasi katalog tetap
 lewat endpoint terautentikasi + permission `service_catalog.*` sempit untuk
-operator tepercaya.
+operator tepercaya. **Kontrak Medium-1 untuk #870:** grant global (RLS-free)
+**hanya** berlaku untuk baris katalog berstatus `published` + effective-dated
+— karena event `service_catalog.plan.published` mengimplikasikan adanya
+status `draft`/`deprecated`, dan katalog operator lazim memuat harga
+internal/offer operator-only yang **tidak** boleh terbaca sesi tenant mana
+pun. Baris `draft`/`deprecated` dan kolom harga-internal hidup di tabel/
+kolom terlindung (RLS atau kolom yang tidak di-grant global), **bukan**
+blanket RLS-free. `service_catalog_read` hanya pernah mengembalikan
+`published`.
 ⁴ Usage record dan billing document yang sudah "posted"/di-invoice bersifat
 **append-only** (ADR-0005): koreksi lewat entri kompensasi/credit note, bukan
 hapus/edit in-place (§9, §11).
@@ -221,12 +229,42 @@ read-only `effective_entitlement` (bukan import/FK langsung), memenuhi
 acceptance criterion #869 "no reverse dependency from base/core into
 application-specific SaaS logic". Graf tetap DAG (`modules:dag:check`).
 
+**Invariant fail-closed `effective_entitlement` (High-2) — kontrak satu-
+satunya yang men-gate akses komersial WAJIB DENY saat ragu.** `effective_
+entitlement` adalah satu-satunya jalur tenant-plane membaca hak akses fitur/
+kuota, sehingga perilakunya pada kondisi tepi mengikat secara keamanan:
+
+- **Absent / indeterminate / unavailable = DENY (fail-closed).** Bila
+  entitlement tidak ditemukan, tidak dapat ditentukan, `tenant_entitlement`
+  disabled/belum ter-provision, atau resolusi error — jawabannya **selalu
+  tolak akses**, **tidak pernah** grant-all/"anggap punya semua". Ini
+  invariant, bukan preferensi implementasi.
+- **Axis berbeda dari ABAC permission default-deny (ADR-0004).** Entitlement
+  bukan permission: ABAC menjawab "apakah aktor ini boleh melakukan aksi
+  ini"; entitlement menjawab "apakah tenant ini berlangganan fitur/kuota
+  ini". Keduanya default-deny tapi pada sumbu berbeda dan **keduanya** harus
+  lolos — gate entitlement tidak menggantikan gate permission, dan sebaliknya.
+- **Gate hidup di helper capability, BUKAN per-route.** Cek entitlement
+  ditempatkan di dalam helper penyedia kontrak (satu titik), bukan disalin ke
+  tiap route/SSR page — persis pelajaran memory `ssr-admin-pages-skip-module-enabled`
+  (#841: 54/55 halaman admin lolos gate karena gating ada di route, bukan
+  helper). #871 mengimplementasikan helper ini plus test yang membuktikan
+  fail-closed pada tiap kondisi tepi di atas.
+
 **Kontrak event (AsyncAPI, ditulis di Wave-1/2 masing-masing):** semua modul
 control-plane adalah REAL producer via `domain_event_runtime` (`appendDomain
 Event`), mis. `service_catalog.plan.published`, `tenant.provisioning.
 completed`, `tenant.lifecycle.suspended`, `usage.aggregated`, `subscription.
 invoice.issued`, `payment.outcome.settled`. Konsumsi lintas modul lewat
 outbox event, bukan panggilan sinkron lintas-modul.
+
+**Transisi lifecycle yang butuh sinyal billing bersifat event-driven (Low).**
+`tenant_lifecycle` **sengaja tidak** depend `subscription_billing` (menghindari
+cycle SB→TL→SB, lihat graf: `SB --> TL`). Transisi `Active→Grace`/`Grace→Active`
+(§11.2) karena gagal/pulih bayar karena itu **event-driven**: `subscription_
+billing` meng-emit event (mis. `subscription.invoice.past_due` / `.recovered`),
+`tenant_lifecycle` **subscribe** dan mentransisikan state — DAG tetap terjaga
+tanpa dependency kode TL→SB.
 
 ### 5. Aktor (identitas) dan pemisahan tugas
 
@@ -251,6 +289,30 @@ step-up + support-access ditegakkan di #879.
   bukan role Postgres ber-`BYPASSRLS` yang diam-diam melihat semua baris.
   Ini menegakkan ADR-0003/0013 §2 (tenant = batas keamanan tunggal;
   `tenant_id` satu-satunya RLS predicate) dan boundary #879.
+- **Invariant "no soft super-tenant" — pola BACA lintas-tenant operator
+  ditutup rapat (High-1).** Melarang atribut `BYPASSRLS` saja tidak cukup;
+  pola baca setara-risiko harus diikat sebagai kontrak mengikat #870–#881:
+  - **(a) Baca satu-tenant lewat konteks per-tenant.** Akses operator ke
+    tabel tenant-scoped **hanya** boleh lewat iterasi konteks per-tenant
+    (`withTenant()` / `SET LOCAL app.current_tenant_id`, doc 16) — satu
+    tenant per konteks — dan **setiap** akses lintas-tenant menghasilkan
+    audit event (reason + time-bound, sama seperti support access).
+  - **(b) Agregat lintas-tenant lewat read-model purpose-built.** Kebutuhan
+    agregat lintas-tenant (dashboard "semua tenant suspended", metering/
+    billing rollup lintas-tenant) **wajib** memakai read-model/endpoint
+    khusus yang permission-gated + audited — bukan query ad-hoc yang
+    memindai tabel tenant-scoped semua tenant sekaligus.
+  - **(c) LARANGAN EKSPLISIT memperluas predikat RLS dengan platform-claim.**
+    Predikat RLS tabel tenant-scoped **tidak pernah** boleh diperluas dengan
+    klausa platform-claim — mis. `USING (tenant_id = current_setting(...)
+OR current_setting('app.is_platform') = 't')` atau `OR
+has_platform_claim()`. Itu adalah `BYPASSRLS` fungsional yang **lolos**
+    gate `scripts/security-readiness.ts` (yang memeriksa atribut role, bukan
+    isi predikat). Setiap policy control-plane predikatnya **selalu dan
+    hanya** `tenant_id` (ADR-0013 §2). Penambahan predikat platform-claim
+    ke policy manapun adalah pelanggaran ADR ini dan wajib ditolak review;
+    kandidat gate statis (memindai definisi policy migration atas klausa
+    `OR ... platform`/`is_platform`) dicatat sebagai follow-up #879.
 - **Cross-tenant support access eksplisit + reason-bound + time-bound +
   audited.** Support operator default **tidak** punya akses data tenant;
   akses dibuka lewat grant eksplisit yang mencatat alasan, kedaluwarsa
@@ -290,17 +352,31 @@ step-up + support-access ditegakkan di #879.
   model (§10): modul billing/entitlement yang diam-diam aktif di deployment
   LAN adalah permukaan serangan + kebingungan operasional, bukan sekadar
   kosmetik.
+- **Default-disabled butuh GATE struktural, bukan hanya prosa/flag
+  (Medium-3, entry-criterion Wave-1).** "Menutup gap" di atas **tidak
+  cukup** hanya menambah flag `defaultTenantState`. Issue yang
+  memperkenalkannya (#870–#874) **wajib** turut ship unit test — mis. di
+  `tests/unit/module-governance*`/`module-doc-reconciliation` — yang
+  **GAGAL** bila salah satu dari tujuh key control-plane (`service_catalog`,
+  `tenant_entitlement`, `tenant_provisioning`, `tenant_lifecycle`,
+  `usage_metering`, `subscription_billing`, `payment_gateway`) resolve ke
+  `enabled` **tanpa** baris `awcms_mini_tenant_modules` eksplisit. Ground-
+  truth yang di-assert: `module-management/domain/tenant-module-lifecycle.ts`
+  hari ini men-default `tenantEnabled = true`, jadi test harus membuktikan
+  ketujuh modul ini **dikecualikan** dari default-enabled itu. GATE — bukan
+  sekadar flag — adalah bagian tak-terpisahkan dari "menutup gap".
 
 ### 8. Klasifikasi data, retensi, legal hold, audit, privasi, incident
 
-| Dimensi                    | Keputusan boundary                                                                                                                                                                                                                                                                               |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Klasifikasi**            | Katalog = publik-internal (global). Entitlement/subscription/usage/invoice = tenant-confidential. Billing contact (nama/email) = PII (masking, doc 04). Provider secret = **restricted, di luar DB** (§6). Tidak ada PAN/kartu mentah disimpan (provider-tokenized saja).                        |
-| **Retensi + purge**        | Usage record, webhook envelope, payment attempt, outbox = tabel bervolume tinggi → **wajib** didaftarkan ke registry `data_lifecycle` (skill `awcms-mini-data-lifecycle`) dengan kebijakan retensi/arsip/purge. Dokumen billing (invoice) = append-only, retensi panjang sesuai kewajiban legal. |
-| **Legal hold**             | Legal hold `data_lifecycle` menahan purge invoice/billing yang sedang bersengketa (mekanisme sudah ada; control plane hanya mendaftarkan tabelnya).                                                                                                                                              |
-| **Audit**                  | Seluruh aksi high-risk (publish/deprecate plan, override entitlement, provisioning commit/rollback, suspend/cancel/restore/downgrade, koreksi usage, issue/void invoice, refund/credit, resolve payment) → `recordAuditEvent` dengan redaction (skill `awcms-mini-audit-log`).                   |
-| **Privasi (UU PDP/27701)** | Billing contact di-mask/hash sesuai doc 04; tenant hanya lihat datanya sendiri; support access ke PII tenant = reason/time-bound (§6).                                                                                                                                                           |
-| **Incident boundary**      | Kompromi kredensial provider = incident deployment-scope (rotasi env, §6), bukan mutasi tabel. Webhook replay/forgery ditangkap `integration_hub` replay-protection (ADR-0019).                                                                                                                  |
+| Dimensi                         | Keputusan boundary                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Klasifikasi**                 | Katalog `published` = publik-internal (global); draft/harga-internal = restricted (§3, Medium-1). Entitlement/subscription/usage/invoice = tenant-confidential. Billing contact (nama/email) = PII (masking, doc 04). Provider secret = **restricted, di luar DB** (§6). Tidak ada PAN/kartu mentah disimpan (provider-tokenized saja).                                                      |
+| **Webhook envelope (Medium-2)** | Envelope webhook payment yang **TERSIMPAN** (tabel `payment_gateway`/`integration_hub` — data operasional, beda dari audit log) lazim memuat PII mentah (nama, email, alamat tagih). **Wajib** lewat masking doc 04 (`awcms-mini-sensitive-data`: NPWP/NIK/phone/email/alamat) **sebelum** di-persist — **tidak ada** PII mentah di tabel, event, log, maupun IndexedDB. Kontrak untuk #877. |
+| **Retensi + purge**             | Usage record, webhook envelope, payment attempt, outbox = tabel bervolume tinggi → **wajib** didaftarkan ke registry `data_lifecycle` (skill `awcms-mini-data-lifecycle`) dengan kebijakan retensi/arsip/purge. Dokumen billing (invoice) = append-only, retensi panjang sesuai kewajiban legal.                                                                                             |
+| **Legal hold**                  | Legal hold `data_lifecycle` menahan purge invoice/billing yang sedang bersengketa (mekanisme sudah ada; control plane hanya mendaftarkan tabelnya).                                                                                                                                                                                                                                          |
+| **Audit**                       | Seluruh aksi high-risk (publish/deprecate plan, override entitlement, provisioning commit/rollback, suspend/cancel/restore/downgrade, koreksi usage, issue/void invoice, refund/credit, resolve payment) → `recordAuditEvent` dengan redaction (skill `awcms-mini-audit-log`).                                                                                                               |
+| **Privasi (UU PDP/27701)**      | Billing contact di-mask/hash sesuai doc 04; tenant hanya lihat datanya sendiri; support access ke PII tenant = reason/time-bound (§6).                                                                                                                                                                                                                                                       |
+| **Incident boundary**           | Kompromi kredensial provider = incident deployment-scope (rotasi env, §6), bukan mutasi tabel. Webhook replay/forgery ditangkap `integration_hub` replay-protection (ADR-0019).                                                                                                                                                                                                              |
 
 ### 9. Prinsip failure/retry/compensation/reconciliation/rollback
 
@@ -312,7 +388,14 @@ step-up + support-access ditegakkan di #879.
   memegang koneksi/transaksi DB selama panggilan provider; checkout/refund
   di-dispatch lewat outbox worker; webhook masuk lewat `integration_hub`
   inbox bertandatangan dengan replay-protection (ADR-0019), diproses
-  asinkron dengan **retry + DLQ**.
+  asinkron dengan **retry + DLQ**. PII di envelope webhook **di-mask
+  (doc 04) sebelum persist** (§8, Medium-2).
+- **Anti-replay webhook durable (Low).** Verifikasi webhook memakai window
+  timestamp **≤ 300 detik** DAN nonce/`event-id` idempotency yang **persisten
+  di DB** (bukan cache in-memory) — sehingga replay tetap tertangkap setelah
+  restart proses/lintas replica. #877 **tidak** boleh menganggap idempotency
+  in-memory cukup; mekanisme replay-protection tetap didelegasikan ke
+  `integration_hub` (ADR-0019).
 - **Compensation, bukan rollback destruktif.** Provisioning yang gagal di
   tengah menjalankan **langkah kompensasi** (undo saga) yang tercatat +
   idempoten, bukan menghapus data mentah. Downgrade/suspension mengubah
@@ -352,15 +435,15 @@ flowchart TB
   cp -.->|"baca saat verifikasi, tak pernah simpan di tabel"| secret
 ```
 
-| Ancaman                 | Vektor                                             | Kontrol (ditegakkan di ADR ini + issue penegak)                                                                                |
-| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Cross-tenant access** | Operator/modul membaca tenant lain                 | RLS `tenant_id` tunggal; platform role **bukan** BYPASSRLS (§6); modul bisnis hanya baca `effective_entitlement` (§3/§4). #879 |
-| **Operator abuse**      | Platform/billing operator menyalahgunakan wewenang | SoD (§5), step-up, semua aksi high-risk audited (§8); support access reason/time-bound (§6). #879                              |
-| **Webhook replay**      | Provider webhook diputar ulang / dipalsukan        | `integration_hub` signed inbox + replay-protection (ADR-0019); idempotency per event id (§9). #877                             |
-| **Duplicate billing**   | Charge/invoice ganda karena retry                  | Idempotency-Key wajib + hash ber-resource-id (§9); invoice append-only + reconciliation (§9). #876/#877                        |
-| **Provider outage**     | Provider tak tersedia saat charge/refund           | Provider di luar transaksi + outbox + retry/DLQ + reconciliation (§9); billing state dihitung lokal (offline-safe, §2). #877   |
-| **Downgrade data loss** | Downgrade/suspend menghapus data tenant            | Fail-safe: ubah state + gate, **tidak pernah** `DELETE` (§6/§9/§11); soft-delete/legal-hold (§8). #873                         |
-| **Secret leakage**      | Kredensial provider bocor lewat tabel/log          | Secret **hanya** di `process.env`, tak pernah di tabel tenant-readable (§3/§6); redaction audit/log (§8); rotasi = env. #879   |
+| Ancaman                 | Vektor                                                                                               | Kontrol (ditegakkan di ADR ini + issue penegak)                                                                                                                                                                                                                                                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cross-tenant access** | Operator/modul membaca tenant lain; "soft super-tenant" via OR-clause platform-claim di predikat RLS | RLS `tenant_id` tunggal; platform role **bukan** BYPASSRLS + **larangan eksplisit** memperluas predikat RLS dengan platform-claim, baca operator hanya via konteks per-tenant audited, agregat lewat read-model purpose-built (§6 High-1); `effective_entitlement` fail-closed (§4 High-2); modul bisnis hanya baca `effective_entitlement` (§3/§4). #879 |
+| **Operator abuse**      | Platform/billing operator menyalahgunakan wewenang                                                   | SoD (§5), step-up, semua aksi high-risk audited (§8); support access reason/time-bound (§6). #879                                                                                                                                                                                                                                                         |
+| **Webhook replay**      | Provider webhook diputar ulang / dipalsukan                                                          | `integration_hub` signed inbox + replay-protection (ADR-0019); idempotency per event id (§9). #877                                                                                                                                                                                                                                                        |
+| **Duplicate billing**   | Charge/invoice ganda karena retry                                                                    | Idempotency-Key wajib + hash ber-resource-id (§9); invoice append-only + reconciliation (§9). #876/#877                                                                                                                                                                                                                                                   |
+| **Provider outage**     | Provider tak tersedia saat charge/refund                                                             | Provider di luar transaksi + outbox + retry/DLQ + reconciliation (§9); billing state dihitung lokal (offline-safe, §2). #877                                                                                                                                                                                                                              |
+| **Downgrade data loss** | Downgrade/suspend menghapus data tenant                                                              | Fail-safe: ubah state + gate, **tidak pernah** `DELETE` (§6/§9/§11); soft-delete/legal-hold (§8). #873                                                                                                                                                                                                                                                    |
+| **Secret leakage**      | Kredensial provider bocor lewat tabel/log                                                            | Secret **hanya** di `process.env`, tak pernah di tabel tenant-readable (§3/§6); redaction audit/log (§8); rotasi = env. #879                                                                                                                                                                                                                              |
 
 ### 11. State machines (billing = state, BUKAN GL/AR-AP/tax; payment metadata BUKAN double-entry)
 
@@ -486,9 +569,17 @@ lintas-owner lewat event/API (ADR-0013 §3), bukan tabel bersama.
 - **Negatif/trade-off:** Seluruh istilah/tabel/state-machine "mendahului"
   kode sampai Wave-1/2/3 membangunnya — mitigasi sama seperti ADR-0013:
   setiap tabel/endpoint/event wajib migration/ADR/issue sendiri sebelum
-  dianggap nyata; penegakan no-shared-table-write lintas modul in-repo tetap
-  bersandar review + boundary test (belum ada test struktural khusus 7 modul
-  ini karena kodenya belum ada).
+  dianggap nyata.
+- **Kontrak (Low, reviewer): test struktural no-shared-table-write mendarat
+  BERSAMA modul control-plane pertama, tidak "menyusul".** Penegakan
+  control-plane ≠ tenant-plane (tenant-plane hanya baca `effective_
+entitlement`, no direct table read/write lintas modul) tidak boleh
+  bersandar review manual lebih lama dari perlu: modul control-plane pertama
+  yang mendarat (#870/#871) **wajib** turut menambah/memperluas
+  `tests/unit/module-boundary.test.ts` untuk pasangan control-plane ↔ tenant-
+  plane, pola yang sama seperti `blog_content`/`news_portal` (ADR-0011). Hari
+  ini belum ada test struktural khusus tujuh modul ini semata karena kodenya
+  belum ada — bukan karena penegakannya boleh ditunda ke PR terpisah.
 - **Netral:** Tidak ada migration/endpoint/event/UI di PR ini — murni
   dokumen arsitektur + amandemen ADR-0013 + update doc 20/21/guide + skill.
 
