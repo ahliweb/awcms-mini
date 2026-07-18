@@ -1,5 +1,1298 @@
 # Changelog
 
+## 0.25.0
+
+### Minor Changes
+
+- 663e7c2: Close the account-enumeration oracles on `POST /api/v1/auth/login` (Issue #840).
+
+  An unauthenticated caller could confirm that a given `loginIdentifier` exists
+  without ever guessing its password, strengthening credential stuffing and
+  targeted phishing (OWASP ASVS V2.2.1 / WSTG-IDNT-04). Two oracles existed, and
+  the larger one was not the reported one.
+
+  **Response body.** `locked` and `password_login_disabled` are reachable only
+  once the identity has resolved (`login-policy.ts` guards both with
+  `input.identity`), so their distinct responses disclosed existence. Both now
+  answer with the same `401 AUTH_INVALID_CREDENTIALS` and the same
+  `"Invalid login identifier or password."` message as an unknown identifier.
+  For `locked` this is a message-only change — it already returned
+  `401 AUTH_INVALID_CREDENTIALS`, and only the human-readable
+  `"Account is temporarily locked."` gave it away — and it was the practical
+  oracle: reachable in ~6 requests on a **default** deployment by tripping
+  `AUTH_LOGIN_MAX_ATTEMPTS` and reading the message back.
+
+  **Timing (the bigger one, and not in the issue).** `login.ts` skipped
+  `verifyPassword` entirely for an unknown identifier
+  (`identityRow ? await verifyPassword(...) : false`). Measured on the repo's own
+  integration harness, an unknown identifier answered in a median of **4.13 ms**
+  against **80.13 ms** for a known one — a ~19x gap that enumerates accounts in a
+  **single request**, with no lockout to trip, on default configuration. Fixing
+  only the bodies would have left it wide open. `verifyPasswordOrDummy`
+  (`src/lib/auth/password.ts`) now always spends an equivalent argon2id verify,
+  against a lazily-memoized dummy hash produced by `hashPassword` itself so its
+  parameters always match real hashes. Measured after: **90.46 ms** vs
+  **90.29 ms** (ratio 1.002). This equalizes the dominant cost, not every
+  instruction, and is not claimed as a constant-time proof.
+
+  **Behavior changes callers may notice.**
+
+  - `403 PASSWORD_LOGIN_DISABLED` is no longer returned by this endpoint. A
+    tenant with `password_login_enabled=false` (Issue #591) now denies
+    non-break-glass identities with `401 AUTH_INVALID_CREDENTIALS`. Enforcement
+    is unchanged (no session is issued) and break-glass identities still sign in
+    normally. Beyond leaking existence, the old `403` fingerprinted exactly which
+    identities are **break-glass** — the accounts that retain password access,
+    i.e. the highest-value targets in that configuration.
+  - A locked account no longer says so in the response.
+
+  The real deny reason is unchanged server-side and still recorded on every
+  attempt as `login_failed`'s `reason` attribute (`locked`,
+  `password_login_disabled`, `invalid_credentials`), so operators lose nothing.
+  `403 ACCESS_DENIED` for an inactive tenant stays distinct: it is decided from
+  the tenant header before any identity is looked at and is returned identically
+  for every identifier, so it cannot enumerate.
+
+  **Accepted cost.** A genuinely locked user, and a user at an SSO-required
+  tenant, now get a generic message with no hint about why. Those hints belong on
+  channels that cannot be probed anonymously — a verified-email notification, and
+  tenant-wide SSO discovery on the login page. Neither exists yet; the login page
+  has no provider-discovery endpoint to surface "sign in with SSO" today, which
+  is the natural follow-up.
+
+### Patch Changes
+
+- dfabecc: Tambah snapshot memory agent ke docs supaya konteks pengembangan bisa dimuat
+  ulang di device berbeda. Memory Claude Code hidup di
+  `~/.claude/projects/<slug-cwd>/memory/` — **di luar repo**, sehingga tidak ikut
+  `git clone` dan hilang saat berpindah device.
+
+  `scripts/sync-agent-memory.ts` menyinkronkan dua arah antara memory aktif dan
+  `docs/awcms-mini/agent-memory.md`: `memory:docs:sync` (memory → docs, dijalankan
+  tiap kali memory berubah), `memory:docs:restore` (docs → memory, untuk device
+  atau checkout baru), dan `memory:docs:check` (gagal bila docs melenceng dari
+  memory; **skip dengan exit 0** bila direktori memory tidak ada, sehingga CI dan
+  checkout segar tidak dipaksa memilikinya). Slug diturunkan dari cwd dengan setiap
+  karakter non-alfanumerik menjadi `-` — jadi device dengan path checkout berbeda
+  tetap menulis ke direktori memory-nya sendiri yang benar.
+
+  Karena repo ini publik, snapshot disanitasi: `originSessionId` dibuang, home
+  directory diganti `~` (hanya `os.homedir()` sungguhan — pola `/home/<user>`
+  generik akan merusak path proyek bersama yang bermakna seperti
+  `/home/data/dev_bun/awpos`), dan placeholder berbentuk-password diredaksi agar
+  tidak memicu secret scanner. Memory device-specific yang tidak berguna di device
+  lain dikecualikan lewat daftar `EXCLUDE` yang wajib menyertakan alasan, dan
+  alasan itu dirender ke dokumen supaya pengecualiannya tidak senyap.
+
+  `docs/awcms-mini/agent-memory.md` masuk `.prettierignore`: Prettier memformat
+  ulang header dokumen generated sehingga `memory:docs:check` selalu gagal setelah
+  `lint`, dan memformat ulang isi memory berarti kehilangan fidelitas round-trip
+  `restore`. Round-trip diverifikasi utuh untuk seluruh file memory.
+
+  Aturan pemakaiannya ditegakkan sebagai AGENTS.md aturan #16, berpasangan dengan
+  aturan #15 (dokumen audit `AUDIT_STANDAR_PENGEMBANGAN_<tanggal>.md` adalah
+  dokumen hidup yang di-rename mengikuti tanggal perubahan, bukan file baru).
+
+- 20c4759: Buat `ANALYZE` di suite query-plan benar-benar berjalan dan gagal keras kalau
+  tidak (Issue #849, epic #818). PostgreSQL **diam-diam melewati** `ANALYZE` atas
+  tabel yang tidak dimiliki peran pemanggil — hanya WARNING, bukan error, exit
+  status sukses. Karena query-plan check menjalankan `ANALYZE` lewat peran
+  least-privilege `awcms_mini_app` (yang tidak memiliki tabel), statistik planner
+  tidak pernah disegarkan; budget lolos/gagal karena kebetulan timing autovacuum,
+  bukan pengukuran nyata (`admin_list` sempat merah palsu karena `Sort`;
+  `blog-posts-fulltext-search` sempat merah palsu ~874 di jalur script ber-bloat).
+
+  Perbaikan: modul baru `src/lib/performance/analyze-fixtures.ts`
+  (`analyzeQueryPlanFixtures`) menyegarkan statistik lewat koneksi **privileged**
+  (pemilik tabel) lalu **membuktikan** itu berjalan dengan memeriksa
+  `pg_stat_user_tables.analyze_count` benar-benar naik untuk setiap tabel — kalau
+  tidak, ia melempar (test: `beforeAll` gagal; script: exit 1 dengan pesan yang
+  bisa ditindaklanjuti). Integration harness memakai `getAdminSql()`; script
+  `performance:query-plan:check` memakai `PERF_ANALYZE_DATABASE_URL` (URL
+  owner/superuser), fallback ke `DATABASE_URL`. CI menyetel
+  `PERF_ANALYZE_DATABASE_URL` ke peran migration-owner. EXPLAIN tetap berjalan
+  RLS-enforced sebagai peran least-privilege — ANALYZE dipisah sebagai operasi
+  maintenance milik owner.
+
+  Tidak ada perubahan threshold budget: dengan statistik akurat semua budget lolos
+  dengan margin sehat (fts 472–667/800, reporting 562–1132/1300, admin-list
+  57–71/200). Klaim lama "fts latently red 939.5 vs 800" **tidak tereproduksi** —
+  biaya statistik-akurat tak pernah melewati ~667. Proof `DROP INDEX` kini
+  menegakkan biaya sekaligus bentuk plan (dropped ~316–472 vs budget 200), dan
+  gate pure-unit baru memastikan setiap tabel penggerak budget ada di daftar
+  ANALYZE.
+
+- 663e7c2: Batch tulisan telemetri pengunjung per tenant supaya beban pool tidak lagi naik
+  linear terhadap traffic publik (Issue #846, epic #818).
+
+  **Premis isu meleset, dan koreksinya yang menentukan bentuk perbaikan.** Isu
+  meminta "batch INSERT `visit_event` per-event". Diukur — lewat TCP proxy yang
+  menghitung round trip di kabel, ke Postgres nyata — satu kunjungan publik
+  sebenarnya berharga **5,2 round trip**: BEGIN, SET LOCAL, SELECT session, INSERT
+  event, COMMIT, plus 0,2 UPDATE session yang teramortisasi throttle 30 detik.
+  INSERT yang disebut judul isu hanya **~19%** dari biaya itu, dan tidak mungkin
+  di-batch sendirian: ia butuh `visitor_session_id` yang dihasilkan SELECT di
+  transaksi yang sama. Biaya dominannya adalah **scaffolding transaksi per-event
+  (~58%)**. Maka yang di-batch adalah **transaksinya**, bukan INSERT-nya: N event
+  satu tenant kini berharga ~5-7 round trip total, bukan 5,2 **masing-masing**.
+
+  Hasil (metode identik untuk baseline dan sesudahnya, angka setup diassert —
+  jumlah row tertulis dan jumlah transaksi penulis diverifikasi, bukan diasumsikan):
+
+  | skenario                            | sebelum | sesudah           |
+  | ----------------------------------- | ------- | ----------------- |
+  | round trip / event                  | 5,2     | **0,18** (~29x)   |
+  | per event, latensi 2ms/hop disuntik | 28,89ms | **1,38ms** (~21x) |
+  | per event, loopback                 | 1,43ms  | 0,28ms            |
+
+  Selisih loopback vs 2ms/hop (1,43ms → 28,89ms pada baseline yang sama)
+  menunjukkan kenapa angka ini tidak boleh diklaim dari loopback: **loopback
+  menyembunyikan biaya round-trip**, yaitu persis biaya yang dihapus batching.
+
+  **Trade yang dipilih sadar.** Record hidup di memori sampai batch-nya flush,
+  jadi crash KERAS (SIGKILL/OOM/panic) bisa kehilangan ≤ `BATCH_LINGER_MS` (200ms)
+  traffic per tenant atau `MAX_BATCH_SIZE` (50) event — jendela yang memang lebih
+  lebar dari sebelumnya. SIGTERM/SIGINT normal **tidak kehilangan apa pun**:
+  flush menulis batch **PARSIAL**, tidak pernah menunggu batch penuh atau linger
+  timer. Trade ini diterima khusus untuk visitor analytics — data agregat yang
+  sudah lossy by design (queue bounded drop, flush timeout, collector fail-open) —
+  dan **tidak berlaku untuk tulisan ledger/audit/transaksi posted**. Bounded
+  (`MAX_PENDING_EVENTS`) dan drop-nya nyaring lewat counter baru
+  `visitor_analytics_batch_dropped_total` + gauge `visitor_analytics_batch_pending`
+  (terpisah dari counter tahap 1 supaya operator tahu tahap MANA yang jenuh).
+
+  Jaminan #832 utuh: `enqueueVisitorTelemetry` tetap mengembalikan `void`,
+  antrean tetap bounded/fail-open, dan hook shutdown tetap hanya dipasang dari
+  `src/middleware.ts` — bukan dari panggilan data-plane.
+
+  `occurred_at` kini di-capture di jalur respons dan di-INSERT eksplisit. Tanpa
+  ini, penundaan batch akan menggeser timestamp setiap event ke waktu flush-nya
+  dan merusak analytics secara diam-diam.
+
+  **Dua trap terverifikasi empiris.** Bentuk bulk yang paling alami —
+  `unnest(..., tx.array(rows.map(r => JSON.stringify(r.geo)), "jsonb"))` —
+  memunculkan kembali bug Issue #623: byte-nya identik, tapi setiap SELECT
+  mengembalikan `string`, bukan objek. Karena itu insert batch memakai row helper
+  `tx(rows)` dengan objek polos. Mutation test juga menemukan dua celah di test
+  buatan sendiri: bulk UPDATE session (unnest 13 array) semula tidak dijalankan
+  test mana pun — dan karena berada di dalam `catch` fail-open, syntax error di
+  situ akan ditelan diam-diam selamanya; keduanya kini tertutup.
+
+- 663e7c2: Kunci index blog admin list dari Issue #830 dengan query-plan budget (Issue
+  #838, epic #818). #830 menambahkan `(tenant_id, updated_at DESC)` untuk
+  `awcms_mini_blog_posts`/`awcms_mini_blog_pages` dengan bukti EXPLAIN kuat, tapi
+  tidak ada budget yang mencegahnya regresi — index bisa terhapus dan CI tetap
+  hijau.
+
+  **Sinyal budget-nya `Sort`, bukan `Seq Scan` — ini terukur, bukan asumsi.**
+  Menyalin bentuk lima budget sebelumnya (`forbiddenNodeTypes: ["Seq Scan"]`)
+  akan menghasilkan **gate vakum**. Dengan index di-`DROP` sungguhan pada skala
+  fixture `safe`, planner **tidak** jatuh ke Seq Scan: RLS selalu menyuntikkan
+  `tenant_id = current_setting(...)` dan tabelnya masih punya
+  `..._tenant_deleted_idx`, jadi planner memakai index itu lalu menambah `Sort`:
+
+  | Blog admin post list | Plan                                                     | Cost   |
+  | -------------------- | -------------------------------------------------------- | ------ |
+  | index ada            | `Limit -> Index Scan`                                    | 62,06  |
+  | index di-`DROP`      | `Limit -> Sort -> Bitmap Heap Scan -> Bitmap Index Scan` | 939,88 |
+
+  Budget "Seq Scan saja" LULUS pada plan kedua. Karena itu kategori baru
+  `admin_list` melarang `Sort`/`Incremental Sort` (invarian sesungguhnya:
+  `ORDER BY` dilayani urutan index, jadi plan tidak menyortir apa pun),
+  dengan `maxTotalCost` sebagai lapis pertahanan kedua yang independen.
+
+  Perubahan:
+
+  - Dua budget baru — `blog-posts-admin-list` dan `blog-pages-admin-list` —
+    di `query-plan-budgets.ts`, SQL pasangannya (bentuk asli
+    `listBlogPostsForAdmin`/`listBlogPagesForAdmin`, termasuk filter opsional
+    yang di-bind NULL seperti tampilan default) di `query-plan-runner.ts`.
+  - `awcms_mini_blog_pages` kini di-seed (`scale-profiles.ts` field `blogPages`,
+    `generateBlogPages`, `insertBlogPages`, plus DELETE di
+    `resetPerformanceFixtureRows`). Tanpa ini budget page mustahil: **budget di
+    atas tabel kosong = gate vakum**, Postgres Seq Scan tabel 0 baris apa pun
+    index-nya.
+  - `updated_at` kini benar-benar dihasilkan generator untuk post dan page.
+    Sebelumnya tidak pernah di-insert sehingga jatuh ke `DEFAULT now()` — satu
+    nilai per transaksi seeding (terukur: 5 nilai distinct untuk 3000 baris).
+    Budget `ORDER BY updated_at DESC` di atas kolom konstan bukan proxy yang
+    bermakna; kini tersebar realistis (selalu >= `created_at`).
+  - Proof adversarial: unit test menjalankan budget terhadap plan terukur di
+    atas **termasuk assertion bahwa varian naif TIDAK menangkap regresinya**,
+    dan integration test benar-benar `DROP INDEX` (dikembalikan di `finally`,
+    drop diassert ke `pg_indexes` lebih dulu) lalu memastikan gate MERAH —
+    persis DoD Issue #838.
+
+  Terdokumentasi juga di `performance-suite.md`: statistik planner di suite ini
+  sering basi karena peran `awcms_mini_app` bukan owner tabel, sehingga `ANALYZE`
+  **di-skip diam-diam dengan WARNING, bukan error** — assertion bentuk plan
+  bertahan pada regime statistik buruk, assertion cost tidak. Itulah alasan
+  budget `admin_list` memimpin dengan bentuk plan.
+
+  Konsekuensi lanjutan yang juga terukur: `CREATE INDEX` memperbarui
+  `pg_class.reltuples`/`relpages` sebagai efek samping (`-1/0` → `2000/334`),
+  sehingga planner tahu jumlah baris sebenarnya tapi **tetap nol statistik
+  kolom** — satu-satunya kondisi di mana index budget ini justru kalah tipis:
+
+  | kondisi `pg_class`                | plan                                    | cost  |
+  | --------------------------------- | --------------------------------------- | ----- |
+  | `reltuples=-1` (belum di-analyze) | `Index Scan(..._tenant_updated_idx)`    | 8,3   |
+  | `reltuples` nyata, nol stat kolom | `Sort` + `Scan(..._tenant_deleted_idx)` | 8,19  |
+  | ter-`ANALYZE` penuh (DB nyata)    | `Index Scan(..._tenant_updated_idx)`    | 57,17 |
+
+  Dua plan itu **seri dalam ~1%**, jadi planner ambil yang sedikit lebih murah —
+  lemparan koin, bukan penilaian. Baris tengah tidak pernah terjadi di deployment
+  nyata (autovacuum menghasilkan baris ketiga). Karena itu proof `DROP INDEX`
+  meng-assert pemulihan index lewat `pg_indexes.indexdef` (round-trip terhadap
+  definisi yang ditangkap sebelum drop), **bukan** dengan menjalankan `EXPLAIN`
+  ulang: memulihkan index itu fakta schema, jadi di-assert sebagai fakta schema.
+  Assertion inti (before hijau, regressed merah) tidak berubah dan tetap
+  terbukti merah lewat mutation test.
+
+- b8bac67: fix(blog-content): clamp `?page=` at both ends on public blog/news routes (Issue #819)
+
+  `boundedPage` clamped only the lower bound and did not guard `NaN`, on routes
+  that are public and unauthenticated. `?page=1e8` reached `OFFSET 1e9` (a
+  deep-offset scan holding a pool connection for one credential-less GET) and
+  `?page=abc` reached `OFFSET NaN` → 500.
+
+  Page-number bounds now live in a shared helper
+  (`src/modules/_shared/offset-pagination.ts`): `boundedPageNumber` clamps to
+  `[1, 10_000]`, truncates fractions, and returns page 1 for `NaN`/`±Infinity`;
+  `parsePageParam` is used by the six public `/blog/{tenantCode}` and `/news`
+  routes so the clamped value is also what renders into pagination nav links.
+  The admin blog post/page lists use the same helper (they shared the
+  copy-pasted pattern).
+
+  Behaviour change: a non-numeric or out-of-range `?page=` now renders page 1
+  (or an empty page 10,000) instead of a 500.
+
+- 60c922b: Fix `scripts/changeset-policy-check.ts` crashing with `ENOENT` on any
+  release-consumption PR (Issue #810). `git diff --name-only` doesn't
+  distinguish added vs. deleted paths, so the changed-`.changeset/*.md`-file
+  detection included paths deleted by the PR (e.g. consumed changesets removed
+  by `bun run changeset:version`), then tried to read their content for
+  frontmatter validation and crashed.
+
+  The first fix attempt (skip frontmatter validation for deleted paths) had a
+  security side effect a review pass caught before merge: it made the
+  pre-existing "any touched `.changeset/*.md` path counts as satisfied" logic
+  silently PASS a PR that _deletes_ an existing pending changeset instead of
+  adding a new one, converting an accidental crash (fail-closed) into a
+  silent bypass (fail-open) of the "changeset required" gate. Replaced with a
+  narrow, content-verified release-consumption carve-out: the requirement is
+  waived only when a `.changeset/*.md` file was genuinely deleted, the ONLY
+  non-exempt file touched is `package.json`, and that file's diff changes
+  nothing but its `version` field (verified via `git show` on both sides,
+  failing closed on any ambiguity). Added a CLI-level regression suite that
+  spawns the real script against disposable git repos to exercise this
+  wiring directly, including a reproduction of the exploit confirmed blocked.
+
+- b8bac67: Tutup celah "CI diam-diam menjalankan subset `bun run check`" untuk keempat
+  kalinya (Issue #823, epic #818). Lima langkah ada di komposit `check` tetapi tak
+  pernah dicerminkan ke `.github/workflows/ci.yml`: `api:docs:check`,
+  `repo:inventory:check`, `i18n:pot:check`, `config:docs:check`, dan
+  `logging:lint:check`. Kelimanya lolos saat dipasang, jadi ini risiko laten
+  (regresi inventory/API-docs/i18n/config-docs/logging bisa merge hijau), bukan
+  drift aktif.
+
+  Menambal lima langkah itu saja tidak cukup — daftar di `ci.yml` adalah cermin
+  manual dari `check`, dan cermin itu sudah melenceng empat kali
+  (#685/#740/#745/#746/#750) meski `ci.yml` memuat komentar peringatan panjang di
+  tiap langkah. Karena itu ditambahkan gate sesungguhnya:
+  `tests/unit/ci-check-parity.test.ts` mengurai komposit `check` dari
+  `package.json` lalu memastikan setiap langkahnya benar-benar dijalankan
+  `ci.yml`, sehingga menambah langkah `check` tanpa memasangnya di CI langsung
+  merah. Pemeriksaannya sengaja satu arah (`check` ⊆ `ci.yml`) karena CI memang
+  menjalankan lebih banyak (`db:migrate`, performance suite, DR drill); langkah
+  yang CI jalankan dengan bentuk perintah berbeda (`bun test`, `build`)
+  didaftarkan eksplisit di `RUN_DIFFERENTLY`, dan entri usang di daftar itu ikut
+  gagal supaya pengecualian tidak bertahan diam-diam setelah alasannya hilang.
+
+  Gate-nya diverifikasi benar-benar menangkap drift: menyisipkan langkah palsu ke
+  `check` membuat test merah dengan pesan yang menyebut langkah itu, dan hijau
+  kembali setelah dipulihkan.
+
+  Branch protection `main` (bagian kedua Issue #823) tetap butuh aksi owner dan
+  tidak termasuk perubahan ini.
+
+- b8bac67: fix(data-exchange): tutup empat cacat raw-value guard pada preview import (#820) dan klamp `offset` (#831)
+
+  `GET /api/v1/data-exchange/imports/{id}/preview` mengembalikan nilai staged mentah hanya bila descriptor pemiliknya menyatakannya, dan hanya kepada pemegang izin yang **descriptor itu sendiri** sebutkan. Empat cacat yang saling menguat (laten — belum ada modul yang mendaftarkan descriptor sensitif; ini perangkap untuk turunan pertama):
+
+  - **Default-allow dibalik jadi default-deny**: `sensitiveFields` kini **wajib** (registry gate menolak descriptor tanpanya — nyatakan `{ fieldNames: [] }` bila memang tak ada yang sensitif). Descriptor tanpa policy kini di-mask seluruhnya dan tak ada izin yang membukanya; sebelumnya lalai mendeklarasikan justru **membuka** semua nilai tanpa cek izin sama sekali.
+  - **`sensitiveFields.rawValuePermission` kini benar-benar ditegakkan**: sebelumnya divalidasi saat registrasi tapi nol enforcement site — route memakai konstanta hardcoded `data_exchange.preview_errors.read` yang jauh lebih luas, sehingga deklarasi izin sempit descriptor (mis. `profile_identity.identifiers.reveal_raw`) diabaikan diam-diam.
+  - **Descriptor tak terselesaikan kini fail-closed**: `authorizeExchangeDescriptorPermission` tidak lagi menerima `null` (fail-open yang bertentangan dengan komentarnya sendiri). Batch yang modul pemiliknya di-disable setelah staging kini ditolak `409 INVALID_STATE` pada preview/commit/retry/download — sebelumnya batch justru menjadi **lebih terbuka** setelah modulnya dimatikan.
+  - **`naturalKey` ikut di-mask** bila `sensitiveFields.naturalKeyField` menyebut field yang sensitif — kunci dedup import profil lazimnya justru email/NIK.
+
+  Perubahan perilaku untuk aplikasi turunan: `ExchangeDescriptor.sensitiveFields` wajib; `ExchangeSensitiveFieldPolicy` menerima `naturalKeyField` opsional; `authorizeExchangeDescriptorPermission` menerima `ExchangeDescriptor` non-nullable.
+
+  `offset` preview kini diklamp atas ke `PREVIEW_OFFSET_MAX` (= `MAX_EXCHANGE_ROW_COUNT`, sehingga tak menyembunyikan baris yang bisa dijangkau) — sebelumnya hanya dicek `>= 0` sementara `limit` tepat di baris berikutnya sudah diklamp, jadi `?offset=5000000` diteruskan apa adanya ke Postgres.
+
+- 95dc428: Hilangkan baseline 16 undeclared module-dependency edge yang dibekukan #826; gate `module-declared-dependencies` kini memvalidasi graph import lintas-modul yang LENGKAP (Issue #845, epic #818).
+
+  #826 merilis gate dengan baseline 16 edge tak-terdeklarasi di 10 modul (mendeklarasikan semuanya sekaligus di luar scope #826). #845 menuntaskannya ke nol:
+
+  - 15 edge adalah import layering-valid nyata dan kini dideklarasikan di `dependencies` masing-masing `module.ts` (blog-content, document-infrastructure, form-drafts, identity-access, module-management, news-portal, organization-structure, profile-identity, reference-data, social-publishing — mayoritas `-> logging`).
+  - Edge ke-16, `profile_identity -> domain_event_runtime`, adalah cycle nyata (`domain_event_runtime -> identity_access -> profile_identity`). Diputus dengan menyuntikkan producer outbox sebagai `DomainEventAppendPort` (`_shared/ports/domain-event-append-port.ts`, hanya TYPE, tanpa import implementasi) di composition root (route `POST /api/v1/profile-merge-requests/{id}/execute`) alih-alih meng-import langsung — pola inversi ADR-0011 yang sama dengan pasangan port blog_content/news_portal.
+
+  Dengan baseline hilang, setiap import lintas-modul baru yang tak dideklarasikan gagal seketika — persis yang akan menangkap #826 saat authoring. Tanpa perubahan skema/runtime perilaku; murni deklarasi graph + inversi dependensi.
+
+- 51ddbc2: Turunkan (derive) domain-event **publish root** dari registry, bukan menamainya
+  tangan (Issue #848, epic #818). Perubahan hanya di gate test dan dokumentasi —
+  tak ada perubahan perilaku runtime.
+
+  **Masalah.** #826 membalik registrasi consumer (modul mendaftarkan consumer-nya
+  sendiri; runtime tak mengimpor kode consumer) — memutus cycle tapi menukar
+  jaminan compile-time dengan runtime yang gagalnya **senyap**. `appendDomainEvent`
+  membuat delivery row **dari registry saat publish**, jadi publisher yang belum
+  mengimpor registrasi consumer yang men-subscribe event-nya menghasilkan **NOL
+  row** untuk event yang benar-benar terjadi — permanen, tanpa error/dead-letter.
+  PR #847 menambal ini dengan daftar `PUBLISH_ROOTS` **manual**: asumsi tak teruji
+  bahwa consumer lintas-modul BARU yang event-nya di-publish modul lain akan lolos
+  diam-diam sampai ada yang ingat menambah entri.
+
+  **Perbaikan.** `tests/unit/domain-event-consumer-registration-wiring.test.ts` kini
+  **menurunkan** publish root dari kode: untuk tiap consumer terdaftar yang bukan
+  milik runtime (`BASE_DOMAIN_EVENT_CONSUMERS`), ambil `eventTypes`-nya, resolusi
+  tiap pemanggil `appendDomainEvent` yang mem-publish-nya (**resolusi identifier ES
+  import nyata**, mengikuti operand ternary — bukan grep literal), dan wajibkan tiap
+  publisher **se-modul** mengimpor registrasi consumer itu. `PUBLISH_ROOTS` manual
+  dihapus.
+
+  **Tanpa edge lintas-modul baru.** Bila publisher berada di modul LAIN dari
+  registrasi consumer, gate **menandainya sebagai sinyal arsitektural** (registrasi
+  harus pindah ke composition root proses, ditambahkan ke `COMPOSITION_ROOTS`),
+  bukan memaksa import lintas-batas yang akan membuat ulang cycle yang #826 hapus.
+  Nol kasus lintas-modul hari ini; masing-masing yang muncul kelak akan MERAH.
+
+  **Gate dibuktikan bisa MERAH.** Cocok terhadap **statement `import`** (resolve +
+  bandingkan path), bukan `source.includes(specifier)` — melepas import registrasi
+  dari `integration-hub/application/inbound-webhook-intake.ts` membuat gate gagal
+  **meski komentar tepat di atasnya menyebut path yang sama** (cacat "prosa
+  memuaskan gate" yang sama seperti yang #847 perbaiki).
+
+  **Guard derivasi.** Gate juga gagal bila (a) ada consumer non-base yang tak
+  ter-map ke file registrasi (mis. registrasi tanpa export definisi), atau (b) ada
+  operand `eventType` yang tak bisa diresolusi (blind spot) — keduanya membuat
+  derivasi buta terhadap publish site, jadi difail-kan lantang.
+
+  **Premis issue terkonfirmasi.** Dua consumer non-base:
+  `integration_hub.outbound_subscription_fanout` (event
+  `integration-hub.inbound-message.normalized`, di-publish hanya oleh
+  `inbound-webhook-intake.ts` di modul yang **sama** → satu-satunya publish root,
+  tanpa edge baru) dan `reporting.event_activity_projector` (event
+  `sample.recorded`, **tak di-publish kode produksi mana pun** → nol publish root).
+  Derivasi memroses kedua operand ternary di `workflow-approval` tanpa blind spot.
+
+- 2217ed6: fix(release): align `release.yml` trigger with the tag Changesets actually emits (`awcms-mini@*`)
+
+  The automated release path was structurally dead: `.changeset/config.json`'s
+  `privatePackages: { version: true, tag: true }` makes `bun run changeset:tag`
+  create `awcms-mini@X.Y.Z`, but `.github/workflows/release.yml` triggered on
+  `push: tags: v*.*.*` — a pattern that tag can never match. Per the owner's
+  Option 1 decision (follow Changesets), the trigger is now `awcms-mini@*` and
+  `privatePackages.tag: true` is retained; the manual `vX.Y.Z` tag is no longer
+  a supported entry point.
+
+  Consistency changes so the whole chain uses the same tag shape:
+
+  - `scripts/release-verify.ts` `normalizeTagVersion` now strips the
+    `awcms-mini@` prefix (in addition to `refs/tags/` and a legacy `v`), so
+    the `release:verify` gate correctly compares `awcms-mini@X.Y.Z` against
+    `package.json`.
+  - The `gh release create` title uses the bare version instead of
+    `github.ref_name`, so it reads "awcms-mini X.Y.Z" rather than
+    "awcms-mini awcms-mini@X.Y.Z". The GitHub Release git tag is unchanged
+    (`awcms-mini@X.Y.Z`).
+  - `docs/awcms-mini/release-process.md` now distinguishes the git tag
+    (`awcms-mini@X.Y.Z`) from the container image tag (bare `X.Y.Z`), and the
+    cosign verification example keys on `refs/tags/awcms-mini@.*`.
+
+  Owner-only follow-ups remain open on Issue #825 (NOT done here): review
+  `required_reviewers` on the `release` GitHub Environment (the rehearsal run
+  hung >26h waiting on it), and approve a rehearsal end-to-end through
+  sign + attest + publish. No release tag was pushed by this change.
+
+- 51ddbc2: Backfill dedicated high-risk integration coverage untuk Issue #827 (epic #818):
+  workflow-approval decision endpoint dan integration-hub outbound SSRF guard.
+  Perubahan tests-only (plus regenerasi `docs/awcms-mini/repo-inventory.md`), tidak
+  mengubah perilaku runtime.
+
+  - `tests/integration/workflow-approval-decision-hardening.integration.test.ts`:
+    idempotent replay (respons tersimpan verbatim, tak re-decide, tak dobel-audit),
+    isolasi idempotency lintas-resource (bug berulang #750/#795 — hash memuat
+    taskId), dan probe konkurensi `test.failing` yang mendokumentasikan quorum-'all'
+    bypass NYATA (dilaporkan sebagai #851).
+  - `tests/integration/integration-hub-ssrf.integration.test.ts`: penolakan SSRF di
+    write-time (subscription create ke alamat privat/link-local ditolak 400, tak
+    disimpan) dan pertahanan berlapis di dispatch-time (target privat yang lolos
+    write-time diblokir sebelum ada HTTP keluar; delivery dead-letter non-retryable).
+
+  Tiap assertion penting diverifikasi MERAH via mutation ke kode produksi lalu
+  dikembalikan. data-exchange tidak disentuh: file 40-blok yang ada sudah menutup
+  ketiga butir DoD #827 (masking preview #820, formula injection, error impor
+  parsial), diverifikasi hijau terhadap Postgres nyata.
+
+- 90149ce: Gate integration test suites on `DATABASE_URL` dan cegah regresi bare
+  `describe(...)`.
+
+  `tests/integration/reference-data.integration.test.ts` punya satu blok
+  top-level yang memakai bare `describe(...)` alih-alih helper gate
+  `suite = integrationEnabled ? describe : describe.skip`, sehingga sepuluh
+  test DB-touching berjalan tanpa syarat dan menggagalkan
+  `bun run check`/`bun test` saat `DATABASE_URL` kosong. CI tidak
+  menangkapnya karena job Quality selalu menyetel `DATABASE_URL`.
+
+  Blok tersebut diperbaiki ke `suite(...)`, dan gate unit murni baru
+  `tests/unit/integration-suite-gating.test.ts` (jalan justru tanpa DB)
+  memindai semua `tests/integration/*.integration.test.ts` memakai
+  allow-list default-deny: setiap `describe...` top-level (kolom-0) gagal
+  dengan pesan actionable KECUALI dua bentuk terdokumentasi —
+  `describe.skip(` dan `describe.skipIf(!integrationEnabled)(` (kondisi
+  persis ini). Jadi `describe(`, `describe.only(`, `describe.each(`,
+  `describe.todo(`, serta `describe.skipIf(...)` berkondisi lain (terbalik
+  atau `process.env.CI`) semuanya tertangkap.
+
+- 51ddbc2: Tambahkan gate validasi response-vs-schema OpenAPI (Issue #844, epic #818).
+
+  Sebelumnya tidak ada apa pun di repo yang membandingkan body response nyata
+  (atau data pembentuk response) terhadap kontrak OpenAPI yang dipublikasikan —
+  `api:spec:check`/`api:docs:check` hanya menjaga konsistensi antar artefak
+  (bundle segar relatif sumber), bukan kesetiaan kontrak terhadap kode. Akibatnya
+  endpoint yang body-nya diturunkan dari struktur TypeScript hand-maintained bisa
+  melanggar kontraknya sendiri secara senyap — persis yang terjadi pada
+  `sensitiveFields.naturalKeyField` (Issue #820, tertangkap manual di review PR
+  \#839).
+
+  **Mekanisme.** `scripts/lib/openapi-response-validator.ts`: validator subset
+  JSON-Schema tanpa dependency baru (Bun-only, AGENTS.md rule 14; `ajv` ditolak
+  karena memaksa permukaan Node dan membaca `allOf`+`additionalProperties: false`
+  secara ketat per-branch, padahal envelope `ApiSuccess` di kontrak ini memakai
+  pembacaan MERGE). Mendukung `$ref`, `allOf` (merge), `oneOf`/`anyOf`, `type`,
+  `enum`, `const`, `required`, `additionalProperties: false`, `properties`,
+  `items`, `nullable`. Memvalidasi objek nyata terhadap schema ter-parse — bukan
+  grep teks sumber.
+
+  **Gate.** `tests/unit/response-contract-validation.test.ts` memvalidasi response
+  nyata `GET /api/v1/data-exchange/descriptors` (envelope + descriptor registry
+  verbatim) terhadap bundle terpublikasi `awcms-mini-public-api.openapi.yaml`.
+  Harness data-driven — menambah endpoint = satu entri. Melebur test parity sempit
+  `data-exchange-descriptor-contract-parity.test.ts` (assertion naturalKeyField &
+  load-bearing dipertahankan).
+
+  Drift `data_exchange` yang jadi bukti issue **sudah** diperbaiki PR #839; gate
+  ini membuktikannya tetap benar dan menutup kelas cacat "gate hijau di atas
+  drift response nyata" secara umum untuk endpoint registry/descriptor.
+
+- 0eff213: Samakan pengecekan trust media URL LinkedIn (`isTrustedR2MediaUrl`) dengan pola
+  Meta (`isAcceptableProviderMediaUrl`) — defense-in-depth hardening (Issue #862,
+  epic #818). Sebelumnya adapter LinkedIn memakai prefix check string
+  `url.startsWith(publicBaseUrl)` yang bisa di-bypass (trailing-dot FQDN,
+  `@`-userinfo `media.example.com@evil.com`, dan prefix-collision
+  `media.example.com.evil.com`) dan tidak menolak downgrade `http:`.
+
+  Kedua jalur provider kini memakai SATU helper bersama
+  `isMediaUrlFromTrustedBase` (`src/modules/social-publishing/domain/provider-media-trust.ts`)
+  yang parse `new URL()`, mewajibkan `protocol === "https:"`, lalu membandingkan
+  `URL.host` secara persis — kelas pengecekan lemah yang pelajaran trailing-dot
+  FQDN Issue #635 sudah hindari untuk Meta. Helper murni tanpa I/O, di-`domain/`
+  sehingga bisa di-import oleh jalur Meta (`domain/`) dan adapter LinkedIn
+  (`infrastructure/`) tanpa memicu import cycle.
+
+  Ini murni hardening last-mile: `content.imageUrl` sudah selalu dibangun
+  server-side dari objek media R2 terverifikasi, jadi tidak ada jalur input yang
+  saat ini terjangkau — tidak mengubah perilaku publish yang sah.
+
+- b8bac67: Perbaiki regresi yang diperkenalkan Issue #821: audit `login_failed` /
+  `mfa_challenge_failed` ditulis dengan `tenant_id` dari header **sebelum**
+  memastikan tenant itu ada. `awcms_mini_audit_events.tenant_id` adalah
+  `NOT NULL REFERENCES awcms_mini_tenants (id)`, sehingga header tenant yang
+  berbentuk UUID valid tetapi tidak terdaftar membuat INSERT audit melanggar
+  foreign key, membatalkan transaksi, dan mengubah 403/401 yang dimaksud menjadi
+  **500** — dapat dipicu siapa pun tanpa autentikasi, jadi cara murah untuk
+  memaksa 500 beruntun.
+
+  Sekarang audit tenant-scoped hanya ditulis bila tenant-nya benar-benar ada;
+  selain itu percobaannya tetap terlihat lewat structured log (yang memang tidak
+  tenant-scoped). Secara definisi tidak ada jejak tenant-scoped yang bisa ditulis
+  untuk tenant yang tidak ada. Recorder out-of-band memeriksa ulang keberadaan
+  tenant sendiri, karena ia berjalan setelah transaksi login gagal dan tidak
+  boleh memercayai apa pun yang dihitung transaksi itu.
+
+  Ditemukan oleh review bot pada PR #839 — reviewer maupun security-auditor
+  melewatkannya. Test regresinya diverifikasi menangkap cacat aslinya (merah saat
+  guard dicabut, hijau setelah dipulihkan).
+
+- dfe1e0f: perf(middleware): analytics tidak lagi memblokir response + cache host→tenant (Issue #832)
+
+  **Akar masalah.** `src/middleware.ts` meng-`await collectRequestAnalytics(...)`
+  sebelum mengembalikan response, pada **setiap** request publik. Di dalamnya:
+  resolusi host→tenant (1-2 query, tanpa cache padahal mapping domain→tenant
+  berubah dalam hitungan hari) lalu satu transaksi `withTenant` (SELECT session,
+  UPDATE/INSERT session, INSERT visit_event). Totalnya 4-6 round trip DB masuk
+  langsung ke TTFB tiap halaman publik — jalur yang justru paling sensitif TTFB
+  di repo dengan tenant domain routing. Docblock fungsi itu sendiri mengklaim
+  "never delays the response beyond its own `await`"; `await` itulah masalahnya.
+
+  **Perubahan.**
+
+  - Resolusi host→tenant kini di-cache in-process dengan TTL
+    `PUBLIC_TENANT_CACHE_TTL_MS` (default 60s, `0` = nonaktif), termasuk hasil
+    negatif, dengan single-flight (N request dingin untuk host yang sama =
+    1 query, bukan N) dan batas `MAX_ENTRIES` agar flood `Host` header tidak
+    bisa menumbuhkan memori tanpa batas. Kunci cache adalah hostname
+    ter-normalisasi **utuh** — bukan suffix/label — dan hanya memoize fungsi
+    yang murni bergantung pada host, sehingga tidak ada jalan bagi tenant A
+    melihat tenant B.
+  - Analytics tidak lagi memblokir response: bagian yang menyentuh `context`
+    (cookie visitor, config, IP/geo/UA dari header) tetap sinkron dan inline
+    (tanpa DB), sedangkan lookup tenant + write dipindah ke antrean in-memory
+    terbatas. **Bukan** `void collectRequestAnalytics(...)` seperti saran
+    minimal issue: itu akan membuat `context.cookies.set(...)` hilang (Astro
+    sudah men-serialize cookie begitu middleware return), sehingga tiap request
+    mencetak visitor key baru dan memecah semua session.
+  - Tidak ada kehilangan event pada shutdown normal: antrean di-flush pada
+    SIGTERM/SIGINT/`beforeExit` (adapter `@astrojs/node` standalone tidak
+    memasang handler sinyal apa pun, jadi tanpa ini event pending hilang).
+    Handler itu dipasang **hanya dari `src/middleware.ts`** (satu-satunya jalur
+    yang membuktikan proses ini benar-benar HTTP server), tidak pernah otomatis
+    dari `enqueueVisitorTelemetry`: memasang signal handler adalah keputusan
+    lifecycle proses milik application entry, bukan efek samping panggilan
+    data-plane. Versi pertama memasangnya lazily saat enqueue, sehingga setiap
+    proses yang pernah mengantre satu event telemetri — termasuk `bun test` —
+    ikut mewarisi handler SIGTERM; `tests/unit/job-runner.test.ts` yang sah
+    memanggil `process.emit("SIGTERM")` untuk menguji cancellation-nya lalu
+    memicu handler itu, yang me-`process.kill` seluruh test runner (~1 detik,
+    nol hasil test, terlihat seperti suite menggantung).
+  - Invalidasi cache dipasang di endpoint tenant-domain (create/update/verify/
+    delete) **setelah** transaksi commit, bukan di dalamnya.
+
+  **Angka TTFB (diukur, bukan asumsi).** Server hasil `bun run build`, Postgres
+  nyata, mapping host→tenant aktif, 200 sample `/news` setelah warmup:
+
+  | Skenario                       | p50 sebelum | p50 sesudah | mean sebelum | mean sesudah |
+  | ------------------------------ | ----------- | ----------- | ------------ | ------------ |
+  | DB loopback (best case DB)     | 3.94 ms     | 2.65 ms     | 4.11 ms      | 3.07 ms      |
+  | Write analytics lambat (+50ms) | 55.65 ms    | 2.10 ms     | 55.70 ms     | 2.44 ms      |
+
+  Baris pertama (−33% p50) memang kecil dalam angka absolut karena Postgres ada
+  di loopback (RTT sub-milidetik) — itu **best case** yang tidak mewakili
+  deployment nyata. Baris kedua mengisolasi hal yang sebenarnya diperbaiki:
+  dengan latensi 50ms disuntikkan ke write analytics, TTFB lama ikut naik penuh
+  ke 55.65 ms sementara TTFB baru tidak bergerak sama sekali (2.10 ms). Artinya
+  biaya analytics kini **nol** di jalur kritis, bukan sekadar lebih kecil — dan
+  penghematan sesungguhnya di produksi berskala dengan RTT/kontensi DB, bukan
+  dengan angka loopback di baris pertama.
+
+  Bukti tidak ada telemetri yang hilang (kondisi identik, write 50ms, SIGTERM
+  saat antrean masih terisi): tanpa flush hook 22/40 event tersimpan; dengan
+  flush hook 40/40.
+
+- 663e7c2: docs(epic-818): rekonsiliasi doc 01/02/13/21 dengan 23 modul nyata + gate anti-drift (Issue #828)
+
+  Dokumen perencanaan tertinggal jauh dari registry. Doc 01 §"Modul utama
+  (base)" memuat 11 baris untuk registry 23 modul dan menegaskan _"modul
+  domain ... bukan bagian base ini"_ padahal `src/modules/index.ts`
+  mendaftarkan `blog_content`/`news_portal`/`social_publishing` sebagai base;
+  doc 13 memuat tabel traceability yang menunjuk tabel/endpoint/ID issue yang
+  tak pernah ada; doc 21 §8 berjudul "Peta 23 modul" tapi memuat 22 baris.
+
+  Yang diperbaiki:
+
+  - **Doc 01**: tabel modul ditulis ulang ke 23 modul nyata (kolom `key` +
+    kategori doc 21), klaim "modul domain bukan bagian base" **dicabut**, dan
+    4 kapabilitas base non-modul (Localization UI, UI Experience, Database
+    Connectivity, Production Security) dinyatakan eksplisit — mereka hidup di
+    `src/lib/`+`i18n/`+`scripts/`, tak terlihat oleh `modules:dag:check`.
+  - **Doc 13**: dua tabel traceability utama ditulis ulang terhadap tabel/
+    endpoint/issue yang **diverifikasi ke sumbernya**; matrix migration
+    diperluas `055` → `077` (+7 modul yang hilang); versi hardcoded dihapus
+    (sumber kebenaran `package.json`/`CHANGELOG.md`).
+  - **Doc 13**: keputusan eksplisit — production security readiness
+    **script-only & ephemeral**; janji `awcms_mini_security_*` +
+    `/security/go-live-gates/evaluate` (nol hit di `sql/`+`src/`) dicabut,
+    bukan diimplementasikan.
+  - **Doc 02**: ditambah PRD Management Reporting (modul base nyata,
+    `key: reporting`) dan Localization UI (ditandai kapabilitas non-modul).
+  - **Doc 21 §8** + **AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md**: baris
+    `idn_admin_regions` yang hilang ditambahkan; klaim audit "24 modul (22
+    `active`, 2 `experimental`)" dikoreksi ke **23 modul (22 `active`, 1
+    `experimental`)** — 24 adalah jumlah **direktori** `src/modules/*/` yang
+    ikut menghitung `_shared` (bukan modul terdaftar).
+
+  Perubahan berperilaku: **gate CI baru**
+  `tests/unit/module-doc-reconciliation.test.ts` mem-parse baris tabel doc
+  01/13/21 dan menegakkannya terhadap `listBaseModules()` + isi `sql/` —
+  dua arah (baris hilang **dan** modul/migration fiktif), termasuk setiap
+  migration wajib terpetakan tepat satu kali. Sengaja mem-parse **baris
+  tabel**, bukan `source.includes(key)`, sehingga prosa yang menyebut sebuah
+  modul tidak bisa memuaskan gate. Ini drift ke-6 kelas yang sama;
+  perbaikan doc tanpa pagar akan kambuh ke-7.
+
+- dfe1e0f: docs(skills): skill untuk 5 modul aktif yang belum punya + gate anti-drift modul↔skill (Issue #829)
+
+  Menulis skill proyek untuk lima modul aktif yang sebelumnya **tidak punya
+  panduan konvensi tertulis sama sekali**, padahal 18 modul lain punya:
+  `awcms-mini-data-exchange`, `awcms-mini-reference-data`,
+  `awcms-mini-domain-event-runtime`, `awcms-mini-organization-structure`, dan
+  `awcms-mini-reporting`. Kelimanya disambungkan ke dua katalog discoverability
+  (`AGENTS.md` + `.claude/skills/README.md`), dan jumlah skill di doc 13
+  dikoreksi (39 → 50; sudah salah sejak beberapa epic lalu).
+
+  **Akar drift-nya, dan kenapa menambal 5 skill saja tidak cukup.** Ini
+  kemunculan **keenam** dari kelas skill/doc drift (lih. #805 dan
+  pendahulunya). Penyebabnya bukan "lima kali lupa": tidak ada satu pun gate
+  yang membandingkan registry modul dengan direktori skill. Registry tahu ada
+  23 modul; tidak ada yang mengecek angka itu terhadap `.claude/skills/`.
+  Konvensi "skill baru wajib disambungkan ke katalog" pun hanya konvensi tertulis,
+  tanpa penegakan — persis celah yang membuat 4 skill baru di PR #806 lolos tanpa
+  satu pun baris katalog. Empat dari lima modul tanpa skill justru muncul sebagai
+  SUMBER temuan di audit #818 (#820, #822, #826, #786) — kebetulan yang bukan
+  kebetulan: modul tanpa konvensi tertulis adalah modul yang konvensinya melenceng.
+
+  Karena itu inti perubahan ini adalah **gate**-nya, bukan kelima file skill:
+  `tests/unit/module-skill-coverage.test.ts` (jalan lewat `bun test`, sudah bagian
+  `bun run check`) mewajibkan setiap modul di base registry (`listBaseModules()`)
+  tercatat EKSPLISIT di tepat satu dari dua map — punya skill dedikasi, atau
+  masuk **allow-list eksplisit** yang menyebut skill lintas-potong yang menanggung
+  panduannya plus alasannya (dan skill itu wajib benar-benar ada, supaya alasannya
+  tidak bisa diam-diam jadi bohong). Modul yang tidak ada di keduanya gagal
+  keras dengan instruksi remediasi. Gate ini juga menegakkan bahwa setiap skill
+  dedikasi benar-benar ada di disk, nama frontmatter-nya cocok dengan direktorinya,
+  dan **tersambung di KEDUA katalog** — file SKILL.md yang tidak ditunjuk apa pun
+  tidak dianggap selesai.
+
+  Gate-nya langsung membuktikan diri pada run pertama: menemukan bahwa key modul
+  yang terdaftar sebenarnya `workflow`, bukan `workflow_approval` seperti yang
+  tertulis di direktori dan seluruh dokumentasinya (dicatat inline; rename key
+  di luar scope karena memindahkan seluruh namespace permission `workflow.*`).
+
+- f4be3ff: Inversi `resolveNewsMediaR2Config` lewat `NewsMediaPort` sehingga `news_portal`
+  kembali benar-benar opsional bagi `social_publishing` (Issue #859, epic #818).
+
+  Adapter LinkedIn `social_publishing` dulu mengimpor
+  `news-portal/domain/news-media-r2-config.ts`'s `resolveNewsMediaR2Config`
+  secara statis (untuk R2 public base URL pada cek kepercayaan gambar
+  `isTrustedR2MediaUrl`). Import lintas-modul itu adalah SATU-SATUNYA penyebab
+  `social_publishing` harus mendeklarasikan `news_portal` sebagai dependency HARD
+  di `module.ts` — bertentangan langsung dengan `capabilities.consumes` modul ini
+  sendiri (`news_media`, `optional: true`) dan membuat tenant tidak bisa disable
+  `news_portal` selama `social_publishing` aktif.
+
+  Sekarang kapabilitas resolusi config itu di-rutekan lewat method baru
+  `NewsMediaPort.resolveMediaPublicBaseUrl(env)` — pola inversi ADR-0011 yang
+  sama dengan `NewsMediaPort.resolveMediaReferences` yang sudah ada. Composition
+  root publish nyata (`scripts/social-publish-dispatch.ts`) menyuntikkan
+  implementasi konkret `newsMediaPortAdapter` dari `news_portal`; proses SSR
+  verify (yang tak pernah `publish`) sengaja tidak menyuntikkannya. Bila port tak
+  di-inject atau `NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong, `publicBaseUrl` menjadi
+  string kosong → semua gambar dianggap tak terpercaya → degradasi aman ke
+  link-share (perilaku fallback yang sama seperti sebelumnya).
+
+  Dampak: edge `social_publishing -> news_portal` dihapus dari `dependencies`
+  (perubahan lifecycle — tenant kini boleh disable `news_portal` selagi
+  `social_publishing` aktif tanpa blok reverse-dependency). Kepercayaan/upload
+  gambar tetap DEPLOYMENT-WIDE (bucket R2 + `NEWS_MEDIA_R2_PUBLIC_BASE_URL` level
+  deployment, port di-inject process-wide di dispatcher) — identik dengan
+  perilaku pra-#859; degradasi ke link-share terjadi hanya bila port tak
+  di-inject atau R2 base URL kosong, BUKAN karena tenant mematikan `news_portal`.
+  Versi kontrak kapabilitas `news_media` di `capability-contract-versions.ts`
+  dinaikkan `1.0.0` → `1.1.0` (penambahan method additive
+  `resolveMediaPublicBaseUrl` pada port; MINOR/backward-compatible) agar app
+  turunan bisa mendeklarasikan `requires news_media 1.1.0`.
+  `social_publishing -> blog_content` TETAP dependency HARD (tidak diubah).
+  `isTrustedR2MediaUrl` kini fungsi murni `(url, publicBaseUrl)` (signature
+  berubah, hanya dipakai internal + unit test). Gate declared-dependency #826/#845
+  tetap hijau karena tak ada lagi import lintas-modul `social_publishing ->
+news_portal` yang tak dideklarasikan.
+
+- b8bac67: Audit successful and failed password sign-ins (Issue #821).
+
+  `POST /api/v1/auth/login` imported `recordAuditEvent` but only ever called it
+  for `mfa_challenge_issued`, so neither a successful nor a failed password login
+  left any trace — no audit trail existed for brute-force or credential-stuffing
+  against the endpoint, and doc 01's base-ready requirement "Audit log high-risk
+  tersedia" was unmet in code.
+
+  The endpoint now writes exactly one `login_succeeded` or `login_failed` audit
+  row per attempt, carrying the tenant, identity, method, source fingerprint,
+  user agent, correlation ID, and — on failure — the deny reason
+  (`invalid_credentials` / `locked` / `tenant_inactive` /
+  `password_login_disabled`). `POST /api/v1/auth/mfa/totp/verify` gained the
+  matching `mfa_challenge_failed` row, the one auth outcome in that route that
+  was still untraced.
+
+  Notes:
+
+  - Failed logins stay on the record even when the login transaction is rolled
+    back: an exception unwinding it is re-recorded out of band as
+    `login_failed` / `internal_error`, and the original error is rethrown
+    untouched.
+  - Audit content cannot be used to enumerate accounts: the attacker-supplied
+    `loginIdentifier` is never persisted, and an unknown account produces the
+    same `invalid_credentials` reason as a real account with a wrong password.
+  - Source IPs are persisted as a keyed `ipHash`, never in the clear — rows stay
+    groupable by source without the audit trail becoming an address log.
+  - No request or response shape changed; no migration.
+
+- b8bac67: perf(db): add missing indexes for blog admin lists, the scheduled-publish job, and four unindexed FK columns (Issue #830)
+
+  Migration `077_awcms_mini_performance_missing_indexes.sql` — pure DDL, no
+  application code change.
+
+  - `awcms_mini_blog_posts (tenant_id, updated_at DESC) WHERE deleted_at IS NULL`
+    and the same on `awcms_mini_blog_pages`. Both admin list screens end in
+    `ORDER BY updated_at DESC` but migration 026 created no `updated_at` index at
+    all, so every page load was a Seq Scan of the tenant's whole post/page set
+    plus a top-N heapsort. Measured on a 60k-row seed: root plan cost 3835 -> 2.9,
+    execution 19.9ms -> 0.07ms, buffers 1655 -> 23.
+  - `awcms_mini_blog_posts (tenant_id, scheduled_at) WHERE status = 'scheduled' AND deleted_at IS NULL`
+    for the periodic scheduled-publish job. The existing
+    `(tenant_id, status, published_at DESC)` index was already being used, but it
+    cannot apply the `scheduled_at <= now()` bound, so the job read the heap for
+    every scheduled post and discarded the not-yet-due ones; work grew with the
+    future-scheduled backlog rather than with the number of due posts.
+  - Indexes on four FK columns that had no covering index at all, so a parent
+    DELETE forced a full child seq scan: `awcms_mini_abac_decision_logs.tenant_user_id`,
+    `awcms_mini_visitor_sessions.identity_id`, `awcms_mini_sync_outbox.node_id`
+    (its sibling `sync_inbox` already had the equivalent), and
+    `awcms_mini_blog_ads.tenant_id` (also read-path: every `ads-directory.ts`
+    query and the RLS policy filter on it, on a table with no index beyond its PK).
+
+- dfe1e0f: Putuskan import cycle `domain_event_runtime ⇄ integration_hub` dan tutup akar penyebab kenapa dua gate bisa hijau di atasnya (Issue #826).
+
+  **Akar masalahnya bukan cycle-nya, tapi dua gate yang tidak bisa melihatnya:**
+
+  1. `tests/unit/module-boundary-cycles.test.ts` hanya memindai `application/` + `domain/`. Sisi keluar cycle ini ada di `infrastructure/`, jadi `aImportsB` terbaca false dan 258 pasang modul lolos hijau di atas cycle yang benar-benar hidup. Sekarang memindai `infrastructure/` + `api/` juga (plus bentuk bare side-effect import `import "…"`, yang kini load-bearing).
+
+  2. `bun run modules:dag:check` adalah cycle detector yang benar, tapi hanya bisa menemukan cycle di antara edge yang **diberikan** kepadanya — dan edge itu berasal dari deklarasi `dependencies` di `module.ts` yang tidak pernah diperiksa terhadap kode. `domain-event-runtime/module.ts` mendeklarasikan `["tenant_admin", "identity_access", "logging"]` sementara `consumer-registry.ts` nyata-nyata mengimpor `integration_hub` dan `reporting`. Cycle detector yang disuapi graf tanpa edge cycle-nya sendiri **tidak mungkin gagal**. Gate baru `tests/unit/module-declared-dependencies.test.ts` membuat deklarasi bertanggung jawab pada kode — dengan baseline beku 16 edge pre-existing yang hanya boleh mengecil, supaya bisa rilis sekarang tanpa mengubah graf lifecycle 10 modul sekaligus.
+
+  **Cycle-nya sendiri:** port di `_shared/ports/` tidak bisa memperbaikinya. Port hanya menghapus ketergantungan TIPE dari plugin ke runtime, padahal `integration_hub → domain_event_runtime` adalah value import yang sah dan permanen (`appendDomainEvent`, `event-type-registry` — modul ini memang PLUGIN dari runtime tsb). Satu-satunya arah yang bisa dihapus adalah arah runtime → plugin. Jadi registrasi consumer dibalik: modul pemilik consumer mendaftarkan dirinya lewat `registerDomainEventConsumer` dari `<modul>/infrastructure/domain-event-consumer-registration.ts`, dan runtime tidak mengimpor kode modul consumer sama sekali. Ini memperbaiki pelanggaran layering yang mendasari cycle-nya: modul `system` foundation tidak boleh bergantung pada feature module yang menancap padanya (ADR-0013 §1).
+
+  `reporting` ikut dibalik. Edge `domain_event_runtime → reporting` bukan import cycle, tapi berlawanan langsung dengan `reporting/module.ts` yang sengaja mendeklarasikan `domain_event_runtime` sebagai "genuine lifecycle-ordering dependency" — kontradiksi yang baru terlihat begitu deklarasi dipaksa cocok dengan import, dan yang membuat `modules:dag:check` gagal dengan cycle `reporting -> domain_event_runtime -> reporting` yang nyata.
+
+  **Risiko yang dibawa inversi ini, dan gate-nya:** registrasi lewat side-effect import bisa tidak lengkap di suatu proses, dan gagalnya **senyap** — `dispatch-domain-events.ts` mengiterasi consumer yang TERDAFTAR, jadi delivery milik consumer yang tidak terdaftar tidak pernah di-claim sama sekali (tidak ada error, tidak ada dead-letter, hanya `pending` selamanya). `tests/unit/domain-event-consumer-registration-wiring.test.ts` menemukan file registrasi lewat konvensi lalu memaksa setiap composition root mengimpornya.
+
+  Tanpa perubahan perilaku untuk deployment yang sudah jalan: consumer yang sama tetap terdaftar dengan nama, event type, versi, dan handler yang identik.
+
+- b8bac67: Collapse the module health fan-out from O(modules) to O(1) (Issue #824).
+
+  `fetchModuleMatrix` and `admin/modules.astro` resolved health by calling
+  `fetchModuleHealthReport` once per registered module, and each call ran its own
+  registry lookup, migration scan, permission-catalog query and settings lookup —
+  94 queries to render one admin screen at 23 modules, growing with every module
+  added. Those four inputs are now prefetched once per render
+  (`prepareModuleHealthContext`) and shared across modules, and multi-module
+  callers use the new `fetchModuleHealthReports` batch entry point.
+
+  Separately, `readYamlCached` populated its cache only after awaiting, so the 22
+  modules declaring the same ~1 MB `openapi.yaml` each read and parsed that file
+  concurrently on a cold render. It now caches the in-flight promise, so
+  concurrent callers join one parse; `listMigrationFileNames` is cached the same
+  way (it was re-`readdir`-ing on every signal).
+
+  Measured per render at 23 modules: 94 → 6 queries, ~3.8s → ~0.36s cold, ~10ms →
+  ~6ms warm. No behaviour change — the same signals, order, statuses and generic
+  (never raw) error details. `includeHealth: false` still runs zero health work.
+
+- c773fe6: Selaraskan kontrak OpenAPI PATCH `organization_structure` dan `reference-data`
+  value-sets dengan semantik partial-PATCH yang benar (Issue #837, epic #818).
+  Runtime sudah diperbaiki di PR #852 (absent = pertahankan, `null` = kosongkan),
+  tetapi skema OpenAPI masih "berbohong": PATCH legal-entities/locations memakai
+  ulang skema Create (`required: [name]`), PATCH unit-types/units/value-sets masih
+  `required: [name]` — semuanya melegitimasi reset yang justru dihapus di runtime.
+
+  Perubahan: PATCH kini memakai skema Update khusus yang all-optional
+  (`OrganizationStructureUpdateLegalEntityRequest`,
+  `OrganizationStructureUpdateUnitTypeRequest`,
+  `OrganizationStructureUpdateLocationRequest`), `OrganizationStructureUpdateUnitRequest`
+  dan `ReferenceDataUpdateValueSetRequest` tak lagi `required: [name]`. Skema Create
+  tetap menuntut `name` (memang wajib saat pembuatan). `name`/`effectiveFrom` tetap
+  non-nullable pada PATCH karena runtime menolak `null` (NOT NULL) dengan 400.
+
+- dfe1e0f: Perbaiki dua beban performa di jalur hierarki `organization_structure` (Issue
+  #834). Keduanya murni optimasi — verdict, kontrak, dan hasil setiap fungsi tidak
+  berubah sedikit pun.
+
+  **1. `resolveLegalEntityScope`: walk descendant O(S x depth), worst O(U²) → O(U + E).**
+  Adapter memanggil `computeDescendants` sekali per unit yang mendeklarasikan legal
+  entity, dan tiap panggilan mengalokasi `visited` set **baru** — nol sharing,
+  sehingga setiap subtree yang dipakai bersama di-walk ulang sekali untuk tiap seed
+  di atasnya. `computeDescendantClosure` yang baru mengerjakan hal yang sama
+  sebagai **satu traversal multi-source di atas satu `visited` set bersama**: tiap
+  node dikunjungi tepat sekali.
+
+  **2. `readEdgeMap` full-tenant di dalam critical section advisory lock → recursive CTE ancestor chain.**
+  `reparentUnit` memuat **seluruh** edge map tenant di dalam
+  `pg_advisory_xact_lock` tenant-wide, jadi throughput reparent per tenant turun
+  linear terhadap **ukuran tenant** — padahal cycle check hanya bergantung pada
+  **kedalaman** hierarki. `validateReparent` hanya pernah berjalan **ke atas** dari
+  `candidateParentId`, jadi `readAncestorChainEdgeMap` (recursive CTE) memuat cukup
+  rantai ancestor saja: verdict identik, O(depth) bukan O(tenant).
+  `candidateParentId === null` kini melewati query sepenuhnya (tak mungkin bikin
+  cycle).
+
+  **Advisory lock TIDAK diubah dan TIDAK dilemahkan.** Map tetap dibaca **setelah**
+  lock diambil — urutan itulah perbaikan race-nya, dan alternatif "ambil map
+  sebelum lock lalu revalidasi" justru membuka kembali race yang lock ini tutup.
+  Yang mengecil hanya **jumlah kerja di dalam** lock. Test konkurensi reparent yang
+  ada tetap hijau, ditambah test baru untuk cycle dalam (8 hop) lewat endpoint
+  nyata.
+
+  **Benchmark, tenant 10.000 unit (Postgres 18, seluruh unit mendeklarasikan legal
+  entity yang sama — worst case untuk walk per-seed):**
+
+  | Shape            | Baca di dalam lock (SQL) | Walk `resolveLegalEntityScope` |
+  | ---------------- | ------------------------ | ------------------------------ |
+  | Wide (spine 50)  | 5,67 ms → 0,40 ms (14x)  | 28,62 ms → 1,02 ms (28x)       |
+  | Deep (chain 10k) | 4,97 ms → 1,58 ms (3,1x) | 4383,55 ms → 0,83 ms (5304x)   |
+
+  Shape deep mengonfirmasi ledakan kuadratik yang diprediksi issue secara empiris.
+  Hasil kedua shape identik dengan sebelum perubahan (10.000 scope).
+
+  **Tanpa migration.** Recursive step-nya lookup `(tenant_id,
+organization_unit_id)` per level; `EXPLAIN ANALYZE` mengonfirmasi Nested Loop +
+  Index Scan di tiap level (`shared hit=6`, tanpa seq scan) memakai index yang
+  sudah ada dari `sql/063`.
+
+  **Koreksi premis issue.** DoD meminta `resolveLegalEntityScope` "filter root
+  beneran di SQL", dengan alasan walk-nya redundan. Itu keliru dua kali:
+  `awcms_mini_organization_units` **tidak punya kolom `parent_id`** (hierarki hidup
+  di tabel `awcms_mini_organization_unit_hierarchies` yang terpisah dan
+  effective-dated), jadi predikat `parent_id IS NULL` tak bisa ditulis; dan
+  walk-nya **load-bearing**, bukan redundan — descendant rutin **tidak**
+  mendeklarasikan entity-nya sendiri (mereka mewarisi secara struktural), jadi
+  closure-nya benar-benar lebih besar dari seed set. Memfilter seed ke root akan
+  **diam-diam mempersempit scope otorisasi**: unit yang mendeklarasikan entity di
+  bawah parent yang tidak mendeklarasikannya akan hilang bersama seluruh
+  subtree-nya. Yang cacat adalah **bentuk** walk-nya, bukan keberadaannya. Test
+  regresi baru mengunci kontrak ini agar "perbaikan" root-filter itu tidak
+  diterapkan nanti.
+
+  Ini recursive CTE **pertama** di repo. Pola "satu bulk query muat seluruh
+  adjacency tenant, walk in-memory" tetap benar di semua read path lain (di sana
+  map penuh memang jawabannya); ia salah **khusus di sini** karena baca ini duduk
+  di dalam lock tenant-wide dan hanya butuh satu jalur ke akar.
+
+- 51ddbc2: Perbaiki semantik PATCH reference-data & organization-structure (Issue #843 &
+  #837, epic #818).
+
+  **#843** — Keputusan no-op `PATCH {}` untuk reference code (global & tenant)
+  kini hidup DI DALAM `updateReferenceCode`/`updateTenantReferenceCode`, bukan di
+  short-circuit call site. Helper menerima patch mentah (`ReferenceCodePatchInput`)
+  lalu memutuskan refusal (`managed_by_descriptor` / deprecated), no-op, dan merge
+  di satu tempat — sehingga jawaban endpoint tak lagi bergantung pada berapa field
+  yang kebetulan dikirim. Menambah test paritas untuk sumbu `managed_by_descriptor`
+  yang sebelumnya nol coverage.
+
+  **#837** — PATCH parsial pada `organization-structure` (units, legal-entities,
+  locations, unit-types) dan `reference-data/value-sets/{key}` tidak lagi mereset
+  field yang dihilangkan. Semantik benar: **absent = pertahankan**, **`null` =
+  kosongkan** field nullable, `null` pada field `NOT NULL` (name/effectiveFrom) = 400. Sebelumnya PATCH satu field diam-diam memotong riwayat effective-dating
+  (`effectiveFrom` → now, `effectiveTo` → null) dan menghapus name/description.
+  Menambah helper parse/merge reusable di `_shared/partial-patch.ts` plus test
+  partial-PATCH (sebelumnya nol coverage untuk PATCH organization-structure).
+
+- b8bac67: Perbaiki tiga temuan security-auditor pada PR #839 (epic #818).
+
+  **Gate `requiredPermission` deskriptor kini ditegakkan di halaman admin
+  (HIGH).** `src/pages/admin/data-exchange/imports/[id].astro` tidak melewati
+  route API mana pun — ia melakukan query dan proyeksi staged row sendiri — dan
+  mereplikasi gate raw-value dengan benar tapi **tidak pernah** memutuskan
+  `ExchangeDescriptor.requiredPermission`, izin milik modul pemilik yang
+  ditegakkan keenam route API. Deskriptor dengan `requiredPermission:
+"hr.payroll.read"` karenanya ditegakkan di seluruh permukaan API dan nol di
+  UI: pemegang `data_exchange.imports.read` generik bisa membaca konten staged
+  modul lain (natural key, validation error, laporan rekonsiliasi) langsung dari
+  halaman. Halaman kini memanggil `isDescriptorPermissionGranted` — keputusan
+  yang sama dengan route, dibagi dari satu tempat — dan deskriptor yang tidak
+  lagi resolve (modul pemilik dinonaktifkan setelah staging) kini **deny**, bukan
+  sekadar `maskAllFields`.
+
+  **`AUTH_JWT_SECRET` tidak lagi deprecated, dan tidak lagi merosot senyap
+  (HIGH).** Sejak Issue #821 variabel ini adalah kunci HMAC nyata untuk pseudonim
+  IP (`ipHash`) di audit log, tapi registry menandainya `deprecated` dengan
+  `removalVersion: "1.0.0"` ("terverifikasi mati / nol konsumen") sementara
+  `client-fingerprint.ts` mem-fallback ke `?? ""`. Saat variabel itu benar-benar
+  dihapus sesuai jadwal, `hashClientIp` akan merosot jadi SHA-256 tanpa garam —
+  ruang IPv4 hanya 2^32, jadi **setiap `ipHash` di audit trail menjadi
+  reversibel**, tanpa satu pun error. Dipilih **Opsi A** (mencabut deprecation)
+  di atas Opsi B (var baru `AUTH_IP_HASH_KEY`): key separation di sini tidak
+  membeli apa pun karena `AUTH_JWT_SECRET` terverifikasi tidak menandatangani
+  apa pun (sesi = token opaque; `jwt-verify.ts` RS256 lewat JWKS penyedia), jadi
+  tidak ada risiko cross-protocol — sementara var wajib baru memaksa perubahan
+  pada setiap deployment yang sudah berjalan tanpa keuntungan keamanan. Fallback
+  `?? ""` dihapus (lempar, jangan merosot senyap), dan `validate-env` kini
+  menolak placeholder `.env.example` lewat `checkAuthJwtSecretNotDefault`
+  (memakai ulang pola `checkSyncHmacSecretNotDefault`; `checkRequiredVars` hanya
+  mengecek non-kosong, dan placeholder itu non-kosong).
+
+  **Teks bebas tidak lagi meloloskan nilai yang di-mask (MEDIUM).**
+  `maskSensitiveFields` mempertahankan `validationWarnings` utuh, padahal
+  `maskAllFields` membuangnya dengan alasan eksplisit "warning adalah teks bebas
+  yang mungkin diinterpolasi adapter dengan nilai mentah" — alasan yang berlaku
+  identik di kedua jalur. Sebuah warning `"email x@y.com sudah terdaftar"`
+  mengembalikan nilai yang baru saja di-mask dari `fields.email`. `commitError`
+  (= `outcome.reason` adapter) dipertahankan utuh di **kedua** jalur termasuk
+  default-deny. Keduanya kini dibuang/di-mask di kedua jalur; `commitStatus`
+  tetap, jadi baris masih melaporkan BAHWA ia gagal, hanya bukan dengan nilai
+  apa.
+
+  Selain itu: komentar `login.ts` yang mengklaim respons login "byte-identical
+  regardless of whether the identity exists" diperbaiki — klaim itu salah
+  (`locked` dan `password_login_disabled` dapat dibedakan dan hanya tercapai bila
+  identity ada). Oracle enumerasinya sendiri pre-existing dan dilacak di Issue
+  #840; perilakunya sengaja tidak diubah di sini.
+
+- b8bac67: Perbaiki tiga temuan review PR #839.
+
+  **`prepareModuleHealthContext` menjalankan 4 query lewat `Promise.all` di atas
+  satu `tx`.** Satu koneksi Postgres melayani satu query pada satu waktu, dan pola
+  persis ini pernah menyebabkan hang nyata di repo ini (lihat catatan di
+  `reporting/application/projection-reconciliation.ts` — koneksi yang tersangkut
+  lalu merusak `resetDatabase()` setiap test sesudahnya). Regresi dari perbaikan
+  Issue #824; kemenangannya memang bukan konkurensi melainkan meruntuhkan fan-out
+  per-modul menjadi empat query total, dan itu tetap utuh dengan await berurutan.
+
+  **`readJsonBody(...) ?? {}` mengubah body yang absen/rusak/bukan-objek menjadi
+  patch kosong yang sah** pada kedua route PATCH reference-data, sehingga body
+  sampah lolos otorisasi + idempotency dan mendarat sebagai write sungguhan.
+  Ditambahkan `readJsonObjectBody` + `invalidJsonObjectBodyResponse` di
+  `lib/security/request-body-limit.ts`: `{}` tetap `ok` (objek kosong itu body
+  sungguhan), sedangkan absen/malformed/`null`/array/skalar ditolak `400`.
+
+  **`PATCH {}` — no-op yang terdokumentasi — tetap menjalankan `update*` tanpa
+  syarat**, membuat `updated_at` naik, menulis ulang baris translation, memancarkan
+  audit event dan domain event untuk request yang tidak mengubah apa pun. Kini
+  di-short-circuit dan mengembalikan representasi saat ini. Refusal
+  `managed_by_descriptor` (Issue #750) tetap diperiksa di jalur no-op agar jawaban
+  endpoint tidak bergantung pada berapa field yang kebetulan dikirim pemanggil.
+
+- b8bac67: Perbaiki dua temuan review PR #839 ronde 4.
+
+  **`sensitiveFields.naturalKeyField` tidak dideklarasikan di schema OpenAPI.**
+  Descriptor default `data_exchange.reference_items` menyetelnya, sementara
+  `DataExchangeDescriptor.sensitiveFields` adalah `additionalProperties: false`
+  yang hanya memuat `fieldNames`/`rawValuePermission` — jadi
+  `GET /api/v1/data-exchange/descriptors` melanggar kontraknya sendiri dan client
+  ter-generate akan menolaknya. Ditambahkan gate
+  `tests/unit/data-exchange-descriptor-contract-parity.test.ts` yang memvalidasi
+  descriptor registry nyata terhadap schema nyata; validasi response-vs-schema
+  umum difilekan sebagai #844.
+
+  **Placeholder `AUTH_JWT_SECRET` diterima saat runtime.**
+  `checkAuthJwtSecretNotDefault` benar dan tersambung, tetapi tidak ada yang
+  memaksanya berjalan: `bun run dev`/`bun run start` memanggil server langsung,
+  tidak pernah `config:validate`. Deployment hasil salin `.env.example` boot
+  dengan tenang memakai nilai yang dipublikasikan di repo publik sebagai kunci
+  HMAC `ipHash` — membuat setiap `ipHash` tersimpan bisa dibalik (ruang IPv4 2^32),
+  yaitu satu-satunya properti yang jadi alasan pseudonym ini ada. Placeholder kini
+  ditolak di titik pakai, sehingga tidak ada jalur boot yang bisa melewatinya.
+  Nilainya dibaca dari `default` milik entri registry, bukan diketik ulang, agar
+  tidak melenceng dari `.env.example`.
+
+- b8bac67: Perbaiki temuan review PR #839 ronde 5: replay idempotent pada
+  `imports/{id}/commit` dan `imports/{id}/retry` tertahan gate descriptor.
+
+  Branch fail-closed dari #820 Cacat 3 berjalan **sebelum**
+  `findIdempotencyRecord`, sehingga client yang mencoba ulang commit dengan
+  `Idempotency-Key` + request hash yang sama **setelah modulnya di-disable**
+  mendapat `409` baru alih-alih response yang sudah tersimpan. Itu melanggar
+  kontrak yang dinyatakan `_shared/idempotency.ts` secara eksplisit ("same key +
+  same request hash -> replay the stored response").
+
+  Replay **tidak menjalankan adapter sama sekali** — ia mengembalikan hasil yang
+  sudah tercatat untuk key+hash itu, di bawah gate lengkap sebagaimana berlaku
+  saat itu. Gate descriptor ada untuk menjaga **write**, jadi menggerbangi replay
+  dengannya tidak mencegah apa pun sambil membuat satu key+hash menjawab berbeda
+  seiring waktu. Replay kini berjalan lebih dulu di kedua route; gate fail-closed
+  tetap utuh untuk key baru.
+
+- b8bac67: Perbaiki tiga temuan review PR #839 ronde 6.
+
+  **Gate paritas CI (#823) sendiri bisa dibohongi prosa.** Ia memindai seluruh
+  teks `ci.yml`, sehingga penyebutan `bun test` di komentar — atau bahkan di
+  `name:` sebuah langkah — sudah memuaskannya walau step `run: bun test` aslinya
+  dihapus. Gate itu hijau persis di skenario drift yang jadi alasan ia ada, yaitu
+  kegagalan "gate hijau di atas cacat nyata" yang justru hendak ia akhiri. Kini
+  YAML-nya diurai dan hanya badan `run:` yang diperiksa, ditambah meta-test yang
+  memaku properti itu.
+
+  **Field PATCH tak dikenal di-no-op-kan, bukan ditolak.** Kedua schema PATCH
+  adalah `additionalProperties: false`, tetapi parser membaca kunci yang dikenalnya
+  dan mengabaikan sisanya — typo klien (`validUntil` alih-alih `validTo`) terurai
+  jadi patch kosong. Digabung dengan cabang no-op, typo itu menjawab `200` sambil
+  tidak mengubah apa pun: request tampak diterima padahal tidak melakukan apa-apa.
+  Kunci tak dikenal kini ditolak `400`. Parser ini sebelumnya tidak punya unit test
+  sama sekali; kini ada.
+
+  **`sensitiveFields` wajib di TypeScript tapi tidak di schema OpenAPI.** Registry
+  menolak descriptor yang menghilangkannya (#820 Cacat 1), namun
+  `DataExchangeDescriptor.required` tidak memuatnya — client ter-generate tetap
+  menganggap policy masking opsional.
+
+- b8bac67: Sertakan state module-enabled dalam keputusan gate SSR data-exchange (temuan
+  review bot pada PR #839).
+
+  Gate SSR yang ditambahkan PR #839 hanya melakukan `permissions.has(key)`.
+  Jalur API tidak begitu: `authorizeInTransaction` memanggil `resolveModuleEnabled`
+  dan menolak `403 MODULE_DISABLED` **sebelum** RBAC dievaluasi, sementara
+  `fetchGrantedPermissionKeys` — yang membangun permission set SSR — **tidak**
+  memfilter modul yang disabled. Subject karenanya tetap memegang setiap
+  permission key milik modul yang sudah dimatikan tenant, jadi
+  `/admin/data-exchange/imports/[id]` **tetap merender staged row** sementara
+  route preview/commit menjawab 403. SSR lebih longgar daripada API: kelas
+  paritas yang sama dengan temuan `requiredPermission` asli, kambuh di sumbu
+  berbeda.
+
+  Cek module-enabled kini berada **di dalam** `isDescriptorPermissionGranted`
+  (bukan di call site) sehingga tak ada pemanggil yang bisa melupakannya, dengan
+  urutan yang sama seperti route: modul dulu, baru RBAC. Berlaku untuk
+  `requiredPermission` **dan** `rawValuePermission` — jalur raw-value route
+  adalah `authorizeDescriptorPermissionKey`, yang juga meresolusi state modul,
+  jadi `permissions.has()` telanjang di halaman akan membuka nilai yang di-mask
+  route begitu modul pendeklarasinya disabled. Halaman juga kini memeriksa
+  `data_exchange` sendiri: konstanta `CAN_*`-nya semua tetap true untuk tenant
+  yang mematikan modul itu.
+
+  Test paritas SSR-vs-route diperluas ke sumbu ini — **terbukti merah** tanpa
+  perbaikan (route menolak 403, SSR mengizinkan), hijau dengan. Test paritas
+  sebelumnya lolos padahal celahnya ada karena ia hanya membandingkan satu sumbu
+  (apakah caller memegang key), bukan setiap sumbu yang benar-benar dikonsultasi
+  guard route.
+
+  Celah yang sama ada di **54 halaman admin lain** (survei menyeluruh: 1 dari 55
+  halaman pemuat data yang memeriksa module-enabled; middleware dan AdminLayout
+  tidak memitigasi — filter nav layout hanya kosmetik dan bisa dilewati dengan
+  mengetik URL). Di luar scope PR ini, dilacak di Issue #841 beserta opsi
+  struktural, karena menambal 54 halaman satu per satu akan hanyut lagi.
+
+- dfe1e0f: Perbaiki tiga temuan review PR #847.
+
+  **Invalidasi cache dikalahkan load yang sedang in-flight.** `invalidate()` hanya
+  bisa menghapus yang sudah tersimpan, sementara loader yang mulai SEBELUM commit
+  masih memegang snapshot pra-commit dan menyeatnya kembali sesudahnya dengan TTL
+  penuh — eviction-nya dibatalkan oleh pembacaan yang sudah terlanjur di udara.
+  Kedua reviewer menemukannya dari arah berlawanan: domain yang dicabut tetap
+  dilayani 60s, dan domain yang baru diverifikasi tetap 404 selama 60s dari entri
+  NEGATIF — persis kasus yang `tenant/domains/[id]/verify.ts` dokumentasikan
+  sebagai alasan ia melakukan invalidasi. Ditambahkan generation counter per key +
+  `inFlight.delete()` saat invalidate.
+
+  **Perubahan Settings tidak menginvalidasi cache publik.** Nilai yang di-cache
+  memuat `tenant_status, tenant_code, tenant_name, default_locale` dari
+  `awcms_mini_tenants` — tabel yang dimutasi modul `tenant_admin` dan tak pernah
+  disentuh modul `tenant_domain`. Cache-nya murni fungsi host pada KUNCI-nya, bukan
+  pada NILAI-nya. Ganti nama tenant → halaman publik & RSS menyajikan nilai lama
+  hingga TTL, padahal sebelum cache ada mereka benar di request berikutnya.
+
+  **Gate wiring #826 tidak memeriksa sisi PUBLISH.** `appendDomainEvent` membuat
+  delivery row dari registry saat publish, jadi publisher tanpa import registrasi
+  menghasilkan nol row — kehilangan permanen, tak seperti dispatch root yang
+  terlewat (row `pending` masih bisa dipulihkan). Ditambahkan `PUBLISH_ROOTS`
+  terpisah, karena aturan "tiap root impor SETIAP registrasi" benar untuk root
+  peresolusi handler tapi akan membuat ulang edge lintas modul yang #826 hapus.
+  Kedua gate kini mencocokkan **statement import**, bukan sembarang kemunculan
+  path — versi pertamanya lolos padahal import-nya dihapus karena ada komentar
+  menyebut path yang sama.
+
+- 663e7c2: Hapus seluruh kelas `Promise.all` di atas satu transaction handle (`tx`), lalu
+  pasang gate statis supaya tidak kambuh untuk kelima kalinya (Issue #842, epic
+  #818).
+
+  Satu koneksi Postgres melayani **satu query pada satu waktu**. `tx` terikat ke
+  tepat satu koneksi, jadi `Promise.all([q1(tx), q2(tx)])` bukan sekadar
+  kehilangan paralelisme — ia **menghang sungguhan** di repo ini, dan koneksi yang
+  tersangkut lalu merusak `resetDatabase()` **setiap test sesudahnya**, sehingga
+  gejalanya muncul jauh dari penyebabnya. Catatan kanoniknya ada di
+  `src/modules/reporting/application/projection-reconciliation.ts:89-94`.
+
+  Sapuan kelas penuh menemukan **11 site**, bukan dua seperti dugaan awal isu —
+  seluruhnya pre-existing (2026-07-07 s.d. 2026-07-15), tidak ada yang regresi PR
+  manapun:
+
+  - `module-management/application/module-matrix.ts` (2 site: fan-out katalog, dan
+    loop per-modul yang aman **hanya** selama `healthContext` yang sudah
+    di-prefetch ikut dioper — satu argumen hilang dan tiap iterasi jadi 4 query
+    konkuren di atas satu `tx`; kini loop sekuensial sehingga keamanannya
+    struktural, bukan bergantung pada argumen yang tak diwajibkan siapa pun)
+  - `reference-data/application/reference-resolution-query.ts` (2 site)
+  - `visitor-analytics/application/rollup.ts` dan `analytics-queries.ts` (4 query
+    masing-masing)
+  - `admin/blog/index.astro`, `admin/blog/posts/[id].astro`,
+    `admin/modules/[moduleKey].astro` (yang terlebar: `fetchModuleHealthReport`
+    dipanggil tanpa context ter-prefetch, sendirian menambah 4 query — sampai
+    delapan balapan di satu koneksi)
+  - `api/v1/blog/menus/index.ts` (fan-out **tak terbatas**: satu query konkuren per
+    menu milik tenant)
+  - `api/v1/data-exchange/imports/[id]/preview.ts`, `api/v1/analytics/devices.ts`
+
+  Semua gating permission dipertahankan persis: read yang ditolak tetap tidak
+  mengeluarkan query apa pun dan tetap memakai fallback-nya. Tidak ada performa
+  yang hilang — yang mahal adalah **jumlah** query, bukan serialisasinya (kemenangan
+  Issue #824 adalah meruntuhkan ≈92 query per render jadi 4, dan await berurutan
+  mempertahankannya utuh). Komentar usang di `admin/modules.astro` yang masih
+  mengklaim health dihitung paralel lewat `Promise.all` ikut dikoreksi.
+
+  Gate baru `bun run tx:lint:check`
+  (`scripts/tx-concurrency-lint-check.ts`, dipasang di `check` dan `ci.yml`)
+  menandai `Promise.all`/`allSettled` yang menyentuh transaction handle. Kelas ini
+  sudah kambuh 4x dan **test suite lolos setiap kali** — sifatnya load-dependent,
+  jadi test fungsional memang bukan gate untuk kelas ini. Konkurensi di atas POOL
+  (`sql`) tetap legal dan tak tersentuh: pool memberi koneksi terpisah per query.
+
+  Gate membaca **token, bukan teks mentah**: komentar dan literal string/template
+  di-blank lebih dulu lewat state machine. Ini bukan kehati-hatian teoretis —
+  setiap perbaikan di atas menaruh komentar berbunyi "Sequential, NOT
+  `Promise.all` … over the same `tx`" tepat di atas kode yang diperbaiki, jadi gate
+  berbasis substring akan menandai justru kode yang sudah benar; dan gate saudaranya
+  `ci-check-parity.test.ts` shipped dengan cacat "prosa memuaskan gate" yang persis
+  sama (diperbaiki di PR #839).
+
+- befeb3f: Perbaiki bug keamanan quorum-`all` bypass pada `POST /api/v1/workflows/tasks/{id}/decisions` (Issue #851, spin-off epic #818).
+
+  Satu approver yang di-assign ke task ber-quorum `all` bisa memenuhi quorum SENDIRIAN dengan mengirim dua approve konkuren ber-`Idempotency-Key` berbeda (READ COMMITTED TOCTOU): `findEligibleAssignment` membaca assignment tanpa row lock, `recordWorkflowTaskDecision` meng-`UPDATE` assignment ke `decided` tanpa predikat `status = 'pending'`, dan tabel `awcms_mini_workflow_decisions` tidak punya unique constraint per decider. Dua transaksi konkuren sama-sama melihat `pending`, sama-sama mencatat decision, dan instance berpindah ke `approved`.
+
+  Perbaikan berlapis:
+
+  - `findEligibleAssignment` kini `SELECT ... ORDER BY id FOR UPDATE` pada baris assignment task (blocking wait, urutan lock deterministik anti-deadlock) — request kedua menunggu request pertama commit, membaca ulang status `decided`, lalu dilaporkan tidak eligible (403).
+  - `UPDATE ... SET status = 'decided'` kini bersyarat `AND status = 'pending'` (menolak transisi ganda).
+  - Migration `078` menambah partial UNIQUE index `awcms_mini_workflow_decisions (tenant_id, workflow_task_id, decided_by_tenant_user_id) WHERE is_administrative_override = false` — satu suara ordinari per decider per task (administrative override sengaja dikecualikan). Juga menutup varian sekuensial di mana satu user adalah assignee langsung sekaligus delegate assignee lain pada task yang sama.
+  - Duplikat konkuren/sekuensial dipetakan ke `409 IDEMPOTENCY_CONFLICT` via `WorkflowTaskDecisionConflictError`, bukan `500`. Replay `Idempotency-Key` yang sama tetap bekerja seperti sebelumnya.
+
+- b8bac67: fix(reference-data): `PATCH` on reference codes is now genuinely partial instead of behaving like `PUT`
+
+  `PATCH /api/v1/reference-data/tenant-codes/{id}` and
+  `PATCH /api/v1/reference-data/value-sets/{key}/codes/{code}` parsed their request
+  body with per-field defaults, so any field omitted from the body was silently
+  reset instead of preserved: `sortOrder` -> `0`, `metadata` -> `{}` (permanent
+  data loss), `validFrom` -> `now()` (truncating a code's validity history), and
+  `validTo` -> `null`. A client sending the normative partial `PATCH` — e.g. only
+  `labels` to rename a code — lost the other four fields and received a `200` with
+  no warning. Since reference data is load-bearing for downstream documents and
+  transactions, a silently rewritten `validFrom`/`validTo` window is a correctness
+  hazard, not just a cosmetic one.
+
+  Both endpoints now merge the parsed patch onto the stored record, with an
+  explicit and documented null-vs-absent contract:
+
+  - **absent** field — the stored value is kept untouched;
+  - **explicit `null`** — the field is cleared/reset (`sortOrder` -> `0`,
+    `metadata` -> `{}`, `validTo` -> `null`);
+  - `labels` and `validFrom` reject `null` with a `400 VALIDATION_ERROR` (at least
+    one label is always required, and `valid_from` is `NOT NULL`) rather than being
+    silently defaulted;
+  - `labels` still replaces all stored labels wholesale, and `metadata` still
+    replaces rather than deep-merges, when present.
+
+  `labels` is no longer a required property of either request body — an empty
+  `{}` body is a valid no-op. OpenAPI documents the semantics per field.
+
+- dfe1e0f: Percepat deteksi konflik SoD (`detectSoDConflicts`) dengan meng-hoist index
+  sekali per request, dan gabungkan lookup exception yang tadinya N+1 menjadi satu
+  query — keduanya berjalan di dalam transaksi DB pada jalur POST business-scope
+  assignment yang ditunggu admin (Issue #833, bagian dari #818).
+
+  **Kompleksitas: O(P×R×K×F×S) → O(P × matchingRules)** (P = permission dari role
+  yang di-assign, R = rule terdaftar, K = key per rule, F = fakta subjek, S = scope
+  hierarki terkait). `createSoDConflictEvaluator` membangun tiga index sekali —
+  rule per trigger key, fakta per permission key, `relatedScopes` sebagai `Set` —
+  menggantikan `subjectFacts.filter(...)` yang men-scan ulang penuh per rule per
+  key dan `relatedScopes.some(...)` yang bersarang di dalam `holdingFacts.some(...)`.
+  `findValidSoDConflictException` (satu query DB **per match**, di dalam loop, di
+  dalam transaksi) kini dibatch lewat `findValidSoDConflictExceptionsByRuleKeys`
+  dengan satu `rule_key = ANY(...)`; jalur single-key ikut mendelegasi ke statement
+  yang sama supaya tidak ada dua salinan aturan validitas yang bisa melenceng.
+
+  Angka benchmark nyata (bun, 200 repetisi per skenario, satu POST assignment):
+
+  | Skenario                                                   | Sebelum                           | Sesudah  | Speedup |
+  | ---------------------------------------------------------- | --------------------------------- | -------- | ------- |
+  | Registry apa adanya hari ini (3 rule, P=150, F=1000, S=20) | 0.067 ms (7.203 kunjungan elemen) | 0.056 ms | 1,2x    |
+  | Registry bertumbuh (50 rule, P=200, F=1000, S=20)          | 1,458 ms (332.391 kunjungan)      | 0,166 ms | 8,8x    |
+  | Tenant besar (50 rule, P=200, F=5000, S=200)               | 9,564 ms (2.173.191 kunjungan)    | 0,393 ms | 24,4x   |
+
+  Catatan kejujuran soal angka: premis "~6 juta kunjungan elemen untuk satu POST"
+  di Issue #833 **tidak berlaku untuk registry saat ini**. `O(P×R×K×F×S)` adalah
+  batas worst-case yang mengandaikan setiap permission memicu setiap rule; nyatanya
+  hanya ada 3 rule (K=2) dan short-circuit `conflictingPermissionKeys.includes(...)`
+  membuat `subjectFacts` cuma di-scan untuk permission yang benar-benar memicu rule
+  — terukur 7.203 kunjungan (~67 mikrodetik), bukan jutaan/"detik-detikan CPU".
+  Perbaikan ini tetap dikerjakan karena murah dan menghilangkan skala buruk sebelum
+  registry tumbuh (kolom kedua/ketiga tabel), bukan karena ada krisis latensi hari
+  ini.
+
+  Perilaku deteksi **identik** sebelum/sesudah — ini jalur keamanan, jadi perubahan
+  di sini murni struktur data: urutan match, penanganan `indeterminate`, wildcard
+  fakta null-scope (grant RBAC biasa), dan pencocokan hierarki `same_scope_only`
+  (#794) semuanya dipertahankan persis. Dijamin oleh test diferensial baru yang
+  membandingkan implementasi baru dengan transkripsi harfiah implementasi pra-#833
+  pada ~4.000 input acak (seeded) plus pin regresi hierarki; seluruh test SoD yang
+  sudah ada tetap hijau tanpa diubah.
+
+  Ikut diperbaiki di blok yang sama: `Promise.all([...])` atas satu `tx` (dua query
+  pada satu koneksi transaksi = risiko hang nyata, lihat
+  `reporting/application/projection-reconciliation.ts:89-94`) diganti await
+  berurutan.
+
+- 51ddbc2: Tutup celah keamanan #841 (halaman admin SSR merender data modul yang di-disable)
+  dan batch sejumlah N+1 lintas modul #835 (epic #818).
+
+  **#841 — gate module-enabled untuk seluruh 54 halaman admin SSR, di satu tempat.**
+  Jalur API sudah menolak `403 MODULE_DISABLED` (`resolveModuleEnabled` di
+  `authorizeInTransaction`) SEBELUM RBAC, tetapi ke-54 halaman admin yang memuat
+  data hanya menggerbang lewat `context.permissions.has(permissionKey(...))`, dan
+  `context.permissions` tidak pernah membuang key milik modul yang disabled. Akibat:
+  men-disable modul membuat route-nya 403 tapi halaman admin-nya tetap merender
+  baris data tenant. Perbaikan ditaruh **di dalam helper bersama** — `resolveSsrContext`
+  (`src/lib/auth/ssr-session.ts`) kini membuang setiap permission key yang modulnya
+  `awcms_mini_tenant_modules.enabled = false`, jadi ke-54 halaman ikut tergerbang
+  tanpa menyentuh satu pun call site. `fetchGrantedPermissionKeys` yang dipakai jalur
+  API **tidak** diubah (beberapa endpoint sengaja mengandalkannya untuk TIDAK
+  memfilter modul disabled). Role tidak ikut difilter (identitas subject tetap;
+  hanya kapabilitas modul yang disabled yang hilang dari SSR).
+
+  **#835 §7 — `resolveSsrContext` 5 query serial → 2.** Lookup sesi tetap satu query
+  (menghasilkan `identity_id`), lalu SATU query gabungan menyelesaikan tenant-user +
+  `default_locale` + roles + permission (sudah tergerbang modul). `LEFT JOIN`
+  mempertahankan role tanpa permission dan tenant tanpa baris `tenants`, persis
+  perilaku query terpisah sebelumnya. Query `roles` TIDAK digabung ke query
+  permission (menggabungnya akan menghilangkan role tanpa permission).
+
+  **#835 §1 — `resolveMediaReferences` batch nyata.** Signature sudah batch-shaped
+  tapi implementasinya query per-id; kini satu `id = ANY(...)` untuk seluruh batch
+  (`fetchNewsMediaObjectsByIds`), tanpa mengubah satu pun caller.
+
+  **#835 §2 — `contribution-sync` bulk read + diff translasi.** Kode yang sudah ada
+  dibaca sekali (`code = ANY(...)`) alih-alih satu SELECT per code, dan translasi
+  di-rekonsiliasi lewat DIFF (tulis hanya perubahan nyata; hapus locale yang tak
+  lagi dideklarasikan) menggantikan delete-all-lalu-reinsert yang menulis ulang
+  setiap baris tiap sync. Keputusan konflik per-code (baris manual tidak pernah
+  ditimpa, dilaporkan sebagai conflict) dipertahankan utuh.
+
+  **#835 §6 — job `scheduled-publish` tidak lagi mengunci semua baris.** Query
+  pemilihan due-post kini `ORDER BY scheduled_at ASC LIMIT n FOR UPDATE SKIP LOCKED`
+  (bukan `FOR UPDATE` tanpa LIMIT atas semua baris yang match), sehingga runner
+  paralel mengambil batch disjoint alih-alih memblokir, dan backlog besar dibatasi
+  per run (`result.partial`, sisa diproses run berikutnya — job periodik & idempoten).
+
+- dfe1e0f: Perbaiki test base-registry domain-event yang membaca array yang salah.
+
+  `registerDomainEventConsumer` mengappend ke `DOMAIN_EVENT_CONSUMERS` — itu live
+  binding dan memang desainnya (#826). Test "the runtime's own **base** registry
+  contains no consumer owned by another module" justru mengiterasi binding
+  ter-merge itu, sehingga ia lolos sendirian namun gagal begitu file test lain
+  mengimpor file registrasi sebuah modul secara transitif. Invariant-nya tidak
+  pernah rusak; test-nya yang membaca array keliru.
+
+  `BASE_DOMAIN_EVENT_CONSUMERS` kini di-export dan diassert langsung, jadi
+  pemeriksaannya independen terhadap urutan file. Ditambah test isolasi yang
+  membuktikan registrasi plugin terlihat di binding ter-merge tapi **tidak pernah**
+  menyentuh array base — tanpa itu, assertion pertama bisa lolos semata karena
+  belum ada yang mendaftar, yang persis cara versi lamanya menyembunyikan cacatnya
+  sendiri.
+
 ## 0.24.0
 
 ### Minor Changes
