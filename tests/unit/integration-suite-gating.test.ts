@@ -33,12 +33,21 @@
  * genuinely skipped when the DB is absent:
  *   - `describe.skip(...)`            — unconditional skip
  *   - `describe.skipIf(!integrationEnabled)(...)` — conditional skip
+ * The `skipIf` exemption is deliberately pinned to the EXACT condition
+ * `!integrationEnabled` (whitespace tolerated). `describe.skipIf(...)`
+ * with any OTHER argument is a violation, because the condition decides
+ * whether the suite runs and only `!integrationEnabled` is false-when-
+ * present, true-when-absent. An INVERTED `describe.skipIf(integrationEnabled)`
+ * runs the suite precisely when `DATABASE_URL` is unset (the opposite of
+ * what is wanted); `describe.skipIf(process.env.CI)` skips on CI but runs
+ * DB tests in a local `bun test` with no database — both must be caught.
  * The canonical `suite(...)` helper (`suite = integrationEnabled
  * ? describe : describe.skip`) never starts with `describe`, so it is
  * inherently outside the detector's net. Everything else at column 0 —
- * `describe(`, `describe.only(`, `describe.each(`, `describe.todo(`, … —
- * is a violation, because it decides whether a file body runs and does so
- * WITHOUT consulting `integrationEnabled`.
+ * `describe(`, `describe.only(`, `describe.each(`, `describe.todo(`, and
+ * any non-`!integrationEnabled` `describe.skipIf(` — is a violation,
+ * because it decides whether a file body runs and does so WITHOUT
+ * correctly consulting `integrationEnabled`.
  *
  * Nested/indented `describe(...)` inside an already-gated block is fine
  * and intentionally not inspected — only column-0 invocations decide
@@ -56,8 +65,14 @@ const INTEGRATION_DIR = path.join(REPO_ROOT, "tests/integration");
 
 /** Any column-0 `describe...` invocation (the whole family). */
 const TOP_LEVEL_DESCRIBE = /^describe\b/;
-/** The ONLY exempt forms: `describe.skip(` and `describe.skipIf(`. */
-const GATED_DESCRIBE = /^describe\.skip(?:If)?\s*\(/;
+/**
+ * The ONLY exempt forms: unconditional `describe.skip(` and the exact
+ * documented conditional `describe.skipIf(!integrationEnabled)(` (with
+ * whitespace tolerated). Any other `describe.skipIf(...)` condition —
+ * inverted, `process.env.CI`, etc. — is intentionally NOT exempt.
+ */
+const GATED_DESCRIBE =
+  /^describe\.skip\s*\(|^describe\.skipIf\s*\(\s*!\s*integrationEnabled\s*\)/;
 
 function listIntegrationFiles(): string[] {
   return readdirSync(INTEGRATION_DIR)
