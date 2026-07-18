@@ -210,24 +210,29 @@ objek R2 `verified`/`attached` milik tenant yang sama oleh
 `create-social-publish-jobs.ts` — setiap adapter yang benar-benar
 mengunggah/mereferensikan gambar (Meta, LinkedIn) melakukan
 **pengecekan ulang** sebagai jaring pengaman titik-terakhir sebelum
-panggilan eksternal, tapi **kekuatan pengecekan berbeda per adapter**
-(bukan satu implementasi seragam — koreksi dari draf sebelumnya
-dokumen ini, yang keliru mengklaim keduanya identik):
+panggilan eksternal. **Sejak Issue #862 (epic #818) kedua adapter kini
+sama-kuat**: keduanya memakai SATU helper bersama
+`isMediaUrlFromTrustedBase` (`domain/provider-media-trust.ts`) yang parse
+`new URL(url)`, mewajibkan `protocol === "https:"`, lalu membandingkan
+`target.host === base.host` secara persis — **bukan** substring/prefix
+check. Sebelumnya kekuatannya berbeda (Meta host-persis, LinkedIn hanya
+prefix `startsWith`); perbedaan itu sudah dihilangkan:
 
 - **Meta** (`isAcceptableProviderMediaUrl`,
-  `domain/meta-publish-content.ts`) melakukan pengecekan **host
-  persis**: parse `new URL(url)`, wajib `protocol === "https:"`, lalu
-  `target.host === base.host` terhadap
-  `NEWS_MEDIA_R2_PUBLIC_BASE_URL` — bukan substring/prefix check,
-  pelajaran trailing-dot FQDN Issue #635.
+  `domain/meta-publish-content.ts`) meresolusi base dari
+  `NEWS_MEDIA_R2_PUBLIC_BASE_URL` lalu mendelegasikan ke helper bersama.
 - **LinkedIn** (`isTrustedR2MediaUrl`,
-  `infrastructure/linkedin-provider-adapter.ts`) hanya melakukan
-  `url.startsWith(publicBaseUrl)` — **prefix/substring check biasa**,
-  **tidak** melakukan `new URL()` parse, **tidak** membandingkan host,
-  **tidak** memvalidasi protokol. Ini justru persis kelas pengecekan
-  lemah yang pelajaran Issue #635 hindari untuk Meta — belum
-  di-hardening ke pola `URL.host` yang sama (dicatat sebagai gap nyata,
-  bukan diklaim sudah setara). **Issue #859 (epic #818)**: `publicBaseUrl`
+  `infrastructure/linkedin-provider-adapter.ts`) meresolusi base dari
+  `publicBaseUrl` (di-inject via `NewsMediaPort`, lihat #859 di bawah)
+  lalu mendelegasikan ke helper bersama yang sama.
+
+Helper bersama itu menutup kelas bypass yang dulu bisa menembus prefix
+check LinkedIn: trailing-dot FQDN (`media.example.com.`), `@`-userinfo
+(`media.example.com@evil.com`, host asli `evil.com`), dan prefix-collision
+(`media.example.com.evil.com`), plus menolak downgrade `http:` — persis
+pelajaran trailing-dot FQDN Issue #635 yang dulu hanya diterapkan Meta.
+
+- **Issue #859 (epic #818)**: `publicBaseUrl`
   sekarang di-resolve lewat `NewsMediaPort.resolveMediaPublicBaseUrl`
   (di-inject di composition root `scripts/social-publish-dispatch.ts`),
   **bukan** lagi lewat import statis
