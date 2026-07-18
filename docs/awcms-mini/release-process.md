@@ -281,7 +281,7 @@ gh attestation verify oci://ghcr.io/ahliweb/awcms-mini:X.Y.Z \
 #    The signing identity is keyed on the GIT tag ref the run fired on,
 #    i.e. refs/tags/vX.Y.Z — hence the `v` in the regexp.
 cosign verify ghcr.io/ahliweb/awcms-mini:X.Y.Z \
-  --certificate-identity-regexp "^https://github.com/ahliweb/awcms-mini/.github/workflows/release.yml@refs/tags/v.*" \
+  --certificate-identity-regexp "^https://github.com/ahliweb/awcms-mini/.github/workflows/release.yml@refs/tags/v[0-9].*" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # 4. Verify provenance for the downloadable source artifacts
