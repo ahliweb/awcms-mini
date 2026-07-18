@@ -21,7 +21,12 @@
       "status": "active",
       "type": "domain",
       "source": "base",
-      "dependencies": ["tenant_admin", "identity_access"],
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
+        "logging"
+      ],
       "capabilitiesProvided": ["public_content"],
       "capabilitiesConsumed": [
         {
@@ -91,7 +96,8 @@
       "dependencies": [
         "tenant_admin",
         "identity_access",
-        "domain_event_runtime"
+        "domain_event_runtime",
+        "logging"
       ],
       "capabilitiesProvided": ["document_resource_relations"],
       "capabilitiesConsumed": [],
@@ -143,7 +149,7 @@
       "status": "active",
       "type": null,
       "source": "base",
-      "dependencies": ["identity_access"],
+      "dependencies": ["identity_access", "logging"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
       "permissionCount": 0,
@@ -160,7 +166,7 @@
       "status": "active",
       "type": null,
       "source": "base",
-      "dependencies": ["tenant_admin", "profile_identity"],
+      "dependencies": ["tenant_admin", "profile_identity", "logging"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [
         {
@@ -238,7 +244,7 @@
       "status": "active",
       "type": "system",
       "source": "base",
-      "dependencies": ["tenant_admin", "identity_access"],
+      "dependencies": ["tenant_admin", "identity_access", "logging", "email"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
       "permissionCount": 12,
@@ -255,7 +261,12 @@
       "status": "active",
       "type": "domain",
       "source": "base",
-      "dependencies": ["tenant_admin", "identity_access"],
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
+        "logging"
+      ],
       "capabilitiesProvided": ["news_media"],
       "capabilitiesConsumed": [
         {
@@ -281,7 +292,8 @@
       "dependencies": [
         "tenant_admin",
         "identity_access",
-        "domain_event_runtime"
+        "domain_event_runtime",
+        "logging"
       ],
       "capabilitiesProvided": ["organization_hierarchy_resolution"],
       "capabilitiesConsumed": [],
@@ -299,7 +311,7 @@
       "status": "active",
       "type": null,
       "source": "base",
-      "dependencies": ["tenant_admin"],
+      "dependencies": ["tenant_admin", "logging"],
       "capabilitiesProvided": ["party_directory"],
       "capabilitiesConsumed": [],
       "permissionCount": 28,
@@ -319,7 +331,8 @@
       "dependencies": [
         "tenant_admin",
         "identity_access",
-        "domain_event_runtime"
+        "domain_event_runtime",
+        "logging"
       ],
       "capabilitiesProvided": ["reference_data_resolution"],
       "capabilitiesConsumed": [],
@@ -360,7 +373,13 @@
       "status": "active",
       "type": "domain",
       "source": "base",
-      "dependencies": ["tenant_admin", "identity_access"],
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "blog_content",
+        "news_portal",
+        "logging"
+      ],
       "capabilitiesProvided": ["social_publishing"],
       "capabilitiesConsumed": [
         {
