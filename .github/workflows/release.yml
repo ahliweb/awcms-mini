@@ -2,13 +2,15 @@
 #
 # Two entry points, deliberately with no boolean toggles between them:
 #
-#   1. `push: tags: awcms-mini@*` — a REAL release. This is the exact tag
-#      shape Changesets emits for this private package: `.changeset/
+#   1. `push: tags: v*.*.*` — a REAL release. This is the exact tag shape
+#      Changesets emits for this single-package repo: `.changeset/
 #      config.json`'s `privatePackages: { version: true, tag: true }` makes
-#      `bun run changeset:tag` create `awcms-mini@X.Y.Z` (see the existing
-#      `awcms-mini@0.0.x` tags), so the trigger and the tag generator are
-#      the SAME source of truth — no manual `vX.Y.Z` tag, no version↔tag
-#      drift (Issue #825, epic #818). Requires the tag's commit
+#      `bun run changeset:tag` create `vX.Y.Z` (for a single root package
+#      Changesets uses the `v<version>` form, NOT `<name>@<version>` — the
+#      legacy `awcms-mini@0.0.x` tags were hand-made, not changeset output;
+#      that mistaken premise drove the reverted #854). So the trigger and
+#      the tag generator are the SAME source of truth — no manual tag, no
+#      version↔tag drift (Issue #825, epic #818). Requires the tag's commit
 #      to already be an ancestor of `origin/main` (see "Guard" step below —
 #      this repo has no branch-protection rule today, see
 #      docs/awcms-mini/branch-protection.md, so this is the closest
@@ -36,11 +38,12 @@ name: Release
 on:
   push:
     tags:
-      # Package-scoped tag Changesets emits for this private package
-      # (`awcms-mini@X.Y.Z`) — NOT `v*.*.*`. See the header comment and
-      # Issue #825: the previous `v*.*.*` trigger could never match a
-      # changeset-generated tag, so the automated release path was dead.
-      - "awcms-mini@*"
+      # Tag Changesets emits for this single-package repo — `vX.Y.Z`
+      # (`bun run changeset:tag`). See the header comment and Issue #825:
+      # changeset:tag produces `v<version>`, so THIS is the format the
+      # trigger must match (the reverted #854 wrongly switched to
+      # `awcms-mini@*`, which changeset:tag never emits here).
+      - "v*.*.*"
   workflow_dispatch: {}
 
 concurrency:
@@ -391,10 +394,15 @@ jobs:
       - name: Extract this version's CHANGELOG section
         if: needs.validate.outputs.is_dry_run != 'true'
         run: |
+          # Match both the Changesets header shape `## X.Y.Z` (what
+          # `changeset:version` emits, the current source of truth) and the
+          # legacy Keep-a-Changelog `## [X.Y.Z]` still present for old
+          # entries; stop at the next `## ` version header of either shape
+          # (Issue #825 — the old bracket-only match produced empty notes).
           awk -v ver="${{ needs.validate.outputs.version }}" '
             BEGIN { printing = 0 }
-            $0 ~ "^## \\[" ver "\\]" { printing = 1; next }
-            printing && /^## \[/ { exit }
+            $0 ~ "^## \\[?" ver "\\]?( |$)" { printing = 1; next }
+            printing && /^## / { exit }
             printing { print }
           ' CHANGELOG.md > RELEASE_NOTES.md
           cat RELEASE_NOTES.md
@@ -405,8 +413,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Positional arg is the git tag name Changesets created
-          # (`awcms-mini@X.Y.Z`); the human-facing title uses the bare
-          # version so it doesn't read "awcms-mini awcms-mini@X.Y.Z".
+          # (`vX.Y.Z`); the human-facing title uses the bare version.
           gh release create "${{ github.ref_name }}" \
             --title "awcms-mini ${{ needs.validate.outputs.version }}" \
             --notes-file RELEASE_NOTES.md \

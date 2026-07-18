@@ -61,6 +61,21 @@ describe("checkChangelogHasVersionSection", () => {
 
     expect(problem).not.toBeNull();
   });
+
+  test("passes on the Changesets header shape '## X.Y.Z' (no brackets, Issue #825)", () => {
+    // This is exactly what `bun run changeset:version` emits; the old
+    // bracket-only check rejected every changeset-generated release.
+    const changelog = "# Changelog\n\n## 0.25.0\n\n### Minor Changes\n";
+
+    expect(checkChangelogHasVersionSection(changelog, "0.25.0")).toBeNull();
+  });
+
+  test("plain '## X.Y.Z' shape does not false-match a substring version", () => {
+    const changelog = "## 0.25.0\n";
+
+    // "0.25" must not match "## 0.25.0" (no trailing space/EOL boundary).
+    expect(checkChangelogHasVersionSection(changelog, "0.25")).not.toBeNull();
+  });
 });
 
 describe("checkNoPendingChangesets", () => {

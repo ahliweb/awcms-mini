@@ -19,7 +19,7 @@ flowchart TD
   CS -- Yes / docs-only --> Merge[Merge to main]
   Merge --> Version[bun run changeset:version<br/>bump + CHANGELOG]
   Version --> Commit[chore release: X.Y.Z]
-  Commit --> Tag[bun run changeset:tag<br/>git push origin awcms-mini@X.Y.Z<br/>tag rilis itu saja, bukan --tags]
+  Commit --> Tag[bun run changeset:tag<br/>git push origin vX.Y.Z<br/>tag rilis itu saja, bukan --tags]
   Tag --> Validate[release.yml: validate job<br/>ancestor-of-main guard,<br/>release:verify, full check]
   Dispatch[workflow_dispatch<br/>rehearsal, any branch] --> Validate
   Validate --> BuildJob[build job: image + SBOM x2<br/>+ checksums, no signing creds]
@@ -66,26 +66,26 @@ run against a single checkout with no network/git-history dependency.
 
 Two entry points, both converging on the same job graph:
 
-| Trigger                              | Effect                                                                                                                                   |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `push` a tag matching `awcms-mini@*` | **Real release.** Publishes an image, GitHub Release, and moves `:latest`.                                                               |
-| `workflow_dispatch` (any ref)        | **Rehearsal.** Runs the identical pipeline against a `dryrun-<sha>` image tag. No GitHub Release is created, `:latest` is never touched. |
+| Trigger                        | Effect                                                                                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `push` a tag matching `v*.*.*` | **Real release.** Publishes an image, GitHub Release, and moves `:latest`.                                                               |
+| `workflow_dispatch` (any ref)  | **Rehearsal.** Runs the identical pipeline against a `dryrun-<sha>` image tag. No GitHub Release is created, `:latest` is never touched. |
 
 > **Git tag vs image tag — these are deliberately different strings.**
-> The **git tag** is the one Changesets emits for this private package,
-> `awcms-mini@X.Y.Z` (`.changeset/config.json`
-> `privatePackages: { version: true, tag: true }` → `bun run
-changeset:tag`; the existing `awcms-mini@0.0.x` tags prove the format).
-> That is exactly what `release.yml`'s `push: tags: awcms-mini@*` fires on,
-> so the tag generator and the trigger are one source of truth — there is
-> **no** manual `vX.Y.Z` tag and no version↔tag drift (Issue #825). The
-> **container image tag**, by contrast, is the _bare_ version read from
-> `package.json` — `ghcr.io/ahliweb/awcms-mini:X.Y.Z` (no `v`, no
-> `awcms-mini@` prefix) — plus `:sha-<commit>` and, for a real release,
-> `:latest`. `release.yml`'s `validate` job derives both from
-> `package.json`, not from the tag string, so `release:verify` only has to
-> confirm the pushed `awcms-mini@X.Y.Z` tag matches that same
-> `package.json` version.
+> The **git tag** is the one Changesets emits for this single-package repo,
+> `vX.Y.Z` (`bun run changeset:tag` — for a single root package Changesets
+> uses the `v<version>` form, not `<name>@<version>`; the legacy
+> `awcms-mini@0.0.x` tags were hand-made, not changeset output, and misled
+> Issue #825 into the reverted `awcms-mini@*` trigger). That `vX.Y.Z` is
+> exactly what `release.yml`'s `push: tags: v*.*.*` fires on, so the tag
+> generator and the trigger are one source of truth — no manual tag, no
+> version↔tag drift (Issue #825). The **container image tag**, by contrast,
+> is the _bare_ version read from `package.json` —
+> `ghcr.io/ahliweb/awcms-mini:X.Y.Z` (no `v` prefix) — plus `:sha-<commit>`
+> and, for a real release, `:latest`. `release.yml`'s `validate` job
+> derives both from `package.json`, not from the tag string, so
+> `release:verify` only has to confirm the pushed `vX.Y.Z` tag matches that
+> same `package.json` version.
 
 ### `validate` job (read-only)
 
@@ -99,8 +99,10 @@ changeset:tag`; the existing `awcms-mini@0.0.x` tags prove the format).
    `origin/main`'s history is refused before anything is built.
 2. **`bun run release:verify`** (real release only,
    `scripts/release-verify.ts`) — confirms the pushed tag's version
-   matches `package.json`, that `CHANGELOG.md` has a `## [X.Y.Z]` section
-   for it, and that no changeset files remain unconsumed in `.changeset/`.
+   matches `package.json`, that `CHANGELOG.md` has a `## X.Y.Z` section
+   for it (the Changesets header shape; the legacy `## [X.Y.Z]` bracket
+   form is also accepted), and that no changeset files remain unconsumed
+   in `.changeset/`.
 3. **`bun run check`** (against a real, migrated Postgres service) — the
    full quality gate, re-verified at release time rather than trusted from
    a possibly-stale CI run. This is **stricter** than `ci.yml`'s own
@@ -247,7 +249,7 @@ throwaway `ghcr.io/ahliweb/awcms-mini:dryrun-<short-sha>` tag. It never
 creates a GitHub Release and never moves `:latest`, so it cannot be
 mistaken for (or accidentally become) a production release. Rehearse this
 at least once, with a reviewer actually approving the environment gate,
-before the first real `awcms-mini@X.Y.Z` tag is pushed.
+before the first real `vX.Y.Z` tag is pushed.
 
 Rehearsal images accumulate in the `ghcr.io/ahliweb/awcms-mini` package
 under `dryrun-*` tags; a maintainer can delete old ones periodically via
@@ -264,7 +266,7 @@ to this repository's secrets or CI environment.
 
 The image tag below is the **bare** version `X.Y.Z` (see the git-tag-vs-
 image-tag note above), e.g. `ghcr.io/ahliweb/awcms-mini:0.24.0` — not the
-`awcms-mini@X.Y.Z` git tag.
+`vX.Y.Z` git tag.
 
 ```bash
 # 1. Verify the image's SLSA build provenance attestation
@@ -277,9 +279,9 @@ gh attestation verify oci://ghcr.io/ahliweb/awcms-mini:X.Y.Z \
 
 # 3. Verify the keyless cosign signature directly (no gh CLI required).
 #    The signing identity is keyed on the GIT tag ref the run fired on,
-#    i.e. refs/tags/awcms-mini@X.Y.Z — hence the `awcms-mini@` in the regexp.
+#    i.e. refs/tags/vX.Y.Z — hence the `v` in the regexp.
 cosign verify ghcr.io/ahliweb/awcms-mini:X.Y.Z \
-  --certificate-identity-regexp "^https://github.com/ahliweb/awcms-mini/.github/workflows/release.yml@refs/tags/awcms-mini@.*" \
+  --certificate-identity-regexp "^https://github.com/ahliweb/awcms-mini/.github/workflows/release.yml@refs/tags/v[0-9].*" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 
 # 4. Verify provenance for the downloadable source artifacts
@@ -306,11 +308,11 @@ bad release:
    image/tag.** Consumers may have already pulled it; removing it breaks
    their ability to even diagnose what they have.
 2. **Mark the GitHub Release as a pre-release** (`gh release edit
-awcms-mini@X.Y.Z --prerelease`) and add a note at the top of its body
+vX.Y.Z --prerelease`) and add a note at the top of its body
    pointing to the fixed version, so `gh release view --repo
 ahliweb/awcms-mini` and the releases page both surface the warning
    immediately.
-3. **Cut a new patch release** (`awcms-mini@X.Y.Z+1`) through the normal
+3. **Cut a new patch release** (`vX.Y.Z+1`) through the normal
    path (changeset → `changeset:version` → `changeset:tag` → `release.yml`)
    with the fix.
    Do not force-push a corrected tag over the same version number — image
