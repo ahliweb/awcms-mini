@@ -166,12 +166,14 @@ suite("tenant module preset application service", () => {
     // pure leaf. Unlike on `main` before Issue #753, domain_event_runtime
     // itself is NOT a pure leaf here and does NOT disable — `reporting`
     // (listed, stays enabled) now also depends on it (see the
-    // `sync_storage`/`domain_event_runtime`/`logging` skip block below),
-    // which transitively keeps `logging` enabled too. This is true
+    // `sync_storage`/`domain_event_runtime` skip block below). This is true
     // regardless of data_exchange's/integration_hub's own dependency on the
     // same module — domain_event_runtime only needs ONE active enabled
     // dependent to stay enabled, and `reporting` alone is now that
-    // dependent.
+    // dependent. `logging` also stays enabled, but as of Issue #845 for a
+    // different reason: it is now PROTECTED (module_management's isCore
+    // dependency closure), not a transitive reverse-dependency skip — see
+    // the dedicated `logging` assertion after the skip block.
     for (const key of [
       "workflow",
       "form_drafts",
@@ -188,22 +190,13 @@ suite("tenant module preset application service", () => {
       expect(changeByKey.get(key)?.outcome).toBe("applied");
       expect(changeByKey.get(key)?.action).toBe("disabled");
     }
-    // sync_storage, domain_event_runtime, AND (transitively) logging are
-    // also not listed, but must all stay enabled:
-    // - `reporting` (listed, stays enabled) depends on sync_storage AND
-    //   (Issue #753) on domain_event_runtime — the event-driven
-    //   `event_activity_summary` projection genuinely needs that module's
-    //   dispatcher active.
-    // - domain_event_runtime itself (now forced to stay enabled) depends
-    //   on `logging` — so logging is blocked TOO, purely as a transitive
-    //   consequence of domain_event_runtime being blocked. Before Issue
-    //   #753 added the reporting -> domain_event_runtime edge, logging
-    //   had no active dependent left once visitor_analytics/
-    //   domain_event_runtime disabled and was itself safely disabled;
-    //   now it never becomes disableable in this preset.
-    // All three are skipped, never force-disabled, per the
-    // reverse-dependency protection design.
-    for (const key of ["sync_storage", "domain_event_runtime", "logging"]) {
+    // sync_storage and domain_event_runtime are not listed but must stay
+    // enabled: `reporting` (listed, stays enabled) depends on sync_storage
+    // AND (Issue #753) on domain_event_runtime — the event-driven
+    // `event_activity_summary` projection genuinely needs that module's
+    // dispatcher active. Both are SKIPPED (reverse_dependency_active), never
+    // force-disabled, per the reverse-dependency protection design.
+    for (const key of ["sync_storage", "domain_event_runtime"]) {
       expect(changeByKey.has(key)).toBe(false);
       expect(result.skipped).toContainEqual({
         moduleKey: key,
@@ -212,6 +205,19 @@ suite("tenant module preset application service", () => {
         message: expect.stringContaining(key)
       });
     }
+    // `logging` also stays enabled, but Issue #845 (epic #818) changed WHY
+    // and HOW: `module_management` now declares `logging` in its own
+    // `dependencies`, so `logging` entered `resolveProtectedModuleKeys`'s
+    // set (module_management's isCore closure). It is therefore excluded
+    // from the disable-candidate set ENTIRELY — never a change, never a
+    // `skipped` entry (skipped only holds candidates blocked at plan time).
+    // Before #845 it was merely a transitive reverse-dependency skip via
+    // domain_event_runtime; now it is protected outright, the same standing
+    // module_management/tenant_admin/identity_access/profile_identity have.
+    // (The application-layer result exposes only changes/skipped; protection
+    // is proven here by logging being in NEITHER, yet still enabled below.)
+    expect(changeByKey.has("logging")).toBe(false);
+    expect(result.skipped.some((s) => s.moduleKey === "logging")).toBe(false);
 
     const state = await fetchTenantModuleState(owner.tenantId);
     expect(state.get("tenant_domain")).not.toBe(false);
@@ -293,7 +299,7 @@ suite("tenant module preset application service", () => {
     expect(secondAuditCount).toBe(firstAuditCount);
   });
 
-  test("applying minimal disables every non-core module, protecting module_management/tenant_admin/identity_access/profile_identity", async () => {
+  test("applying minimal disables every non-core module, protecting module_management/tenant_admin/identity_access/profile_identity/logging/email", async () => {
     const owner = await bootstrap();
     const sql = getDatabaseClient();
 
@@ -306,31 +312,41 @@ suite("tenant module preset application service", () => {
 
     // module_management is CORE_MODULE_CANNOT_BE_DISABLED-protected and
     // never even attempted (excluded from the plan entirely, per
-    // resolveProtectedModuleKeys).
-    expect(
-      result.changes.some((c) => c.moduleKey === "module_management")
-    ).toBe(false);
-    expect(result.changes.some((c) => c.moduleKey === "tenant_admin")).toBe(
-      false
-    );
-    expect(result.changes.some((c) => c.moduleKey === "identity_access")).toBe(
-      false
-    );
-    expect(result.changes.some((c) => c.moduleKey === "profile_identity")).toBe(
-      false
-    );
+    // resolveProtectedModuleKeys). tenant_admin/identity_access/
+    // profile_identity are its transitive dependency closure — and, as of
+    // Issue #845 (epic #818), so are `logging` and `email` (module_management
+    // now declares both: `module-presets.ts` -> logging.recordAuditEvent,
+    // `health-registry.ts` -> email.resolveEmailProvider). All six are
+    // excluded from the disable plan, so none appear in `changes`.
+    for (const key of [
+      "module_management",
+      "tenant_admin",
+      "identity_access",
+      "profile_identity",
+      "logging",
+      "email"
+    ]) {
+      expect(result.changes.some((c) => c.moduleKey === key)).toBe(false);
+    }
 
     const state = await fetchTenantModuleState(owner.tenantId);
     // Protected modules have no row at all (never touched) or remain enabled.
-    expect(state.get("module_management")).not.toBe(false);
-    expect(state.get("tenant_admin")).not.toBe(false);
-    expect(state.get("identity_access")).not.toBe(false);
-    expect(state.get("profile_identity")).not.toBe(false);
+    for (const key of [
+      "module_management",
+      "tenant_admin",
+      "identity_access",
+      "profile_identity",
+      "logging",
+      "email"
+    ]) {
+      expect(state.get(key)).not.toBe(false);
+    }
 
-    // Everything else disabled.
+    // Everything else disabled. `email` is NO LONGER here (protected as of
+    // #845); `logging` was never here (it stays enabled — previously as a
+    // reverse-dependency skip, now as an outright protected module).
     for (const key of [
       "blog_content",
-      "email",
       "reporting",
       "sync_storage",
       "tenant_domain",
@@ -357,16 +373,25 @@ suite("tenant module preset application service", () => {
     expect(posLan.outcome).toBe("applied");
     if (posLan.outcome !== "applied") throw new Error("unreachable");
 
-    // pos_lan lists sync_storage/reporting/workflow — reporting is what's
-    // actually driving this: it depends on both sync_storage AND email, so
-    // `email` (not listed by pos_lan at all) is transitively still
-    // required and must be skipped, not disabled.
+    // pos_lan lists sync_storage/reporting/workflow. reporting depends on
+    // sync_storage, email, AND (Issue #753) domain_event_runtime; workflow
+    // also depends on domain_event_runtime. `domain_event_runtime` is not
+    // listed by pos_lan at all, so it would otherwise be a disable candidate
+    // — but reporting/workflow (both kept enabled) still depend on it, so it
+    // must be SKIPPED, not disabled.
     expect(posLan.skipped).toContainEqual({
-      moduleKey: "email",
+      moduleKey: "domain_event_runtime",
       action: "disabled",
       reason: "reverse_dependency_active",
-      message: expect.stringContaining("email")
+      message: expect.stringContaining("domain_event_runtime")
     });
+    // `email` is NOT in `skipped` anymore: as of Issue #845 (epic #818) it
+    // is PROTECTED (module_management's isCore dependency closure now
+    // includes it), so it is excluded from the disable-candidate set
+    // entirely and never becomes a skip. It stays enabled outright (asserted
+    // below), which is why reporting's own dependency on email is still
+    // satisfied without email ever appearing as a reverse-dependency skip.
+    expect(posLan.skipped.some((s) => s.moduleKey === "email")).toBe(false);
     // tenant_domain/blog_content are genuinely unrelated to anything kept
     // enabled, so they ARE safely disabled.
     const posLanChangeByKey = new Map(

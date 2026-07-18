@@ -69,12 +69,18 @@ describe("module registry", () => {
     expect(getModuleByKey("profile_identity")).toMatchObject({
       key: "profile_identity",
       status: "active",
-      dependencies: ["tenant_admin"]
+      // Issue #845 (epic #818): `logging` newly declared — the party
+      // directory services + merge-workflow call `logging`'s
+      // `recordAuditEvent` (a real, previously-undeclared value import;
+      // acyclic since `logging` depends only on `tenant_admin`).
+      dependencies: ["tenant_admin", "logging"]
     });
     expect(getModuleByKey("identity_access")).toMatchObject({
       key: "identity_access",
       status: "active",
-      dependencies: ["tenant_admin", "profile_identity"]
+      // Issue #845 (epic #818): `logging` newly declared — business-scope
+      // assignment/expiry/SoD services call `logging`'s `recordAuditEvent`.
+      dependencies: ["tenant_admin", "profile_identity", "logging"]
     });
     expect(getModuleByKey("sync_storage")).toMatchObject({
       key: "sync_storage",
@@ -105,7 +111,9 @@ describe("module registry", () => {
     expect(getModuleByKey("form_drafts")).toMatchObject({
       key: "form_drafts",
       status: "active",
-      dependencies: ["identity_access"]
+      // Issue #845 (epic #818): `logging` newly declared — the draft-purge
+      // job calls `logging`'s `recordAuditEvent`.
+      dependencies: ["identity_access", "logging"]
     });
     expect(getModuleByKey("email")).toMatchObject({
       key: "email",
@@ -117,14 +125,30 @@ describe("module registry", () => {
       status: "active",
       type: "system",
       isCore: true,
-      dependencies: ["tenant_admin", "identity_access"]
+      // Issue #845 (epic #818): `logging` + `email` newly declared —
+      // `application/module-presets.ts` calls `logging`'s `recordAuditEvent`
+      // and `application/health-registry.ts` calls `email`'s
+      // `resolveEmailProvider`. Because this is the only `isCore` module,
+      // these two edges also expand `resolveProtectedModuleKeys` to include
+      // `logging`/`email` (see tests/unit/module-presets.test.ts).
+      dependencies: ["tenant_admin", "identity_access", "logging", "email"]
     });
     expect(getModuleByKey("blog_content")).toMatchObject({
       key: "blog_content",
       version: "0.9.0",
       status: "active",
       type: "domain",
-      dependencies: ["tenant_admin", "identity_access"]
+      // Issue #845 (epic #818): `module_management` + `logging` newly
+      // declared — public tenant/route-settings helpers call
+      // `module_management`, and scheduled-publish calls `logging`'s
+      // `recordAuditEvent`. Both are foundation modules, so the graph stays
+      // acyclic.
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
+        "logging"
+      ]
     });
     expect(getModuleByKey("tenant_domain")).toMatchObject({
       key: "tenant_domain",
@@ -142,7 +166,20 @@ describe("module registry", () => {
       key: "news_portal",
       status: "active",
       type: "domain",
-      dependencies: ["tenant_admin", "identity_access"]
+      // Issue #845 (epic #818): `module_management` + `logging` newly
+      // declared — `application/apply-news-portal-preset.ts` calls
+      // `module_management`'s `applyModulePreset` and several `application/*`
+      // files call `logging`'s `recordAuditEvent`. Still deliberately does
+      // NOT list blog_content/tenant_domain/visitor_analytics (see
+      // news-portal/module.ts): both new edges are foundation modules that
+      // are never disabled per-tenant, so declaring them does not arm the
+      // reverse-dependency guard against any optional business module.
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
+        "logging"
+      ]
     });
     expect(getModuleByKey("idn_admin_regions")).toMatchObject({
       key: "idn_admin_regions",
@@ -155,7 +192,24 @@ describe("module registry", () => {
       key: "social_publishing",
       status: "active",
       type: "domain",
-      dependencies: ["tenant_admin", "identity_access"]
+      // Issue #845 (epic #818): `blog_content` + `news_portal` + `logging`
+      // newly declared, all real value imports — `application/
+      // social-publishing-port-adapter.ts` imports `blog_content`'s
+      // `fetchEffectivePublicRouteSettings`, `infrastructure/
+      // linkedin-provider-adapter.ts` imports `news_portal`'s
+      // `resolveNewsMediaR2Config`, and several `application/*` files call
+      // `logging`'s `recordAuditEvent`. `blog_content`/`news_portal` are HARD
+      // lifecycle dependencies now, which means a tenant may no longer
+      // disable either while social_publishing is enabled — accepted as
+      // correct new behaviour per epic #818's Opsi A (a content-fan-out
+      // module genuinely needs its content sources present).
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "blog_content",
+        "news_portal",
+        "logging"
+      ]
     });
     expect(getModuleByKey("data_lifecycle")).toMatchObject({
       key: "data_lifecycle",
@@ -173,19 +227,40 @@ describe("module registry", () => {
       key: "organization_structure",
       status: "active",
       type: "domain",
-      dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"]
+      // Issue #845 (epic #818): `logging` newly declared — every
+      // directory/service calls `logging`'s `recordAuditEvent`.
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime",
+        "logging"
+      ]
     });
     expect(getModuleByKey("reference_data")).toMatchObject({
       key: "reference_data",
       status: "active",
       type: "domain",
-      dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"]
+      // Issue #845 (epic #818): `logging` newly declared — import/value-set/
+      // code/tenant-code directories all call `logging`'s `recordAuditEvent`.
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime",
+        "logging"
+      ]
     });
     expect(getModuleByKey("document_infrastructure")).toMatchObject({
       key: "document_infrastructure",
       status: "active",
       type: "domain",
-      dependencies: ["tenant_admin", "identity_access", "domain_event_runtime"]
+      // Issue #845 (epic #818): `logging` newly declared — every
+      // directory/service calls `logging`'s `recordAuditEvent`.
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime",
+        "logging"
+      ]
     });
     expect(getModuleByKey("data_exchange")).toMatchObject({
       key: "data_exchange",

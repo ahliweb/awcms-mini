@@ -13,13 +13,31 @@ describe("social_publishing module descriptor (Issue #643)", () => {
     expect(socialPublishingModule.key).toBe("social_publishing");
     expect(socialPublishingModule.status).toBe("active");
     expect(socialPublishingModule.type).toBe("domain");
-    // Deliberately NOT blog_content — see module.ts's own comment: the
-    // composition root already holds the published article's fields and
-    // passes them into SocialPublishingPort directly, so this module never
-    // needs a hard dependency on blog_content to re-fetch post data.
+    // Issue #845 (epic #818) declared three previously-undeclared real value
+    // imports the #826/#845 declared-dependency gate now demands:
+    //  - `application/social-publishing-port-adapter.ts` imports
+    //    `blog_content`'s `fetchEffectivePublicRouteSettings` (resolves the
+    //    canonical `publicBasePath` for a published article's social link);
+    //  - `infrastructure/linkedin-provider-adapter.ts` imports
+    //    `news_portal`'s `resolveNewsMediaR2Config` (R2 public base URL for
+    //    the image the LinkedIn post references);
+    //  - several `application/*` files call `logging`'s `recordAuditEvent`.
+    //
+    // Declaring `blog_content`/`news_portal` makes them HARD lifecycle
+    // dependencies: with social_publishing enabled (the default), a tenant
+    // can no longer disable blog_content or news_portal until it first
+    // disables social_publishing. That reverse-dependency constraint is
+    // accepted as correct new behaviour per epic #818's Opsi A — social
+    // publishing exists to fan a tenant's published blog/news content out to
+    // social channels and genuinely cannot run without those content
+    // modules. All three edges keep `modules:dag:check` acyclic (none depend
+    // back on social_publishing).
     expect(socialPublishingModule.dependencies).toEqual([
       "tenant_admin",
-      "identity_access"
+      "identity_access",
+      "blog_content",
+      "news_portal",
+      "logging"
     ]);
   });
 

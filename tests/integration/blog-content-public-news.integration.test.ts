@@ -656,6 +656,23 @@ suite("public /news routes (Issue #560)", () => {
       slug: "module-disabled-post"
     });
 
+    // Issue #845 (epic #818): `social_publishing` now declares a HARD
+    // dependency on `blog_content` (its port adapter imports blog_content's
+    // `fetchEffectivePublicRouteSettings`). With social_publishing enabled
+    // by default, disabling blog_content is now rejected
+    // (MODULE_REVERSE_DEPENDENCY_ACTIVE) until its dependent is disabled
+    // first — accepted as correct new behaviour per Opsi A. Disable the
+    // dependent first so this test can still exercise the
+    // blog_content-disabled -> /news 404 path it exists to verify.
+    const disableDependent = await invoke(disableModule, {
+      method: "POST",
+      path: "/api/v1/tenant/modules/social_publishing/disable",
+      headers: authHeaders(owner),
+      params: { moduleKey: "social_publishing" },
+      body: { reason: "Free blog_content's reverse dependency before disable." }
+    });
+    expect(disableDependent.status).toBe(200);
+
     const disable = await invoke(disableModule, {
       method: "POST",
       path: "/api/v1/tenant/modules/blog_content/disable",
@@ -894,6 +911,21 @@ suite("public /news routes (Issue #560)", () => {
         (tenant_id, hostname, normalized_hostname, domain_type, status)
       VALUES (${owner.tenantId}, 'disabled.round-trip.test', 'disabled.round-trip.test', 'custom_domain', 'active')
     `;
+    // Issue #845 (epic #818): social_publishing now hard-depends on
+    // blog_content, so it must be disabled first before blog_content can be
+    // (MODULE_REVERSE_DEPENDENCY_ACTIVE otherwise). See the "404s
+    // generically" test above for the full rationale. The round-trip parity
+    // this test measures is unaffected — it's counted later via
+    // countRoundTrips(), independent of this setup disable.
+    const disableDependent = await invoke(disableModule, {
+      method: "POST",
+      path: "/api/v1/tenant/modules/social_publishing/disable",
+      headers: authHeaders(owner),
+      params: { moduleKey: "social_publishing" },
+      body: { reason: "round-trip parity test setup: free reverse dependency" }
+    });
+    expect(disableDependent.status).toBe(200);
+
     const disable = await invoke(disableModule, {
       method: "POST",
       path: "/api/v1/tenant/modules/blog_content/disable",
