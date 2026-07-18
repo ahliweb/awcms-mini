@@ -24,16 +24,27 @@
  * dependency, so it runs (and can catch the regression) precisely in the
  * DATABASE_URL-less environment the integration suites hide from.
  *
- * WHAT COUNTS AS GATED. A top-level (column-0) describe invocation is
- * acceptable only in a form that is skipped when the DB is absent:
- *   - `suite(...)`                    — the canonical gate helper
+ * WHAT COUNTS AS GATED — DEFAULT-DENY ALLOW-LIST. The detector does NOT
+ * enumerate the bad forms (a deny-list of `describe(` / `describe.only(`
+ * would silently let a novel top-level variant like
+ * `describe.each([...])(...)` or `describe.todo(...)` through — it runs
+ * unconditionally just the same). Instead it flags EVERY column-0
+ * `describe...` invocation and EXEMPTS only the two forms that are
+ * genuinely skipped when the DB is absent:
  *   - `describe.skip(...)`            — unconditional skip
  *   - `describe.skipIf(!integrationEnabled)(...)` — conditional skip
- * A bare `describe(...)` or `describe.only(...)` at column 0 is a
- * violation: the former runs unconditionally, the latter also silences
- * every sibling suite. Nested/indented `describe(...)` inside an
- * already-gated block is fine and intentionally not inspected — only
- * column-0 invocations decide whether a file body runs at all.
+ * The canonical `suite(...)` helper (`suite = integrationEnabled
+ * ? describe : describe.skip`) never starts with `describe`, so it is
+ * inherently outside the detector's net. Everything else at column 0 —
+ * `describe(`, `describe.only(`, `describe.each(`, `describe.todo(`, … —
+ * is a violation, because it decides whether a file body runs and does so
+ * WITHOUT consulting `integrationEnabled`.
+ *
+ * Nested/indented `describe(...)` inside an already-gated block is fine
+ * and intentionally not inspected — only column-0 invocations decide
+ * whether a file body runs at all. Lines whose first non-space character
+ * begins a block comment (` * ...`) never start at column 0 with
+ * `describe`, so prose examples are not matched.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -43,8 +54,10 @@ import path from "node:path";
 const REPO_ROOT = path.resolve(import.meta.dir, "../..");
 const INTEGRATION_DIR = path.join(REPO_ROOT, "tests/integration");
 
-/** A column-0 describe call that is NOT one of the gated forms. */
-const BARE_TOP_LEVEL_DESCRIBE = /^describe\s*(?:\.only)?\s*\(/;
+/** Any column-0 `describe...` invocation (the whole family). */
+const TOP_LEVEL_DESCRIBE = /^describe\b/;
+/** The ONLY exempt forms: `describe.skip(` and `describe.skipIf(`. */
+const GATED_DESCRIBE = /^describe\.skip(?:If)?\s*\(/;
 
 function listIntegrationFiles(): string[] {
   return readdirSync(INTEGRATION_DIR)
@@ -52,11 +65,13 @@ function listIntegrationFiles(): string[] {
     .sort();
 }
 
-function findBareDescribes(source: string): { line: number; text: string }[] {
+function findUngatedDescribes(
+  source: string
+): { line: number; text: string }[] {
   const offenders: { line: number; text: string }[] = [];
   const lines = source.split("\n");
   lines.forEach((line, index) => {
-    if (BARE_TOP_LEVEL_DESCRIBE.test(line)) {
+    if (TOP_LEVEL_DESCRIBE.test(line) && !GATED_DESCRIBE.test(line)) {
       offenders.push({ line: index + 1, text: line.trim() });
     }
   });
@@ -64,7 +79,7 @@ function findBareDescribes(source: string): { line: number; text: string }[] {
 }
 
 describe("integration suites are gated on DATABASE_URL (Issue #858)", () => {
-  test("no integration file has a bare top-level describe() block", () => {
+  test("no integration file has an ungated top-level describe block", () => {
     const files = listIntegrationFiles();
     // Guard against a broken scanner silently passing (e.g. wrong dir).
     expect(files.length).toBeGreaterThan(50);
@@ -72,7 +87,7 @@ describe("integration suites are gated on DATABASE_URL (Issue #858)", () => {
     const violations: string[] = [];
     for (const name of files) {
       const source = readFileSync(path.join(INTEGRATION_DIR, name), "utf8");
-      for (const { line, text } of findBareDescribes(source)) {
+      for (const { line, text } of findUngatedDescribes(source)) {
         violations.push(`  tests/integration/${name}:${line}: ${text}`);
       }
     }
@@ -81,12 +96,14 @@ describe("integration suites are gated on DATABASE_URL (Issue #858)", () => {
       violations,
       violations.length === 0
         ? ""
-        : "Ungated top-level describe() found in integration test file(s).\n" +
+        : "Ungated top-level describe block found in integration test file(s).\n" +
             "Every top-level block must be skipped when DATABASE_URL is unset,\n" +
             "otherwise `bun run check` / `bun test` fails without a database.\n" +
-            "Replace the bare `describe(` with the file's `suite` gate helper\n" +
-            "(`const suite = integrationEnabled ? describe : describe.skip;`),\n" +
-            "or `describe.skipIf(!integrationEnabled)(...)`. Offending lines:\n" +
+            "Only `describe.skip(...)` and `describe.skipIf(!integrationEnabled)(...)`\n" +
+            "are exempt; use the file's `suite` gate helper instead\n" +
+            "(`const suite = integrationEnabled ? describe : describe.skip;`).\n" +
+            "This includes `describe(`, `describe.only(`, `describe.each(`,\n" +
+            "and `describe.todo(`. Offending lines:\n" +
             violations.join("\n")
     ).toEqual([]);
   });

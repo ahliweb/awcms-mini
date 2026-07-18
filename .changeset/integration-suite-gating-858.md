@@ -14,6 +14,8 @@ menangkapnya karena job Quality selalu menyetel `DATABASE_URL`.
 
 Blok tersebut diperbaiki ke `suite(...)`, dan gate unit murni baru
 `tests/unit/integration-suite-gating.test.ts` (jalan justru tanpa DB)
-memindai semua `tests/integration/*.integration.test.ts` serta gagal
-dengan pesan actionable bila ada `describe(`/`describe.only(` top-level
-(kolom-0) yang tidak ter-gate.
+memindai semua `tests/integration/*.integration.test.ts` memakai
+allow-list default-deny: setiap `describe...` top-level (kolom-0) gagal
+dengan pesan actionable KECUALI `describe.skip(`/`describe.skipIf(` —
+sehingga `describe(`, `describe.only(`, `describe.each(`, dan
+`describe.todo(` semuanya tertangkap.
