@@ -14,7 +14,7 @@ description: Jalankan proses rilis AWCMS-Mini dengan Changesets. Gunakan saat di
 > | `.changeset/config.json:11`     | `"privatePackages": { "version": true, "tag": true }` → `bun run changeset:tag` memancarkan **`awcms-mini@X.Y.Z`** |
 > | `.github/workflows/release.yml` | trigger `push: tags: awcms-mini@*` — **sumber kebenaran yang sama** dengan tag generator; tak ada `vX.Y.Z` manual  |
 >
-> Jadi **langkah 6 di bawah kini BENAR**: `changeset:tag` → `git push --tags` **memicu** `release.yml`. `scripts/release-verify.ts` (`normalizeTagVersion`) sudah strip prefix `awcms-mini@` agar job `validate` tidak menolak tag rilis nyata pertama.
+> Jadi **langkah 6 di bawah kini BENAR**: `changeset:tag` → push tag `awcms-mini@X.Y.Z` **memicu** `release.yml`. `scripts/release-verify.ts` (`normalizeTagVersion`) sudah strip prefix `awcms-mini@` agar job `validate` tidak menolak tag rilis nyata pertama.
 >
 > **Yang masih tersisa — owner-only (bukan langkah lokal skill ini):** tahap `sign + attest + publish` **belum terbukti end-to-end**. Rehearsal `29461398291` menggantung >26 jam menunggu `required_reviewers` environment `release`. Sebelum rilis production pertama, owner harus: (1) set/tinjau `required_reviewers` env `release`, (2) approve satu rehearsal (`workflow_dispatch`) menembus cosign/provenance/publish. Lihat `release-process.md` §Dry-run/rehearsal & §Environment approval.
 
@@ -28,7 +28,7 @@ flowchart LR
   B --> C[changeset:version<br/>bump + CHANGELOG]
   C --> D[Review diff CHANGELOG<br/>+ package.json]
   D --> E[Commit chore release vX.Y.Z]
-  E --> F[changeset:tag → push --tags]
+  E --> F[changeset:tag → push tag rilis itu saja]
   F --> G[release.yml: validate job<br/>+ build job SBOM x2]
   G --> H[release environment<br/>approval gate]
   H --> I[sign-attest-publish job:<br/>cosign sign + attest + publish]
@@ -41,7 +41,7 @@ flowchart LR
 3. `bun run changeset:version` — konsumsi changeset → bump `package.json` + entri `CHANGELOG.md`.
 4. Review diff; pastikan versi cocok peta doc 09 (0.1.0 Foundation … 1.0.0 production MVP).
 5. Commit: `chore(release): vX.Y.Z` (sertakan CHANGELOG + package.json + penghapusan file changeset), push ke `main`.
-6. `bun run changeset:tag` lalu `git push --tags` — ini memancarkan tag `awcms-mini@X.Y.Z` yang **memicu** `.github/workflows/release.yml` (#825, PR #854): guard ancestor-of-`main`, `bun run release:verify` (versi/CHANGELOG/changeset tersisa harus konsisten), full quality gate, lalu — setelah disetujui lewat `release` environment (lihat doc `release-process.md` §Environment approval) — build image, dua SBOM CycloneDX (source + image), checksums, `cosign sign` keyless, `actions/attest-build-provenance`/`attest-sbom`, push `ghcr.io/ahliweb/awcms-mini` (image tag **`X.Y.Z` polos** + `:sha-<commit>` + `:latest`, bukan `v`-prefixed), dan `gh release create` dengan asset terlampir. Catatan: sebelum rilis production pertama, tahap `sign + attest + publish` perlu satu rehearsal owner yang benar-benar disetujui (lihat kotak status di atas).
+6. `bun run changeset:tag` (memancarkan tag `awcms-mini@X.Y.Z`), lalu push **hanya tag rilis itu**: `git push origin awcms-mini@X.Y.Z`. **Jangan** `git push --tags` — itu mendorong SEMUA tag lokal di `refs/tags`, sehingga tag `awcms-mini@*` lain yang belum dipublikasi di clone Anda ikut ter-push dan bisa memicu `release.yml` berkali-kali (trigger kini `awcms-mini@*`). Tag rilis ini **memicu** `.github/workflows/release.yml` (#825, PR #854): guard ancestor-of-`main`, `bun run release:verify` (versi/CHANGELOG/changeset tersisa harus konsisten), full quality gate, lalu — setelah disetujui lewat `release` environment (lihat doc `release-process.md` §Environment approval) — build image, dua SBOM CycloneDX (source + image), checksums, `cosign sign` keyless, `actions/attest-build-provenance`/`attest-sbom`, push `ghcr.io/ahliweb/awcms-mini` (image tag **`X.Y.Z` polos** + `:sha-<commit>` + `:latest`, bukan `v`-prefixed), dan `gh release create` dengan asset terlampir. Catatan: sebelum rilis production pertama, tahap `sign + attest + publish` perlu satu rehearsal owner yang benar-benar disetujui (lihat kotak status di atas).
 7. **Jangan** lagi menjalankan `gh release create` manual — itu sekarang bagian dari `release.yml`; menjalankannya manual sebelum workflow selesai akan bentrok dengan asset yang coba di-attach otomatis.
 
 ## Aturan

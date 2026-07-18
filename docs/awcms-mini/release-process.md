@@ -19,7 +19,7 @@ flowchart TD
   CS -- Yes / docs-only --> Merge[Merge to main]
   Merge --> Version[bun run changeset:version<br/>bump + CHANGELOG]
   Version --> Commit[chore release: X.Y.Z]
-  Commit --> Tag[bun run changeset:tag<br/>awcms-mini@X.Y.Z + git push --tags]
+  Commit --> Tag[bun run changeset:tag<br/>git push origin awcms-mini@X.Y.Z<br/>tag rilis itu saja, bukan --tags]
   Tag --> Validate[release.yml: validate job<br/>ancestor-of-main guard,<br/>release:verify, full check]
   Dispatch[workflow_dispatch<br/>rehearsal, any branch] --> Validate
   Validate --> BuildJob[build job: image + SBOM x2<br/>+ checksums, no signing creds]
