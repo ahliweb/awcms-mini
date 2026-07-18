@@ -1,0 +1,11 @@
+{
+  // Extensions this workspace's settings.json / .editorconfig rely on.
+  // VS Code prompts to install these; without them, format-on-save and the
+  // .editorconfig whitespace rules do nothing (which is why settings.json
+  // flags `esbenp.prettier-vscode` as "not installed" until you add it).
+  "recommendations": [
+    "esbenp.prettier-vscode",
+    "astro-build.astro-vscode",
+    "EditorConfig.EditorConfig"
+  ]
+}
