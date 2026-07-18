@@ -366,6 +366,24 @@ Mengikuti preseden `docs/adr/0013-extension-layers-and-boundary-model.md`
 di sini — itu reklasifikasi yang butuh admission decision tersendiri (§9)
 — hanya mencatat tumpang tindih konseptual ini secara eksplisit.
 
+**Tujuh modul SaaS Control Plane sudah diadmisi (ADR-0022) tapi belum ada di
+tabel di atas.** `service_catalog`, `tenant_entitlement`,
+`tenant_provisioning`, `tenant_lifecycle`, `usage_metering`,
+`subscription_billing`, dan `payment_gateway` diadmisi sebagai **Official
+Optional Business Foundation _in-repo, default-disabled_** lewat admission
+decision `docs/adr/0022-saas-control-plane-admission-boundary-and-lifecycle-contracts.md`
+(Issue #869, epic #868) — meng-amend klasifikasi placement ADR-0013 §1 yang
+sebelumnya menempatkan SaaS Control Plane "di luar repo base". Ketujuhnya
+**sengaja belum dimasukkan** ke tabel "Peta 23 modul" di atas karena sumber
+kebenaran tabel ini adalah `src/modules/index.ts`, dan `module.ts` masing-
+masing baru ditambahkan di Wave-1/2/3 epic #868 (#870–#877) — bukan di
+Issue #869 yang docs-only. Setiap modul tetap wajib melalui migration/RLS/
+audit/idempotency/skill-coverage sendiri saat kodenya benar-benar mendarat,
+dan tabel §8 ini di-update menjadi "Peta 30 modul" pada saat itu. Batas
+keras yang mengikat mereka (control-plane ≠ tenant-plane, platform role
+bukan BYPASSRLS, secret di luar DB, billing ≠ general ledger, default-
+disabled, LAN/offline tetap jalan) ada di ADR-0022 §1–§12.
+
 **Provider eksternal yang dibungkus tiap modul System/Optional** (kategori
 External Integration menurut §2, bukan entri registry terpisah):
 

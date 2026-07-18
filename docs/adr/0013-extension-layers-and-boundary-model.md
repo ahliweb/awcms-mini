@@ -5,6 +5,23 @@
 - **Pengambil keputusan:** @ahliweb
 - **Terkait:** Issue #739 (epic #738 `platform-evolution`), Issue #680/#681/#696 (epic #679 `platform-hardening`), ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0011, ADR-0012, `docs/awcms-mini/21_module_admission_governance.md`, `docs/awcms-mini/derived-application-guide.md`, `docs/awcms-mini/19_glossary_terminology.md`, `src/modules/module-management/domain/module-dependency-graph.ts`
 
+> **Catatan amandemen (2026-07-19, Issue #869 epic #868).** Klasifikasi
+> placement **SaaS Control Plane** di §1 (tabel baris 4, kolom "Hidup di
+> repo base ini? = **Tidak pernah**"), serta penempatan "di luar base"
+> untuk SaaS Control Plane di §3/§6/§8, **di-amend oleh
+> [ADR-0022](0022-saas-control-plane-admission-boundary-and-lifecycle-contracts.md)**:
+> ketujuh modul control-plane (`service_catalog`, `tenant_entitlement`,
+> `tenant_provisioning`, `tenant_lifecycle`, `usage_metering`,
+> `subscription_billing`, `payment_gateway`) sekarang diadmisi sebagai
+> **Official Optional Business Foundation (lapisan 3) in-repo,
+> default-disabled** — bukan lapisan-4 out-of-repo. Mengikuti aturan
+> `docs/adr/README.md`, badan ADR-0013 di bawah **sengaja tidak** ditulis
+> ulang; hanya titik placement itu yang berubah. **Semua aturan ADR-0013
+> lain tetap berlaku penuh** — arah DAG (§1), tenant = batas keamanan RLS
+> tunggal (§2), pemisahan tegas SaaS billing vs ERP general ledger (§3),
+> data-ownership matrix + no-shared-table-write (§6), kriteria
+> evidence-based ekstraksi layanan (§7). Lihat ADR-0022 untuk detail.
+
 ## Konteks
 
 AWCMS-Mini sudah punya modular monolith tepercaya (ADR-0001), registry statis (ADR-0012), validasi seluruh registry sebagai DAG (`validateModuleDependencyGraph`, Issue #680), pemisahan capability port/adapter untuk kolaborasi lintas-modul (ADR-0011, Issue #681), dan lima kategori admission modul (Core/System/Official Optional Module/Derived Application/External Integration, `docs/awcms-mini/21_module_admission_governance.md`, Issue #696). Semua mekanisme itu menjawab satu pertanyaan: **modul baru apa boleh masuk registry base ini, dan kategori apa yang berlaku** — sepenuhnya di dalam satu repo.

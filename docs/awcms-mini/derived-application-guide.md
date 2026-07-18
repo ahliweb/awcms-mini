@@ -90,6 +90,44 @@ descriptor yang mengonsumsi capability `party_directory`/
 idempotent+fail-closed-period-lock, dan satu kontribusi `reporting`
 projection — semua tanpa satu baris pun logika akuntansi nyata.
 
+## SaaS Control Plane (opt-in, in-repo, default-disabled — Issue #868/#869, ADR-0022)
+
+Bila aplikasi turunan Anda menjual akses platform ke **tenant** (model
+SaaS: provisioning tenant, entitlement, metering pemakaian, langganan/
+invoice, checkout pembayaran), kemampuan itu disediakan tujuh modul
+**Official Optional Business Foundation** yang hidup di repo base ini
+(`service_catalog`, `tenant_entitlement`, `tenant_provisioning`,
+`tenant_lifecycle`, `usage_metering`, `subscription_billing`,
+`payment_gateway`), **default-disabled** dan **opt-in per tenant** — pola
+yang sama seperti `news_portal`/`social_publishing`. Baca dulu
+`docs/adr/0022-saas-control-plane-admission-boundary-and-lifecycle-contracts.md`
+sebelum menulis kode apa pun di atasnya.
+
+Batas keras yang **tidak boleh dilanggar** aplikasi turunan (ADR-0022):
+
+- **Control-plane ≠ tenant-plane.** Modul bisnis tenant Anda **hanya**
+  membaca kontrak `effective_entitlement` (read-only) untuk gating fitur/
+  kuota — tidak pernah query/menulis tabel control-plane langsung.
+- **LAN/offline tetap jalan.** Deployment `offline-lan` yang tidak
+  mengaktifkan control plane berjalan 100%; jangan buat jalur LAN/POS
+  bergantung pada billing/entitlement.
+- **Platform role bukan `BYPASSRLS`.** Akses lintas-tenant operator tetap
+  lewat RLS + permission eksplisit; support access reason/time-bound/audited.
+- **Secret provider di `process.env` saja**, tidak pernah di tabel
+  tenant-readable; rotasi = konfigurasi deployment.
+- **Subscription billing ≠ general ledger.** Invoice langganan platform
+  bukan sales invoice/GL/AR-AP/tax tenant (ADR-0013 §3, ADR-0020); alokasi/
+  settlement pembayaran bukan double-entry.
+- **Downgrade/suspend tidak pernah hapus data tenant** (fail-safe, ubah
+  state + gate saja).
+- **Provider di luar transaksi DB** (outbox + webhook signed inbox via
+  `integration_hub`, retry/DLQ, reconciliation).
+
+Provider pembayaran/plan/harga spesifik (mis. Midtrans/Xendit/Stripe milik
+Anda) tetap adapter opt-in yang Anda daftarkan di repo turunan Anda sendiri
+lewat `src/modules/application-registry.ts` — base tidak pernah meng-hardcode
+provider/kredensial/aturan harga apa pun.
+
 ## Checklist keamanan & kepatuhan praktis
 
 Wajib dipenuhi modul domain baru sebelum dianggap siap produksi (turunan dari doc 10/12/13, skill `awcms-mini-security-review`):

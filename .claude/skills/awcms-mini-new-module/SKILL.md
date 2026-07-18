@@ -80,6 +80,20 @@ security review) dan isi
 terkait. Modul spesifik satu domain bisnis (POS, gudang, pajak, CRM, dll.)
 **tidak masuk repo ini** — lihat pohon keputusan di doc 21 §3.
 
+**Modul dengan boundary keamanan lintas-tenant (control-plane) — ikuti
+ADR-0022.** Bila modulmu mengelola data yang menyilang batas tenant atau
+menjual akses platform ke tenant (provisioning, entitlement, metering,
+subscription billing, payment) — pola SaaS Control Plane epic #868 —
+`docs/adr/0022-saas-control-plane-admission-boundary-and-lifecycle-contracts.md`
+adalah keputusan mengikat: (a) admisi sebagai **Official Optional Business
+Foundation _in-repo, default-disabled_**, bukan repo terpisah; (b)
+**base/core tidak pernah depend ke logika SaaS**, tenant-plane hanya baca
+kontrak `effective_entitlement` read-only; (c) platform role **bukan
+`BYPASSRLS`**, secret provider **hanya di `process.env`** (tak pernah di
+tabel tenant-readable), downgrade/suspend **tidak pernah hapus data**,
+provider di luar transaksi; (d) billing SaaS ≠ general ledger (ADR-0013 §3,
+ADR-0020). Jangan lahirkan modul lintas-tenant tanpa membaca ADR-0022 dulu.
+
 **Modul di REPO BASE ini** (langkah 1 di atas) vs **modul di REPO TURUNAN**
 (Issue #740, ADR-0014) adalah dua alur berbeda: bila modulmu memang
 spesifik satu domain bisnis dan pohon keputusan doc 21 §3 mengarahkan ke
