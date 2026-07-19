@@ -10953,11 +10953,11 @@ Deterministic, explainable effective feature/module/quota entitlement for the cu
 
 **Parameters**
 
-| Name               | In     | Required | Type               | Description                                            |
-| ------------------ | ------ | -------- | ------------------ | ------------------------------------------------------ |
-| `at`               | query  | no       | string (date-time) | ISO 8601 timestamp to resolve as-of (defaults to now). |
-| `X-Correlation-ID` | header | no       | string             | Optional server-side trace correlation ID.             |
-| `X-Request-ID`     | header | no       | string             | Optional client-generated request trace ID.            |
+| Name               | In     | Required | Type               | Description                                                                                                                                                                                                                                            |
+| ------------------ | ------ | -------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `at`               | query  | no       | string (date-time) | ISO 8601 timestamp to resolve at (defaults to now). Must be NOW or in the FUTURE — resolution runs against the current record set, so a past timestamp is rejected (400); entitlement history lives in the append-only evaluation snapshots, not here. |
+| `X-Correlation-ID` | header | no       | string             | Optional server-side trace correlation ID.                                                                                                                                                                                                             |
+| `X-Request-ID`     | header | no       | string             | Optional client-generated request trace ID.                                                                                                                                                                                                            |
 
 **Responses**
 
@@ -11035,7 +11035,7 @@ Revoke an override (one-way; stops applying immediately without restart). Requir
 | `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
 | `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
 
-**Request body** (optional): [`TenantEntitlementRevokeRequest`](#schema-tenantentitlementrevokerequest)
+**Request body** (required): [`TenantEntitlementRevokeRequest`](#schema-tenantentitlementrevokerequest)
 
 **Responses**
 
@@ -17418,7 +17418,7 @@ Never includes verification_token_hash (an internal bearer-token hash) or any DN
 
 | Field    | Type   | Required | Nullable | Description |
 | -------- | ------ | -------- | -------- | ----------- |
-| `reason` | string | no       | yes      |             |
+| `reason` | string | yes      | no       |             |
 
 **Example**
 

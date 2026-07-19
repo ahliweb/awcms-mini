@@ -19,6 +19,9 @@ import {
   isModuleEntitled,
   offerRefKey,
   resolveEffectiveEntitlement,
+  snapshotHashProjection,
+  SNAPSHOT_HASH_DECISION_FIELDS,
+  SNAPSHOT_HASH_QUOTA_FIELDS,
   type ResolutionAssignment,
   type ResolutionInput,
   type ResolutionOffer,
@@ -33,9 +36,14 @@ import {
   type OverrideInput
 } from "../../src/modules/tenant-entitlement/domain/entitlement";
 import {
+  isEntitlementGatedModule,
   isKnownEntitlementTarget,
-  resolveEntitlementKeyRegistry
+  overrideResolutionCap,
+  resolveEntitlementKeyRegistry,
+  resolveGatedModuleKeys
 } from "../../src/modules/tenant-entitlement/domain/entitlement-key-registry";
+import { resolveServiceCatalogKeyRegistry } from "../../src/modules/service-catalog/domain/key-registry";
+import { listModules } from "../../src/modules";
 import {
   parseAssignBody,
   parseOverrideBody,
@@ -104,6 +112,7 @@ function input(over: Partial<ResolutionInput> = {}): ResolutionInput {
     overrides: [],
     offers: new Map([[offerRefKey(o.planKey, o.version), o]]),
     moduleDependencies: new Map(),
+    gatedModuleKeys: new Set(),
     ...over
   };
 }
@@ -345,11 +354,12 @@ describe("resolveEffectiveEntitlement — module dependency safe-downgrade", () 
       input({
         assignments: [assignment()],
         offers: new Map([[offerRefKey(PLAN, 1), modOffer]]),
-        // deny mod_b via override; mod_a depends on mod_b.
+        // deny mod_b via override; mod_a depends on mod_b (both gated).
         overrides: [
           override({ targetKind: "module", targetKey: "mod_b", effect: "deny" })
         ],
-        moduleDependencies: new Map([["mod_a", ["mod_b"]]])
+        moduleDependencies: new Map([["mod_a", ["mod_b"]]]),
+        gatedModuleKeys: new Set(["mod_a", "mod_b"])
       })
     );
     expect(isModuleEntitled(ee, "mod_b")).toBe(false);
@@ -357,13 +367,40 @@ describe("resolveEffectiveEntitlement — module dependency safe-downgrade", () 
     expect(ee.modules["mod_a"]!.source.kind).toBe("dependency_not_entitled");
   });
 
-  test("a dependency OUTSIDE the entitlement set (ordinary base module) does not downgrade", () => {
+  test("Fix 2: a GATED dependency ABSENT from the entitled set fails closed (downgrade)", () => {
+    // social_publishing granted (via override); its dependency blog_content is
+    // GATED but the tenant never subscribed to it (absent from the resolved
+    // set). Fail-closed: absent gated dep = NOT entitled -> downgrade.
     const ee = resolveEffectiveEntitlement(
       input({
-        moduleDependencies: new Map([["blog_content", ["tenant_admin"]]])
+        assignments: [],
+        offers: new Map(),
+        overrides: [
+          override({
+            targetKind: "module",
+            targetKey: "social_publishing",
+            effect: "grant"
+          })
+        ],
+        moduleDependencies: new Map([["social_publishing", ["blog_content"]]]),
+        gatedModuleKeys: new Set(["social_publishing", "blog_content"])
       })
     );
-    // tenant_admin is not an entitlement decision -> blog_content stays entitled.
+    expect(isModuleEntitled(ee, "social_publishing")).toBe(false);
+    expect(ee.modules["social_publishing"]!.source.kind).toBe(
+      "dependency_not_entitled"
+    );
+  });
+
+  test("Fix 2: a BASE (non-gated) dependency ABSENT stays satisfied (no downgrade)", () => {
+    // blog_content granted; its dependency tenant_admin is a base always-on
+    // module (NOT in the gated set) -> absence is satisfied, blog_content stays.
+    const ee = resolveEffectiveEntitlement(
+      input({
+        moduleDependencies: new Map([["blog_content", ["tenant_admin"]]]),
+        gatedModuleKeys: new Set(["blog_content"]) // tenant_admin deliberately NOT gated
+      })
+    );
     expect(isModuleEntitled(ee, "blog_content")).toBe(true);
   });
 });
@@ -389,7 +426,108 @@ describe("computeSnapshotHash — reproducible, timestamp-independent, no oracle
     const ee = resolveEffectiveEntitlement(input());
     expect(computeSnapshotHash(ee)).toBe(ee.snapshotHash);
   });
+
+  test("Fix 4: a redundant GRANT override does NOT change the hash (source is not exposed by the port)", () => {
+    // Offer already grants platform.api_access (source: offer). Adding a
+    // grant-override for the SAME key keeps the tenant-visible boolean = true;
+    // only the provenance flips offer -> override. The hash must NOT change (the
+    // port strips `source`; hashing it would be an oracle over operator-only
+    // provenance).
+    const base = resolveEffectiveEntitlement(input());
+    const withRedundantOverride = resolveEffectiveEntitlement(
+      input({
+        overrides: [
+          override({ targetKey: "platform.api_access", effect: "grant" })
+        ]
+      })
+    );
+    expect(isFeatureAllowed(base, "platform.api_access")).toBe(true);
+    expect(isFeatureAllowed(withRedundantOverride, "platform.api_access")).toBe(
+      true
+    );
+    expect(withRedundantOverride.snapshotHash).toBe(base.snapshotHash);
+  });
+
+  test("Fix 4: a quota UNIT change DOES change the hash (unit is exposed by the port)", () => {
+    const base = resolveEffectiveEntitlement(input());
+    const differentUnit = resolveEffectiveEntitlement(
+      input({
+        overrides: [
+          override({
+            targetKind: "quota",
+            targetKey: "platform.api_calls",
+            effect: "grant",
+            quotaLimitValue: 1000,
+            quotaUnit: "calls" // offer uses "requests" with the same limit 1000
+          })
+        ]
+      })
+    );
+    expect(getQuota(base, "platform.api_calls").unit).toBe("requests");
+    expect(getQuota(differentUnit, "platform.api_calls").unit).toBe("calls");
+    expect(differentUnit.snapshotHash).not.toBe(base.snapshotHash);
+  });
+
+  test("Fix 4 GATE: the hash projection covers EXACTLY the fields the port snapshot exposes", () => {
+    const ee = resolveEffectiveEntitlement(
+      input({
+        overrides: [
+          override({
+            targetKind: "quota",
+            targetKey: "platform.api_calls",
+            effect: "grant",
+            quotaLimitValue: 5,
+            quotaUnit: "requests"
+          })
+        ]
+      })
+    );
+    const projection = snapshotHashProjection(ee);
+    // Feature/module entries: exactly {key, allowed} — never source/sourceKind.
+    for (const entry of [...projection.features, ...projection.modules]) {
+      expect(Object.keys(entry).sort()).toEqual(["allowed", "key"]);
+    }
+    // Quota entries: exactly {key} + the port's QuotaAllowance fields.
+    const portSnapshot = toPortSnapshotShape(ee);
+    for (const entry of projection.quotas) {
+      expect(Object.keys(entry).sort()).toEqual(
+        ["key", ...Object.keys(portSnapshot.quotaAllowanceSample)].sort()
+      );
+    }
+    // The declared field constants match the projection.
+    expect([...SNAPSHOT_HASH_DECISION_FIELDS] as string[]).toEqual([
+      "key",
+      "allowed"
+    ]);
+    expect(([...SNAPSHOT_HASH_QUOTA_FIELDS] as string[]).sort()).toEqual(
+      ["key", ...Object.keys(portSnapshot.quotaAllowanceSample)].sort()
+    );
+  });
 });
+
+/** A QuotaAllowance-shaped sample so the gate above compares hash quota fields against the exact PORT-exposed shape. */
+function toPortSnapshotShape(ee: {
+  quotas: Record<
+    string,
+    {
+      allowed: boolean;
+      isUnlimited: boolean;
+      limit: number | null;
+      unit: string | null;
+    }
+  >;
+}): { quotaAllowanceSample: Record<string, unknown> } {
+  const firstKey = Object.keys(ee.quotas)[0]!;
+  const q = ee.quotas[firstKey]!;
+  // Exactly the QuotaAllowance shape the port exposes (effective-entitlement-port.ts).
+  const allowance = {
+    allowed: q.allowed,
+    isUnlimited: q.isUnlimited,
+    limit: q.limit,
+    unit: q.unit
+  };
+  return { quotaAllowanceSample: allowance };
+}
 
 describe("entitlement key registry — fail-closed unknown", () => {
   const registry = resolveEntitlementKeyRegistry([
@@ -619,5 +757,79 @@ describe("request parsing — fail-closed tri-state", () => {
     expect(parsed.reason).toBe("x");
     const absent = parseTransitionBody({ status: "suspended" });
     expect(absent.reason).toBeNull();
+  });
+});
+
+describe("Fix 6: key registry does not drift from service_catalog's", () => {
+  test("resolveEntitlementKeyRegistry == resolveServiceCatalogKeyRegistry for the live registry", () => {
+    const ent = resolveEntitlementKeyRegistry(listModules());
+    const sc = resolveServiceCatalogKeyRegistry(listModules());
+    expect([...ent.moduleKeys].sort()).toEqual([...sc.moduleKeys].sort());
+    expect([...ent.featureKeys].sort()).toEqual([...sc.featureKeys].sort());
+    expect([...ent.meterKeys].sort()).toEqual([...sc.meterKeys].sort());
+  });
+});
+
+describe("Fix 5: override resolution cap = registry cardinality", () => {
+  test("overrideResolutionCap == |moduleKeys| + |featureKeys| + |meterKeys|", () => {
+    const reg = resolveEntitlementKeyRegistry(listModules());
+    expect(overrideResolutionCap(listModules())).toBe(
+      reg.moduleKeys.size + reg.featureKeys.size + reg.meterKeys.size
+    );
+    // The cap is >= the number of registered modules (a positive, non-magic bound).
+    expect(overrideResolutionCap(listModules())).toBeGreaterThanOrEqual(
+      listModules().length
+    );
+  });
+});
+
+describe("Fix 2: gated-module classification", () => {
+  test("control-plane + domain/integration modules are gated; base/core/system are not", () => {
+    const gated = resolveGatedModuleKeys(listModules());
+    // Control-plane (default-disabled) + ordinary domain modules are gated.
+    expect(gated.has("tenant_entitlement")).toBe(true);
+    expect(gated.has("service_catalog")).toBe(true);
+    expect(gated.has("blog_content")).toBe(true);
+    // Base/core/system foundation is always-available (NOT gated).
+    expect(gated.has("tenant_admin")).toBe(false);
+    expect(gated.has("identity_access")).toBe(false);
+    expect(gated.has("logging")).toBe(false);
+    expect(gated.has("module_management")).toBe(false);
+  });
+
+  test("isEntitlementGatedModule: default-disabled OR domain/integration/derived", () => {
+    expect(
+      isEntitlementGatedModule({
+        key: "x",
+        name: "x",
+        version: "1.0.0",
+        status: "active",
+        description: "",
+        dependencies: [],
+        defaultTenantState: "disabled"
+      })
+    ).toBe(true);
+    expect(
+      isEntitlementGatedModule({
+        key: "x",
+        name: "x",
+        version: "1.0.0",
+        status: "active",
+        description: "",
+        dependencies: [],
+        type: "domain"
+      })
+    ).toBe(true);
+    // Undefined type + default-enabled = base/always-available.
+    expect(
+      isEntitlementGatedModule({
+        key: "x",
+        name: "x",
+        version: "1.0.0",
+        status: "active",
+        description: "",
+        dependencies: []
+      })
+    ).toBe(false);
   });
 });

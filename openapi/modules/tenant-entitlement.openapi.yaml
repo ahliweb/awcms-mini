@@ -15,7 +15,11 @@ paths:
         - name: at
           in: query
           required: false
-          description: ISO 8601 timestamp to resolve as-of (defaults to now).
+          description: >-
+            ISO 8601 timestamp to resolve at (defaults to now). Must be NOW or
+            in the FUTURE — resolution runs against the current record set, so a
+            past timestamp is rejected (400); entitlement history lives in the
+            append-only evaluation snapshots, not here.
           schema:
             type: string
             format: date-time
@@ -335,7 +339,7 @@ paths:
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/RequestId"
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -797,8 +801,10 @@ components:
     TenantEntitlementRevokeRequest:
       type: object
       additionalProperties: false
+      required:
+        - reason
       properties:
         reason:
           type: string
-          nullable: true
+          minLength: 1
           maxLength: 500

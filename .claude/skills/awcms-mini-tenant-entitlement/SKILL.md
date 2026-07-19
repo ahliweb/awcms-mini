@@ -41,11 +41,12 @@ penegakan fail-closed (`effective_entitlement`) yang dikonsumsi #872/#873/#875/
    provenance write-once. overrides: konten beku; revocation write-once (NULL→
    non-null). evaluation_snapshots: append-only penuh (no UPDATE/DELETE).
    Ditegakkan trigger DB (`sql/081`) + REVOKE grant, bukan hanya app-layer.
-6. **Snapshot hash = HANYA bentuk tenant-facing (§pattern #5).** `snapshot_hash`
-   di-hash atas keputusan yang diekspos (key+allowed+quota+sourceKind), TANPA
-   reason free-text operator (tak ada di `EntitlementSource`), TANPA timestamp
-   (dua resolusi identik → hash sama → invalidasi deterministik). JANGAN encode
-   data operator-only lalu ekspos (oracle).
+6. **Snapshot hash = PERSIS bentuk port `EffectiveEntitlementSnapshot` (§pattern
+   #5, lihat Fix 4).** Hash atas HANYA field yang port ekspos: feature/module
+   `key+allowed`; quota `key+allowed+isUnlimited+limit+unit`. JANGAN sertakan
+   `source.kind` (di-strip port = oracle) NI omit `unit` (tenant-visible). TANPA
+   timestamp (dua resolusi identik → hash sama → invalidasi deterministik). GATE
+   test bandingkan field hash vs field port snapshot.
 
 ## Resolusi (deterministik, explainable, BOUNDED)
 
@@ -89,6 +90,49 @@ di-gate). PROVIDES port `effective_entitlement`
 (`_shared/ports/effective-entitlement-port.ts`, read-only). CONSUMES
 `service_catalog_read` — wire adapter di composition-root route/page, JANGAN
 import service-catalog app/domain (`tests/unit/module-boundary.test.ts` menegakkan).
+
+## PELAJARAN refinement (audit front-loaded 7 fix — template #872-877)
+
+Reviewer+security-auditor+audit adversarial 5-lensa = MERGE-READY/0-Crit/0-High,
+tapi 7 fix ditutup dalam SATU push (front-load hindari 7 ronde #870):
+
+1. **Reason WAJIB di SEMUA revoke/cancel** (AC): route revoke-override + cancel
+   tolak reason kosong/absent 400 (jangan opsional). Samakan pola sibling.
+2. **Safe-downgrade: dependency GATED-tapi-ABSEN = fail-closed.** `if
+(depDecision && !depDecision.allowed)` perlakukan dep absent = satisfied →
+   OVER-GRANT (modul granted walau dep gated tak di-subscribe). FIX: thread SET
+   `gatedModuleKeys` (`resolveGatedModuleKeys`: type domain/integration/derived
+   ATAU defaultTenantState disabled) ke ResolutionInput. `depSatisfied =
+!gated.has(dep) || modules[dep]?.allowed===true`. Base (tenant_admin/
+   identity_access/logging = type undefined) absent = satisfied; gated absent =
+   DENY. Bedakan "base selalu-on" dari "gated tak dibeli".
+3. **`?at=<masa lalu>` TOLAK.** Resolusi baca record set SEKARANG (current/
+   non-revoked absolut) → `at` lampau rekonstruksi entitlement yang TAK PERNAH
+   berlaku (override di-revoke pagi ini hilang → key flip allowed). History
+   sejati = `evaluation_snapshots`. FIX: reject `at < now - 60s` 400 + OpenAPI
+   desc jujur. (Future OK — well-defined atas current records.)
+4. **snapshotHash = PERSIS bentuk port `EffectiveEntitlementSnapshot`.** Hash
+   DULU encode `source.kind` (di-STRIP port `toSnapshot` = ORACLE #870) + OMIT
+   quota `unit` (tenant-visible → cache-invalidation miss). FIX: feature/module
+   `key+allowed`; quota `key+allowed+isUnlimited+limit+unit`. DROP sourceKind,
+   ADD unit. GATE test: field hash projection == field port snapshot (mirror
+   information_schema gate #870). Test: redundant grant-override tak ubah hash
+   (boolean sama); unit berubah → hash berubah.
+5. **Override `LIMIT` truncation = fail-OPEN** (drop DENY → key jatuh ke offer
+   grant; asimetris vs assignment cap yang drop GRANT = fail-safe). FIX: override
+   aktif hard-bounded registry cardinality (partial unique per kind+key) →
+   `overrideResolutionCap` = |moduleKeys|+|featureKeys|+|meterKeys|; LIMIT cap+1;
+   `rows.length > cap` → throw `EntitlementIndeterminateError` (port catch →
+   deny-all). Jangan diam percaya partial set.
+6. **Drift guard key registry** (replikasi service_catalog): unit test
+   `resolveEntitlementKeyRegistry(listModules())` == `resolveServiceCatalogKey
+Registry(listModules())` (3 set). Tangkap divergensi pra-#874.
+7. **doc 04 ERD/data dictionary** WAJIB (issue minta) — tambah tabel entitlement
+   (+ sekalian service_catalog, tutup gap #870).
+
+Full check FRESH DB (`awcms-mini-verify871b`): 5151 pass/0 fail/build Complete
+setelah 7 fix. Pelajaran meta #872+: audit front-load (5-lensa + reviewer +
+security-auditor) SEBELUM Codex + tutup semua dalam satu push.
 
 ## Verifikasi (JANGAN skip DB)
 

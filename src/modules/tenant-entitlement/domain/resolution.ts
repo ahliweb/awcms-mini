@@ -87,6 +87,16 @@ export type ResolutionInput = {
   offers: ReadonlyMap<string, ResolutionOffer>;
   /** `moduleKey -> its declared dependencies` (from `listModules()`), for safe-downgrade. */
   moduleDependencies: ReadonlyMap<string, readonly string[]>;
+  /**
+   * The set of module keys that are COMMERCIALLY GATED (offerable — a tenant
+   * must be ENTITLED to use them), i.e. every non-base/non-foundational module
+   * (see `resolveGatedModuleKeys`). Used by safe-downgrade to distinguish a
+   * dependency that is an always-available BASE module (absent from the entitled
+   * set = still satisfied) from a gated one (absent = NOT entitled = DENY,
+   * fail-closed — ADR-0022 §4). Without this, a granted module whose gated
+   * dependency was never subscribed would stay entitled (over-grant).
+   */
+  gatedModuleKeys: ReadonlySet<string>;
 };
 
 // ---------------------------------------------------------------------------
@@ -330,11 +340,15 @@ export function resolveEffectiveEntitlement(
   }
 
   // 3. Module dependency SAFE-DOWNGRADE (fixpoint; monotonic false-propagation,
-  //    bounded by module count). A module stays entitled only if every declared
-  //    dependency that is ITSELF an entitlement decision is entitled — otherwise
-  //    it is safely downgraded to not-entitled (never data deletion, never an
-  //    upgrade). Dependencies outside the resolved module set are ordinary
-  //    always-available modules and are treated as satisfied.
+  //    bounded by module count). A granted module stays entitled only if every
+  //    declared dependency is SATISFIED. A dependency is satisfied iff it is a
+  //    BASE/always-available module (NOT in `gatedModuleKeys`) OR it is a GATED
+  //    module that resolved entitled. A GATED dependency that is absent from the
+  //    entitled set is treated as NOT entitled (fail-closed, ADR-0022 §4) — this
+  //    is what distinguishes "the platform always provides tenant_admin" from
+  //    "the tenant never subscribed to blog_content"; the old `depDecision &&`
+  //    guard silently treated the latter as satisfied (over-grant). Downgrade
+  //    only (never an upgrade / data deletion).
   let changed = true;
   while (changed) {
     changed = false;
@@ -344,8 +358,9 @@ export function resolveEffectiveEntitlement(
       }
       const deps = input.moduleDependencies.get(moduleKey) ?? [];
       for (const dep of deps) {
-        const depDecision = modules[dep];
-        if (depDecision && !depDecision.allowed) {
+        const depSatisfied =
+          !input.gatedModuleKeys.has(dep) || modules[dep]?.allowed === true;
+        if (!depSatisfied) {
           modules[moduleKey] = {
             allowed: false,
             source: { kind: "dependency_not_entitled", dependencyKey: dep }
@@ -387,20 +402,50 @@ export function disabledEntitlement(
 }
 
 /**
- * sha256 over the TENANT-FACING resolved decisions ONLY — key + allowed +
- * quota shape + high-level source KIND (never an operator's free-text reason,
- * which is not even present in `EntitlementSource`), and NOT `resolvedAt` (so
- * two identical resolutions at different times hash the same, giving correct
- * cache-invalidation semantics). Epic pattern #5: hash exactly what is exposed,
- * so it can never become an oracle over operator-only data.
+ * The EXACT projection the snapshot hash covers — and it must be EXACTLY the
+ * shape the `effective_entitlement` PORT exposes to consumers
+ * (`EffectiveEntitlementSnapshot`: feature/module = `key -> allowed`; quota =
+ * `key -> { allowed, isUnlimited, limit, unit }`). Epic pattern #5 / #870
+ * lesson: "hash exactly what is exposed" — so it can never become an ORACLE
+ * over operator-only data NOR miss a tenant-visible change:
+ *   - `source.kind` is NOT hashed (the port strips `source`; hashing it would
+ *     let a redundant offer->override provenance flip change the hash while the
+ *     tenant-visible booleans are identical);
+ *   - quota `unit` IS hashed (the port exposes it; two resolutions differing
+ *     only in unit must produce different hashes so a derived cache
+ *     invalidates — consumed by #875/#876).
+ * `resolvedAt`/`status` are excluded from the per-key projection so identical
+ * decisions at different times hash the same (correct cache-invalidation).
+ * `SNAPSHOT_HASH_QUOTA_FIELDS` is asserted against the port type by a gate test.
  */
-export function computeSnapshotHash(
+export const SNAPSHOT_HASH_DECISION_FIELDS = ["key", "allowed"] as const;
+export const SNAPSHOT_HASH_QUOTA_FIELDS = [
+  "key",
+  "allowed",
+  "isUnlimited",
+  "limit",
+  "unit"
+] as const;
+
+/** Build the canonical, port-shaped projection the hash is computed over (exported for the gate test). */
+export function snapshotHashProjection(
   resolution: Pick<
     EffectiveEntitlement,
     "status" | "features" | "modules" | "quotas"
   >
-): string {
-  const projection = {
+): {
+  status: string;
+  features: { key: string; allowed: boolean }[];
+  modules: { key: string; allowed: boolean }[];
+  quotas: {
+    key: string;
+    allowed: boolean;
+    isUnlimited: boolean;
+    limit: number | null;
+    unit: string | null;
+  }[];
+} {
+  return {
     status: resolution.status,
     features: projectDecisions(resolution.features),
     modules: projectDecisions(resolution.modules),
@@ -413,23 +458,29 @@ export function computeSnapshotHash(
           allowed: q.allowed,
           isUnlimited: q.isUnlimited,
           limit: q.limit,
-          sourceKind: q.source.kind
+          unit: q.unit
         };
       })
   };
-  return createHash("sha256").update(JSON.stringify(projection)).digest("hex");
+}
+
+export function computeSnapshotHash(
+  resolution: Pick<
+    EffectiveEntitlement,
+    "status" | "features" | "modules" | "quotas"
+  >
+): string {
+  return createHash("sha256")
+    .update(JSON.stringify(snapshotHashProjection(resolution)))
+    .digest("hex");
 }
 
 function projectDecisions(
   map: Record<string, FeatureDecision | ModuleDecision>
-): { key: string; allowed: boolean; sourceKind: string }[] {
+): { key: string; allowed: boolean }[] {
   return Object.keys(map)
     .sort()
-    .map((key) => ({
-      key,
-      allowed: map[key]!.allowed,
-      sourceKind: map[key]!.source.kind
-    }));
+    .map((key) => ({ key, allowed: map[key]!.allowed }));
 }
 
 // ---------------------------------------------------------------------------

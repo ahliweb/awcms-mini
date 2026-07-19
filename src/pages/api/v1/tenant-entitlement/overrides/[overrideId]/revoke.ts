@@ -53,16 +53,24 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
 
   const overrideId = params.overrideId ?? "";
 
-  let reason: string | null = null;
+  // Reason is REQUIRED (AC "Audit all override/revoke actions; reason required")
+  // — same as assignment cancel; the admin UI already mandates it.
+  let reason = "";
   try {
     const body = await request.json();
     if (body && typeof body === "object" && "reason" in body) {
       const raw = (body as Record<string, unknown>).reason;
-      reason = typeof raw === "string" ? raw : null;
+      reason = typeof raw === "string" ? raw : "";
     }
   } catch {
-    // An empty/absent body is fine for a revoke — reason is optional here.
-    reason = null;
+    reason = "";
+  }
+  if (reason.trim().length < 1) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "reason is required to revoke an override."
+    );
   }
 
   const requestHash = computeRequestHash({ overrideId, reason });

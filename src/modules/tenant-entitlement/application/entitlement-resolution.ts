@@ -14,6 +14,10 @@
 import type { ModuleDescriptor } from "../../_shared/module-contract";
 import type { ServiceCatalogReadPort } from "../../_shared/ports/service-catalog-read-port";
 import {
+  overrideResolutionCap,
+  resolveGatedModuleKeys
+} from "../domain/entitlement-key-registry";
+import {
   offerRefKey,
   resolveEffectiveEntitlement,
   type EffectiveEntitlement,
@@ -21,6 +25,14 @@ import {
   type ResolutionOffer,
   type ResolutionOverride
 } from "../domain/resolution";
+
+/** Thrown when a tenant's active override set exceeds the registry-derived cap (indeterminate) — the port adapter catches it and DENIES (fail-closed, Issue #871 review Fix 5). */
+export class EntitlementIndeterminateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EntitlementIndeterminateError";
+  }
+}
 
 const MODULE_KEY = "tenant_entitlement";
 
@@ -129,14 +141,26 @@ export async function resolveTenantEntitlement(
   `) as AssignmentResolveRow[];
 
   // 2. Non-revoked overrides — the resolver checks each one's effective window.
+  //    A truncated override set could silently DROP a DENY and fail OPEN
+  //    (asymmetric with the assignment cap, where dropping a GRANT fails safe).
+  //    Active overrides are hard-bounded by the registry cardinality (one per
+  //    distinct kind+key, partial unique index), so we size the query to that
+  //    cap + 1 and FAIL CLOSED if the set somehow exceeds it (indeterminate ->
+  //    the port adapter denies). Issue #871 review Fix 5.
+  const overrideCap = overrideResolutionCap(deps.moduleDescriptors);
   const overrideRows = (await tx`
     SELECT id, target_kind, target_key, effect, quota_is_unlimited,
       quota_limit_value, quota_unit, effective_from, effective_to, revoked_at
     FROM awcms_mini_tenant_entitlement_overrides
     WHERE tenant_id = ${tenantId} AND revoked_at IS NULL
     ORDER BY target_kind ASC, target_key ASC
-    LIMIT 500
+    LIMIT ${overrideCap + 1}
   `) as OverrideResolveRow[];
+  if (overrideRows.length > overrideCap) {
+    throw new EntitlementIndeterminateError(
+      `tenant_entitlement: active override set (> ${overrideCap}) exceeds the registry cap — resolution is indeterminate and denied (fail-closed).`
+    );
+  }
 
   const assignments = assignmentRows.map(toResolutionAssignment);
   const overrides = overrideRows.map(toResolutionOverride);
@@ -183,6 +207,7 @@ export async function resolveTenantEntitlement(
     assignments,
     overrides,
     offers,
-    moduleDependencies: buildModuleDependencyMap(deps.moduleDescriptors)
+    moduleDependencies: buildModuleDependencyMap(deps.moduleDescriptors),
+    gatedModuleKeys: resolveGatedModuleKeys(deps.moduleDescriptors)
   });
 }

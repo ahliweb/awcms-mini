@@ -1084,6 +1084,27 @@ Permission seed: 6 permission baru
 — additive terhadap `reporting.dashboard.read` yang sudah ada
 (migration 010, tidak berubah).
 
+### Service Catalog (Issue #870, epic #868 SaaS control plane Wave 1, ADR-0022, `sql/079`–`080`)
+
+Katalog plan/offer SaaS berversi, **control-plane GLOBAL** (tanpa `tenant_id`, RLS-exempt ter-review terdaftar di `scripts/security-readiness.ts`, ADR-0022 §3). Semua kolom uang `bigint` minor-unit EXACT. Enam tabel:
+
+- **`awcms_mini_service_catalog_plans`** (GLOBAL) — identitas plan stabil (`plan_key` immutable); `status` `active`/`archived`. DELETE di-revoke (arsip = status).
+- **`awcms_mini_service_catalog_plan_versions`** (GLOBAL) — versi offer per plan, lifecycle `draft→published→retired→archived`; `offer_hash` di-set saat publish; efektif-tanggal `available_from`/`available_to`. Immutable sekali keluar draft (trigger). ≤1 draft per plan (partial unique).
+- **`awcms_mini_service_catalog_version_features`** (GLOBAL) — grant fitur/whole-module per versi (`feature_kind` `feature`/`module`, key ter-registry fail-closed).
+- **`awcms_mini_service_catalog_version_quotas`** (GLOBAL) — kuota per meter (`limit_value bigint` XOR `is_unlimited`, `reset_policy`).
+- **`awcms_mini_service_catalog_version_prices`** (GLOBAL) — komponen harga (`amount_minor bigint`, `visibility` `public`/`internal` — hanya `public` yang mengalir ke projeksi tenant).
+- **`awcms_mini_service_catalog_published_offers`** (GLOBAL, projeksi tenant-readable) — snapshot published immutable (public prices only); satu-satunya permukaan yang dibaca capability `service_catalog_read`. Hanya `retired_at` berubah pasca-insert (write-once). DELETE di-revoke.
+
+### Tenant Entitlement (Issue #871, epic #868 SaaS control plane Wave 1, ADR-0022, `sql/081`–`082`)
+
+Entitlement efektif fitur/modul/kuota tenant — **control-plane TENANT-SCOPED pertama**: setiap tabel `tenant_id` + `ENABLE`+`FORCE ROW LEVEL SECURITY`, policy predikat **SELALU DAN HANYA** `tenant_id = current_setting('app.current_tenant_id')::uuid` (ADR-0022 §6, no soft super-tenant), `tenant_id` pertama di tiap composite index. Uang/limit `bigint` EXACT. Immutability/write-once via trigger DB + REVOKE (entitlement loss = ubah state, TAK PERNAH DELETE data tenant). Tiga tabel:
+
+- **`awcms_mini_tenant_entitlement_assignments`** (`tenant_id`, RLS) — subscription tenant ke offer published (`plan_key`, `offer_version`, `offer_hash`, `currency`, `source`), efektif-tanggal (`effective_from`/`effective_to`, `trial_ends_at`, `grace_ends_at`), lifecycle `status` `active`/`suspended`/`canceled`, supersede (`superseded_at`/`by`). Kolom identity/offer beku sekali dibuat; status forward-legal (canceled terminal); supersede/cancel provenance write-once (trigger). Partial unique: ≤1 current per (tenant, plan_key) `WHERE superseded_at IS NULL AND canceled_at IS NULL`. Index `(tenant_id, plan_key)`, `(tenant_id, status)`, `(tenant_id, plan_key, created_at DESC)`. DELETE di-revoke.
+- **`awcms_mini_tenant_entitlement_overrides`** (`tenant_id`, RLS) — override operator per key (`target_kind` `feature`/`module`/`quota`, `target_key`, `effect` `grant`/`deny`, kolom kuota `quota_is_unlimited`/`quota_limit_value bigint`/`quota_unit` hanya utk quota-grant via CHECK), `reason` WAJIB, opsional time-bound (`effective_from`/`effective_to`), `source`. Revocation write-once (`revoked_at`/`by`/`revoke_reason`). Konten beku sekali dibuat (trigger). Partial unique: ≤1 aktif per (tenant, kind, key) `WHERE revoked_at IS NULL`. Index `(tenant_id, target_kind, target_key)`, `(tenant_id, revoked_at)`. DELETE di-revoke.
+- **`awcms_mini_tenant_entitlement_evaluation_snapshots`** (`tenant_id`, RLS) — **append-only immutable** record entitlement efektif ter-resolve pasca tiap perubahan (`resolved_at`, `trigger`, `trigger_event_type`, `features`/`modules`/`quotas` jsonb bentuk tenant-facing, `snapshot_hash`). UPDATE+DELETE di-revoke + trigger append-only. Index `(tenant_id, resolved_at DESC)`.
+
+Permission seed (`082`): 8 permission operator-only default-deny (`entitlement.read`, `assignments.{read,assign,update,revoke}`, `overrides.{read,override,revoke}`). Modul `defaultTenantState: "disabled"` (opt-in per tenant).
+
 ## Konten multi-bahasa (translatable content)
 
 Berbeda dari **string UI statis** (label/tombol/pesan error) yang memakai katalog `.po` gettext di sisi aplikasi (doc 14 §i18n), **data input pengguna** yang perlu tampil multi-bahasa disimpan **di database, satu nilai per bahasa aktif**. Base generik sudah punya satu contoh nyata (`awcms_mini_email_templates.subject_template`/`text_body_template`/`html_body_template`, `sql/021`, Issue #498 — lihat §Email di atas) — bukan lagi sekadar konvensi belum-terpakai; ini **standar** yang wajib diikuti aplikasi turunan (mis. modul domain seperti `blog_content`, epic #536) saat menambah field konten translatable baru.

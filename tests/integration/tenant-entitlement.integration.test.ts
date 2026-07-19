@@ -32,6 +32,7 @@ import {
   POST as assignRoute
 } from "../../src/pages/api/v1/tenant-entitlement/assignments/index";
 import { POST as overridesCreateRoute } from "../../src/pages/api/v1/tenant-entitlement/overrides/index";
+import { POST as overrideRevokeRoute } from "../../src/pages/api/v1/tenant-entitlement/overrides/[overrideId]/revoke";
 
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { listModules } from "../../src/modules";
@@ -1083,5 +1084,65 @@ routeSuite("tenant_entitlement — routes", () => {
     );
     expect(res.status).toBe(200);
     expect(res.body.data.assignments).toHaveLength(1);
+  });
+
+  test("Fix 1: revoking an override without a reason -> 400 (reason required)", async () => {
+    const { tenantId, token } = await bootstrapOperator("terev", true);
+    const created = await invoke<{ data: { override: { id: string } } }>(
+      overridesCreateRoute,
+      {
+        method: "POST",
+        path: "/api/v1/tenant-entitlement/overrides",
+        headers: headers(tenantId, token, "k1"),
+        body: {
+          targetKind: "feature",
+          targetKey: "platform.custom_domain",
+          effect: "grant",
+          reason: "add-on"
+        }
+      }
+    );
+    expect(created.status).toBe(200);
+    const overrideId = created.body.data.override.id;
+
+    const noReason = await invoke<{ error: { code: string } }>(
+      overrideRevokeRoute,
+      {
+        method: "POST",
+        path: `/api/v1/tenant-entitlement/overrides/${overrideId}/revoke`,
+        headers: headers(tenantId, token, "k2"),
+        params: { overrideId },
+        body: {}
+      }
+    );
+    expect(noReason.status).toBe(400);
+
+    const withReason = await invoke(overrideRevokeRoute, {
+      method: "POST",
+      path: `/api/v1/tenant-entitlement/overrides/${overrideId}/revoke`,
+      headers: headers(tenantId, token, "k3"),
+      params: { overrideId },
+      body: { reason: "no longer needed" }
+    });
+    expect(withReason.status).toBe(200);
+  });
+
+  test("Fix 3: GET /effective with a PAST at is rejected (400); now/future is accepted", async () => {
+    const { tenantId, token } = await bootstrapOperator("teat", true);
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const pastRes = await invoke<{ error: { code: string } }>(effectiveRoute, {
+      method: "GET",
+      path: `/api/v1/tenant-entitlement/effective?at=${encodeURIComponent(past)}`,
+      headers: headers(tenantId, token)
+    });
+    expect(pastRes.status).toBe(400);
+
+    const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const futureRes = await invoke(effectiveRoute, {
+      method: "GET",
+      path: `/api/v1/tenant-entitlement/effective?at=${encodeURIComponent(future)}`,
+      headers: headers(tenantId, token)
+    });
+    expect(futureRes.status).toBe(200);
   });
 });

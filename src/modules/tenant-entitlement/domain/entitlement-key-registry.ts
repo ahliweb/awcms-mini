@@ -61,6 +61,62 @@ export function resolveEntitlementKeyRegistry(
   return { moduleKeys, featureKeys, meterKeys };
 }
 
+/**
+ * Whether a module is COMMERCIALLY GATED — i.e. a tenant must be ENTITLED to
+ * use it, as opposed to a base/foundational module the platform always provides
+ * (tenant_admin, identity_access, logging, module_management, ...). A module is
+ * gated iff it is an opt-in business/integration module (`type` is `domain`/
+ * `integration`/`derived`) OR it is a default-disabled control-plane module.
+ * Base/system foundation (`type` `base`/`system`/undefined, not default-
+ * disabled) is always-available. Used by safe-downgrade so an ABSENT gated
+ * dependency fails closed (DENY) while an absent base dependency stays satisfied
+ * (Issue #871 review Fix 2, ADR-0022 §4).
+ */
+export function isEntitlementGatedModule(
+  descriptor: ModuleDescriptor
+): boolean {
+  if (descriptor.defaultTenantState === "disabled") {
+    return true;
+  }
+  return (
+    descriptor.type === "domain" ||
+    descriptor.type === "integration" ||
+    descriptor.type === "derived"
+  );
+}
+
+/** The set of commercially-gated module keys, from the live descriptor list (`listModules()`). */
+export function resolveGatedModuleKeys(
+  descriptors: readonly ModuleDescriptor[]
+): Set<string> {
+  const keys = new Set<string>();
+  for (const descriptor of descriptors) {
+    if (isEntitlementGatedModule(descriptor)) {
+      keys.add(descriptor.key);
+    }
+  }
+  return keys;
+}
+
+/**
+ * The maximum number of ACTIVE overrides a single tenant can hold — one per
+ * distinct `(target_kind, target_key)` (the partial unique index in sql/081
+ * `WHERE revoked_at IS NULL`), so it is exactly the registry cardinality:
+ * |moduleKeys| + |featureKeys| + |meterKeys|. Used to size the resolution query
+ * so a legitimate override set NEVER truncates (Issue #871 review Fix 5) — a
+ * silently-truncated override set could drop a DENY and fail OPEN.
+ */
+export function overrideResolutionCap(
+  descriptors: readonly ModuleDescriptor[]
+): number {
+  const registry = resolveEntitlementKeyRegistry(descriptors);
+  return (
+    registry.moduleKeys.size +
+    registry.featureKeys.size +
+    registry.meterKeys.size
+  );
+}
+
 /** Whether an override's `(kind, key)` is a known, reviewed target. Fail-closed: anything not present returns `false`. */
 export function isKnownEntitlementTarget(
   registry: EntitlementKeyRegistry,

@@ -35,6 +35,24 @@ export const GET: APIRoute = async ({ request, cookies }) => {
   if (atParam !== null && Number.isNaN(Date.parse(atParam))) {
     return fail(400, "VALIDATION_ERROR", "at must be an ISO 8601 timestamp.");
   }
+  // `at` may be NOW or in the FUTURE only. Resolution runs against the CURRENT
+  // record set (current assignments + non-revoked overrides), so a PAST `at`
+  // would reconstruct an entitlement that never applied — an override revoked
+  // this morning would silently vanish, flipping a key that was denied
+  // yesterday to allowed. True history lives in the append-only evaluation
+  // snapshots, not here (Issue #871 review Fix 3). A small past tolerance
+  // (60s) absorbs client/server clock skew for an "at = now" request.
+  const PAST_TOLERANCE_MS = 60_000;
+  if (
+    atParam !== null &&
+    Date.parse(atParam) < Date.now() - PAST_TOLERANCE_MS
+  ) {
+    return fail(
+      400,
+      "VALIDATION_ERROR",
+      "at must be now or in the future — historical reconstruction is not supported here (use the evaluation snapshots for entitlement history)."
+    );
+  }
   const now = atParam !== null ? new Date(atParam) : new Date();
 
   const sql = getDatabaseClient();
