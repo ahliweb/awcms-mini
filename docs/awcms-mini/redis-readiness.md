@@ -34,15 +34,15 @@ Prinsipnya:
 
 ## 3. Komponen implementasi
 
-| Komponen | Fungsi |
-| --- | --- |
-| `src/lib/redis/config.ts` | Parsing konfigurasi, validasi, redaksi URL, key builder tenant-aware |
-| `src/lib/redis/client.ts` | Singleton `RedisClient` native Bun, timeout, health check, lifecycle |
-| `src/lib/redis/cache.ts` | Helper JSON cache-aside, invalidasi, dan fail-open |
-| `scripts/redis-health.ts` | Pemeriksaan konfigurasi serta PING tanpa membocorkan credential |
-| `docker-compose.redis.yml` | Overlay deployment opsional dan hardened |
-| `config/redis.env.example` | Contoh konfigurasi terpisah dari profil default dan sesuai hygiene repo |
-| `tests/unit/redis-foundation.test.ts` | Unit test tanpa Redis/network hidup |
+| Komponen                              | Fungsi                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------- |
+| `src/lib/redis/config.ts`             | Parsing konfigurasi, validasi, redaksi URL, key builder tenant-aware    |
+| `src/lib/redis/client.ts`             | Singleton `RedisClient` native Bun, timeout, health check, lifecycle    |
+| `src/lib/redis/cache.ts`              | Helper JSON cache-aside, invalidasi, dan fail-open                      |
+| `scripts/redis-health.ts`             | Pemeriksaan konfigurasi serta PING tanpa membocorkan credential         |
+| `docker-compose.redis.yml`            | Overlay deployment opsional dan hardened                                |
+| `config/redis.env.example`            | Contoh konfigurasi terpisah dari profil default dan sesuai hygiene repo |
+| `tests/unit/redis-foundation.test.ts` | Unit test tanpa Redis/network hidup                                     |
 
 Tidak ada dependency runtime baru dan `bun.lock` tidak berubah.
 
@@ -56,13 +56,13 @@ Contoh: ringkasan dashboard yang dihitung dari query PostgreSQL mahal dan boleh 
 const key = buildRedisKey({
   namespace: "reporting",
   tenantId,
-  key: `activity:${range}`
+  key: `activity:${range}`,
 });
 
 const report = await redisCacheAside(
   key,
   () => loadActivityReportFromPostgres(tenantId, range),
-  { ttlSec: 60 }
+  { ttlSec: 60 },
 );
 ```
 
@@ -107,15 +107,15 @@ Perubahan pada area tersebut memerlukan issue tersendiri, threat model, data cla
 
 Gunakan `config/redis.env.example` sebagai referensi terpisah. Salin menjadi file lokal yang diabaikan Git sebelum dipakai, misalnya `.env.redis`.
 
-| Variable | Default | Keterangan |
-| --- | ---: | --- |
-| `REDIS_ENABLED` | `false` | Gate utama; tidak ada koneksi ketika false |
-| `REDIS_URL` | tidak ada | URL Redis/Valkey yang didukung Bun; wajib bila enabled |
-| `REDIS_KEY_PREFIX` | `awcms-mini` | Prefix aplikasi dan boundary ACL key |
-| `REDIS_CONNECTION_TIMEOUT_MS` | `2000` | Batas koneksi awal |
-| `REDIS_COMMAND_TIMEOUT_MS` | `1000` | Batas command aplikasi |
-| `REDIS_MAX_RETRIES` | `3` | Retry reconnect; offline queue dimatikan |
-| `REDIS_CACHE_DEFAULT_TTL_SEC` | `300` | TTL helper cache JSON |
+| Variable                      |      Default | Keterangan                                             |
+| ----------------------------- | -----------: | ------------------------------------------------------ |
+| `REDIS_ENABLED`               |      `false` | Gate utama; tidak ada koneksi ketika false             |
+| `REDIS_URL`                   |    tidak ada | URL Redis/Valkey yang didukung Bun; wajib bila enabled |
+| `REDIS_KEY_PREFIX`            | `awcms-mini` | Prefix aplikasi dan boundary ACL key                   |
+| `REDIS_CONNECTION_TIMEOUT_MS` |       `2000` | Batas koneksi awal                                     |
+| `REDIS_COMMAND_TIMEOUT_MS`    |       `1000` | Batas command aplikasi                                 |
+| `REDIS_MAX_RETRIES`           |          `3` | Retry reconnect; offline queue dimatikan               |
+| `REDIS_CACHE_DEFAULT_TTL_SEC` |        `300` | TTL helper cache JSON                                  |
 
 URL yang didukung oleh Bun mencakup `redis://`, `rediss://`, `redis+tls://`, dan Unix socket. Bun native Redis client memerlukan Redis server versi 7.2 atau lebih baru.
 
@@ -222,13 +222,13 @@ Mulai dengan `maxmemory=256mb` dan `maxmemory-policy=noeviction`, lalu ukur. Unt
 
 Sebaiknya pisahkan logical purpose atau bahkan instance Redis ketika karakteristiknya berbeda:
 
-| Purpose | Persistence | Eviction | Dampak kehilangan data |
-| --- | --- | --- | --- |
-| Cache laporan | opsional | LRU/LFU dapat diterima | query kembali ke PostgreSQL |
-| Rate limiting | biasanya tidak wajib | hindari eviction prematur | limit sementara kurang akurat |
-| Lock/coordination | tidak untuk recovery | `noeviction` | duplicate work mungkin terjadi |
-| Pub/Sub invalidation | tidak persisten | tidak relevan | TTL memperbaiki akhirnya |
-| Queue durable | jangan memakai pondasi ini langsung | `noeviction` | butuh desain queue terpisah |
+| Purpose              | Persistence                         | Eviction                  | Dampak kehilangan data         |
+| -------------------- | ----------------------------------- | ------------------------- | ------------------------------ |
+| Cache laporan        | opsional                            | LRU/LFU dapat diterima    | query kembali ke PostgreSQL    |
+| Rate limiting        | biasanya tidak wajib                | hindari eviction prematur | limit sementara kurang akurat  |
+| Lock/coordination    | tidak untuk recovery                | `noeviction`              | duplicate work mungkin terjadi |
+| Pub/Sub invalidation | tidak persisten                     | tidak relevan             | TTL memperbaiki akhirnya       |
+| Queue durable        | jangan memakai pondasi ini langsung | `noeviction`              | butuh desain queue terpisah    |
 
 ## 11. Testing
 
