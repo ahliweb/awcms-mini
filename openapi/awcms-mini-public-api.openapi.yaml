@@ -294,6 +294,337 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/access/policies:
+    get:
+      tags:
+        - Identity & Access
+      summary: List stored ABAC policies for the tenant
+      operationId: accessListAbacPolicies
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: All ABAC policies for the tenant (active and inactive).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - policies
+                        properties:
+                          policies:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/AbacPolicy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Identity & Access
+      summary: Create an ABAC policy (only valid DSL can be stored)
+      operationId: accessCreateAbacPolicy
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AbacPolicyWriteRequest"
+      responses:
+        "200":
+          description: Policy created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - policy
+                        properties:
+                          policy:
+                            $ref: "#/components/schemas/AbacPolicy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A policy with that policyCode already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/policies/{id}:
+    get:
+      tags:
+        - Identity & Access
+      summary: Read one ABAC policy
+      operationId: accessGetAbacPolicy
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Policy found.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - policy
+                        properties:
+                          policy:
+                            $ref: "#/components/schemas/AbacPolicy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags:
+        - Identity & Access
+      summary: Update an ABAC policy (only valid DSL can be stored)
+      operationId: accessUpdateAbacPolicy
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AbacPolicyWriteRequest"
+      responses:
+        "200":
+          description: Policy updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - policy
+                        properties:
+                          policy:
+                            $ref: "#/components/schemas/AbacPolicy"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A policy with that policyCode already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/policies/{id}/disable:
+    post:
+      tags:
+        - Identity & Access
+      summary: Disable (deactivate) an ABAC policy
+      operationId: accessDisableAbacPolicy
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Policy disabled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - policy
+                        properties:
+                          policy:
+                            $ref: "#/components/schemas/AbacPolicy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/policies/{id}/enable:
+    post:
+      tags:
+        - Identity & Access
+      summary: Enable (activate) an ABAC policy
+      operationId: accessEnableAbacPolicy
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Policy enabled.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        required:
+                          - policy
+                        properties:
+                          policy:
+                            $ref: "#/components/schemas/AbacPolicy"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/access/policies/simulate:
+    post:
+      tags:
+        - Identity & Access
+      summary: Simulate an ABAC decision (read-only, audited)
+      description: Evaluate a HYPOTHETICAL subject/resource/action against the tenant's current active policies. Never mutates domain data and never records a real decision-log entry; the simulation request itself is audited. The per-policy trace returns only structural booleans, never resolved attribute values, so no subject/resource identifier is disclosed.
+      operationId: accessSimulateAbacPolicy
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AbacSimulationRequest"
+      responses:
+        "200":
+          description: Simulated decision and per-policy trace.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AbacSimulationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/analytics/devices:
     get:
       tags:
@@ -21628,6 +21959,220 @@ components:
           schema:
             $ref: "#/components/schemas/ApiError"
   schemas:
+    AbacPolicy:
+      type: object
+      required:
+        - id
+        - policyCode
+        - effect
+        - dslVersion
+        - priority
+        - conditions
+        - isActive
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        policyCode:
+          type: string
+        effect:
+          type: string
+          enum:
+            - allow
+            - deny
+        description:
+          type: string
+          nullable: true
+        moduleKey:
+          type: string
+          nullable: true
+          description: Applicability filter; null = wildcard.
+        activityCode:
+          type: string
+          nullable: true
+          description: Applicability filter; null = wildcard.
+        action:
+          type: string
+          nullable: true
+          description: Applicability filter; null = wildcard.
+        resourceType:
+          type: string
+          nullable: true
+          description: Applicability filter; null = wildcard.
+        dslVersion:
+          type: integer
+          minimum: 1
+        priority:
+          type: integer
+          description: Lower evaluates first (deterministic ordering).
+        conditions:
+          $ref: "#/components/schemas/AbacPolicyConditions"
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AbacPolicyConditions:
+      type: object
+      description: "Bounded, deterministic condition AST (Issue #179, ADR-0023). A node is a composition (`allOf`/`anyOf`/`not`) or a leaf (`{attr, op, value}` or `{attr, op, valueAttr}`). Attributes come from a fixed server-side allow-list (`subject.*`, `resource.*`, `action`, `env.*`); operators are eq/ne/in/nin/lt/lte/gt/gte/exists. No arbitrary code, expression, or SQL. Validated server-side; an invalid AST is rejected at authoring time."
+      additionalProperties: true
+    AbacPolicyWriteRequest:
+      type: object
+      required:
+        - policyCode
+        - effect
+        - conditions
+      properties:
+        policyCode:
+          type: string
+          description: 3-100 chars, alphanumerics plus . _ - (not at the edges).
+        effect:
+          type: string
+          enum:
+            - allow
+            - deny
+        description:
+          type: string
+          nullable: true
+        moduleKey:
+          type: string
+          nullable: true
+        activityCode:
+          type: string
+          nullable: true
+        action:
+          type: string
+          nullable: true
+        resourceType:
+          type: string
+          nullable: true
+        dslVersion:
+          type: integer
+          minimum: 1
+          description: Defaults to 1. A version newer than the server supports is rejected.
+        priority:
+          type: integer
+          minimum: 0
+          maximum: 1000000
+          description: Defaults to 100.
+        isActive:
+          type: boolean
+          description: Create/update only; defaults to false (author, then enable).
+        conditions:
+          $ref: "#/components/schemas/AbacPolicyConditions"
+    AbacSimulationRequest:
+      type: object
+      required:
+        - request
+      properties:
+        subject:
+          type: object
+          description: Hypothetical subject. Roles resolve into the permission set they grant.
+          properties:
+            tenantUserId:
+              type: string
+              format: uuid
+              description: Optional; when set, the subject's real roles/permissions are used.
+            roles:
+              type: array
+              items:
+                type: string
+              description: Role codes whose granted permissions to simulate.
+        request:
+          type: object
+          required:
+            - moduleKey
+            - activityCode
+            - action
+          properties:
+            moduleKey:
+              type: string
+            activityCode:
+              type: string
+            action:
+              type: string
+            resourceType:
+              type: string
+            resourceAttributes:
+              type: object
+              additionalProperties: true
+              description: Hypothetical, server-verified-shaped resource attributes.
+        environment:
+          type: object
+          properties:
+            ipTrusted:
+              type: boolean
+            now:
+              type: string
+              format: date-time
+    AbacSimulationResponse:
+      type: object
+      required:
+        - decision
+        - evaluatedPolicies
+        - subject
+      properties:
+        decision:
+          type: object
+          required:
+            - allowed
+            - reason
+          properties:
+            allowed:
+              type: boolean
+            reason:
+              type: string
+            matchedPolicy:
+              type: string
+              nullable: true
+            matchedPolicyVersion:
+              type: integer
+              nullable: true
+        evaluatedPolicies:
+          type: array
+          description: Per-policy trace — structural booleans only, no attribute values.
+          items:
+            type: object
+            required:
+              - policyCode
+              - effect
+              - applicable
+            properties:
+              policyCode:
+                type: string
+              effect:
+                type: string
+                enum:
+                  - allow
+                  - deny
+              dslVersion:
+                type: integer
+              priority:
+                type: integer
+              applicable:
+                type: boolean
+              conditionSatisfied:
+                type: boolean
+                nullable: true
+              invalid:
+                type: boolean
+        subject:
+          type: object
+          required:
+            - tenantUserId
+            - roles
+          properties:
+            tenantUserId:
+              type: string
+            roles:
+              type: array
+              items:
+                type: string
     AccessAssignmentRequest:
       type: object
       required:

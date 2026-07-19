@@ -1659,3 +1659,36 @@ readiness.ts` (ia memeriksa atribut role, bukan isi predikat). Baca
   (Midtrans/Xendit/Stripe/dst.) tetap adapter opt-in aplikasi turunan; base
   hanya kontrak provider-netral + fake/sandbox coverage (epic #868 entry
   criteria).
+
+## Standar tambahan dipicu dynamic ABAC policy evaluator (Issue #179, epic #177)
+
+Menghubungkan kebijakan `awcms_mini_abac_policies` tersimpan ke chokepoint
+`authorizeInTransaction` (default-deny, ADR-0023) memperluas permukaan
+otorisasi dari "kode + permission peran" menjadi "kode + permission peran +
+**data kebijakan yang bisa di-author admin**". Ancaman baru yang diakui dan
+kontrolnya:
+
+| Ancaman (STRIDE)                                                                                  | Kontrol                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Elevation of Privilege** — kebijakan `allow` dipakai untuk memberi permission yang tak dimiliki | Model precedence (ADR-0023): permission RBAC **tetap wajib**; kebijakan `allow` hanya **mempersempit** (constraint) permission yang sudah dimiliki, tak pernah menciptakan. Diuji `evaluateAccess`: allow-policy + granted-set kosong → `default_deny`.                                                                   |
+| **Tampering** — injeksi kode/SQL lewat kondisi kebijakan                                          | Evaluator adalah **interpreter murni** atas AST terbatas — tanpa `eval`/`new Function`/dynamic import/SQL bertemplat. Attribute dari allow-list tertutup; operator dari set tetap. Tidak ada string kebijakan yang pernah dieksekusi/di-interpolasi ke SQL.                                                               |
+| **Tampering** — atribut subject dipalsukan lewat body request                                     | `subject.*` di-resolve **hanya** dari `TenantContext` terautentikasi, tak pernah dari body. `resource.*` wajib diisi endpoint dari resource terverifikasi (kepemilikan dicek terhadap baris nyata). `env.*` server-derived; `env.ipTrusted` default `false` (fail-closed).                                                |
+| **Information Disclosure** — kebijakan/keputusan lintas tenant                                    | Evaluator tak pernah baca lintas tenant: load kebijakan selalu di `withTenant` (RLS + peran `awcms_mini_app` non-superuser, FORCE RLS), cache **tenant-keyed**. Diuji integrasi cross-tenant di bawah peran app.                                                                                                          |
+| **Information Disclosure** — PII bocor ke decision log / preview                                  | Decision log hanya mencatat kode kebijakan + versi + reason statis; nilai atribut resource/subject tak pernah ditulis. Simulasi hanya mengembalikan boolean struktural per-kebijakan, bukan nilai atribut. Diuji integrasi ("decision log tanpa PII").                                                                    |
+| **Denial of Service** — kondisi patologis (nesting dalam / node banyak)                           | Parser membatasi kedalaman AST (`MAX_DEPTH=32`) dan jumlah node (`MAX_NODES=512`); di luar batas → invalid. Body request dibatasi ukurannya (Issue #686).                                                                                                                                                                 |
+| **Bypass** — kebijakan invalid/error diam-diam mengizinkan                                        | Fail-closed di dua lapis: (1) authoring — hanya DSL valid yang tersimpan/aktif; (2) evaluasi — kebijakan aktif invalid, versi DSL terlalu baru, atau error evaluasi apa pun (attribute/operator tak dikenal) → DENY. **Mutation test** membuktikan: membalik default "unknown → deny" menjadi "allow" membuat test merah. |
+
+### Batasan yang dicatat, bukan diabaikan (ABAC evaluator)
+
+- **Invalidasi cache per-proses.** Deterministik dalam satu instance (default
+  mini); deployment multi-instance butuh sinyal lintas-instance
+  (LISTEN/NOTIFY atau TTL pendek) — dicatat, bukan diasumsikan hilang.
+- **`env.ipTrusted` default `false`.** Sampai deployment memasang resolver
+  jaringan tepercaya, kebijakan yang bergantung padanya berperilaku fail-closed
+  (deny untuk deny-policy `not(ipTrusted)`; unsatisfied untuk allow-policy).
+- **`resource.*` benar hanya jika endpoint mengisinya dari resource nyata.**
+  Evaluator memperlakukan `resource.*` sebagai fakta server; endpoint yang
+  meng-echo input klien tanpa verifikasi melemahkan cek kepemilikan — konvensi
+  ini ditegakkan lewat review + header DSL, bukan mekanisme runtime di base.
+- **Business-scope hierarchy & SoD** tetap child issue terpisah (di luar
+  scope #179); evaluator ini tak melemahkan guard SoD/business-scope yang ada.
