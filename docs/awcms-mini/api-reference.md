@@ -10859,6 +10859,196 @@ The offer stays readable. Platform-operator only; requires Idempotency-Key. Emit
 | 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
 
+## Tenant Entitlement
+
+Provider-neutral SaaS control-plane tenant entitlement (epic #868 SaaS control plane Wave 1, Issue #871, ADR-0022) — the second control-plane module and the epic's HEART, the first tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Resolves a tenant's DETERMINISTIC, EXPLAINABLE effective feature/module/quota access from published service catalog offers (read via the service_catalog_read capability port), trial/grace effective-dating, operator overrides (grant/deny, reason-bound, optionally time-bound, revocable without restart), suspension/lifecycle restriction, and module-dependency safe-downgrade. Exposes ONE read-only fail-closed contract (effective_entitlement): unknown/absent/indeterminate/disabled = DENY, on a DIFFERENT axis from RBAC/ABAC/RLS — a positive entitlement NEVER grants a permission the actor lacks. Operator-only + default-deny + default-disabled per tenant. assign/override/revoke require Idempotency-Key + audit + versioned events; entitlement loss changes state + gates, NEVER deletes tenant data.
+
+### `GET /api/v1/tenant-entitlement/assignments` — List the current tenant's entitlement assignments
+
+- **operationId**: `tenantEntitlementAssignmentsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | The current tenant's entitlement assignments.  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/tenant-entitlement/assignments` — Assign the current tenant to a published offer
+
+- **operationId**: `tenantEntitlementAssignmentsAssign`
+- **Security**: bearerAuth + tenantHeader
+
+Subscribes the current tenant to a published service catalog offer version; supersedes the current assignment for that plan. Platform-operator only; requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantEntitlementAssignRequest`](#schema-tenantentitlementassignrequest)
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The created assignment.                                                                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A concurrent assignment superseded this request, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/tenant-entitlement/assignments/{assignmentId}` — Transition an entitlement assignment (suspend/resume/cancel)
+
+- **operationId**: `tenantEntitlementAssignmentTransition`
+- **Security**: bearerAuth + tenantHeader
+
+Suspend/resume (permission `assignments.update`) or cancel (permission `assignments.revoke`; entitlement loss — tenant data is never deleted) an assignment. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `assignmentId`     | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantEntitlementTransitionRequest`](#schema-tenantentitlementtransitionrequest)
+
+**Responses**
+
+| Status | Description                                                                        | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The updated assignment.                                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                       | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                     | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Illegal/concurrent transition, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                         | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/tenant-entitlement/effective` — Resolve the current tenant's effective entitlement
+
+- **operationId**: `tenantEntitlementEffectiveGet`
+- **Security**: bearerAuth + tenantHeader
+
+Deterministic, explainable effective feature/module/quota entitlement for the current tenant, optionally as-of a timestamp. Operator-only.
+
+**Parameters**
+
+| Name               | In     | Required | Type               | Description                                            |
+| ------------------ | ------ | -------- | ------------------ | ------------------------------------------------------ |
+| `at`               | query  | no       | string (date-time) | ISO 8601 timestamp to resolve as-of (defaults to now). |
+| `X-Correlation-ID` | header | no       | string             | Optional server-side trace correlation ID.             |
+| `X-Request-ID`     | header | no       | string             | Optional client-generated request trace ID.            |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | The resolved effective entitlement.            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/tenant-entitlement/overrides` — List the current tenant's entitlement overrides
+
+- **operationId**: `tenantEntitlementOverridesList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | The current tenant's entitlement overrides.    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/tenant-entitlement/overrides` — Create a platform-operator entitlement override
+
+- **operationId**: `tenantEntitlementOverridesCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Grant/deny a feature, module, or quota for the current tenant. Reason-bound, optionally time-bound. Unknown target keys fail closed (400). Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantEntitlementOverrideRequest`](#schema-tenantentitlementoverriderequest)
+
+**Responses**
+
+| Status | Description                                                                                            | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | The created override.                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                           | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 409    | An active override already exists for this target, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                             | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/tenant-entitlement/overrides/{overrideId}/revoke` — Revoke an entitlement override
+
+- **operationId**: `tenantEntitlementOverrideRevoke`
+- **Security**: bearerAuth + tenantHeader
+
+Revoke an override (one-way; stops applying immediately without restart). Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `overrideId`       | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): [`TenantEntitlementRevokeRequest`](#schema-tenantentitlementrevokerequest)
+
+**Responses**
+
+| Status | Description                                                                          | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | The revoked override.                                                                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                         | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                       | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                  | [`ApiError`](#standard-error-envelope)                   |
+| 409    | The override is already revoked, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                           | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
@@ -17164,6 +17354,96 @@ Never includes verification_token_hash (an internal bearer-token hash) or any DN
 }
 ```
 
+### Schema: TenantEntitlementAssignRequest
+
+| Field           | Type                                                 | Required | Nullable | Description |
+| --------------- | ---------------------------------------------------- | -------- | -------- | ----------- |
+| `planKey`       | string                                               | yes      | no       |             |
+| `offerVersion`  | integer                                              | yes      | no       |             |
+| `source`        | enum(`manual`, `subscription`, `trial`, `migration`) | no       | no       |             |
+| `reason`        | string                                               | no       | yes      |             |
+| `effectiveFrom` | string (date-time)                                   | no       | yes      |             |
+| `effectiveTo`   | string (date-time)                                   | no       | yes      |             |
+| `trialEndsAt`   | string (date-time)                                   | no       | yes      |             |
+| `graceEndsAt`   | string (date-time)                                   | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "planKey": "string",
+  "offerVersion": 1,
+  "source": "manual",
+  "reason": "string",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z",
+  "trialEndsAt": "2026-01-01T00:00:00.000Z",
+  "graceEndsAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: TenantEntitlementOverrideRequest
+
+| Field              | Type                                               | Required | Nullable | Description |
+| ------------------ | -------------------------------------------------- | -------- | -------- | ----------- |
+| `targetKind`       | enum(`feature`, `module`, `quota`)                 | yes      | no       |             |
+| `targetKey`        | string                                             | yes      | no       |             |
+| `effect`           | enum(`grant`, `deny`)                              | yes      | no       |             |
+| `quotaIsUnlimited` | boolean                                            | no       | no       |             |
+| `quotaLimitValue`  | integer                                            | no       | yes      |             |
+| `quotaUnit`        | string                                             | no       | yes      |             |
+| `reason`           | string                                             | yes      | no       |             |
+| `source`           | enum(`manual`, `addon`, `compensation`, `support`) | no       | no       |             |
+| `effectiveFrom`    | string (date-time)                                 | no       | yes      |             |
+| `effectiveTo`      | string (date-time)                                 | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "targetKind": "feature",
+  "targetKey": "string",
+  "effect": "grant",
+  "quotaIsUnlimited": false,
+  "quotaLimitValue": 0,
+  "quotaUnit": "string",
+  "reason": "string",
+  "source": "manual",
+  "effectiveFrom": "2026-01-01T00:00:00.000Z",
+  "effectiveTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: TenantEntitlementRevokeRequest
+
+| Field    | Type   | Required | Nullable | Description |
+| -------- | ------ | -------- | -------- | ----------- |
+| `reason` | string | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "reason": "string"
+}
+```
+
+### Schema: TenantEntitlementTransitionRequest
+
+| Field    | Type                                    | Required | Nullable | Description |
+| -------- | --------------------------------------- | -------- | -------- | ----------- |
+| `status` | enum(`active`, `suspended`, `canceled`) | yes      | no       |             |
+| `reason` | string                                  | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "status": "active",
+  "reason": "string"
+}
+```
+
 ### Schema: TenantModuleEntry
 
 | Field           | Type               | Required | Nullable | Description |
@@ -18315,7 +18595,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (98)
+### Channels (100)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -18407,6 +18687,8 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.social-publishing.rule.deleted` — A social publish rule was soft-deleted (Issue #643). Producer: `social-publish-rule-directory.ts`'s `softDeleteSocialPublishRule`.
 - `awcms-mini.social-publishing.rule.updated` — A social publish rule was updated (Issue #643). Producer: `social-publish-rule-directory.ts`'s `updateSocialPublishRule`.
 - `awcms-mini.sync.push.requested` — Baseline sync push event envelope for future sync-storage implementation.
+- `awcms-mini.tenant-entitlement.assignment.changed` — A tenant entitlement assignment was assigned/suspended/resumed/canceled (Issue #871, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `assignmentId`, `planKey`, `offerVersion`, `changeType`, resulting `status`, and the resolved `snapshotHash` for deterministic cache invalidation — never an operator reason or internal price. Producer: `tenant-entitlement/application/entitlement-directory.ts`, via `appendDomainEvent` in the same transaction as the append-only evaluation snapshot.
+- `awcms-mini.tenant-entitlement.override.changed` — A tenant entitlement override was created or revoked (Issue #871). Payload: `overrideId`, `targetKind`, `targetKey`, `effect`, `changeType`, and the resolved `snapshotHash` — never the operator's free-text reason. Producer: `tenant-entitlement/application/entitlement-directory.ts`'s `createOverride`/`revokeOverride`.
 - `awcms-mini.workflow.delegation.created` — A workflow delegation/substitute assignment was created (Issue #747). Producer: `workflow-approval/application/ workflow-delegation-directory.ts`'s `createWorkflowDelegation`.
 - `awcms-mini.workflow.delegation.revoked` — A workflow delegation/substitute assignment was revoked (Issue #747). Producer: `workflow-approval/application/ workflow-delegation-directory.ts`'s `revokeWorkflowDelegation`.
 - `awcms-mini.workflow.instance.advanced` — A workflow instance's active task was decided (or force-decided) and the instance advanced to its next node(s), without yet reaching a terminal outcome (Issue #747). Producer: `workflow-approval/application/workflow-instance-decision.ts`'s `completeApprovalTaskAndAdvance`.

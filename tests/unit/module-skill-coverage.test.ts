@@ -110,6 +110,8 @@ const MODULE_SKILL_MAP: Readonly<Record<string, string>> = {
   sync_storage: "awcms-mini-sync-hmac",
   // Non-mechanical: the epic skill covers the module end-to-end.
   tenant_domain: "awcms-mini-tenant-domain-routing",
+  // Issue #871 (epic #868 SaaS control plane) — the second control-plane module.
+  tenant_entitlement: "awcms-mini-tenant-entitlement",
   visitor_analytics: "awcms-mini-visitor-analytics",
   // Non-mechanical, and NOT a typo: the registered key really is `workflow`,
   // even though the directory is `src/modules/workflow-approval` and every

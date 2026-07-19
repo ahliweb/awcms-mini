@@ -219,6 +219,22 @@ export const SERVICE_CATALOG_OFFER_PUBLISHED_EVENT_TYPE =
 export const SERVICE_CATALOG_OFFER_RETIRED_EVENT_TYPE =
   "awcms-mini.service-catalog.offer.retired";
 
+/**
+ * `tenant_entitlement` (Issue #871, epic #868 SaaS control plane Wave 1,
+ * ADR-0022). `tenant_entitlement` is a REAL producer via `appendDomainEvent`,
+ * emitting these inside the SAME transaction as the entitlement change + the
+ * append-only evaluation snapshot: `.assignment.changed` when an assignment is
+ * assigned/suspended/resumed/canceled, `.override.changed` when an override is
+ * created/revoked. Each payload carries the resolved `snapshotHash` for
+ * deterministic derived-cache invalidation — never an operator's free-text
+ * reason (ADR-0022 §4/§5, tenant-facing shape only).
+ */
+export const TENANT_ENTITLEMENT_EVENT_VERSION = "1.0";
+export const TENANT_ENTITLEMENT_ASSIGNMENT_CHANGED_EVENT_TYPE =
+  "awcms-mini.tenant-entitlement.assignment.changed";
+export const TENANT_ENTITLEMENT_OVERRIDE_CHANGED_EVENT_TYPE =
+  "awcms-mini.tenant-entitlement.override.changed";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -491,6 +507,18 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: SERVICE_CATALOG_EVENT_VERSION,
       description:
         "A published service catalog offer version was retired (Issue #870). The offer stays readable; the payload carries plan key and version."
+    },
+    {
+      eventType: TENANT_ENTITLEMENT_ASSIGNMENT_CHANGED_EVENT_TYPE,
+      eventVersion: TENANT_ENTITLEMENT_EVENT_VERSION,
+      description:
+        "A tenant entitlement assignment was assigned/suspended/resumed/canceled (Issue #871). Payload carries the assignment id, plan key, offer version, change type, resulting status, and the resolved snapshotHash for deterministic cache invalidation — never an operator reason or internal price."
+    },
+    {
+      eventType: TENANT_ENTITLEMENT_OVERRIDE_CHANGED_EVENT_TYPE,
+      eventVersion: TENANT_ENTITLEMENT_EVENT_VERSION,
+      description:
+        "A tenant entitlement override was created or revoked (Issue #871). Payload carries the override id, target kind/key, effect, change type, and the resolved snapshotHash — never the operator's free-text reason."
     }
   ];
 

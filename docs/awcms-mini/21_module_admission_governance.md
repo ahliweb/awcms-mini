@@ -254,9 +254,9 @@ eksplisit sesuai permintaan Issue #696):
    semacam ini **ditolak di tahap pohon keputusan §3** (node Q5), tanpa
    pengecualian implementasi apa pun.
 
-## 8. Peta 24 modul saat ini → kategori
+## 8. Peta 25 modul saat ini → kategori
 
-Sumber kebenaran: `src/modules/index.ts` (24 entri) dan setiap `module.ts`-
+Sumber kebenaran: `src/modules/index.ts` (25 entri) dan setiap `module.ts`-
 nya. Kolom **Owner** mengikuti `.github/CODEOWNERS` (satu maintainer,
 `@ahliweb`, untuk seluruh repo hari ini) karena field opsional
 `ModuleDescriptor.maintainers` belum diisi di modul manapun — lihat
@@ -284,6 +284,7 @@ remediasi R3 di bawah.
 | `organization_structure`  | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `reference_data`          | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `service_catalog`         | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `tenant_entitlement`      | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `integration_hub`         | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |

@@ -114,18 +114,21 @@ suite("tenant module lifecycle API", () => {
     });
 
     expect(result.status).toBe(200);
-    // Issue #870 (ADR-0022 §7): `service_catalog` is `defaultTenantState:
-    // "disabled"`, so it lists as NOT enabled with no explicit row; every
+    // Issue #870/#871 (ADR-0022 §7): the SaaS control-plane modules
+    // (`service_catalog`, `tenant_entitlement`) are `defaultTenantState:
+    // "disabled"`, so they list as NOT enabled with no explicit row; every
     // other module is enabled by default.
+    const defaultDisabled = new Set(["service_catalog", "tenant_entitlement"]);
     expect(
       result.body.data.modules
-        .filter((m) => m.moduleKey !== "service_catalog")
+        .filter((m) => !defaultDisabled.has(m.moduleKey))
         .every((m) => m.tenantEnabled)
     ).toBe(true);
-    expect(
-      result.body.data.modules.find((m) => m.moduleKey === "service_catalog")
-        ?.tenantEnabled
-    ).toBe(false);
+    for (const key of defaultDisabled) {
+      expect(
+        result.body.data.modules.find((m) => m.moduleKey === key)?.tenantEnabled
+      ).toBe(false);
+    }
   });
 
   test("fetchTenantModuleEntry (single-module narrowing of fetchTenantModuleEntries, security audit follow-up) matches the plural function's per-entry result before and after a real disable", async () => {
