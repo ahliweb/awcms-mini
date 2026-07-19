@@ -23,20 +23,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
-        with:
-          bun-version: 1.3.14
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - name: Fetch pull-request merge commit
+        run: |
+          git init . >/dev/null
+          git remote add origin https://github.com/${GITHUB_REPOSITORY}.git
+          git fetch --depth=1 origin "${GITHUB_SHA}" >/dev/null 2>&1
+          git checkout --detach FETCH_HEAD >/dev/null 2>&1
 
       - name: List differently formatted files
         run: |
-          bunx prettier --list-different \
+          npx --yes prettier@3.9.5 --list-different \
             .changeset/redis-readiness-890.md \
             docker-compose.redis.yml \
             docs/awcms-mini/redis-readiness.md \
