@@ -5,14 +5,14 @@ import {
   getRedisJson,
   redisCacheAside,
   setRedisJson,
-  type RedisCacheClient
+  type RedisCacheClient,
 } from "../../src/lib/redis/cache";
 import {
   buildRedisKey,
   loadRedisConfig,
   redactRedisUrl,
   validateRedisConfig,
-  type RedisConfig
+  type RedisConfig,
 } from "../../src/lib/redis/config";
 
 function enabledConfig(overrides: Partial<RedisConfig> = {}): RedisConfig {
@@ -24,7 +24,7 @@ function enabledConfig(overrides: Partial<RedisConfig> = {}): RedisConfig {
     commandTimeoutMs: 1_000,
     maxRetries: 3,
     cacheDefaultTtlSec: 300,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -84,43 +84,43 @@ describe("Redis configuration", () => {
     expect(
       findings.some(
         (finding) =>
-          finding.severity === "fail" && finding.code === "redis_url_required"
-      )
+          finding.severity === "fail" && finding.code === "redis_url_required",
+      ),
     ).toBe(true);
   });
 
   test("rejects unsupported URL schemes", () => {
     const config = loadRedisConfig({
       REDIS_ENABLED: "true",
-      REDIS_URL: "http://localhost:6379"
+      REDIS_URL: "http://localhost:6379",
     });
     const findings = validateRedisConfig(config, {});
 
     expect(
       findings.some(
-        (finding) => finding.code === "redis_url_scheme_unsupported"
-      )
+        (finding) => finding.code === "redis_url_scheme_unsupported",
+      ),
     ).toBe(true);
   });
 
   test("warns about unauthenticated public Redis in production", () => {
     const config = loadRedisConfig({
       REDIS_ENABLED: "true",
-      REDIS_URL: "redis://cache.example.com:6379/0"
+      REDIS_URL: "redis://cache.example.com:6379/0",
     });
     const findings = validateRedisConfig(config, { APP_ENV: "production" });
 
-    expect(findings.some((finding) => finding.code === "redis_tls_recommended")).toBe(
-      true
-    );
     expect(
-      findings.some((finding) => finding.code === "redis_auth_recommended")
+      findings.some((finding) => finding.code === "redis_tls_recommended"),
+    ).toBe(true);
+    expect(
+      findings.some((finding) => finding.code === "redis_auth_recommended"),
     ).toBe(true);
   });
 
   test("redacts username and password from diagnostic URLs", () => {
     const redacted = redactRedisUrl(
-      "redis://awcms_app:very-secret@redis.internal:6379/0"
+      "redis://awcms_app:very-secret@redis.internal:6379/0",
     );
 
     expect(redacted).not.toContain("very-secret");
@@ -132,7 +132,7 @@ describe("Redis configuration", () => {
       REDIS_CONNECTION_TIMEOUT_MS: "not-a-number",
       REDIS_COMMAND_TIMEOUT_MS: "0",
       REDIS_MAX_RETRIES: "999",
-      REDIS_CACHE_DEFAULT_TTL_SEC: "-1"
+      REDIS_CACHE_DEFAULT_TTL_SEC: "-1",
     });
 
     expect(config.connectionTimeoutMs).toBe(2_000);
@@ -146,15 +146,15 @@ describe("Redis key namespacing", () => {
   test("separates tenant keys and global keys", () => {
     const tenantA = buildRedisKey(
       { namespace: "reports", tenantId: "tenant-a", key: "summary" },
-      { keyPrefix: "awcms-mini" }
+      { keyPrefix: "awcms-mini" },
     );
     const tenantB = buildRedisKey(
       { namespace: "reports", tenantId: "tenant-b", key: "summary" },
-      { keyPrefix: "awcms-mini" }
+      { keyPrefix: "awcms-mini" },
     );
     const global = buildRedisKey(
       { namespace: "reports", key: "summary" },
-      { keyPrefix: "awcms-mini" }
+      { keyPrefix: "awcms-mini" },
     );
 
     expect(tenantA).toBe("awcms-mini:v1:reports:tenant:tenant-a:summary");
@@ -165,12 +165,10 @@ describe("Redis key namespacing", () => {
   test("encodes delimiter characters so callers cannot inject key segments", () => {
     const key = buildRedisKey(
       { namespace: "report:admin", tenantId: "tenant:1", key: "a:b" },
-      { keyPrefix: "awcms-mini" }
+      { keyPrefix: "awcms-mini" },
     );
 
-    expect(key).toBe(
-      "awcms-mini:v1:report%3Aadmin:tenant:tenant%3A1:a%3Ab"
-    );
+    expect(key).toBe("awcms-mini:v1:report%3Aadmin:tenant:tenant%3A1:a%3Ab");
   });
 });
 
@@ -183,25 +181,20 @@ describe("Redis cache-aside helpers", () => {
       await setRedisJson(
         "awcms-mini:v1:test:global:item",
         { value: 42 },
-        { client: fake.asClient(), config, ttlSec: 60 }
-      )
+        { client: fake.asClient(), config, ttlSec: 60 },
+      ),
     ).toBe(true);
 
     expect(fake.commands[0]).toEqual({
       command: "SET",
-      args: [
-        "awcms-mini:v1:test:global:item",
-        '{"value":42}',
-        "EX",
-        "60"
-      ]
+      args: ["awcms-mini:v1:test:global:item", '{"value":42}', "EX", "60"],
     });
 
     expect(
-      await getRedisJson<{ value: number }>(
-        "awcms-mini:v1:test:global:item",
-        { client: fake.asClient(), config }
-      )
+      await getRedisJson<{ value: number }>("awcms-mini:v1:test:global:item", {
+        client: fake.asClient(),
+        config,
+      }),
     ).toEqual({ value: 42 });
   });
 
@@ -212,7 +205,7 @@ describe("Redis cache-aside helpers", () => {
 
     const value = await getRedisJson(key, {
       client: fake.asClient(),
-      config: enabledConfig()
+      config: enabledConfig(),
     });
 
     expect(value).toBeNull();
@@ -228,23 +221,23 @@ describe("Redis cache-aside helpers", () => {
     expect(
       await getRedisJson("awcms-mini:v1:test:global:item", {
         client: fake.asClient(),
-        config: enabledConfig()
-      })
+        config: enabledConfig(),
+      }),
     ).toBeNull();
 
     expect(
       await setRedisJson(
         "awcms-mini:v1:test:global:item",
         { value: 42 },
-        { client: fake.asClient(), config: enabledConfig() }
-      )
+        { client: fake.asClient(), config: enabledConfig() },
+      ),
     ).toBe(false);
 
     expect(
       await deleteRedisCache("awcms-mini:v1:test:global:item", {
         client: fake.asClient(),
-        config: enabledConfig()
-      })
+        config: enabledConfig(),
+      }),
     ).toBe(false);
   });
 
@@ -260,7 +253,7 @@ describe("Redis cache-aside helpers", () => {
         loaderCalls += 1;
         return { source: "database" };
       },
-      { client: fake.asClient(), config: enabledConfig() }
+      { client: fake.asClient(), config: enabledConfig() },
     );
 
     expect(value).toEqual({ source: "cache" });
@@ -274,7 +267,7 @@ describe("Redis cache-aside helpers", () => {
     const value = await redisCacheAside(
       key,
       async () => ({ source: "database" }),
-      { client: fake.asClient(), config: enabledConfig(), ttlSec: 30 }
+      { client: fake.asClient(), config: enabledConfig(), ttlSec: 30 },
     );
 
     expect(value).toEqual({ source: "database" });
