@@ -13,9 +13,10 @@ export type RedisCacheOptions = {
   ttlSec?: number;
 };
 
-function resolveClient(
-  options: RedisCacheOptions
-): { client: RedisCacheClient | null; config: RedisConfig } {
+function resolveClient(options: RedisCacheOptions): {
+  client: RedisCacheClient | null;
+  config: RedisConfig;
+} {
   const config = options.config ?? loadRedisConfig();
   const client =
     options.client === undefined ? getRedisClient(config) : options.client;
@@ -29,7 +30,7 @@ function resolveClient(
  */
 export async function getRedisJson<T>(
   key: string,
-  options: RedisCacheOptions = {}
+  options: RedisCacheOptions = {},
 ): Promise<T | null> {
   const { client, config } = resolveClient(options);
 
@@ -41,7 +42,7 @@ export async function getRedisJson<T>(
     const value = await withRedisCommandTimeout(
       client.get(key),
       config.commandTimeoutMs,
-      "GET"
+      "GET",
     );
 
     if (value === null) {
@@ -54,11 +55,11 @@ export async function getRedisJson<T>(
       await withRedisCommandTimeout(
         client.send("DEL", [key]),
         config.commandTimeoutMs,
-        "DEL malformed cache entry"
+        "DEL malformed cache entry",
       ).catch(() => undefined);
 
       log("warning", "Malformed Redis JSON entry treated as cache miss.", {
-        moduleKey: "redis-foundation"
+        moduleKey: "redis-foundation",
       });
 
       return null;
@@ -66,7 +67,7 @@ export async function getRedisJson<T>(
   } catch (error) {
     log("warning", "Redis cache read failed open.", {
       moduleKey: "redis-foundation",
-      error: safeErrorDetail(error)
+      error: safeErrorDetail(error),
     });
 
     return null;
@@ -81,7 +82,7 @@ export async function getRedisJson<T>(
 export async function setRedisJson<T>(
   key: string,
   value: T,
-  options: RedisCacheOptions = {}
+  options: RedisCacheOptions = {},
 ): Promise<boolean> {
   const { client, config } = resolveClient(options);
 
@@ -93,7 +94,7 @@ export async function setRedisJson<T>(
 
   if (!Number.isInteger(ttlSec) || ttlSec < 1 || ttlSec > 86_400) {
     throw new Error(
-      "Redis cache TTL must be an integer between 1 and 86400 seconds."
+      "Redis cache TTL must be an integer between 1 and 86400 seconds.",
     );
   }
 
@@ -102,7 +103,7 @@ export async function setRedisJson<T>(
 
     if (payload === undefined) {
       log("warning", "Non-serializable Redis cache value was skipped.", {
-        moduleKey: "redis-foundation"
+        moduleKey: "redis-foundation",
       });
       return false;
     }
@@ -110,14 +111,14 @@ export async function setRedisJson<T>(
     const result = await withRedisCommandTimeout(
       client.send("SET", [key, payload, "EX", String(ttlSec)]),
       config.commandTimeoutMs,
-      "SET"
+      "SET",
     );
 
     return result === "OK";
   } catch (error) {
     log("warning", "Redis cache write failed open.", {
       moduleKey: "redis-foundation",
-      error: safeErrorDetail(error)
+      error: safeErrorDetail(error),
     });
 
     return false;
@@ -126,7 +127,7 @@ export async function setRedisJson<T>(
 
 export async function deleteRedisCache(
   key: string,
-  options: RedisCacheOptions = {}
+  options: RedisCacheOptions = {},
 ): Promise<boolean> {
   const { client, config } = resolveClient(options);
 
@@ -138,14 +139,14 @@ export async function deleteRedisCache(
     await withRedisCommandTimeout(
       client.send("DEL", [key]),
       config.commandTimeoutMs,
-      "DEL"
+      "DEL",
     );
 
     return true;
   } catch (error) {
     log("warning", "Redis cache invalidation failed open.", {
       moduleKey: "redis-foundation",
-      error: safeErrorDetail(error)
+      error: safeErrorDetail(error),
     });
 
     return false;
@@ -163,7 +164,7 @@ export type RedisCacheAsideOptions = RedisCacheOptions & {
 export async function redisCacheAside<T>(
   key: string,
   loader: () => Promise<T>,
-  options: RedisCacheAsideOptions = {}
+  options: RedisCacheAsideOptions = {},
 ): Promise<T> {
   if (!options.refresh) {
     const cached = await getRedisJson<T>(key, options);
