@@ -358,3 +358,115 @@ describe("module boundary — service_catalog control-plane <-> tenant-plane (Is
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Control-plane <-> tenant-plane boundary for `tenant_entitlement` (Issue #871,
+ * epic #868, ADR-0022 §4/Consequences). Same registry-wide enforcement as the
+ * service_catalog block above — each new control-plane module adds its own key/
+ * table-prefix/port here (the pattern was built to inherit):
+ *
+ *   1. No OTHER module's application/domain imports `tenant-entitlement`'s
+ *      application/domain — a tenant-plane / downstream consumer reads ONLY the
+ *      `effective_entitlement` capability port, wired at ITS route/composition
+ *      root. (tenant_entitlement itself may consume `service_catalog_read` via
+ *      the port TYPE + wire the adapter at its OWN route — which is not one of
+ *      the scanned module app/domain trees.)
+ *   2. No module or route OUTSIDE `tenant_entitlement` writes an
+ *      `awcms_mini_tenant_entitlement_*` table (no-shared-table-write).
+ *   3. The `effective_entitlement` port file stays neutral ground.
+ */
+describe("module boundary — tenant_entitlement control-plane <-> tenant-plane (Issue #871, ADR-0022)", () => {
+  const CONTROL_PLANE_MODULE_DIR = "tenant-entitlement";
+  const CONTROL_PLANE_TABLE_PREFIX = "awcms_mini_tenant_entitlement_";
+
+  test("no OTHER module's application/domain imports tenant-entitlement's application/domain (consume the read-only port instead)", () => {
+    const offenders: string[] = [];
+
+    for (const moduleName of readdirSync(MODULES_ROOT)) {
+      if (moduleName === CONTROL_PLANE_MODULE_DIR || moduleName === "_shared") {
+        continue;
+      }
+      const stat = statSync(path.join(MODULES_ROOT, moduleName));
+      if (!stat.isDirectory()) {
+        continue;
+      }
+      for (const dir of moduleAppDomainDirs(moduleName)) {
+        offenders.push(
+          ...findForbiddenCrossModuleImports(
+            dir,
+            listTsFiles(dir),
+            CONTROL_PLANE_MODULE_DIR
+          )
+        );
+      }
+    }
+
+    expect(
+      offenders,
+      "A tenant-plane / downstream module must read entitlement ONLY through the `effective_entitlement` capability port (`_shared/ports/effective-entitlement-port.ts`), wired at its own route/composition root — never by importing tenant_entitlement's application/domain directly (ADR-0022 §4)."
+    ).toEqual([]);
+  });
+
+  test("no module or route outside tenant_entitlement writes an awcms_mini_tenant_entitlement_ table (no-shared-table-write, ADR-0013 §6)", () => {
+    const writePattern = new RegExp(
+      `(INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+${CONTROL_PLANE_TABLE_PREFIX}`,
+      "i"
+    );
+    const offenders: string[] = [];
+
+    function scan(root: string): void {
+      for (const file of listTsFiles(root)) {
+        if (
+          file.includes(`/modules/${CONTROL_PLANE_MODULE_DIR}/`) ||
+          file.includes(`/api/v1/${CONTROL_PLANE_MODULE_DIR}/`)
+        ) {
+          continue;
+        }
+        const content = readFileSync(file, "utf-8");
+        content.split("\n").forEach((line, index) => {
+          if (writePattern.test(line)) {
+            offenders.push(
+              `${path.relative(path.join(import.meta.dir, "../.."), file)}:${index + 1}: ${line.trim()}`
+            );
+          }
+        });
+      }
+    }
+
+    scan(MODULES_ROOT);
+    scan(PAGES_ROOT);
+
+    expect(
+      offenders,
+      "Only the tenant_entitlement module (and its own routes) may write awcms_mini_tenant_entitlement_* tables (ADR-0013 §6). A consumer reads the effective_entitlement port, never a direct write."
+    ).toEqual([]);
+  });
+
+  test("the effective_entitlement port file imports no module's application/domain (neutral ground)", () => {
+    const portFile = path.join(
+      MODULES_ROOT,
+      "_shared/ports/effective-entitlement-port.ts"
+    );
+    expect(existsSync(portFile)).toBe(true);
+
+    const content = readFileSync(portFile, "utf-8");
+    const lines = content.split("\n");
+    const moduleDirNames = readdirSync(MODULES_ROOT).filter((name) => {
+      const full = path.join(MODULES_ROOT, name);
+      return name !== "_shared" && statSync(full).isDirectory();
+    });
+
+    const offenders: string[] = [];
+    lines.forEach((line, index) => {
+      for (const moduleDir of moduleDirNames) {
+        if (lineViolatesModuleBoundary(line, moduleDir)) {
+          offenders.push(
+            `effective-entitlement-port.ts:${index + 1}: ${line.trim()}`
+          );
+        }
+      }
+    });
+
+    expect(offenders).toEqual([]);
+  });
+});

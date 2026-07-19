@@ -5006,3 +5006,138 @@ msgstr "Mata uang"
 
 msgid "admin.service_catalog.plans.create_submit"
 msgstr "Buat paket"
+
+msgid "admin.layout.nav_tenant_entitlement"
+msgstr "Hak Tenant"
+
+msgid "admin.tenant_entitlement.title"
+msgstr "Hak Tenant (Entitlement)"
+
+msgid "admin.tenant_entitlement.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.tenant_entitlement.access_denied_body"
+msgstr "Anda tidak memiliki izin melihat hak tenant, atau tenant ini belum mengaktifkan control plane entitlement."
+
+msgid "admin.tenant_entitlement.effective_heading"
+msgstr "Hak efektif"
+
+msgid "admin.tenant_entitlement.status_label"
+msgstr "Status"
+
+msgid "admin.tenant_entitlement.snapshot_label"
+msgstr "Snapshot"
+
+msgid "admin.tenant_entitlement.features_heading"
+msgstr "Fitur"
+
+msgid "admin.tenant_entitlement.modules_heading"
+msgstr "Modul"
+
+msgid "admin.tenant_entitlement.quotas_heading"
+msgstr "Kuota"
+
+msgid "admin.tenant_entitlement.none"
+msgstr "Tidak ada"
+
+msgid "admin.tenant_entitlement.unlimited"
+msgstr "Tak terbatas"
+
+msgid "admin.tenant_entitlement.col_key"
+msgstr "Kunci"
+
+msgid "admin.tenant_entitlement.col_allowed"
+msgstr "Diizinkan"
+
+msgid "admin.tenant_entitlement.col_source"
+msgstr "Sumber"
+
+msgid "admin.tenant_entitlement.col_limit"
+msgstr "Batas"
+
+msgid "admin.tenant_entitlement.col_plan"
+msgstr "Plan"
+
+msgid "admin.tenant_entitlement.col_status"
+msgstr "Status"
+
+msgid "admin.tenant_entitlement.col_current"
+msgstr "Aktif"
+
+msgid "admin.tenant_entitlement.col_actions"
+msgstr "Aksi"
+
+msgid "admin.tenant_entitlement.col_target"
+msgstr "Target"
+
+msgid "admin.tenant_entitlement.col_effect"
+msgstr "Efek"
+
+msgid "admin.tenant_entitlement.col_effective_to"
+msgstr "Berlaku sampai"
+
+msgid "admin.tenant_entitlement.assignments_heading"
+msgstr "Penugasan"
+
+msgid "admin.tenant_entitlement.overrides_heading"
+msgstr "Override"
+
+msgid "admin.tenant_entitlement.field_plan_key"
+msgstr "Kunci plan"
+
+msgid "admin.tenant_entitlement.field_offer_version"
+msgstr "Versi offer"
+
+msgid "admin.tenant_entitlement.field_effective_to"
+msgstr "Berlaku sampai (opsional)"
+
+msgid "admin.tenant_entitlement.field_target_kind"
+msgstr "Jenis target"
+
+msgid "admin.tenant_entitlement.field_target_key"
+msgstr "Kunci target"
+
+msgid "admin.tenant_entitlement.field_effect"
+msgstr "Efek"
+
+msgid "admin.tenant_entitlement.field_reason"
+msgstr "Alasan"
+
+msgid "admin.tenant_entitlement.assign_button"
+msgstr "Tugaskan"
+
+msgid "admin.tenant_entitlement.suspend_button"
+msgstr "Suspend"
+
+msgid "admin.tenant_entitlement.resume_button"
+msgstr "Aktifkan"
+
+msgid "admin.tenant_entitlement.cancel_button"
+msgstr "Batalkan"
+
+msgid "admin.tenant_entitlement.override_button"
+msgstr "Tambah override"
+
+msgid "admin.tenant_entitlement.revoke_button"
+msgstr "Cabut"
+
+msgid "admin.tenant_entitlement.active"
+msgstr "Aktif"
+
+msgid "admin.tenant_entitlement.revoked"
+msgstr "Dicabut"
+
+msgid "admin.tenant_entitlement.assign_success"
+msgstr "Penugasan disimpan."
+
+msgid "admin.tenant_entitlement.transition_success"
+msgstr "Penugasan diperbarui."
+
+msgid "admin.tenant_entitlement.override_success"
+msgstr "Override dibuat."
+
+msgid "admin.tenant_entitlement.revoke_success"
+msgstr "Override dicabut."
+
+msgid "admin.tenant_entitlement.reason_prompt"
+msgstr "Masukkan alasan (wajib untuk audit):"

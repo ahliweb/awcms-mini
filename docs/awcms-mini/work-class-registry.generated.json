@@ -1331,6 +1331,31 @@
       "source": "explicit"
     },
     {
+      "path": "src/pages/api/v1/tenant-entitlement/assignments/[assignmentId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant-entitlement/assignments/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant-entitlement/effective.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant-entitlement/overrides/[overrideId]/revoke.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant-entitlement/overrides/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/tenant/domains/[id].ts",
       "workClass": "interactive",
       "source": "default"

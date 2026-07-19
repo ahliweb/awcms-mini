@@ -208,17 +208,24 @@ suite(
       const rows = await withTenant(sql, owner.tenantId, (tx) =>
         fetchModuleMatrix(tx, owner.tenantId, { includeHealth: false })
       );
-      // Issue #870 (ADR-0022 §7): `service_catalog` is `defaultTenantState:
-      // "disabled"`, so with no explicit tenant_modules row it resolves
+      // Issue #870/#871 (ADR-0022 §7): the SaaS control-plane modules
+      // (`service_catalog`, `tenant_entitlement`) are `defaultTenantState:
+      // "disabled"`, so with no explicit tenant_modules row they resolve
       // DISABLED here — every OTHER module is enabled by default.
+      const defaultDisabled = new Set([
+        "service_catalog",
+        "tenant_entitlement"
+      ]);
       expect(
         rows
-          .filter((row) => row.moduleKey !== "service_catalog")
+          .filter((row) => !defaultDisabled.has(row.moduleKey))
           .every((row) => row.tenantEnabled)
       ).toBe(true);
-      expect(
-        rows.find((row) => row.moduleKey === "service_catalog")?.tenantEnabled
-      ).toBe(false);
+      for (const key of defaultDisabled) {
+        expect(rows.find((row) => row.moduleKey === key)?.tenantEnabled).toBe(
+          false
+        );
+      }
       expect(rows.every((row) => row.dependencyWarning === null)).toBe(true);
 
       const byKey = new Map(rows.map((row) => [row.moduleKey, row]));

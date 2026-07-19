@@ -60,8 +60,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, and service_catalog are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870", () => {
-    expect(listModules()).toHaveLength(24);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, service_catalog, and tenant_entitlement are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870, #871", () => {
+    expect(listModules()).toHaveLength(25);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -258,6 +258,23 @@ describe("module registry", () => {
       dependencies: [
         "tenant_admin",
         "identity_access",
+        "domain_event_runtime",
+        "logging"
+      ]
+    });
+    // Issue #871 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the second
+    // control-plane module and the epic's HEART: tenant-scoped, default-disabled,
+    // provides the fail-closed effective_entitlement contract, consumes
+    // service_catalog_read.
+    expect(getModuleByKey("tenant_entitlement")).toMatchObject({
+      key: "tenant_entitlement",
+      status: "active",
+      type: "domain",
+      defaultTenantState: "disabled",
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
         "domain_event_runtime",
         "logging"
       ]
@@ -685,7 +702,9 @@ describe("database migration runner helpers", () => {
       "077_awcms_mini_performance_missing_indexes.sql",
       "078_awcms_mini_workflow_decisions_one_per_decider_unique.sql",
       "079_awcms_mini_service_catalog_schema.sql",
-      "080_awcms_mini_service_catalog_permissions.sql"
+      "080_awcms_mini_service_catalog_permissions.sql",
+      "081_awcms_mini_tenant_entitlement_schema.sql",
+      "082_awcms_mini_tenant_entitlement_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

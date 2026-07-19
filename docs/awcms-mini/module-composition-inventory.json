@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 24,
+  "baseModuleCount": 25,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 24,
+  "totalModuleCount": 25,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -461,6 +461,35 @@
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
       "permissionCount": 6,
+      "navigationCount": 1,
+      "jobCount": 0,
+      "hasHealthCheck": false,
+      "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "tenant_entitlement",
+      "name": "Tenant Entitlement",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "domain",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
+        "domain_event_runtime",
+        "logging"
+      ],
+      "capabilitiesProvided": ["effective_entitlement"],
+      "capabilitiesConsumed": [
+        {
+          "capability": "service_catalog_read",
+          "providedBy": "service_catalog",
+          "optional": false
+        }
+      ],
+      "permissionCount": 8,
       "navigationCount": 1,
       "jobCount": 0,
       "hasHealthCheck": false,
