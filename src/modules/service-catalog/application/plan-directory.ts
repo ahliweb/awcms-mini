@@ -692,28 +692,21 @@ export async function createDraftVersion(
     return { ok: false, reason: "draft_exists" };
   }
 
+  // A plan always has >= 1 version (created with version 1 by `createPlan`),
+  // so `latest` is always present here (N2: no invented USD default offer).
   const latest = loaded.versions[0]; // ORDER BY version DESC
-  const seedContent: VersionContentInput = latest
-    ? await loadVersionContent(tx, latest.id, latest)
-    : {
-        currency: "USD",
-        market: null,
-        trialEnabled: false,
-        trialDays: null,
-        availableFrom: null,
-        availableTo: null,
-        notes: null,
-        features: [],
-        quotas: [],
-        prices: []
-      };
+  if (!latest) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const seedContent = await loadVersionContent(tx, latest.id, latest);
 
   const errors = validateVersionContent(seedContent, registry);
   if (errors.length > 0) {
     return { ok: false, reason: "validation", errors };
   }
 
-  const nextVersion = (latest ? Number(latest.version) : 0) + 1;
+  const nextVersion = Number(latest.version) + 1;
   const versionRows = (await tx`
     INSERT INTO awcms_mini_service_catalog_plan_versions
       (plan_id, version, status, currency, market, trial_enabled, trial_days,
@@ -785,18 +778,38 @@ async function loadVersionByPlanKey(
   return rows[0] ?? null;
 }
 
+/**
+ * Same lookup, but takes a `FOR UPDATE` row lock on the version row only
+ * (`FOR UPDATE OF v`, Issue #870 review Fix 2 / Codex-C). Used by
+ * publish/retire so concurrent operators (and a concurrent draft PATCH, which
+ * always UPDATEs the version row) serialize on this lock — the caller then
+ * reads children AFTER the lock and transitions status with a status-predicate,
+ * so the projection/offer-hash are built from the final locked state, never a
+ * stale pre-lock read.
+ */
+async function loadVersionByPlanKeyForUpdate(
+  tx: Bun.SQL,
+  planKey: string,
+  version: number
+): Promise<VersionDbRow | null> {
+  const rows = (await tx`
+    SELECT v.id, v.plan_id, v.version, v.status, v.currency, v.market, v.trial_enabled,
+      v.trial_days, v.available_from, v.available_to, v.notes, v.offer_hash, v.published_at,
+      v.retired_at, v.created_at, v.updated_at
+    FROM awcms_mini_service_catalog_plan_versions v
+    JOIN awcms_mini_service_catalog_plans p ON p.id = v.plan_id
+    WHERE p.plan_key = ${planKey} AND v.version = ${version}
+    FOR UPDATE OF v
+  `) as VersionDbRow[];
+  return rows[0] ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Publish (draft -> published; immutable; projects the tenant-readable offer)
 // ---------------------------------------------------------------------------
 
 export type PublishVersionResult =
-  | {
-      ok: true;
-      planKey: string;
-      version: number;
-      offerHash: string;
-      alreadyPublished: boolean;
-    }
+  | { ok: true; planKey: string; version: number; offerHash: string }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "not_draft"; message: string }
   | { ok: false; reason: "validation"; errors: PlanValidationError[] };
@@ -810,28 +823,28 @@ export async function publishVersion(
   registry: ServiceCatalogKeyRegistry,
   correlationId?: string
 ): Promise<PublishVersionResult> {
-  const found = await loadVersionByPlanKey(tx, planKey, version);
+  // Fix 2 / Codex-C: take the version-row lock FIRST, so two concurrent
+  // publishers (different Idempotency-Keys) — and a concurrent draft PATCH
+  // (which always UPDATEs the version row) — serialize here. A concurrent
+  // loser blocks until the winner commits, then re-reads status='published'
+  // and returns a clean 409 (`not_draft`) with NO second projection/event/
+  // audit. Everything below reads the FINAL locked state.
+  const found = await loadVersionByPlanKeyForUpdate(tx, planKey, version);
   if (!found) {
     return { ok: false, reason: "not_found" };
   }
 
-  // Idempotent re-publish: a version already published returns its existing
-  // hash rather than erroring (safe replay for a retried publish call).
-  if (found.status === "published") {
-    return {
-      ok: true,
-      planKey,
-      version,
-      offerHash: found.offer_hash ?? "",
-      alreadyPublished: true
-    };
-  }
-
+  // Any non-draft status (published — incl. the concurrent loser — retired, or
+  // archived) is not publishable: deterministic 409, no idempotent re-publish
+  // (route-level Idempotency-Key covers a true same-key retry; a NEW key on an
+  // already-published version is a conflict, matching immutability).
   const transition = assertPublishable(found.status);
   if (transition) {
     return { ok: false, reason: "not_draft", message: transition.message };
   }
 
+  // Children read AFTER the lock (Codex-C) — the snapshot/offer-hash reflect the
+  // final locked draft state, never a stale pre-lock read racing a PATCH.
   const content = await loadVersionContent(tx, found.id, found);
   const errors = validateVersionContent(content, registry);
   if (errors.length > 0) {
@@ -844,12 +857,24 @@ export async function publishVersion(
 
   const snapshot = buildOfferSnapshot(planKey, version, content);
 
-  await tx`
+  // Status-predicated UPDATE (Fix 2): under the lock this always affects the
+  // one row; the `AND status = 'draft'` predicate is the belt-and-suspenders
+  // guard — 0 rows means the draft was concurrently transitioned, so treat it
+  // as a clean conflict rather than proceeding to a stale INSERT.
+  const updated = (await tx`
     UPDATE awcms_mini_service_catalog_plan_versions
     SET status = 'published', offer_hash = ${snapshot.offerHash}, published_at = now(),
         published_by = ${actorTenantUserId}, updated_by = ${actorTenantUserId}, updated_at = now()
-    WHERE id = ${found.id}
-  `;
+    WHERE id = ${found.id} AND status = 'draft'
+    RETURNING id
+  `) as { id: string }[];
+  if (updated.length === 0) {
+    return {
+      ok: false,
+      reason: "not_draft",
+      message: "This version was concurrently transitioned out of draft."
+    };
+  }
 
   await tx`
     INSERT INTO awcms_mini_service_catalog_published_offers
@@ -894,13 +919,7 @@ export async function publishVersion(
     correlationId
   });
 
-  return {
-    ok: true,
-    planKey,
-    version,
-    offerHash: snapshot.offerHash,
-    alreadyPublished: false
-  };
+  return { ok: true, planKey, version, offerHash: snapshot.offerHash };
 }
 
 // ---------------------------------------------------------------------------
@@ -908,7 +927,7 @@ export async function publishVersion(
 // ---------------------------------------------------------------------------
 
 export type RetireVersionResult =
-  | { ok: true; planKey: string; version: number; alreadyRetired: boolean }
+  | { ok: true; planKey: string; version: number }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "not_published"; message: string };
 
@@ -920,12 +939,12 @@ export async function retireVersion(
   version: number,
   correlationId?: string
 ): Promise<RetireVersionResult> {
-  const found = await loadVersionByPlanKey(tx, planKey, version);
+  // Fix 2: version-row lock first — two concurrent retires serialize here; the
+  // loser blocks, re-reads status='retired', and returns a clean 409 with no
+  // second event/audit (route Idempotency-Key covers a true same-key retry).
+  const found = await loadVersionByPlanKeyForUpdate(tx, planKey, version);
   if (!found) {
     return { ok: false, reason: "not_found" };
-  }
-  if (found.status === "retired") {
-    return { ok: true, planKey, version, alreadyRetired: true };
   }
 
   const transition = assertRetirable(found.status);
@@ -933,12 +952,20 @@ export async function retireVersion(
     return { ok: false, reason: "not_published", message: transition.message };
   }
 
-  await tx`
+  const updated = (await tx`
     UPDATE awcms_mini_service_catalog_plan_versions
     SET status = 'retired', retired_at = now(), retired_by = ${actorTenantUserId},
         updated_by = ${actorTenantUserId}, updated_at = now()
-    WHERE id = ${found.id}
-  `;
+    WHERE id = ${found.id} AND status = 'published'
+    RETURNING id
+  `) as { id: string }[];
+  if (updated.length === 0) {
+    return {
+      ok: false,
+      reason: "not_published",
+      message: "This version was concurrently transitioned out of published."
+    };
+  }
   await tx`
     UPDATE awcms_mini_service_catalog_published_offers
     SET retired_at = now()
@@ -969,5 +996,5 @@ export async function retireVersion(
     correlationId
   });
 
-  return { ok: true, planKey, version, alreadyRetired: false };
+  return { ok: true, planKey, version };
 }

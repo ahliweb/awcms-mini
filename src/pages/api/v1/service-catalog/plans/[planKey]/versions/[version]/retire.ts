@@ -109,8 +109,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     const successResponse = ok({
       offer: {
         planKey: result.planKey,
-        version: result.version,
-        alreadyRetired: result.alreadyRetired
+        version: result.version
       }
     });
     const successBody = await successResponse.clone().json();

@@ -96,12 +96,28 @@ export function buildOfferSnapshot(
     (f) => `${f.featureKind}:${f.featureKey}`
   );
   const quotas = byKey(content.quotas.map(toQuota), (q) => q.meterKey);
-  // Hash over ALL prices (public + internal) for full reproducibility.
-  const allPrices = byKey(content.prices.map(toPrice), (p) => p.componentKey);
   const publicPrices = byKey(
     content.prices
       .filter((price) => price.visibility === "public")
       .map(toPrice),
+    (p) => p.componentKey
+  );
+
+  // Hash over ALL prices (public + internal) INCLUDING visibility (Issue #870
+  // review Codex-B): two versions identical except a price's visibility
+  // (internal <-> public) produce DIFFERENT tenant-visible offers, so they must
+  // NOT share an offer hash — `toPrice` deliberately drops `visibility` (it is
+  // the tenant projection shape), so the hash uses a distinct representation
+  // that keeps it.
+  const pricesForHash = byKey(
+    content.prices.map((price) => ({
+      componentKey: price.componentKey,
+      amountMinor: price.amountMinor,
+      currency: price.currency,
+      interval: price.interval,
+      visibility: price.visibility,
+      metadata: price.metadata
+    })),
     (p) => p.componentKey
   );
 
@@ -117,7 +133,7 @@ export function buildOfferSnapshot(
       availableTo: content.availableTo,
       features,
       quotas,
-      prices: allPrices
+      prices: pricesForHash
     })
   );
 

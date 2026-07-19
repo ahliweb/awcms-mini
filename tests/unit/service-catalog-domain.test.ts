@@ -29,6 +29,10 @@ import {
   canRetire
 } from "../../src/modules/service-catalog/domain/lifecycle";
 import { buildOfferSnapshot } from "../../src/modules/service-catalog/domain/offer-snapshot";
+import {
+  parseFeatureGrant,
+  parsePrice
+} from "../../src/modules/service-catalog/application/request-parsing";
 
 function descriptor(
   key: string,
@@ -184,6 +188,65 @@ describe("version content validation", () => {
       registry
     );
     expect(errors.some((e) => e.field === "prices[0].amountMinor")).toBe(true);
+  });
+
+  test("Fix 4: an amount above Number.MAX_SAFE_INTEGER is rejected (validation backs the DB CHECK)", () => {
+    const errors = validateVersionContent(
+      content({
+        prices: [
+          {
+            componentKey: "base",
+            amountMinor: 9007199254740992,
+            currency: "IDR",
+            interval: "monthly",
+            visibility: "public",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(errors.some((e) => e.field === "prices[0].amountMinor")).toBe(true);
+  });
+
+  test("Fix 4: a quota limitValue above Number.MAX_SAFE_INTEGER is rejected", () => {
+    const errors = validateVersionContent(
+      content({
+        quotas: [
+          {
+            meterKey: "platform.api_calls",
+            isUnlimited: false,
+            limitValue: 9007199254740992,
+            unit: "requests",
+            resetPolicy: "monthly",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(errors.some((e) => e.field === "quotas[0].limitValue")).toBe(true);
+  });
+
+  test("Codex-A: a price visibility outside the enum is rejected (fail-closed)", () => {
+    const errors = validateVersionContent(
+      content({
+        prices: [
+          {
+            componentKey: "base",
+            amountMinor: 100,
+            currency: "IDR",
+            interval: "monthly",
+            // Cast: simulates a request whose "internl" typo the parser passes
+            // through verbatim (never coerced to "public").
+            visibility: "internl" as "public",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(errors.some((e) => e.field === "prices[0].visibility")).toBe(true);
   });
 
   test("a price currency that differs from the version currency is rejected", () => {
@@ -351,5 +414,72 @@ describe("offer snapshot + hash", () => {
       })
     );
     expect(a.offerHash).not.toBe(changed.offerHash);
+  });
+
+  test("Codex-B: hash CHANGES when only a price's visibility flips (same amount/currency/interval)", () => {
+    const priceInternal = content({
+      prices: [
+        {
+          componentKey: "base",
+          amountMinor: 9900,
+          currency: "IDR",
+          interval: "monthly",
+          visibility: "internal",
+          metadata: {}
+        }
+      ],
+      features: []
+    });
+    const pricePublic = content({
+      prices: [
+        {
+          componentKey: "base",
+          amountMinor: 9900,
+          currency: "IDR",
+          interval: "monthly",
+          visibility: "public",
+          metadata: {}
+        }
+      ],
+      features: []
+    });
+    const a = buildOfferSnapshot("plan_a", 1, priceInternal);
+    const b = buildOfferSnapshot("plan_a", 1, pricePublic);
+    // The tenant-visible offer differs (public projection now includes the price),
+    // so the immutable fingerprint exposed in the publish event MUST differ.
+    expect(a.publicPrices).toHaveLength(0);
+    expect(b.publicPrices).toHaveLength(1);
+    expect(a.offerHash).not.toBe(b.offerHash);
+  });
+});
+
+describe("request parsing — fail-closed enums (Issue #870 review Codex-A)", () => {
+  test("parsePrice passes a present-but-invalid visibility through verbatim (not coerced to public)", () => {
+    const parsed = parsePrice({
+      componentKey: "base",
+      amountMinor: 100,
+      currency: "IDR",
+      visibility: "internl"
+    });
+    // Verbatim — so the domain validator rejects it, instead of silently
+    // treating an intended-internal price as public.
+    expect(parsed.visibility as string).toBe("internl");
+  });
+
+  test("parsePrice defaults visibility to public ONLY when the field is absent", () => {
+    const parsed = parsePrice({
+      componentKey: "base",
+      amountMinor: 100,
+      currency: "IDR"
+    });
+    expect(parsed.visibility).toBe("public");
+  });
+
+  test("parseFeatureGrant passes a present-but-invalid featureKind through verbatim", () => {
+    const parsed = parseFeatureGrant({
+      featureKind: "moddule",
+      featureKey: "blog_content"
+    });
+    expect(parsed.featureKind as string).toBe("moddule");
   });
 });

@@ -759,7 +759,6 @@ components:
         - planKey
         - version
         - offerHash
-        - alreadyPublished
       properties:
         planKey:
           type: string
@@ -767,22 +766,17 @@ components:
           type: integer
         offerHash:
           type: string
-        alreadyPublished:
-          type: boolean
     ServiceCatalogRetireResult:
       type: object
       additionalProperties: false
       required:
         - planKey
         - version
-        - alreadyRetired
       properties:
         planKey:
           type: string
         version:
           type: integer
-        alreadyRetired:
-          type: boolean
     ServiceCatalogFeatureInput:
       type: object
       additionalProperties: false

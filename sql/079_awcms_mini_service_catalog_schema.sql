@@ -204,7 +204,14 @@ CREATE TABLE IF NOT EXISTS awcms_mini_service_catalog_version_quotas (
   CONSTRAINT awcms_mini_service_catalog_version_quotas_limit_check
     CHECK (
       (is_unlimited AND limit_value IS NULL)
-      OR (NOT is_unlimited AND limit_value IS NOT NULL AND limit_value >= 0)
+      OR (
+        NOT is_unlimited AND limit_value IS NOT NULL
+        -- Upper bound = JS Number.MAX_SAFE_INTEGER (2^53-1): the app reads
+        -- limit_value via Number(...), so an out-of-band bigint would lose
+        -- precision silently (Issue #870 review Fix 4). Constraint backs the
+        -- write-side validation in domain/plan.ts.
+        AND limit_value BETWEEN 0 AND 9007199254740991
+      )
     ),
   CONSTRAINT awcms_mini_service_catalog_version_quotas_metadata_size_check
     CHECK (length(metadata::text) <= 4000)
@@ -234,7 +241,10 @@ CREATE TABLE IF NOT EXISTS awcms_mini_service_catalog_version_prices (
   CONSTRAINT awcms_mini_service_catalog_version_prices_component_format_check
     CHECK (component_key ~ '^[a-z][a-z0-9_]*$' AND length(component_key) <= 60),
   CONSTRAINT awcms_mini_service_catalog_version_prices_amount_check
-    CHECK (amount_minor >= 0),
+    -- Upper bound = JS Number.MAX_SAFE_INTEGER (2^53-1): amount_minor is read
+    -- via Number(...) in the app, so an out-of-band bigint would lose precision
+    -- silently (Issue #870 review Fix 4). Backs domain/plan.ts validation.
+    CHECK (amount_minor BETWEEN 0 AND 9007199254740991),
   CONSTRAINT awcms_mini_service_catalog_version_prices_currency_check
     CHECK (currency ~ '^[A-Z]{3}$'),
   CONSTRAINT awcms_mini_service_catalog_version_prices_interval_check
@@ -301,14 +311,34 @@ CREATE INDEX IF NOT EXISTS awcms_mini_service_catalog_published_offers_active_id
 -- Immutability triggers (defence in depth beneath the application guard)
 -- =====================================================================
 
--- Reject any edit to a non-draft version's COMMERCIAL CONTENT. The publish
--- transition (draft -> published) and the retire/archive transitions (which
--- only move status + their own timestamps) are allowed; changing currency/
--- market/trial/availability/version/plan/offer_hash/notes after leaving draft
--- is not (ADR-0022 §3 — corrections require a NEW version).
+-- Two guards in one BEFORE-UPDATE trigger:
+--
+-- (a) STATUS TRANSITIONS must be forward-legal (Issue #870 review Fix 1,
+--     ADR-0022 §3/§11). A version NEVER moves backward — especially back to
+--     'draft', which would otherwise re-open a published version's content AND
+--     its feature/quota/price rows to edits (the child trigger below keys off
+--     status = 'draft'). Allowed: draft->draft (draft edit), draft->published
+--     (publish), published->retired (retire), retired->archived (archive), and
+--     same-status no-ops. Everything else (any backward move, draft->retired,
+--     etc.) is rejected — closing the "SET status='draft' then edit children"
+--     bypass a content-only guard would leave open.
+-- (b) Once a version has left 'draft', its COMMERCIAL CONTENT is frozen
+--     (currency/market/trial/availability/version/plan/offer_hash/notes) —
+--     corrections require a NEW version. The retire/archive transitions only
+--     move status + their own timestamps, so they pass this check.
 CREATE OR REPLACE FUNCTION awcms_mini_service_catalog_guard_version_immutability()
 RETURNS trigger AS $$
 BEGIN
+  IF NOT (
+       (OLD.status = 'draft'     AND NEW.status IN ('draft', 'published'))
+    OR (OLD.status = 'published' AND NEW.status IN ('published', 'retired'))
+    OR (OLD.status = 'retired'   AND NEW.status IN ('retired', 'archived'))
+    OR (OLD.status = 'archived'  AND NEW.status = 'archived')
+  ) THEN
+    RAISE EXCEPTION 'service_catalog: illegal offer-version status transition % -> % (versions never move backward; corrections require a new version)', OLD.status, NEW.status
+      USING ERRCODE = 'check_violation';
+  END IF;
+
   IF OLD.status <> 'draft' THEN
     IF NEW.currency <> OLD.currency
        OR NEW.market IS DISTINCT FROM OLD.market

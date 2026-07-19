@@ -121,8 +121,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       offer: {
         planKey: result.planKey,
         version: result.version,
-        offerHash: result.offerHash,
-        alreadyPublished: result.alreadyPublished
+        offerHash: result.offerHash
       }
     });
     const successBody = await successResponse.clone().json();

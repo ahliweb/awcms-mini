@@ -29742,7 +29742,6 @@ components:
         - planKey
         - version
         - offerHash
-        - alreadyPublished
       properties:
         planKey:
           type: string
@@ -29750,8 +29749,6 @@ components:
           type: integer
         offerHash:
           type: string
-        alreadyPublished:
-          type: boolean
     ServiceCatalogQuota:
       type: object
       additionalProperties: false
@@ -29820,14 +29817,11 @@ components:
       required:
         - planKey
         - version
-        - alreadyRetired
       properties:
         planKey:
           type: string
         version:
           type: integer
-        alreadyRetired:
-          type: boolean
     ServiceCatalogUpdatePlanRequest:
       type: object
       additionalProperties: false

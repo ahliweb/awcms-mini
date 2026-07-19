@@ -37,7 +37,14 @@ import {
   updatePlanDraft
 } from "../../src/modules/service-catalog/application/plan-directory";
 import { listPublishedOffers } from "../../src/modules/service-catalog/application/service-catalog-read-query";
+import { buildOfferSnapshot } from "../../src/modules/service-catalog/domain/offer-snapshot";
 import type { VersionContentInput } from "../../src/modules/service-catalog/domain/plan";
+import { ok } from "../../src/modules/_shared/api-response";
+import {
+  getResponseSchema,
+  loadOpenApiDocument,
+  validateAgainstSchema
+} from "../../scripts/lib/openapi-response-validator";
 
 const registry = resolveServiceCatalogKeyRegistry(listModules());
 const actor = "00000000-0000-0000-0000-0000000000aa";
@@ -148,7 +155,6 @@ suite(
         expect(published.ok).toBe(true);
         if (published.ok) {
           expect(published.offerHash).toHaveLength(64);
-          expect(published.alreadyPublished).toBe(false);
         }
 
         const offers = await listPublishedOffers(tx, { planKey: "starter" });
@@ -386,41 +392,297 @@ suite(
       });
     });
 
-    test("publish is idempotent (re-publish returns alreadyPublished)", async () => {
-      const tenantId = await seedTenant();
+    async function seedPlan(tenantId: string, planKey: string): Promise<void> {
       const sql = getTestSql();
-      await withTenant(sql, tenantId, async (tx) => {
-        await createPlan(
+      await withTenant(sql, tenantId, (tx) =>
+        createPlan(
           tx,
           tenantId,
           actor,
           {
-            planKey: "idem",
-            name: "Idem",
+            planKey,
+            name: planKey,
             description: null,
             planType: "subscription",
             content: content()
           },
           registry
-        );
-        const first = await publishVersion(
-          tx,
-          tenantId,
-          actor,
-          "idem",
-          1,
-          registry
-        );
-        const second = await publishVersion(
-          tx,
-          tenantId,
-          actor,
-          "idem",
-          1,
-          registry
-        );
-        expect(first.ok && !first.alreadyPublished).toBe(true);
-        expect(second.ok && second.alreadyPublished).toBe(true);
+        )
+      );
+    }
+
+    test("re-publishing a published version is rejected (not_draft) — no idempotent re-publish at the service layer", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "reidem");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "reidem", 1, registry)
+      );
+      const second = await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "reidem", 1, registry)
+      );
+      expect(second.ok).toBe(false);
+      if (!second.ok) expect(second.reason).toBe("not_draft");
+    });
+
+    test("Fix 2: concurrent publish -> exactly one succeeds, the loser gets a clean not_draft, one offer + one event + one audit", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "race");
+
+      const [r1, r2] = await Promise.all([
+        withTenant(sql, tenantId, (tx) =>
+          publishVersion(tx, tenantId, actor, "race", 1, registry)
+        ),
+        withTenant(sql, tenantId, (tx) =>
+          publishVersion(tx, tenantId, actor, "race", 1, registry)
+        )
+      ]);
+
+      const oks = [r1, r2].filter((r) => r.ok);
+      const losers = [r1, r2].filter((r) => !r.ok);
+      expect(oks).toHaveLength(1);
+      expect(losers).toHaveLength(1);
+      expect(losers[0]!.ok === false && losers[0]!.reason).toBe("not_draft");
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const offers = await listPublishedOffers(tx, { planKey: "race" });
+        expect(offers).toHaveLength(1);
+
+        const events = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_domain_events
+          WHERE tenant_id = ${tenantId}
+            AND event_type = 'awcms-mini.service-catalog.offer.published'
+        `) as { c: number }[];
+        expect(events[0]!.c).toBe(1);
+
+        const audits = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_audit_events
+          WHERE tenant_id = ${tenantId} AND module_key = 'service_catalog'
+            AND action = 'publish' AND resource_type = 'service_catalog_offer'
+        `) as { c: number }[];
+        expect(audits[0]!.c).toBe(1);
+      });
+    });
+
+    test("Fix 2: concurrent retire -> one succeeds, one clean not_published, exactly one retired event + one audit", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "retrace");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "retrace", 1, registry)
+      );
+
+      const [r1, r2] = await Promise.all([
+        withTenant(sql, tenantId, (tx) =>
+          retireVersion(tx, tenantId, actor, "retrace", 1)
+        ),
+        withTenant(sql, tenantId, (tx) =>
+          retireVersion(tx, tenantId, actor, "retrace", 1)
+        )
+      ]);
+      expect([r1, r2].filter((r) => r.ok)).toHaveLength(1);
+      const losers = [r1, r2].filter((r) => !r.ok);
+      expect(losers).toHaveLength(1);
+      expect(losers[0]!.ok === false && losers[0]!.reason).toBe(
+        "not_published"
+      );
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const events = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_domain_events
+          WHERE tenant_id = ${tenantId}
+            AND event_type = 'awcms-mini.service-catalog.offer.retired'
+        `) as { c: number }[];
+        expect(events[0]!.c).toBe(1);
+        const audits = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_audit_events
+          WHERE tenant_id = ${tenantId} AND module_key = 'service_catalog'
+            AND action = 'retire'
+        `) as { c: number }[];
+        expect(audits[0]!.c).toBe(1);
+      });
+    });
+
+    test("Fix 3: publish + retire write a discriminative audit row AND append the matching domain event", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "trail");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "trail", 1, registry)
+      );
+      await withTenant(sql, tenantId, (tx) =>
+        retireVersion(tx, tenantId, actor, "trail", 1)
+      );
+
+      await withTenant(sql, tenantId, async (tx) => {
+        // Discriminative: filter by action + resource_type + event_type (never a 0-vs-0 count).
+        const publishAudit = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_audit_events
+          WHERE tenant_id = ${tenantId} AND action = 'publish'
+            AND resource_type = 'service_catalog_offer'
+        `) as { c: number }[];
+        const retireAudit = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_audit_events
+          WHERE tenant_id = ${tenantId} AND action = 'retire'
+            AND resource_type = 'service_catalog_offer'
+        `) as { c: number }[];
+        expect(publishAudit[0]!.c).toBe(1);
+        expect(retireAudit[0]!.c).toBe(1);
+
+        const events = (await tx`
+          SELECT event_type FROM awcms_mini_domain_events
+          WHERE tenant_id = ${tenantId}
+            AND event_type LIKE 'awcms-mini.service-catalog.offer.%'
+          ORDER BY event_type
+        `) as { event_type: string }[];
+        expect(events.map((e) => e.event_type)).toEqual([
+          "awcms-mini.service-catalog.offer.published",
+          "awcms-mini.service-catalog.offer.retired"
+        ]);
+      });
+    });
+
+    test("Fix 1: the DB trigger rejects a raw status regression (published -> draft), closing the child-edit bypass", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "statusguard");
+      let versionId = "";
+      await withTenant(sql, tenantId, async (tx) => {
+        await publishVersion(tx, tenantId, actor, "statusguard", 1, registry);
+        const rows = (await tx`
+          SELECT v.id FROM awcms_mini_service_catalog_plan_versions v
+          JOIN awcms_mini_service_catalog_plans p ON p.id = v.plan_id
+          WHERE p.plan_key = 'statusguard'
+        `) as { id: string }[];
+        versionId = rows[0]!.id;
+      });
+
+      let regressionBlocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          await tx`UPDATE awcms_mini_service_catalog_plan_versions SET status = 'draft' WHERE id = ${versionId}`;
+        });
+      } catch {
+        regressionBlocked = true;
+      }
+      expect(regressionBlocked).toBe(true);
+
+      // And the children are still frozen (status stayed 'published').
+      let childStillFrozen = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          await tx`INSERT INTO awcms_mini_service_catalog_version_features (version_id, feature_kind, feature_key, enabled, metadata) VALUES (${versionId}, 'feature', 'platform.api_access', true, '{}'::jsonb)`;
+        });
+      } catch {
+        childStillFrozen = true;
+      }
+      expect(childStillFrozen).toBe(true);
+    });
+
+    test("Codex-C: concurrent draft PATCH + publish -> published projection is consistent with the version's final stored content (no stale offerHash)", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "cpatch");
+
+      await Promise.all([
+        withTenant(sql, tenantId, (tx) =>
+          updatePlanDraft(
+            tx,
+            tenantId,
+            actor,
+            "cpatch",
+            {
+              content: {
+                prices: [
+                  {
+                    componentKey: "base",
+                    amountMinor: 12345,
+                    currency: "IDR",
+                    interval: "monthly",
+                    visibility: "public",
+                    metadata: {}
+                  }
+                ]
+              }
+            },
+            registry
+          )
+        ),
+        withTenant(sql, tenantId, (tx) =>
+          publishVersion(tx, tenantId, actor, "cpatch", 1, registry)
+        )
+      ]).catch(() => undefined); // either ordering is acceptable; assert the invariant below
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const detail = await fetchPlanDetail(tx, "cpatch");
+        const v1 = detail!.versions.find((v) => v.version === 1)!;
+        if (v1.status === "published") {
+          const offers = await listPublishedOffers(tx, { planKey: "cpatch" });
+          expect(offers).toHaveLength(1);
+          // The offer hash the projection carries must equal a hash re-derived
+          // from the version's ACTUAL stored content — proving publish snapshotted
+          // the FINAL locked state, not a stale pre-lock read.
+          const derived = buildOfferSnapshot("cpatch", 1, {
+            currency: v1.currency,
+            market: v1.market,
+            trialEnabled: v1.trialEnabled,
+            trialDays: v1.trialDays,
+            availableFrom: v1.availableFrom,
+            availableTo: v1.availableTo,
+            notes: v1.notes,
+            features: v1.features,
+            quotas: v1.quotas,
+            prices: v1.prices
+          });
+          expect(offers[0]!.offerHash).toBe(derived.offerHash);
+          expect(v1.offerHash).toBe(derived.offerHash);
+        }
+      });
+    });
+
+    test("Fix 4: the DB CHECK rejects an amount above Number.MAX_SAFE_INTEGER", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "bignum");
+      let rejected = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          const rows = (await tx`
+            SELECT v.id FROM awcms_mini_service_catalog_plan_versions v
+            JOIN awcms_mini_service_catalog_plans p ON p.id = v.plan_id
+            WHERE p.plan_key = 'bignum'
+          `) as { id: string }[];
+          await tx`INSERT INTO awcms_mini_service_catalog_version_prices (version_id, component_key, amount_minor, currency, interval, visibility, metadata) VALUES (${rows[0]!.id}, 'huge', 9007199254740992, 'IDR', 'monthly', 'public', '{}'::jsonb)`;
+        });
+      } catch {
+        rejected = true;
+      }
+      expect(rejected).toBe(true);
+    });
+
+    test("N1: fetchPlanDetail output validates against the published OpenAPI schema (real mapper vs schema)", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "contract");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "contract", 1, registry)
+      );
+
+      const doc = loadOpenApiDocument(
+        "openapi/awcms-mini-public-api.openapi.yaml"
+      );
+      const schema = getResponseSchema(doc, {
+        path: "/api/v1/service-catalog/plans/{planKey}",
+        method: "GET",
+        status: "200"
+      });
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const plan = await fetchPlanDetail(tx, "contract");
+        const body = await ok({ plan }).json();
+        const problems = validateAgainstSchema(body, schema, doc);
+        expect(problems).toEqual([]);
       });
     });
 

@@ -49,7 +49,13 @@ function asMetadata(value: unknown): Record<string, unknown> {
 export function parseFeatureGrant(raw: unknown): FeatureGrantInput {
   const record = asRecord(raw);
   return {
-    featureKind: record.featureKind === "module" ? "module" : "feature",
+    // FAIL-CLOSED (Issue #870 review Codex-A): a PRESENT-but-invalid
+    // `featureKind` is passed through verbatim so `validateFeatureGrants`
+    // rejects it (400), never silently coerced to "feature". Only a truly
+    // absent field defaults.
+    featureKind: ("featureKind" in record
+      ? asString(record.featureKind)
+      : "feature") as FeatureGrantInput["featureKind"],
     featureKey: asString(record.featureKey),
     enabled: asBool(record.enabled, true),
     metadata: asMetadata(record.metadata)
@@ -76,8 +82,14 @@ export function parsePrice(raw: unknown): PriceInput {
       typeof record.amountMinor === "number" ? record.amountMinor : NaN,
     currency: asString(record.currency),
     interval: asString(record.interval || "one_time") as PriceInterval,
-    visibility: (record.visibility === "internal"
-      ? "internal"
+    // FAIL-CLOSED (Issue #870 review Codex-A): a PRESENT-but-invalid
+    // `visibility` (e.g. "internl") is passed through verbatim so
+    // `validatePrices` rejects it (400) — NEVER coerced to "public", which
+    // would silently leak an intended-internal price into the tenant-visible
+    // published projection (ADR-0022 §3 Medium-1). Only a truly absent field
+    // defaults to "public".
+    visibility: ("visibility" in record
+      ? asString(record.visibility)
       : "public") as PriceVisibility,
     metadata: asMetadata(record.metadata)
   };
