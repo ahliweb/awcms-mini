@@ -303,8 +303,23 @@ boundary yang sudah ada — pakai sebagai template saat mengerjakan issue
 - **Arah dependency**: control-plane boleh depend Core/System; **base/core/
   modul bisnis TIDAK PERNAH depend ke logika SaaS**. Satu-satunya jalur
   tenant-plane → control-plane adalah kontrak capability
-  `effective_entitlement` **read-only** — bukan FK/import/table-write. Cek
-  ini dengan `modules:dag:check` + `tests/unit/module-boundary.test.ts`.
+  `effective_entitlement` **read-only** — bukan FK/import/table-write.
+- **JUJUR soal gate: policy boundary ini BELUM ter-gate untuk 7 modul SaaS.**
+  `modules:dag:check` hanya memvalidasi graf dependency **deklaratif**
+  (`dependencies`/`capabilities` di `module.ts`), **bukan** policy
+  "tenant-plane hanya boleh konsumsi read-only entitlement port / no
+  shared-table-write". `tests/unit/module-boundary.test.ts` yang ada saat ini
+  **hard-coded ke pasangan `blog_content` ↔ `news_portal`** dan **tidak
+  memeriksa** ketujuh modul control-plane sama sekali. Artinya: mengandalkan
+  kedua check itu untuk meloloskan review #870–#881 adalah jebakan
+  [[validator-exists-but-unwired-critical-pattern]] / [[cycle-detector-fed-incomplete-graph]]
+  — import/FK/table-write langsung ke internal SaaS bisa lolos diam-diam.
+  **Wave-1 (issue modul control-plane pertama, #870/#871) WAJIB menambah/
+  memperluas `module-boundary.test.ts` (atau gate setara)** untuk menegakkan
+  read-only-entitlement-port + no-shared-table-write bagi 7 modul —
+  sesuai Consequences ADR-0022. Sampai gate itu mendarat, penegakan boundary
+  tujuh modul ini bersandar review manual + checklist, bukan mesin — jangan
+  klaim sudah tergate.
 - **Trust**: platform/operator role **bukan `BYPASSRLS`** (akses
   lintas-tenant tetap lewat RLS + permission eksplisit); support access
   cross-tenant **reason/time-bound/audited**; secret provider **hanya di

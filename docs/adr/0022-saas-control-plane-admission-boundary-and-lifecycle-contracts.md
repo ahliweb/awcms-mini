@@ -106,15 +106,15 @@ merinci penolakannya):
 
 ### 2. Admission per modul (mengisi `module-proposal-template.md` inline, ringkas)
 
-| Modul (`key`)          | Masalah/kebutuhan generik lintas turunan                                                 | `type` | Lifecycle dependency (aktif duluan)                                                                                                     | Capability yang di-_provide_/-_consume_ (ADR-0011)                                                                    | Kelas kompat.          | Provider eksternal      |
-| ---------------------- | ---------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------------- |
-| `service_catalog`      | Katalog plan/offer/fitur/kuota/harga berversi yang operator jual ke tenant               | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`                                                                               | PROVIDES `service_catalog_read` (plan/fitur/kuota efektif-tanggal)                                                    | offline-lan-safe       | Tidak ada               |
-| `tenant_entitlement`   | Entitlement efektif (modul/fitur/kuota) tenant + override + penjelasan                   | domain | `tenant_admin`, `identity_access`, `module_management`, `domain_event_runtime`; consumes `service_catalog_read`                         | PROVIDES `effective_entitlement` (dipakai modul bisnis untuk gating; **satu-satunya** kontrak yang tenant-plane baca) | offline-lan-safe       | Tidak ada               |
-| `tenant_provisioning`  | Provisioning tenant idempoten/resumable + kompensasi + reconciliation + readiness        | domain | `tenant_admin`, `identity_access`, `module_management`, `domain_event_runtime`; consumes `effective_entitlement`                        | PROVIDES `provisioning_status`                                                                                        | offline-lan-safe       | Tidak ada               |
-| `tenant_lifecycle`     | Semantik trial/active/grace/suspended/canceled/restore/downgrade fail-safe               | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`; consumes `effective_entitlement`, `provisioning_status`                      | PROVIDES `tenant_lifecycle_state` (dikonsumsi API/SSR/routing/worker untuk perilaku akses deterministik)              | offline-lan-safe       | Tidak ada               |
-| `usage_metering`       | Event pemakaian + agregasi + kuota + koreksi + reconciliation                            | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`, `data_lifecycle`; consumes `effective_entitlement`                           | PROVIDES `usage_aggregate` (dikonsumsi `subscription_billing`)                                                        | offline-lan-safe       | Tidak ada               |
-| `subscription_billing` | Subscription/invoice/credit/renewal/upgrade-downgrade/dunning **state** (bukan GL/AR-AP) | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`; consumes `service_catalog_read`, `usage_aggregate`, `tenant_lifecycle_state` | PROVIDES `billing_document_state` (dikonsumsi `payment_gateway`)                                                      | offline-lan-safe¹      | Tidak ada di modul ini² |
-| `payment_gateway`      | Checkout/webhook inbox bertandatangan/retry-DLQ/refund/reconciliation provider-netral    | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`, `integration_hub`; consumes `billing_document_state`                         | PROVIDES `payment_outcome` (dikonsumsi `subscription_billing` untuk transisi invoice)                                 | **full-online-opt-in** | Ya (adapter opt-in)     |
+| Modul (`key`)          | Masalah/kebutuhan generik lintas turunan                                                 | `type` | Lifecycle dependency (aktif duluan)                                                                                                     | Capability yang di-_provide_/-_consume_ (ADR-0011)                                                                    | Kelas kompat.     | Provider eksternal                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------ |
+| `service_catalog`      | Katalog plan/offer/fitur/kuota/harga berversi yang operator jual ke tenant               | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`                                                                               | PROVIDES `service_catalog_read` (plan/fitur/kuota efektif-tanggal)                                                    | offline-lan-safe  | Tidak ada                                                    |
+| `tenant_entitlement`   | Entitlement efektif (modul/fitur/kuota) tenant + override + penjelasan                   | domain | `tenant_admin`, `identity_access`, `module_management`, `domain_event_runtime`; consumes `service_catalog_read`                         | PROVIDES `effective_entitlement` (dipakai modul bisnis untuk gating; **satu-satunya** kontrak yang tenant-plane baca) | offline-lan-safe  | Tidak ada                                                    |
+| `tenant_provisioning`  | Provisioning tenant idempoten/resumable + kompensasi + reconciliation + readiness        | domain | `tenant_admin`, `identity_access`, `module_management`, `domain_event_runtime`; consumes `effective_entitlement`                        | PROVIDES `provisioning_status`                                                                                        | offline-lan-safe  | Tidak ada                                                    |
+| `tenant_lifecycle`     | Semantik trial/active/grace/suspended/canceled/restore/downgrade fail-safe               | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`; consumes `effective_entitlement`, `provisioning_status`                      | PROVIDES `tenant_lifecycle_state` (dikonsumsi API/SSR/routing/worker untuk perilaku akses deterministik)              | offline-lan-safe  | Tidak ada                                                    |
+| `usage_metering`       | Event pemakaian + agregasi + kuota + koreksi + reconciliation                            | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`, `data_lifecycle`; consumes `effective_entitlement`                           | PROVIDES `usage_aggregate` (dikonsumsi `subscription_billing`)                                                        | offline-lan-safe  | Tidak ada                                                    |
+| `subscription_billing` | Subscription/invoice/credit/renewal/upgrade-downgrade/dunning **state** (bukan GL/AR-AP) | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`; consumes `service_catalog_read`, `usage_aggregate`, `tenant_lifecycle_state` | PROVIDES `billing_document_state` (dikonsumsi `payment_gateway`)                                                      | offline-lan-safe¹ | Tidak ada di modul ini²                                      |
+| `payment_gateway`      | Checkout/webhook inbox bertandatangan/retry-DLQ/refund/reconciliation provider-netral    | domain | `tenant_admin`, `identity_access`, `domain_event_runtime`, `integration_hub`; consumes `billing_document_state`                         | PROVIDES `payment_outcome` (dikonsumsi `subscription_billing` untuk transisi invoice)                                 | offline-lan-safe³ | Ya — adapter provider = External Integration off-by-default³ |
 
 ¹ `subscription_billing` menghitung state (jatuh tempo, dunning) dari data
 lokal — jalan penuh offline. Yang butuh online hanyalah **penyelesaian
@@ -122,6 +122,23 @@ pembayaran** (`payment_gateway`).
 ² `subscription_billing` sendiri tidak memanggil provider; ia menyerahkan
 penyelesaian ke `payment_gateway` lewat capability port `payment_outcome` +
 outbox. Ini menegakkan ADR-0006/AGENTS.md #8 (provider di luar transaksi).
+³ **Kelas kompatibilitas `payment_gateway` = `offline-lan-safe`, konsisten
+dengan taksonomi dua-kelas doc 21 §6 (tidak memperkenalkan kelas baru).**
+Seluruh permukaan DB modul ini (record checkout, envelope webhook, transisi
+state invoice, state/hasil reconciliation) adalah operasi database murni yang
+berfungsi penuh offline. Yang bersifat online semata-mata adalah **panggilan
+ke provider pembayaran**, yang diperlakukan sebagai **External Integration
+(doc 21 §2/§8)** yang dibungkus modul ini — **off-by-default** (mis. flag
+`PAYMENT_*_ENABLED=false`, `profiles: ONLINE_PROFILES`), persis pola modul
+`email` (offline-lan-safe) yang membungkus provider Mailketing
+(full-online-only, off-by-default) atau `news_portal` yang membungkus R2.
+Saat provider off, profil `offline-lan` tetap 100% fungsional: billing state
+tetap terhitung, hanya inisiasi pembayaran online yang tidak tersedia (yang
+memang mustahil di LAN airgapped). Provider adapter spesifik (Midtrans/Xendit/
+Stripe/dst.) tidak pernah di base — ia opt-in di repo aplikasi turunan lewat
+`application-registry.ts`. Ketika `payment_gateway` benar-benar mendarat
+(#877), adapternya masuk sebagai baris di tabel "Provider eksternal yang
+dibungkus" doc 21 §8 (bukan kelas kompatibilitas baru).
 
 Kesepuluh butir template lain (§3 "kenapa bukan Derived Application", §8
 security, §9 ownership, §10 deprecation, §11 alternatif) berlaku seragam:
@@ -222,12 +239,19 @@ flowchart TD
 ```
 
 Panah = "A bergantung pada B" (identik konvensi `dependencies: string[]`).
-**Tidak ada panah dari Core/System/modul bisnis menuju modul control-plane**
-— base/core tidak pernah tahu-menahu logika SaaS. Satu-satunya panah dari
-tenant-plane ke control-plane adalah `Biz --> TE` yang **hanya** kontrak
-read-only `effective_entitlement` (bukan import/FK langsung), memenuhi
-acceptance criterion #869 "no reverse dependency from base/core into
-application-specific SaaS logic". Graf tetap DAG (`modules:dag:check`).
+**Core/System tidak pernah punya panah menuju modul control-plane** —
+base/core tidak pernah tahu-menahu logika SaaS. **Dari sisi tenant-plane
+(modul bisnis), SATU-SATUNYA edge yang diizinkan menuju control-plane adalah
+`Biz → TE`: konsumsi READ-ONLY kontrak capability `effective_entitlement`**
+— tidak ada coupling lain apa pun (tidak ada write, tidak ada foreign key,
+tidak ada baca tabel internal control-plane, tidak ada import kode modul
+control-plane). Ini bukan pengecualian dari "no reverse dependency" tetapi
+justru bentuknya: modul bisnis tidak bergantung pada _implementasi_ SaaS,
+hanya pada _kontrak entitlement_ yang stabil (persis pola ADR-0011
+capability port — `Biz` menahu `TE` hanya lewat interface port, bukan modul
+`TE` itu sendiri). Dengan begitu acceptance criterion #869 "no reverse
+dependency from base/core into application-specific SaaS logic" terpenuhi,
+dan graf tetap DAG (`modules:dag:check`).
 
 **Invariant fail-closed `effective_entitlement` (High-2) — kontrak satu-
 satunya yang men-gate akses komersial WAJIB DENY saat ragu.** `effective_
@@ -331,10 +355,17 @@ has_platform_claim()`. Itu adalah `BYPASSRLS` fungsional yang **lolos**
 
 ### 7. Applicability provider online + perilaku LAN/offline + default-disabled
 
-- **Full-online provider capability = opt-in.** Hanya `payment_gateway` yang
-  memanggil provider eksternal (adapter opt-in, di luar transaksi DB,
-  timeout-bounded, via outbox — ADR-0006/AGENTS.md #8). Enam modul lain
-  adalah operasi DB murni (offline-lan-safe).
+- **Ketujuh modul berkelas `offline-lan-safe`; provider online = External
+  Integration opt-in (bukan kelas kompatibilitas baru).** Konsisten dengan
+  taksonomi dua-kelas doc 21 §6 (`offline-lan-safe` / `full-online-only`),
+  ketujuh modul control-plane **adalah `offline-lan-safe`** — permukaan
+  DB-nya operasi database murni. Satu-satunya bagian online adalah
+  **panggilan provider pembayaran** milik `payment_gateway`, yang
+  diperlakukan sebagai **External Integration off-by-default** (doc 21 §2/§8;
+  flag `PAYMENT_*_ENABLED=false`, `profiles: ONLINE_PROFILES`), di luar
+  transaksi DB, timeout-bounded, via outbox + webhook inbox `integration_hub`
+  (ADR-0006/AGENTS.md #8) — persis pola `email`→Mailketing / `news_portal`→R2
+  (§2 footnote ³). Tidak ada kelas kompatibilitas ketiga yang diperkenalkan.
 - **LAN/offline tetap operasional saat control plane disabled.** Deployment
   profil `offline-lan` yang tidak pernah mengaktifkan modul control-plane
   berjalan 100% — POS/tenant business jalan tanpa konektivitas internet
