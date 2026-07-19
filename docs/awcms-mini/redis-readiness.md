@@ -56,13 +56,13 @@ Contoh: ringkasan dashboard yang dihitung dari query PostgreSQL mahal dan boleh 
 const key = buildRedisKey({
   namespace: "reporting",
   tenantId,
-  key: `activity:${range}`,
+  key: `activity:${range}`
 });
 
 const report = await redisCacheAside(
   key,
   () => loadActivityReportFromPostgres(tenantId, range),
-  { ttlSec: 60 },
+  { ttlSec: 60 }
 );
 ```
 
