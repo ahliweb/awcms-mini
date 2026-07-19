@@ -1,3 +1,5 @@
+import { getModuleByKey } from "../..";
+import { isModuleTenantEnabledByDefault } from "../../_shared/module-contract";
 import type { TenantContext } from "../domain/access-control";
 import { resolveActiveSession } from "./session-lookup";
 
@@ -43,8 +45,19 @@ export async function resolveTenantContext(
 
 /**
  * Whether `moduleKey` is available for `tenantId` (Issue #515's
- * `awcms_mini_tenant_modules` — no row means "never toggled", available by
- * default, same convention as the tenant module lifecycle service itself).
+ * `awcms_mini_tenant_modules`). This is the RUNTIME guard every guarded API
+ * endpoint (and, via the SSR data helpers, every admin page) funnels through
+ * — `authorizeInTransaction` calls it before ABAC, so a `false` here blocks
+ * the module's ENTIRE surface, not just the UI.
+ *
+ * No `awcms_mini_tenant_modules` row means "never toggled": the default is
+ * `true` (available by default — historical repo-wide behavior) UNLESS the
+ * module's descriptor opted into `defaultTenantState: "disabled"` (Issue
+ * #870, ADR-0022 §7 — the opt-in SaaS control-plane modules). This is the
+ * runtime half of the default-disabled mechanism: for such a module, a tenant
+ * that never explicitly enabled it resolves to DISABLED here, so it has no
+ * reachable endpoint/SSR surface at all. Enforced by
+ * `tests/unit/module-governance-default-disabled.test.ts`.
  */
 export async function resolveModuleEnabled(
   tx: Bun.SQL,
@@ -56,7 +69,10 @@ export async function resolveModuleEnabled(
     WHERE tenant_id = ${tenantId} AND module_key = ${moduleKey}
   `) as { enabled: boolean }[];
 
-  return rows[0]?.enabled ?? true;
+  return (
+    rows[0]?.enabled ??
+    isModuleTenantEnabledByDefault(getModuleByKey(moduleKey))
+  );
 }
 
 export async function fetchGrantedPermissionKeys(

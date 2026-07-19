@@ -286,6 +286,41 @@ export type ModuleCapabilityContract = {
   consumes?: ModuleCapabilityDependency[];
 };
 
+/**
+ * Per-tenant availability for a module that has NO explicit
+ * `awcms_mini_tenant_modules` row (Issue #870, epic #868 SaaS control plane,
+ * ADR-0022 §7 / Medium-3). The historical, repo-wide default has always been
+ * "a module with no explicit tenant state is available by default" — i.e.
+ * `"enabled"`. ADR-0022 §7 makes the opt-in SaaS control-plane modules
+ * (`service_catalog` and its six siblings) the deliberate exception: they
+ * MUST be default-disabled per tenant so a LAN/offline deployment that never
+ * activates the control plane keeps them fully inert (no reachable API/SSR
+ * surface, no startup/network dependency), and a billing/entitlement module
+ * silently active on a LAN box is treated as an attack surface, not cosmetics.
+ *
+ * This is the MECHANISM half of that requirement — read at every tenant-state
+ * resolution point (`identity-access/application/auth-context.ts`'s
+ * `resolveModuleEnabled` = the runtime API/SSR guard, plus the
+ * `module_management` tenant-module matrix/lifecycle services). The GATE half
+ * (a test that FAILS if any control-plane key resolves `enabled` without an
+ * explicit row) lives in `tests/unit/module-governance-default-disabled.test.ts`.
+ * Absent / `"enabled"` = the unchanged historical behavior for every other
+ * module.
+ */
+export type ModuleDefaultTenantState = "enabled" | "disabled";
+
+/**
+ * Whether a module with NO explicit `awcms_mini_tenant_modules` row is
+ * enabled for a tenant by default. Pure (no I/O), single-sourced, so every
+ * resolution point stays consistent — see `ModuleDefaultTenantState`. Returns
+ * `true` unless the descriptor opted into `defaultTenantState: "disabled"`.
+ */
+export function isModuleTenantEnabledByDefault(
+  descriptor: Pick<ModuleDescriptor, "defaultTenantState"> | null | undefined
+): boolean {
+  return descriptor?.defaultTenantState !== "disabled";
+}
+
 export type ModuleDescriptor = {
   key: string;
   name: string;
@@ -297,6 +332,14 @@ export type ModuleDescriptor = {
   events?: ModuleEventContract;
   type?: ModuleType;
   isCore?: boolean;
+  /**
+   * Per-tenant default availability when no explicit
+   * `awcms_mini_tenant_modules` row exists (Issue #870, ADR-0022 §7). Omitted
+   * / `"enabled"` keeps the historical "available by default" behavior; the
+   * opt-in SaaS control-plane modules set `"disabled"`. See
+   * `ModuleDefaultTenantState` above.
+   */
+  defaultTenantState?: ModuleDefaultTenantState;
   permissions?: ModulePermissionDescriptor[];
   navigation?: ModuleNavigationEntry[];
   settings?: ModuleSettingsContract;
@@ -315,6 +358,44 @@ export type ModuleDescriptor = {
   referenceData?: ReferenceDataModuleContract;
   /** Read-model projection descriptors this module owns (Issue #753) — see `ProjectionDescriptor`'s own doc comment below (declared after this type since it's mutually referenced only by name, TypeScript type declarations are not order-sensitive). */
   reportingProjections?: ProjectionDescriptor[];
+  /** Static feature/meter key contributions this module makes to the `service_catalog` allowed-key registry (Issue #870) — see `ServiceCatalogModuleContract`'s own doc comment below. */
+  serviceCatalog?: ServiceCatalogModuleContract;
+};
+
+/**
+ * A module's static contribution to the `service_catalog` allowed-key
+ * registry (Issue #870, epic #868 SaaS control plane, ADR-0022). Same
+ * "module declares its own plain-data descriptor, a central registry reads
+ * `listModules()`" shape `referenceData`/`dataLifecycle`/`sodRules` above
+ * already use — `service-catalog/domain/key-registry.ts` is the aggregator.
+ *
+ * WHY A STATIC DESCRIPTOR CONTRIBUTION. A plan's feature grants and usage
+ * quotas reference `featureKey`/`meterKey` strings; those keys MUST resolve
+ * through a reviewed, static registry, and an unknown key FAILS CLOSED
+ * (rejected at draft-update/validate/publish time — Issue #870 security
+ * requirement "unknown keys fail closed"), never accepted silently. The base
+ * repo never hardcodes a business feature set; instead every module —
+ * including a derived application's own modules contributed through
+ * `application-registry.ts` (Issue #740) — declares the feature/meter keys it
+ * exposes for entitlement right here, as plain data. There is NO runtime
+ * discovery, upload, or `eval` (doc 21 §7 / ADR-0012 §7): the registry is the
+ * compile-time union of these arrays.
+ *
+ * NOTE: *module-entitlement* keys are NOT declared here — a plan may grant a
+ * tenant access to a whole module, and the set of valid module keys is simply
+ * `listModules()`'s own keys (derived from the registry, never a hand-kept
+ * list — see memory `derive-publish-roots-from-registry`). Only the finer-
+ * grained FEATURE and METER keys need this contribution seam.
+ *
+ * TRUSTED CODE-ONLY METADATA (same rule as every descriptor type above) —
+ * declared by the owning module's source, never tenant/request-controlled,
+ * never a secret/executable expression.
+ */
+export type ServiceCatalogModuleContract = {
+  /** Feature keys this module exposes for plan feature grants (globally unique across every module's contributions; validated by `service-catalog/domain/key-registry.ts`). Format `^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$`. */
+  contributesFeatureKeys?: readonly string[];
+  /** Usage-meter keys this module exposes for plan quota/limit definitions (globally unique, same format as feature keys). */
+  contributesMeterKeys?: readonly string[];
 };
 
 /**
@@ -672,8 +753,16 @@ export type ModuleMigrationNamespace = {
  * reportingProjections` field plus the new `ProjectionDescriptor` family
  * of exported types (MINOR: purely additive, same rule as `1.1.0`'s own
  * `dataLifecycle`/`sodRules` additions).
+ *
+ * `1.3.0` (Issue #870, epic #868 SaaS control plane) — added two optional
+ * fields plus their helper/types: `ModuleDescriptor.defaultTenantState`
+ * (with `ModuleDefaultTenantState` + `isModuleTenantEnabledByDefault`, the
+ * default-disabled mechanism ADR-0022 §7 requires) and
+ * `ModuleDescriptor.serviceCatalog` (with `ServiceCatalogModuleContract`,
+ * the static feature/meter key contribution seam). MINOR: purely additive,
+ * same rule as `1.2.0`'s own `reportingProjections` addition.
  */
-export const MODULE_CONTRACT_VERSION = "1.2.0";
+export const MODULE_CONTRACT_VERSION = "1.3.0";
 
 /**
  * One derived/downstream repository's contribution to the final composed

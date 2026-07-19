@@ -102,7 +102,7 @@ suite("tenant module lifecycle API", () => {
     await resetDatabase();
   });
 
-  test("GET /api/v1/tenant/modules lists every module as enabled by default", async () => {
+  test("GET /api/v1/tenant/modules lists every module as enabled by default except default-disabled control-plane", async () => {
     const owner = await bootstrap();
 
     const result = await invoke<{
@@ -114,7 +114,18 @@ suite("tenant module lifecycle API", () => {
     });
 
     expect(result.status).toBe(200);
-    expect(result.body.data.modules.every((m) => m.tenantEnabled)).toBe(true);
+    // Issue #870 (ADR-0022 §7): `service_catalog` is `defaultTenantState:
+    // "disabled"`, so it lists as NOT enabled with no explicit row; every
+    // other module is enabled by default.
+    expect(
+      result.body.data.modules
+        .filter((m) => m.moduleKey !== "service_catalog")
+        .every((m) => m.tenantEnabled)
+    ).toBe(true);
+    expect(
+      result.body.data.modules.find((m) => m.moduleKey === "service_catalog")
+        ?.tenantEnabled
+    ).toBe(false);
   });
 
   test("fetchTenantModuleEntry (single-module narrowing of fetchTenantModuleEntries, security audit follow-up) matches the plural function's per-entry result before and after a real disable", async () => {

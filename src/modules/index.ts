@@ -18,6 +18,7 @@ import { organizationStructureModule } from "./organization-structure/module";
 import { profileIdentityModule } from "./profile-identity/module";
 import { referenceDataModule } from "./reference-data/module";
 import { reportingModule } from "./reporting/module";
+import { serviceCatalogModule } from "./service-catalog/module";
 import { socialPublishingModule } from "./social-publishing/module";
 import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
@@ -71,7 +72,12 @@ const baseModules: ModuleDescriptor[] = [
   documentInfrastructureModule,
   dataExchangeModule,
   integrationHubModule,
-  referenceDataModule
+  referenceDataModule,
+  // Issue #870 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the first
+  // control-plane module, admitted Official Optional + default-disabled.
+  // Appended at the end, same convention as the Wave-1/Wave-3 entries above;
+  // #871-#877 append their own control-plane modules here as they land.
+  serviceCatalogModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

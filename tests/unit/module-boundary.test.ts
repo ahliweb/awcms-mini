@@ -35,7 +35,7 @@
  * text-pattern scan — left as a documented follow-up, not blocking.
  */
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 function listTsFiles(dir: string): string[] {
@@ -226,5 +226,135 @@ describe("module boundary — blog_content <-> news_portal (Issue #681)", () => 
       "blog-content"
     );
     expect([...offendersA, ...offendersB]).toEqual([]);
+  });
+});
+
+/**
+ * Control-plane <-> tenant-plane boundary (Issue #870, epic #868, ADR-0022
+ * Consequences "Low, reviewer"). ADR-0022 requires the structural
+ * no-shared-table-write / read-only-port boundary to LAND WITH the first
+ * control-plane module rather than rely on manual review — this block is that
+ * enforcement for `service_catalog`. It generalizes the blog_content <->
+ * news_portal pattern above to the whole registry:
+ *
+ *   1. No OTHER module's application/domain imports `service-catalog`'s
+ *      application/domain (base/core never reverse-depends on control-plane
+ *      logic; a downstream consumer reads ONLY the `service_catalog_read`
+ *      capability port, wired at ITS route/composition root — never a direct
+ *      import of `service_catalog`'s internals).
+ *   2. No module or route OUTSIDE `service_catalog` writes an
+ *      `awcms_mini_service_catalog_*` table (ADR-0013 §6 no-shared-table-write
+ *      — only the owning module mutates its tables).
+ *   3. The `service_catalog_read` port file itself stays neutral ground (it
+ *      imports no module's application/domain).
+ *
+ * The pattern is deliberately registry-wide so #871-#877 inherit it: each new
+ * control-plane module just adds its own key/table-prefix to the arrays below.
+ */
+const MODULES_ROOT = path.join(import.meta.dir, "../../src/modules");
+const PAGES_ROOT = path.join(import.meta.dir, "../../src/pages");
+
+function moduleAppDomainDirs(moduleName: string): string[] {
+  return ["application", "domain"]
+    .map((sub) => path.join(MODULES_ROOT, moduleName, sub))
+    .filter((dir) => existsSync(dir));
+}
+
+describe("module boundary — service_catalog control-plane <-> tenant-plane (Issue #870, ADR-0022)", () => {
+  const CONTROL_PLANE_MODULE_DIR = "service-catalog";
+  const CONTROL_PLANE_TABLE_PREFIX = "awcms_mini_service_catalog_";
+
+  test("no OTHER module's application/domain imports service-catalog's application/domain (consume the read-only port instead)", () => {
+    const offenders: string[] = [];
+
+    for (const moduleName of readdirSync(MODULES_ROOT)) {
+      if (moduleName === CONTROL_PLANE_MODULE_DIR || moduleName === "_shared") {
+        continue;
+      }
+      const stat = statSync(path.join(MODULES_ROOT, moduleName));
+      if (!stat.isDirectory()) {
+        continue;
+      }
+      for (const dir of moduleAppDomainDirs(moduleName)) {
+        offenders.push(
+          ...findForbiddenCrossModuleImports(
+            dir,
+            listTsFiles(dir),
+            CONTROL_PLANE_MODULE_DIR
+          )
+        );
+      }
+    }
+
+    expect(
+      offenders,
+      "A tenant-plane / downstream module must read the catalog ONLY through the `service_catalog_read` capability port (`_shared/ports/service-catalog-read-port.ts`), wired at its own route/composition root — never by importing service_catalog's application/domain directly (ADR-0022 §4)."
+    ).toEqual([]);
+  });
+
+  test("no module or route outside service_catalog writes an awcms_mini_service_catalog_ table (no-shared-table-write, ADR-0013 §6)", () => {
+    const writePattern = new RegExp(
+      `(INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+${CONTROL_PLANE_TABLE_PREFIX}`,
+      "i"
+    );
+    const offenders: string[] = [];
+
+    function scan(root: string): void {
+      for (const file of listTsFiles(root)) {
+        // service_catalog's own module + route tree is the sole legitimate writer.
+        if (
+          file.includes(`/modules/${CONTROL_PLANE_MODULE_DIR}/`) ||
+          file.includes(`/api/v1/${CONTROL_PLANE_MODULE_DIR}/`)
+        ) {
+          continue;
+        }
+        const content = readFileSync(file, "utf-8");
+        content.split("\n").forEach((line, index) => {
+          if (writePattern.test(line)) {
+            offenders.push(
+              `${path.relative(path.join(import.meta.dir, "../.."), file)}:${index + 1}: ${line.trim()}`
+            );
+          }
+        });
+      }
+    }
+
+    scan(MODULES_ROOT);
+    scan(PAGES_ROOT);
+
+    expect(
+      offenders,
+      "Only the service_catalog module (and its own routes) may write awcms_mini_service_catalog_* tables (ADR-0013 §6). A consumer reads published offers through the read-only port, never a direct write."
+    ).toEqual([]);
+  });
+
+  test("the service_catalog_read port file imports no module's application/domain (neutral ground)", () => {
+    const portFile = path.join(
+      MODULES_ROOT,
+      "_shared/ports/service-catalog-read-port.ts"
+    );
+    expect(existsSync(portFile)).toBe(true);
+
+    const content = readFileSync(portFile, "utf-8");
+    const lines = content.split("\n");
+    // The port must not import ANY module's application/domain — scan for
+    // every registered module dir name (mirrors the blog/news scan above).
+    const moduleDirNames = readdirSync(MODULES_ROOT).filter((name) => {
+      const full = path.join(MODULES_ROOT, name);
+      return name !== "_shared" && statSync(full).isDirectory();
+    });
+
+    const offenders: string[] = [];
+    lines.forEach((line, index) => {
+      for (const moduleDir of moduleDirNames) {
+        if (lineViolatesModuleBoundary(line, moduleDir)) {
+          offenders.push(
+            `service-catalog-read-port.ts:${index + 1}: ${line.trim()}`
+          );
+        }
+      }
+    });
+
+    expect(offenders).toEqual([]);
   });
 });

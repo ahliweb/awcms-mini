@@ -431,6 +431,23 @@ export function checkLoginLockoutImplemented(): SecurityCheckResult {
  *   (`awcms_mini_reference_tenant_codes`, `awcms_mini_reference_tenant_
  *   code_translations`) is NOT in this list — it IS RLS FORCE'd (migration
  *   069), predicate always and only `tenant_id`.
+ * - `awcms_mini_service_catalog_plans`, `awcms_mini_service_catalog_plan_
+ *   versions`, `awcms_mini_service_catalog_version_features`, `awcms_mini_
+ *   service_catalog_version_quotas`, `awcms_mini_service_catalog_version_
+ *   prices`, `awcms_mini_service_catalog_published_offers` (sql/079, Issue
+ *   #870, epic #868 SaaS control plane, ADR-0022) — the `service_catalog`
+ *   is CONTROL-PLANE data: a plan/offer is identical for every tenant
+ *   (operators sell the same catalog to all), so it is GLOBAL, not
+ *   tenant-scoped — same reasoning as `awcms_mini_reference_value_sets`
+ *   above. RLS-free here does NOT make the whole catalog tenant-readable
+ *   (ADR-0022 §3 Medium-1): tables 1-5 are the operator authoring/lifecycle
+ *   tier, mutated only by the platform-operator-only, default-deny
+ *   `service_catalog.*` endpoints and never queried by tenant-plane code
+ *   (enforced by `tests/unit/module-boundary.test.ts`); the 6th table,
+ *   `awcms_mini_service_catalog_published_offers`, is the tenant-readable
+ *   PUBLISHED PROJECTION and physically cannot contain a draft row or an
+ *   internal price (it carries only the published version + the public price
+ *   subset — the single surface `service_catalog_read` reads).
  */
 const RLS_FREE_TABLES = new Set([
   "awcms_mini_schema_migrations",
@@ -447,7 +464,13 @@ const RLS_FREE_TABLES = new Set([
   "awcms_mini_reference_value_sets",
   "awcms_mini_reference_codes",
   "awcms_mini_reference_code_translations",
-  "awcms_mini_reference_imports"
+  "awcms_mini_reference_imports",
+  "awcms_mini_service_catalog_plans",
+  "awcms_mini_service_catalog_plan_versions",
+  "awcms_mini_service_catalog_version_features",
+  "awcms_mini_service_catalog_version_quotas",
+  "awcms_mini_service_catalog_version_prices",
+  "awcms_mini_service_catalog_published_offers"
 ]);
 
 export async function checkRlsEnabled(): Promise<SecurityCheckResult> {
@@ -668,6 +691,30 @@ const ALLOWED_GLOBAL_TABLE_GRANTS: Record<string, Record<string, string[]>> = {
   },
   awcms_mini_reference_imports: {
     awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  // Issue #870 (epic #868, ADR-0022) — `service_catalog` control-plane global
+  // tables. `awcms_mini_app` is the only runtime role that touches them (no
+  // background worker/setup path in #870). Two tables have DELETE revoked
+  // (sql/079): `..._plans` is never hard-deleted (archive = status change) and
+  // `..._published_offers` is an immutable projection (only `retired_at` is
+  // set). The other four keep full DML for the operator draft-authoring flow.
+  awcms_mini_service_catalog_plans: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE"]
+  },
+  awcms_mini_service_catalog_plan_versions: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_service_catalog_version_features: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_service_catalog_version_quotas: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_service_catalog_version_prices: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE", "DELETE"]
+  },
+  awcms_mini_service_catalog_published_offers: {
+    awcms_mini_app: ["SELECT", "INSERT", "UPDATE"]
   }
 };
 

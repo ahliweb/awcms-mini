@@ -4893,3 +4893,117 @@ msgstr "Queue export"
 
 msgid "admin.data_exchange.exports.create_success"
 msgstr "Export job queued."
+
+msgid "admin.layout.nav_service_catalog_plans"
+msgstr "Service Catalog"
+
+msgid "admin.service_catalog.plans.title"
+msgstr "Service Catalog Plans"
+
+msgid "admin.service_catalog.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.service_catalog.access_denied_body"
+msgstr "You do not have permission to manage the service catalog."
+
+msgid "admin.service_catalog.plans.create_success"
+msgstr "Plan created."
+
+msgid "admin.service_catalog.plans.save_success"
+msgstr "Draft saved."
+
+msgid "admin.service_catalog.plans.publish_success"
+msgstr "Offer published."
+
+msgid "admin.service_catalog.plans.retire_success"
+msgstr "Offer retired."
+
+msgid "admin.service_catalog.plans.new_version_success"
+msgstr "New draft version created."
+
+msgid "admin.service_catalog.plans.validate_valid"
+msgstr "The draft version is valid."
+
+msgid "admin.service_catalog.plans.invalid_json"
+msgstr "The draft content is not valid JSON."
+
+msgid "admin.service_catalog.plans.not_found_title"
+msgstr "Plan not found"
+
+msgid "admin.service_catalog.plans.not_found_body"
+msgstr "No plan matches that key."
+
+msgid "admin.service_catalog.plans.back_to_list"
+msgstr "Back to all plans"
+
+msgid "admin.service_catalog.plans.version_history"
+msgstr "Version history"
+
+msgid "admin.service_catalog.plans.col_version"
+msgstr "Version"
+
+msgid "admin.service_catalog.plans.col_status"
+msgstr "Status"
+
+msgid "admin.service_catalog.plans.col_currency"
+msgstr "Currency"
+
+msgid "admin.service_catalog.plans.col_published_at"
+msgstr "Published"
+
+msgid "admin.service_catalog.plans.col_actions"
+msgstr "Actions"
+
+msgid "admin.service_catalog.plans.validate_button"
+msgstr "Validate"
+
+msgid "admin.service_catalog.plans.publish_button"
+msgstr "Publish"
+
+msgid "admin.service_catalog.plans.retire_button"
+msgstr "Retire"
+
+msgid "admin.service_catalog.plans.new_version_button"
+msgstr "New draft version"
+
+msgid "admin.service_catalog.plans.edit_draft"
+msgstr "Edit draft content"
+
+msgid "admin.service_catalog.plans.field_content"
+msgstr "Content (JSON)"
+
+msgid "admin.service_catalog.plans.save_draft_button"
+msgstr "Save draft"
+
+msgid "admin.service_catalog.plans.no_rows"
+msgstr "No plans yet."
+
+msgid "admin.service_catalog.plans.col_key"
+msgstr "Key"
+
+msgid "admin.service_catalog.plans.col_name"
+msgstr "Name"
+
+msgid "admin.service_catalog.plans.col_type"
+msgstr "Type"
+
+msgid "admin.service_catalog.plans.col_latest_version"
+msgstr "Latest version"
+
+msgid "admin.service_catalog.plans.create_summary"
+msgstr "Create a plan"
+
+msgid "admin.service_catalog.plans.field_key"
+msgstr "Plan key"
+
+msgid "admin.service_catalog.plans.field_name"
+msgstr "Name"
+
+msgid "admin.service_catalog.plans.field_type"
+msgstr "Type"
+
+msgid "admin.service_catalog.plans.field_currency"
+msgstr "Currency"
+
+msgid "admin.service_catalog.plans.create_submit"
+msgstr "Create plan"

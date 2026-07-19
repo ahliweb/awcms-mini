@@ -101,6 +101,8 @@ const MODULE_SKILL_MAP: Readonly<Record<string, string>> = {
   profile_identity: "awcms-mini-profile-identity",
   reference_data: "awcms-mini-reference-data",
   reporting: "awcms-mini-reporting",
+  // Issue #870 (epic #868 SaaS control plane) — the first control-plane module.
+  service_catalog: "awcms-mini-service-catalog",
   social_publishing: "awcms-mini-social-publishing",
   // Non-mechanical: the sync_storage module's guidance is the HMAC/
   // anti-replay sync skill (doc 08), which covers its push/pull and object

@@ -147,6 +147,11 @@ export async function fetchModuleMatrix(
     : null;
 
   function resolveTenantState(moduleKey: string): ModuleTenantState {
+    // Every registered module is present in `tenantStateByKey` (built from
+    // `fetchTenantModuleEntries`, which already applied the descriptor
+    // default, Issue #870). The `?? true` fallback is only reached for a
+    // dependency key that is not itself a registered module — unresolvable,
+    // so its enabled-ness is moot for warning computation.
     return (
       tenantStateByKey.get(moduleKey) ?? { moduleKey, tenantEnabled: true }
     );

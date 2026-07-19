@@ -39,6 +39,7 @@ import { getDatabaseClient } from "../../src/lib/database/client";
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { hashSessionToken } from "../../src/lib/auth/session-token";
 import { loadSsrSessionData } from "../../src/lib/auth/ssr-session";
+import { listModules } from "../../src/modules";
 import {
   fetchGrantedPermissionKeys,
   resolveModuleEnabled,
@@ -146,10 +147,29 @@ suite("ssr session module gate", () => {
         now
       );
 
-      // No module disabled ⇒ the SSR set is exactly the route's granted set.
-      expect(context!.permissions.size).toBe(granted.size);
-      for (const key of granted) {
+      // Issue #870 (ADR-0022 §7): a `defaultTenantState: "disabled"` control-
+      // plane module (`service_catalog`) has its permission keys STRIPPED from
+      // the SSR set even with no explicit tenant_modules row, while the route's
+      // `fetchGrantedPermissionKeys` does NOT strip them. So the SSR set is the
+      // route's granted set MINUS those default-disabled module keys.
+      const defaultDisabledModuleKeys = new Set(
+        listModules()
+          .filter((module) => module.defaultTenantState === "disabled")
+          .map((module) => module.key)
+      );
+      const grantedAfterDefaultGate = [...granted].filter(
+        (key) => !defaultDisabledModuleKeys.has(key.split(".")[0]!)
+      );
+
+      expect(context!.permissions.size).toBe(grantedAfterDefaultGate.length);
+      for (const key of grantedAfterDefaultGate) {
         expect(context!.permissions.has(key)).toBe(true);
+      }
+      // The default-disabled module's granted keys are ABSENT from the SSR set.
+      for (const key of granted) {
+        if (defaultDisabledModuleKeys.has(key.split(".")[0]!)) {
+          expect(context!.permissions.has(key)).toBe(false);
+        }
       }
 
       // Roles match the route resolver's roles (compared as sets).

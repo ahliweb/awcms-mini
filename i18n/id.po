@@ -4892,3 +4892,117 @@ msgstr "Antrekan ekspor"
 
 msgid "admin.data_exchange.exports.create_success"
 msgstr "Tugas ekspor diantrekan."
+
+msgid "admin.layout.nav_service_catalog_plans"
+msgstr "Katalog Layanan"
+
+msgid "admin.service_catalog.plans.title"
+msgstr "Paket Katalog Layanan"
+
+msgid "admin.service_catalog.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.service_catalog.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk mengelola katalog layanan."
+
+msgid "admin.service_catalog.plans.create_success"
+msgstr "Paket dibuat."
+
+msgid "admin.service_catalog.plans.save_success"
+msgstr "Draf disimpan."
+
+msgid "admin.service_catalog.plans.publish_success"
+msgstr "Penawaran dipublikasikan."
+
+msgid "admin.service_catalog.plans.retire_success"
+msgstr "Penawaran dipensiunkan."
+
+msgid "admin.service_catalog.plans.new_version_success"
+msgstr "Versi draf baru dibuat."
+
+msgid "admin.service_catalog.plans.validate_valid"
+msgstr "Versi draf valid."
+
+msgid "admin.service_catalog.plans.invalid_json"
+msgstr "Konten draf bukan JSON yang valid."
+
+msgid "admin.service_catalog.plans.not_found_title"
+msgstr "Paket tidak ditemukan"
+
+msgid "admin.service_catalog.plans.not_found_body"
+msgstr "Tidak ada paket yang cocok dengan kunci itu."
+
+msgid "admin.service_catalog.plans.back_to_list"
+msgstr "Kembali ke semua paket"
+
+msgid "admin.service_catalog.plans.version_history"
+msgstr "Riwayat versi"
+
+msgid "admin.service_catalog.plans.col_version"
+msgstr "Versi"
+
+msgid "admin.service_catalog.plans.col_status"
+msgstr "Status"
+
+msgid "admin.service_catalog.plans.col_currency"
+msgstr "Mata uang"
+
+msgid "admin.service_catalog.plans.col_published_at"
+msgstr "Dipublikasikan"
+
+msgid "admin.service_catalog.plans.col_actions"
+msgstr "Aksi"
+
+msgid "admin.service_catalog.plans.validate_button"
+msgstr "Validasi"
+
+msgid "admin.service_catalog.plans.publish_button"
+msgstr "Publikasikan"
+
+msgid "admin.service_catalog.plans.retire_button"
+msgstr "Pensiunkan"
+
+msgid "admin.service_catalog.plans.new_version_button"
+msgstr "Versi draf baru"
+
+msgid "admin.service_catalog.plans.edit_draft"
+msgstr "Edit konten draf"
+
+msgid "admin.service_catalog.plans.field_content"
+msgstr "Konten (JSON)"
+
+msgid "admin.service_catalog.plans.save_draft_button"
+msgstr "Simpan draf"
+
+msgid "admin.service_catalog.plans.no_rows"
+msgstr "Belum ada paket."
+
+msgid "admin.service_catalog.plans.col_key"
+msgstr "Kunci"
+
+msgid "admin.service_catalog.plans.col_name"
+msgstr "Nama"
+
+msgid "admin.service_catalog.plans.col_type"
+msgstr "Tipe"
+
+msgid "admin.service_catalog.plans.col_latest_version"
+msgstr "Versi terbaru"
+
+msgid "admin.service_catalog.plans.create_summary"
+msgstr "Buat paket"
+
+msgid "admin.service_catalog.plans.field_key"
+msgstr "Kunci paket"
+
+msgid "admin.service_catalog.plans.field_name"
+msgstr "Nama"
+
+msgid "admin.service_catalog.plans.field_type"
+msgstr "Tipe"
+
+msgid "admin.service_catalog.plans.field_currency"
+msgstr "Mata uang"
+
+msgid "admin.service_catalog.plans.create_submit"
+msgstr "Buat paket"

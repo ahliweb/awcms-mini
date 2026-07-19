@@ -1171,6 +1171,36 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/service-catalog/plans/[planKey].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/service-catalog/plans/[planKey]/versions.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/service-catalog/plans/[planKey]/versions/[version]/publish.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/service-catalog/plans/[planKey]/versions/[version]/retire.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/service-catalog/plans/[planKey]/versions/[version]/validate.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/service-catalog/plans/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/settings/index.ts",
       "workClass": "interactive",
       "source": "default"

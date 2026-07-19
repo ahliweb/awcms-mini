@@ -4,6 +4,8 @@ import { getDatabaseClient } from "../database/client";
 import { withTenant } from "../database/tenant-context";
 import { hashSessionToken } from "./session-token";
 import { resolveActiveSession } from "../../modules/identity-access/application/session-lookup";
+import { getModuleByKey } from "../../modules";
+import { isModuleTenantEnabledByDefault } from "../../modules/_shared/module-contract";
 
 /**
  * Cookie names shared by the SSR admin shell (Issue 8.1) and the additive
@@ -131,8 +133,12 @@ export async function loadSsrSessionData(
   //    soft-deleted role contributes no permissions either, matching
   //    `fetchGrantedPermissionKeys`'s `JOIN roles ... deleted_at IS NULL`.
   //  - module gate (#841): `tm.enabled = false` drops the permission key; a
-  //    missing `tenant_modules` row (NULL) or `true` keeps it, exactly
-  //    `resolveModuleEnabled`'s "missing row = enabled" default.
+  //    missing `tenant_modules` row (NULL) resolves through the descriptor's
+  //    default (Issue #870 — `defaultTenantState: "disabled"` control-plane
+  //    modules drop their keys even without an explicit row), and `true`
+  //    keeps it, exactly `resolveModuleEnabled`'s own rule. The NULL-vs-
+  //    default resolution is done in code below (the descriptor is code, not
+  //    a DB fact), keeping the SSR gate at parity with the route gate.
   const rows = (await tx`
     SELECT
       tu.id AS tenant_user_id,
@@ -172,10 +178,19 @@ export async function loadSsrSessionData(
     if (
       row.module_key !== null &&
       row.activity_code !== null &&
-      row.action !== null &&
-      row.module_enabled !== false
+      row.action !== null
     ) {
-      permissions.add(`${row.module_key}.${row.activity_code}.${row.action}`);
+      // Explicit row wins (`true`/`false`); a missing row (NULL) resolves
+      // through the descriptor default — default-disabled control-plane
+      // modules (Issue #870, ADR-0022 §7) drop their keys here, at parity
+      // with `resolveModuleEnabled` on the route path.
+      const moduleEnabled =
+        row.module_enabled ??
+        isModuleTenantEnabledByDefault(getModuleByKey(row.module_key));
+
+      if (moduleEnabled) {
+        permissions.add(`${row.module_key}.${row.activity_code}.${row.action}`);
+      }
     }
   }
 

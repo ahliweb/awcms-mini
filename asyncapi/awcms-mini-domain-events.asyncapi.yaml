@@ -1013,6 +1013,28 @@ channels:
       this event type by creating `pending` delivery rows; the real HTTP
       call to each subscriber happens later, outside any transaction, via
       `bun run integration-hub:outbound:dispatch`.
+  awcms-mini.service-catalog.offer.published:
+    address: awcms-mini.service-catalog.offer.published
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A service catalog plan version was published into an immutable offer
+      (Issue #870, epic #868 SaaS control plane Wave 1, ADR-0022). Payload:
+      `planKey`, `version`, `offerHash`, `currency` — never internal
+      prices. Producer: `service-catalog/application/plan-directory.ts`'s
+      `publishVersion`, via `appendDomainEvent` in the same transaction as
+      the published projection write.
+  awcms-mini.service-catalog.offer.retired:
+    address: awcms-mini.service-catalog.offer.retired
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A published service catalog offer version was retired (Issue #870).
+      The offer stays readable for reproducibility; the payload carries
+      `planKey` and `version`. Producer: `service-catalog/application/
+      plan-directory.ts`'s `retireVersion`.
 operations:
   publishSyncPushRequested:
     action: send
@@ -1602,6 +1624,18 @@ operations:
       $ref: "#/channels/awcms-mini.integration-hub.inbound-message.normalized"
     messages:
       - $ref: "#/channels/awcms-mini.integration-hub.inbound-message.normalized/messages/DomainEvent"
+  publishServiceCatalogOfferPublished:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.service-catalog.offer.published"
+    messages:
+      - $ref: "#/channels/awcms-mini.service-catalog.offer.published/messages/DomainEvent"
+  publishServiceCatalogOfferRetired:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.service-catalog.offer.retired"
+    messages:
+      - $ref: "#/channels/awcms-mini.service-catalog.offer.retired/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:
