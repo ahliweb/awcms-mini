@@ -30,9 +30,12 @@ jobs:
           git fetch --depth=1 origin "${GITHUB_SHA}" >/dev/null 2>&1
           git checkout --detach FETCH_HEAD >/dev/null 2>&1
 
+      - name: Install focused formatter
+        run: npm install --silent --no-save prettier@3.9.5 prettier-plugin-astro@0.14.1
+
       - name: List differently formatted files
         run: |
-          npx --yes prettier@3.9.5 --list-different \
+          npx prettier --list-different \
             .changeset/redis-readiness-890.md \
             docker-compose.redis.yml \
             docs/awcms-mini/redis-readiness.md \
