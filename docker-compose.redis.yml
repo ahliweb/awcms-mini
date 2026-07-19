@@ -1,0 +1,123 @@
+# Optional Redis overlay for AWCMS-Mini (Issue #890).
+#
+# Redis is deliberately NOT part of the default offline/LAN stack. Enable it
+# explicitly alongside the base compose file:
+#
+#   cp .env.redis.example .env.redis
+#   # set a long URL-safe REDIS_PASSWORD in the deployment secret manager
+#   docker compose --env-file .env --env-file .env.redis \
+#     -f docker-compose.yml -f docker-compose.redis.yml up --build
+#
+# The Redis TCP port is never published to the host. PostgreSQL remains the
+# authoritative store; this service is only for bounded cache/coordination use.
+
+services:
+  # Generates a Redis ACL file containing only a SHA-256 password hash. The
+  # plaintext secret exists only in process environment and is never written to
+  # the named volume. This one-shot service must complete before Redis starts.
+  redis-acl-init:
+    image: alpine:3.23.1
+    restart: "no"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in deployment secrets}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-awcms-mini}
+    command:
+      - sh
+      - -ec
+      - |
+        case "$${REDIS_PASSWORD}" in
+          *[!A-Za-z0-9_-]*|'')
+            echo "REDIS_PASSWORD must be a non-empty URL-safe value using A-Z, a-z, 0-9, _ or -." >&2
+            exit 1
+            ;;
+        esac
+        case "$${REDIS_KEY_PREFIX}" in
+          *[!A-Za-z0-9._-]*|'')
+            echo "REDIS_KEY_PREFIX contains unsupported characters." >&2
+            exit 1
+            ;;
+        esac
+        password_hash="$$(printf '%s' "$${REDIS_PASSWORD}" | sha256sum | awk '{print $$1}')"
+        umask 077
+        {
+          printf 'user default off\n'
+          printf 'user awcms_app on #%s ~%s:* +ping +@read +@write -@dangerous\n' \
+            "$${password_hash}" "$${REDIS_KEY_PREFIX}"
+        } > /redis-config/users.acl
+    volumes:
+      - awcms-mini-redis-config:/redis-config
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+
+  redis:
+    image: redis:8.2.7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --aclfile
+      - /redis-config/users.acl
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --save
+      - "60"
+      - "1000"
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - ${REDIS_MAXMEMORY_POLICY:-noeviction}
+      - --protected-mode
+      - "yes"
+    environment:
+      # Used only by the healthcheck. The server authenticates against the
+      # SHA-256 hash in users.acl, not this environment variable directly.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in deployment secrets}
+    volumes:
+      - awcms-mini-redis-data:/data
+      - awcms-mini-redis-config:/redis-config:ro
+    depends_on:
+      redis-acl-init:
+        condition: service_completed_successfully
+    # Intentionally no ports: Redis is reachable only on the Compose network.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli --user awcms_app ping | grep -q PONG"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 384M
+
+  app:
+    environment:
+      REDIS_ENABLED: "true"
+      REDIS_URL: redis://awcms_app:${REDIS_PASSWORD:?Set REDIS_PASSWORD in deployment secrets}@redis:6379/0
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-awcms-mini}
+      REDIS_CONNECTION_TIMEOUT_MS: ${REDIS_CONNECTION_TIMEOUT_MS:-2000}
+      REDIS_COMMAND_TIMEOUT_MS: ${REDIS_COMMAND_TIMEOUT_MS:-1000}
+      REDIS_MAX_RETRIES: ${REDIS_MAX_RETRIES:-3}
+      REDIS_CACHE_DEFAULT_TTL_SEC: ${REDIS_CACHE_DEFAULT_TTL_SEC:-300}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  awcms-mini-redis-data:
+  awcms-mini-redis-config:
