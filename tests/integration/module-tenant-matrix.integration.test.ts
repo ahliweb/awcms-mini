@@ -214,7 +214,8 @@ suite(
       // DISABLED here — every OTHER module is enabled by default.
       const defaultDisabled = new Set([
         "service_catalog",
-        "tenant_entitlement"
+        "tenant_entitlement",
+        "tenant_provisioning"
       ]);
       expect(
         rows

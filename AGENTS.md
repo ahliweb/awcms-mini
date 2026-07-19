@@ -141,6 +141,7 @@ AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode sta
 | Modul reference_data — value set, tenant override, import tervalidasi, PATCH parsial (Issue #750)                                                 | `awcms-mini-reference-data`          |
 | Modul service_catalog — plan/offer SaaS berversi, control-plane default-disabled, offer immutable (Issue #870)                                    | `awcms-mini-service-catalog`         |
 | Modul tenant_entitlement — entitlement efektif fitur/modul/kuota, kontrak fail-closed effective_entitlement, tenant-scoped RLS FORCE (Issue #871) | `awcms-mini-tenant-entitlement`      |
+| Modul tenant_provisioning — provisioning tenant idempoten/resumable, plan/step registry, kompensasi diklasifikasi, reconciliation non-destruktif, readiness (Issue #872) | `awcms-mini-tenant-provisioning`     |
 | Registry kontrak SaaS build-time (feature/quota/meter/commercial-event) single source of truth, gate konformans, versioning (Issue #874)          | `awcms-mini-saas-contracts`          |
 | Modul domain_event_runtime — outbox transaksional, consumer registry, ordering, replay (Issue #742)                                               | `awcms-mini-domain-event-runtime`    |
 | Modul organization_structure — legal entity, hierarki unit effective-dated, business scope port (Issue #749)                                      | `awcms-mini-organization-structure`  |

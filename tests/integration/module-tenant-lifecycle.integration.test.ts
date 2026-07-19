@@ -118,7 +118,11 @@ suite("tenant module lifecycle API", () => {
     // (`service_catalog`, `tenant_entitlement`) are `defaultTenantState:
     // "disabled"`, so they list as NOT enabled with no explicit row; every
     // other module is enabled by default.
-    const defaultDisabled = new Set(["service_catalog", "tenant_entitlement"]);
+    const defaultDisabled = new Set([
+      "service_catalog",
+      "tenant_entitlement",
+      "tenant_provisioning"
+    ]);
     expect(
       result.body.data.modules
         .filter((m) => !defaultDisabled.has(m.moduleKey))

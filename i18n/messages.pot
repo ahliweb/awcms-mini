@@ -3329,6 +3329,11 @@ msgstr ""
 msgid "admin.layout.nav_tenant_entitlement"
 msgstr ""
 
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/tenant-provisioning/module.ts:88
+msgid "admin.layout.nav_tenant_provisioning"
+msgstr ""
+
 #: src/layouts/AdminLayout.astro:200
 msgid "admin.layout.nav_toggle_aria_label"
 msgstr ""
@@ -6342,6 +6347,134 @@ msgstr ""
 
 #: src/pages/admin/tenant-entitlement/index.astro:287
 msgid "admin.tenant_entitlement.unlimited"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:76
+msgid "admin.tenant_provisioning.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:75
+msgid "admin.tenant_provisioning.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:62
+msgid "admin.tenant_provisioning.cancel_button"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:50
+msgid "admin.tenant_provisioning.cancel_success"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:57
+msgid "admin.tenant_provisioning.col_attempts"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:56
+msgid "admin.tenant_provisioning.col_kind"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:55
+msgid "admin.tenant_provisioning.col_status"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:54
+msgid "admin.tenant_provisioning.col_step"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:152
+msgid "admin.tenant_provisioning.create_button"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:94
+msgid "admin.tenant_provisioning.create_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:48
+msgid "admin.tenant_provisioning.create_success"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:148
+msgid "admin.tenant_provisioning.field_locale"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:140
+msgid "admin.tenant_provisioning.field_office_code"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:144
+msgid "admin.tenant_provisioning.field_office_name"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:127
+msgid "admin.tenant_provisioning.field_owner_login"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:123
+msgid "admin.tenant_provisioning.field_owner_name"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:131
+msgid "admin.tenant_provisioning.field_owner_password"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:97
+msgid "admin.tenant_provisioning.field_plan_key"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:101
+msgid "admin.tenant_provisioning.field_plan_version"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:162
+msgid "admin.tenant_provisioning.field_target_tenant"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:111
+msgid "admin.tenant_provisioning.field_tenant_code"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:119
+msgid "admin.tenant_provisioning.field_tenant_name"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:90
+msgid "admin.tenant_provisioning.intro"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:166
+msgid "admin.tenant_provisioning.lookup_button"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:159
+msgid "admin.tenant_provisioning.lookup_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:53
+msgid "admin.tenant_provisioning.not_found"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:52
+msgid "admin.tenant_provisioning.reason_prompt"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:63
+msgid "admin.tenant_provisioning.reconcile_button"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:51
+msgid "admin.tenant_provisioning.reconcile_success"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:61
+msgid "admin.tenant_provisioning.start_button"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:49
+msgid "admin.tenant_provisioning.start_success"
+msgstr ""
+
+#: src/pages/admin/tenant-provisioning/index.astro:70
+msgid "admin.tenant_provisioning.title"
 msgstr ""
 
 #: src/pages/admin/workflows/index.astro:103

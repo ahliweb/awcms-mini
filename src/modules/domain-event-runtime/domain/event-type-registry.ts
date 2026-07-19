@@ -235,6 +235,28 @@ export const TENANT_ENTITLEMENT_ASSIGNMENT_CHANGED_EVENT_TYPE =
 export const TENANT_ENTITLEMENT_OVERRIDE_CHANGED_EVENT_TYPE =
   "awcms-mini.tenant-entitlement.override.changed";
 
+/**
+ * `tenant_provisioning` (Issue #872, epic #868 SaaS control plane Wave 1,
+ * ADR-0022 §11.1). The THIRD control-plane module is a REAL producer via
+ * `appendDomainEvent`, emitting these inside the SAME transaction as the
+ * provisioning state change: `.requested` when a run is created (tenant
+ * bootstrapped), `.completed` when a run reaches `provisioned` (tenant active),
+ * `.failed` when a run is compensated to failed/blocked/canceled (tenant left
+ * inactive, data preserved), `.reconciled` after a non-destructive
+ * desired-vs-actual reconciliation. Payloads carry only bounded, non-sensitive
+ * fields (request/tenant id, plan, status, step key, drift count) — never a
+ * provider secret, owner password, or a step's raw I/O (ADR-0022 §6/§8).
+ */
+export const TENANT_PROVISIONING_EVENT_VERSION = "1.0";
+export const TENANT_PROVISIONING_REQUESTED_EVENT_TYPE =
+  "awcms-mini.tenant-provisioning.requested";
+export const TENANT_PROVISIONING_COMPLETED_EVENT_TYPE =
+  "awcms-mini.tenant-provisioning.completed";
+export const TENANT_PROVISIONING_FAILED_EVENT_TYPE =
+  "awcms-mini.tenant-provisioning.failed";
+export const TENANT_PROVISIONING_RECONCILED_EVENT_TYPE =
+  "awcms-mini.tenant-provisioning.reconciled";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -519,6 +541,30 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: TENANT_ENTITLEMENT_EVENT_VERSION,
       description:
         "A tenant entitlement override was created or revoked (Issue #871). Payload carries the override id, target kind/key, effect, change type, and the resolved snapshotHash — never the operator's free-text reason."
+    },
+    {
+      eventType: TENANT_PROVISIONING_REQUESTED_EVENT_TYPE,
+      eventVersion: TENANT_PROVISIONING_EVENT_VERSION,
+      description:
+        "A tenant provisioning run was requested and the target tenant record was bootstrapped (Issue #872). Payload carries the request id, tenant id, plan key/version, target key, and total step count — never a secret or owner password."
+    },
+    {
+      eventType: TENANT_PROVISIONING_COMPLETED_EVENT_TYPE,
+      eventVersion: TENANT_PROVISIONING_EVENT_VERSION,
+      description:
+        "A tenant provisioning run reached `provisioned` and the tenant became active (Issue #872). Payload carries the request id, tenant id, and status."
+    },
+    {
+      eventType: TENANT_PROVISIONING_FAILED_EVENT_TYPE,
+      eventVersion: TENANT_PROVISIONING_EVENT_VERSION,
+      description:
+        "A tenant provisioning run was compensated to failed/blocked/canceled; the tenant was left inactive with its data preserved (Issue #872). Payload carries the request id, tenant id, resulting status, and the failing step key (when applicable)."
+    },
+    {
+      eventType: TENANT_PROVISIONING_RECONCILED_EVENT_TYPE,
+      eventVersion: TENANT_PROVISIONING_EVENT_VERSION,
+      description:
+        "A non-destructive desired-vs-actual reconciliation of a provisioned run completed (Issue #872). Payload carries the request id, tenant id, reconciliation status, and drift count — no auto-fix is ever applied."
     }
   ];
 

@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 25,
+  "baseModuleCount": 26,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 25,
+  "totalModuleCount": 26,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -492,6 +492,35 @@
       "permissionCount": 8,
       "navigationCount": 1,
       "jobCount": 0,
+      "hasHealthCheck": false,
+      "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "tenant_provisioning",
+      "name": "Tenant Provisioning",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "domain",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
+        "domain_event_runtime",
+        "logging"
+      ],
+      "capabilitiesProvided": ["provisioning_status"],
+      "capabilitiesConsumed": [
+        {
+          "capability": "effective_entitlement",
+          "providedBy": "tenant_entitlement",
+          "optional": true
+        }
+      ],
+      "permissionCount": 5,
+      "navigationCount": 1,
+      "jobCount": 1,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,
       "deploymentProfiles": null

@@ -5141,3 +5141,103 @@ msgstr "Override dicabut."
 
 msgid "admin.tenant_entitlement.reason_prompt"
 msgstr "Masukkan alasan (wajib untuk audit):"
+
+msgid "admin.layout.nav_tenant_provisioning"
+msgstr "Provisioning Tenant"
+
+msgid "admin.tenant_provisioning.title"
+msgstr "Provisioning Tenant"
+
+msgid "admin.tenant_provisioning.intro"
+msgstr "Minta, lanjutkan, batalkan, dan rekonsiliasi proses provisioning tenant. Hanya operator platform; dibatasi pada tenant platform."
+
+msgid "admin.tenant_provisioning.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.tenant_provisioning.access_denied_body"
+msgstr "Anda tidak memiliki izin mengelola provisioning tenant, atau modul belum diaktifkan untuk tenant ini."
+
+msgid "admin.tenant_provisioning.create_heading"
+msgstr "Minta proses provisioning"
+
+msgid "admin.tenant_provisioning.create_button"
+msgstr "Minta provisioning"
+
+msgid "admin.tenant_provisioning.create_success"
+msgstr "Proses provisioning diminta."
+
+msgid "admin.tenant_provisioning.lookup_heading"
+msgstr "Cari proses"
+
+msgid "admin.tenant_provisioning.lookup_button"
+msgstr "Muat linimasa"
+
+msgid "admin.tenant_provisioning.not_found"
+msgstr "Tidak ada proses provisioning untuk tenant itu."
+
+msgid "admin.tenant_provisioning.field_plan_key"
+msgstr "Kunci paket"
+
+msgid "admin.tenant_provisioning.field_plan_version"
+msgstr "Versi paket"
+
+msgid "admin.tenant_provisioning.field_tenant_code"
+msgstr "Kode tenant"
+
+msgid "admin.tenant_provisioning.field_tenant_name"
+msgstr "Nama tenant"
+
+msgid "admin.tenant_provisioning.field_owner_name"
+msgstr "Nama pemilik"
+
+msgid "admin.tenant_provisioning.field_owner_login"
+msgstr "Identifier login pemilik"
+
+msgid "admin.tenant_provisioning.field_owner_password"
+msgstr "Kata sandi pemilik"
+
+msgid "admin.tenant_provisioning.field_office_code"
+msgstr "Kode kantor"
+
+msgid "admin.tenant_provisioning.field_office_name"
+msgstr "Nama kantor"
+
+msgid "admin.tenant_provisioning.field_locale"
+msgstr "Locale bawaan (opsional)"
+
+msgid "admin.tenant_provisioning.field_target_tenant"
+msgstr "ID tenant target"
+
+msgid "admin.tenant_provisioning.col_step"
+msgstr "Langkah"
+
+msgid "admin.tenant_provisioning.col_status"
+msgstr "Status"
+
+msgid "admin.tenant_provisioning.col_kind"
+msgstr "Jenis / kompensasi"
+
+msgid "admin.tenant_provisioning.col_attempts"
+msgstr "Percobaan"
+
+msgid "admin.tenant_provisioning.start_button"
+msgstr "Mulai / lanjut"
+
+msgid "admin.tenant_provisioning.start_success"
+msgstr "Provisioning maju."
+
+msgid "admin.tenant_provisioning.cancel_button"
+msgstr "Batalkan"
+
+msgid "admin.tenant_provisioning.cancel_success"
+msgstr "Provisioning dibatalkan (data tenant dipertahankan)."
+
+msgid "admin.tenant_provisioning.reconcile_button"
+msgstr "Rekonsiliasi"
+
+msgid "admin.tenant_provisioning.reconcile_success"
+msgstr "Rekonsiliasi selesai (tanpa perbaikan otomatis)."
+
+msgid "admin.tenant_provisioning.reason_prompt"
+msgstr "Alasan (opsional):"
+

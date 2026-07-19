@@ -5142,3 +5142,103 @@ msgstr "Override revoked."
 
 msgid "admin.tenant_entitlement.reason_prompt"
 msgstr "Enter a reason (required for audit):"
+
+msgid "admin.layout.nav_tenant_provisioning"
+msgstr "Tenant Provisioning"
+
+msgid "admin.tenant_provisioning.title"
+msgstr "Tenant Provisioning"
+
+msgid "admin.tenant_provisioning.intro"
+msgstr "Request, resume, cancel, and reconcile tenant provisioning runs. Platform-operator only; restricted to the platform tenant."
+
+msgid "admin.tenant_provisioning.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.tenant_provisioning.access_denied_body"
+msgstr "You do not have permission to manage tenant provisioning, or the module is not enabled for this tenant."
+
+msgid "admin.tenant_provisioning.create_heading"
+msgstr "Request a provisioning run"
+
+msgid "admin.tenant_provisioning.create_button"
+msgstr "Request provisioning"
+
+msgid "admin.tenant_provisioning.create_success"
+msgstr "Provisioning run requested."
+
+msgid "admin.tenant_provisioning.lookup_heading"
+msgstr "Look up a run"
+
+msgid "admin.tenant_provisioning.lookup_button"
+msgstr "Load timeline"
+
+msgid "admin.tenant_provisioning.not_found"
+msgstr "No provisioning run for that tenant."
+
+msgid "admin.tenant_provisioning.field_plan_key"
+msgstr "Plan key"
+
+msgid "admin.tenant_provisioning.field_plan_version"
+msgstr "Plan version"
+
+msgid "admin.tenant_provisioning.field_tenant_code"
+msgstr "Tenant code"
+
+msgid "admin.tenant_provisioning.field_tenant_name"
+msgstr "Tenant name"
+
+msgid "admin.tenant_provisioning.field_owner_name"
+msgstr "Owner display name"
+
+msgid "admin.tenant_provisioning.field_owner_login"
+msgstr "Owner login identifier"
+
+msgid "admin.tenant_provisioning.field_owner_password"
+msgstr "Owner password"
+
+msgid "admin.tenant_provisioning.field_office_code"
+msgstr "Office code"
+
+msgid "admin.tenant_provisioning.field_office_name"
+msgstr "Office name"
+
+msgid "admin.tenant_provisioning.field_locale"
+msgstr "Default locale (optional)"
+
+msgid "admin.tenant_provisioning.field_target_tenant"
+msgstr "Target tenant id"
+
+msgid "admin.tenant_provisioning.col_step"
+msgstr "Step"
+
+msgid "admin.tenant_provisioning.col_status"
+msgstr "Status"
+
+msgid "admin.tenant_provisioning.col_kind"
+msgstr "Kind / compensation"
+
+msgid "admin.tenant_provisioning.col_attempts"
+msgstr "Attempts"
+
+msgid "admin.tenant_provisioning.start_button"
+msgstr "Start / resume"
+
+msgid "admin.tenant_provisioning.start_success"
+msgstr "Provisioning advanced."
+
+msgid "admin.tenant_provisioning.cancel_button"
+msgstr "Cancel"
+
+msgid "admin.tenant_provisioning.cancel_success"
+msgstr "Provisioning canceled (tenant data preserved)."
+
+msgid "admin.tenant_provisioning.reconcile_button"
+msgstr "Reconcile"
+
+msgid "admin.tenant_provisioning.reconcile_success"
+msgstr "Reconciliation complete (no auto-fix applied)."
+
+msgid "admin.tenant_provisioning.reason_prompt"
+msgstr "Reason (optional):"
+

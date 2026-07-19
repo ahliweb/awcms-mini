@@ -1061,6 +1061,48 @@ channels:
       free-text reason. Producer:
       `tenant-entitlement/application/entitlement-directory.ts`'s
       `createOverride`/`revokeOverride`.
+  awcms-mini.tenant-provisioning.requested:
+    address: awcms-mini.tenant-provisioning.requested
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A tenant provisioning run was requested and the target tenant record was
+      bootstrapped (Issue #872, epic #868 SaaS control plane Wave 1, ADR-0022).
+      Payload: `requestId`, `tenantId`, `planKey`, `planVersion`, `targetKey`,
+      `totalSteps` — never a secret or owner password. Producer:
+      `tenant-provisioning/application/provisioning-orchestrator.ts`'s
+      `requestProvisioning`, same-commit with the tenant/owner creation.
+  awcms-mini.tenant-provisioning.completed:
+    address: awcms-mini.tenant-provisioning.completed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A tenant provisioning run reached `provisioned` and the tenant became
+      active (Issue #872). Payload: `requestId`, `tenantId`, `status`. Producer:
+      `tenant-provisioning/application/provisioning-orchestrator.ts`'s
+      `runProvisioning` finalization.
+  awcms-mini.tenant-provisioning.failed:
+    address: awcms-mini.tenant-provisioning.failed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A tenant provisioning run was compensated to failed/blocked/canceled; the
+      tenant was left inactive with its data preserved (Issue #872). Payload:
+      `requestId`, `tenantId`, `status`, `failedStepKey` (when applicable).
+      Producer: `provisioning-orchestrator.ts`'s compensation/cancel paths.
+  awcms-mini.tenant-provisioning.reconciled:
+    address: awcms-mini.tenant-provisioning.reconciled
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A non-destructive desired-vs-actual reconciliation of a provisioned run
+      completed (Issue #872). Payload: `requestId`, `tenantId`, `status`,
+      `driftCount` — no auto-fix is ever applied. Producer:
+      `provisioning-orchestrator.ts`'s `reconcileProvisioning`.
 operations:
   publishSyncPushRequested:
     action: send
@@ -1674,6 +1716,30 @@ operations:
       $ref: "#/channels/awcms-mini.tenant-entitlement.override.changed"
     messages:
       - $ref: "#/channels/awcms-mini.tenant-entitlement.override.changed/messages/DomainEvent"
+  publishTenantProvisioningRequested:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.tenant-provisioning.requested"
+    messages:
+      - $ref: "#/channels/awcms-mini.tenant-provisioning.requested/messages/DomainEvent"
+  publishTenantProvisioningCompleted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.tenant-provisioning.completed"
+    messages:
+      - $ref: "#/channels/awcms-mini.tenant-provisioning.completed/messages/DomainEvent"
+  publishTenantProvisioningFailed:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.tenant-provisioning.failed"
+    messages:
+      - $ref: "#/channels/awcms-mini.tenant-provisioning.failed/messages/DomainEvent"
+  publishTenantProvisioningReconciled:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.tenant-provisioning.reconciled"
+    messages:
+      - $ref: "#/channels/awcms-mini.tenant-provisioning.reconciled/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

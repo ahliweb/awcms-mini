@@ -1381,6 +1381,16 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/tenant-provisioning/_support.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/tenant-provisioning/tenants/[tenantId]/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/tenant/domains/[id].ts",
       "workClass": "interactive",
       "source": "default"

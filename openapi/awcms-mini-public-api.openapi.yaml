@@ -95,6 +95,8 @@ tags:
     description: "Provider-neutral SaaS control-plane service catalog (epic #868 SaaS control plane Wave 1, Issue #870, ADR-0022) — the first control-plane module, admitted Official Optional and default-disabled per tenant. Versioned commercial PLANS with an immutable-once-published OFFER lifecycle (draft -> validate -> publish -> retire), feature/whole-module entitlement grants, usage quotas (unit + reset policy), EXACT minor-unit prices (no floating point), and trial/availability/market/currency metadata. All catalog data is GLOBAL control-plane data (reviewed RLS-exempt, ADR-0022 §3): operator authoring tables are platform-operator-only + default-deny, and a separate tenant-readable published projection carries only published versions + public prices. Published offer versions are IMMUTABLE (corrections create a new version). Feature/module/meter keys resolve through a reviewed static registry; unknown keys fail closed. Not an ERP item/product master."
   - name: Tenant Entitlement
     description: "Provider-neutral SaaS control-plane tenant entitlement (epic #868 SaaS control plane Wave 1, Issue #871, ADR-0022) — the second control-plane module and the epic's HEART, the first tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Resolves a tenant's DETERMINISTIC, EXPLAINABLE effective feature/module/quota access from published service catalog offers (read via the service_catalog_read capability port), trial/grace effective-dating, operator overrides (grant/deny, reason-bound, optionally time-bound, revocable without restart), suspension/lifecycle restriction, and module-dependency safe-downgrade. Exposes ONE read-only fail-closed contract (effective_entitlement): unknown/absent/indeterminate/disabled = DENY, on a DIFFERENT axis from RBAC/ABAC/RLS — a positive entitlement NEVER grants a permission the actor lacks. Operator-only + default-deny + default-disabled per tenant. assign/override/revoke require Idempotency-Key + audit + versioned events; entitlement loss changes state + gates, NEVER deletes tenant data."
+  - name: Tenant Provisioning
+    description: "Provider-neutral SaaS control-plane tenant provisioning (epic #868 SaaS control plane Wave 1, Issue #872, ADR-0022) — the third control-plane module. Orchestrates an IDEMPOTENT, RESUMABLE provisioning run from a versioned plan/step registry: tenant record/bootstrap, owner identity, default configuration/locale, optional entitlement assignment (via the tenant_entitlement path), optional module preset, optional subdomain, mandatory readiness, and derived-application contributed steps (via the provisioning_step capability port). Durable checkpoints, bounded retries, lease/lock ownership, idempotency-key replay, explicit compensation classification (reversible/manual/forbidden), and NON-DESTRUCTIVE reconciliation. REUSES existing tenant/owner/office/config creation rather than duplicating it; runs provider/async work OUTSIDE the source transaction; NEVER deletes tenant data as compensation. A failed/canceled run leaves the tenant inactive with a visible blocked/failed status. Platform-operator only + default-deny + default-disabled per tenant; provisioning is restricted to the platform tenant (no soft super-tenant). Every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id. LAN/offline safe: provisions with all online/provider steps absent or disabled."
 paths:
   /api/v1/access/assignments:
     post:
@@ -20131,6 +20133,290 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-provisioning/requests:
+    post:
+      tags:
+        - Tenant Provisioning
+      summary: Request an idempotent tenant provisioning run
+      description: Create the target tenant (ACID anti-duplicate on tenant_code), owner, office, settings, and the run + steps in one transaction. Platform-operator only. Requires Idempotency-Key. A same-key replay returns 200; a different request for a taken tenant code returns 409. The tenant is created inactive until readiness activates it.
+      operationId: tenantProvisioningRequestCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantProvisioningCreateRequest"
+      responses:
+        "200":
+          description: An idempotent replay of an existing run (same Idempotency-Key + inputs).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - request
+                        properties:
+                          request:
+                            $ref: "#/components/schemas/TenantProvisioningRequest"
+        "201":
+          description: The created provisioning run.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - request
+                        properties:
+                          request:
+                            $ref: "#/components/schemas/TenantProvisioningRequest"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: The tenant code is already taken by a different provisioning request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-provisioning/tenants/{tenantId}:
+    get:
+      tags:
+        - Tenant Provisioning
+      summary: Read a tenant's provisioning timeline
+      description: The full run, steps, attempts, results, compensations, and reconciliations for a target tenant. Platform-operator only; read under the target tenant's per-tenant RLS context.
+      operationId: tenantProvisioningTimelineGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The provisioning timeline.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantProvisioningTimeline"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-provisioning/tenants/{tenantId}/cancel:
+    post:
+      tags:
+        - Tenant Provisioning
+      summary: Cancel a provisioning run when safe
+      description: Refuses if a worker holds a live lease (409); runs classified compensation over completed steps (reversible undo / manual / forbidden — never a tenant-data delete); leaves the tenant inactive. Platform-operator only. Requires Idempotency-Key.
+      operationId: tenantProvisioningCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantProvisioningCancelRequest"
+      responses:
+        "200":
+          description: The canceled run.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - request
+                        properties:
+                          request:
+                            $ref: "#/components/schemas/TenantProvisioningRequest"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A worker is mid-step, or the run is not cancelable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-provisioning/tenants/{tenantId}/reconcile:
+    post:
+      tags:
+        - Tenant Provisioning
+      summary: Non-destructive reconcile of a provisioned run
+      description: Compare desired-vs-actual state, report drift and safe operator actions — never an auto-fix. Provisioned runs only. Platform-operator only. Requires Idempotency-Key.
+      operationId: tenantProvisioningReconcile
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The reconciliation result (drift + safe actions), no auto-fix applied.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/TenantProvisioningReconcileResponseData"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The run is not in a reconcilable (provisioned) state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-provisioning/tenants/{tenantId}/start:
+    post:
+      tags:
+        - Tenant Provisioning
+      summary: Start, resume, or retry a provisioning run
+      description: Acquire an exclusive lease (concurrent start → 409) and run each remaining step in its own transaction from the durable checkpoint, retrying a failed step within its bounded attempt budget. Platform-operator only. Requires Idempotency-Key.
+      operationId: tenantProvisioningStart
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The run after this start/resume pass.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - request
+                        properties:
+                          request:
+                            $ref: "#/components/schemas/TenantProvisioningRequest"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Another worker holds the lease, or the run is not resumable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/tenant/domains:
     get:
       tags:
@@ -32709,6 +32995,275 @@ components:
           type: string
         tenantEnabled:
           type: boolean
+    TenantProvisioningCancelRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          nullable: true
+          maxLength: 2000
+    TenantProvisioningCreateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - planKey
+        - planVersion
+        - tenantCode
+        - tenantName
+        - owner
+        - officeCode
+        - officeName
+      properties:
+        planKey:
+          type: string
+        planVersion:
+          type: integer
+          minimum: 1
+        tenantCode:
+          type: string
+        tenantName:
+          type: string
+        legalName:
+          type: string
+          nullable: true
+        owner:
+          type: object
+          additionalProperties: false
+          required:
+            - displayName
+            - loginIdentifier
+            - password
+          properties:
+            displayName:
+              type: string
+            loginIdentifier:
+              type: string
+            password:
+              type: string
+              minLength: 8
+              maxLength: 200
+        officeCode:
+          type: string
+        officeName:
+          type: string
+        options:
+          type: object
+          additionalProperties: false
+          properties:
+            defaultLocale:
+              type: string
+              nullable: true
+            defaultTheme:
+              type: string
+              nullable: true
+            timezone:
+              type: string
+              nullable: true
+            subdomain:
+              type: string
+              nullable: true
+            presetKey:
+              type: string
+              nullable: true
+            offerPlanKey:
+              type: string
+              nullable: true
+            offerVersion:
+              type: integer
+              nullable: true
+    TenantProvisioningReconcileResponseData:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - drift
+        - request
+      properties:
+        status:
+          type: string
+          enum:
+            - consistent
+            - drift_detected
+            - error
+        drift:
+          type: array
+          items:
+            type: object
+        request:
+          $ref: "#/components/schemas/TenantProvisioningRequest"
+    TenantProvisioningRequest:
+      type: object
+      description: A tenant provisioning run (Issue
+      additionalProperties: false
+      required:
+        - id
+        - tenantId
+        - planKey
+        - planVersion
+        - targetKey
+        - status
+        - readiness
+        - totalSteps
+        - completedSteps
+        - requestedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        planKey:
+          type: string
+        planVersion:
+          type: integer
+        targetKey:
+          type: string
+        status:
+          type: string
+          enum:
+            - requested
+            - in_progress
+            - provisioned
+            - compensating
+            - failed
+            - blocked
+            - canceled
+            - reconciling
+        readiness:
+          type: string
+          enum:
+            - pending
+            - ready
+            - blocked
+        totalSteps:
+          type: integer
+        completedSteps:
+          type: integer
+        currentStepKey:
+          type: string
+          nullable: true
+        lastErrorClass:
+          type: string
+          nullable: true
+        blockedReason:
+          type: string
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        provisionedAt:
+          type: string
+          format: date-time
+          nullable: true
+        failedAt:
+          type: string
+          format: date-time
+          nullable: true
+        canceledAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+        lastReconciledAt:
+          type: string
+          format: date-time
+          nullable: true
+    TenantProvisioningStep:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - stepKey
+        - stepIndex
+        - stepKind
+        - compensationClass
+        - optional
+        - status
+        - attemptCount
+        - maxAttempts
+      properties:
+        id:
+          type: string
+          format: uuid
+        stepKey:
+          type: string
+        stepIndex:
+          type: integer
+        stepKind:
+          type: string
+          enum:
+            - core
+            - provider
+            - derived
+        compensationClass:
+          type: string
+          enum:
+            - reversible
+            - manual
+            - forbidden
+        optional:
+          type: boolean
+        status:
+          type: string
+        attemptCount:
+          type: integer
+        maxAttempts:
+          type: integer
+        lastErrorClass:
+          type: string
+          nullable: true
+        lastErrorMessage:
+          type: string
+          nullable: true
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    TenantProvisioningTimeline:
+      type: object
+      additionalProperties: false
+      required:
+        - request
+        - steps
+        - attempts
+        - results
+        - compensations
+        - reconciliations
+      properties:
+        request:
+          $ref: "#/components/schemas/TenantProvisioningRequest"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantProvisioningStep"
+        attempts:
+          type: array
+          items:
+            type: object
+        results:
+          type: array
+          items:
+            type: object
+        compensations:
+          type: array
+          items:
+            type: object
+        reconciliations:
+          type: array
+          items:
+            type: object
     TenantSettingsResponse:
       type: object
       required:

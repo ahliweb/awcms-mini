@@ -470,3 +470,115 @@ describe("module boundary — tenant_entitlement control-plane <-> tenant-plane 
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Control-plane <-> tenant-plane boundary for `tenant_provisioning` (Issue #872,
+ * epic #868, ADR-0022 §4). Same registry-wide enforcement as the
+ * service_catalog / tenant_entitlement blocks above — each new control-plane
+ * module adds its own key/prefix.
+ *   1. No OTHER module's application/domain imports `tenant-provisioning`'s
+ *      application/domain — a downstream module reads ONLY the read-only
+ *      `provisioning_status` port at its own composition root. (The cross-module
+ *      wiring `tenant_provisioning` itself needs — tenant_admin onboarding,
+ *      tenant_entitlement assign/cancel — lives in its ROUTE composition root
+ *      `_support.ts` under `src/pages/api/**`, which these gates deliberately do
+ *      not scan, never inside its own application/domain.)
+ *   2. No module or route OUTSIDE `tenant_provisioning` writes an
+ *      `awcms_mini_tenant_provisioning_*` table (no-shared-table-write).
+ *   3. The `provisioning_status` port file stays neutral ground.
+ */
+describe("module boundary — tenant_provisioning control-plane <-> tenant-plane (Issue #872, ADR-0022)", () => {
+  const CONTROL_PLANE_MODULE_DIR = "tenant-provisioning";
+  const CONTROL_PLANE_TABLE_PREFIX = "awcms_mini_tenant_provisioning_";
+
+  test("no OTHER module's application/domain imports tenant-provisioning's application/domain (consume the read-only port instead)", () => {
+    const offenders: string[] = [];
+
+    for (const moduleName of readdirSync(MODULES_ROOT)) {
+      if (moduleName === CONTROL_PLANE_MODULE_DIR || moduleName === "_shared") {
+        continue;
+      }
+      const stat = statSync(path.join(MODULES_ROOT, moduleName));
+      if (!stat.isDirectory()) {
+        continue;
+      }
+      for (const dir of moduleAppDomainDirs(moduleName)) {
+        offenders.push(
+          ...findForbiddenCrossModuleImports(
+            dir,
+            listTsFiles(dir),
+            CONTROL_PLANE_MODULE_DIR
+          )
+        );
+      }
+    }
+
+    expect(
+      offenders,
+      "A tenant-plane / downstream module must read provisioning status ONLY through the `provisioning_status` capability port (`_shared/ports/provisioning-status-port.ts`), wired at its own route/composition root — never by importing tenant_provisioning's application/domain directly (ADR-0022 §4)."
+    ).toEqual([]);
+  });
+
+  test("no module or route outside tenant_provisioning writes an awcms_mini_tenant_provisioning_ table (no-shared-table-write, ADR-0013 §6)", () => {
+    const writePattern = new RegExp(
+      `(INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+${CONTROL_PLANE_TABLE_PREFIX}`,
+      "i"
+    );
+    const offenders: string[] = [];
+
+    function scan(root: string): void {
+      for (const file of listTsFiles(root)) {
+        if (
+          file.includes(`/modules/${CONTROL_PLANE_MODULE_DIR}/`) ||
+          file.includes(`/api/v1/${CONTROL_PLANE_MODULE_DIR}/`)
+        ) {
+          continue;
+        }
+        const content = readFileSync(file, "utf-8");
+        content.split("\n").forEach((line, index) => {
+          if (writePattern.test(line)) {
+            offenders.push(
+              `${path.relative(path.join(import.meta.dir, "../.."), file)}:${index + 1}: ${line.trim()}`
+            );
+          }
+        });
+      }
+    }
+
+    scan(MODULES_ROOT);
+    scan(PAGES_ROOT);
+
+    expect(
+      offenders,
+      "Only the tenant_provisioning module (and its own routes) may write awcms_mini_tenant_provisioning_* tables (ADR-0013 §6). A consumer reads the provisioning_status port, never a direct write."
+    ).toEqual([]);
+  });
+
+  test("the provisioning_status port file imports no module's application/domain (neutral ground)", () => {
+    const portFile = path.join(
+      MODULES_ROOT,
+      "_shared/ports/provisioning-status-port.ts"
+    );
+    expect(existsSync(portFile)).toBe(true);
+
+    const content = readFileSync(portFile, "utf-8");
+    const lines = content.split("\n");
+    const moduleDirNames = readdirSync(MODULES_ROOT).filter((name) => {
+      const full = path.join(MODULES_ROOT, name);
+      return name !== "_shared" && statSync(full).isDirectory();
+    });
+
+    const offenders: string[] = [];
+    lines.forEach((line, index) => {
+      for (const moduleDir of moduleDirNames) {
+        if (lineViolatesModuleBoundary(line, moduleDir)) {
+          offenders.push(
+            `provisioning-status-port.ts:${index + 1}: ${line.trim()}`
+          );
+        }
+      }
+    });
+
+    expect(offenders).toEqual([]);
+  });
+});
