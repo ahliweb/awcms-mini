@@ -192,6 +192,14 @@ jobs:
       - name: Reporting projection registry validation check
         run: bun run reporting:projections:registry:check
 
+      # Issue #874 (epic #868 SaaS control plane): added alongside the other
+      # registry checks above, for the exact same "CI silently runs a subset of
+      # `bun run check`" reason Issue #685/#740/#745/#746/#750/#753 already
+      # documented — do not rely on `bun run check` alone. Validates the SaaS
+      # contract registry, event/AsyncAPI parity, and inventory freshness.
+      - name: SaaS contract registry validation check
+        run: bun run saas-contracts:registry:check
+
       - name: Typecheck (tsc --noEmit)
         run: bun run typecheck
 

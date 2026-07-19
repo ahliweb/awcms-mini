@@ -11,6 +11,14 @@
  * `optional: true`) binding, to prove `capability_provider_missing`
  * resolves correctly (no issue) when the provider is present in the same
  * application registry.
+ *
+ * Also contributes ONE feature + ONE meter + ONE quota to the SaaS commercial
+ * contract registry (Issue #874) — a DUMMY derived-module contribution that
+ * proves a reviewed derived module can add commercial capability metadata
+ * WITHOUT editing any base registry file (Issue #874 AC). The meter uses
+ * `correction: "signed_delta"` (loyalty points can be redeemed) to exercise the
+ * negative-lower-bound path the registry validator only permits with explicit
+ * signed-delta correction.
  */
 import { defineModule } from "../../../../../src/modules/_shared/module-contract";
 
@@ -26,6 +34,41 @@ export const exampleLoyaltyModule = defineModule({
   capabilities: {
     consumes: [
       { capability: "example_crm_directory", providedBy: "example_crm" }
+    ]
+  },
+  serviceCatalog: {
+    features: [
+      {
+        key: "loyalty.points_program",
+        ownerModuleKey: "example_loyalty",
+        description: "Access to the loyalty points program (fixture)."
+      }
+    ],
+    meters: [
+      {
+        key: "loyalty.points_delta",
+        ownerModuleKey: "example_loyalty",
+        description:
+          "Signed loyalty-point movements (earned positive, redeemed negative) (fixture).",
+        eventVersion: "1.0",
+        valueType: "count",
+        aggregation: "sum",
+        correction: "signed_delta",
+        classification: "informational",
+        privacyClassification: "pseudonymous",
+        bounds: { minValue: -1000000, maxValue: 1000000 }
+      }
+    ],
+    quotas: [
+      {
+        key: "loyalty.points_balance_cap",
+        ownerModuleKey: "example_loyalty",
+        description: "Soft cap on accrued loyalty point balance (fixture).",
+        meterKey: "loyalty.points_delta",
+        unit: "point",
+        resetPeriod: "none",
+        enforcement: "soft"
+      }
     ]
   },
   permissions: [

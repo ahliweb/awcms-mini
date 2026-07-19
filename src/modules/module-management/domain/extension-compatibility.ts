@@ -94,6 +94,12 @@ export type ExtensionManifestIssue =
       declaredVersion: string;
       actualVersion: string;
     }
+  | { type: "saas_contract_version_invalid"; declaredVersion: string }
+  | {
+      type: "saas_contract_version_unsupported";
+      declaredVersion: string;
+      actualVersion: string;
+    }
   | {
       type: "duplicate_contributed_module";
       moduleKey: string;
@@ -155,6 +161,8 @@ export type ExtensionManifestIssue =
 export type ExtensionCompatibilityFacts = {
   actualBaseVersion: string;
   actualModuleContractVersion: string;
+  /** The base's current `SAAS_CONTRACT_VERSION` (`module-contract.ts`), Issue #874. */
+  actualSaasContractVersion: string;
   capabilityVersions: Readonly<Record<string, string>>;
   migrationFiles: readonly { name: string; checksum: string }[];
   actualOpenApiContractVersion: string | null;
@@ -230,6 +238,13 @@ export function parseExtensionManifest(raw: unknown): ManifestParseResult {
 
   if (typeof raw.moduleContractVersion !== "string") {
     fail("moduleContractVersion", "must be a string");
+  }
+
+  if (
+    raw.saasContractVersion !== undefined &&
+    typeof raw.saasContractVersion !== "string"
+  ) {
+    fail("saasContractVersion", "must be a string when present");
   }
 
   const contributedModules = raw.contributedModules;
@@ -402,6 +417,10 @@ export function formatExtensionManifestIssue(
       return `Manifest field "moduleContractVersion" ("${issue.declaredVersion}") is not valid SemVer.`;
     case "module_contract_version_unsupported":
       return `Manifest declares moduleContractVersion "${issue.declaredVersion}", unsupported by this release's actual module contract version "${issue.actualVersion}" (major must match; minor must not exceed it).`;
+    case "saas_contract_version_invalid":
+      return `Manifest field "saasContractVersion" ("${issue.declaredVersion}") is not valid SemVer.`;
+    case "saas_contract_version_unsupported":
+      return `Manifest declares saasContractVersion "${issue.declaredVersion}", unsupported by this release's actual SaaS contract version "${issue.actualVersion}" (major must match; minor must not exceed it).`;
     case "duplicate_contributed_module":
       return `Contributed module key "${issue.moduleKey}" is declared ${issue.occurrences} times in the manifest.`;
     case "capability_unknown":
@@ -511,6 +530,33 @@ function checkModuleContractVersion(
         type: "module_contract_version_unsupported",
         declaredVersion: manifest.moduleContractVersion,
         actualVersion: facts.actualModuleContractVersion
+      }
+    ];
+  }
+  return [];
+}
+
+function checkSaasContractVersion(
+  manifest: ExtensionCompatibilityManifest,
+  facts: ExtensionCompatibilityFacts
+): ExtensionManifestIssue[] {
+  const declared = manifest.saasContractVersion;
+  if (declared === undefined) {
+    return [];
+  }
+
+  if (!parseSemver(declared)) {
+    return [
+      { type: "saas_contract_version_invalid", declaredVersion: declared }
+    ];
+  }
+
+  if (!isVersionSupported(declared, facts.actualSaasContractVersion)) {
+    return [
+      {
+        type: "saas_contract_version_unsupported",
+        declaredVersion: declared,
+        actualVersion: facts.actualSaasContractVersion
       }
     ];
   }
@@ -799,6 +845,7 @@ export function evaluateExtensionManifest(
     ...checkManifestSchemaVersion(manifest),
     ...checkBaseVersionRange(manifest, facts),
     ...checkModuleContractVersion(manifest, facts),
+    ...checkSaasContractVersion(manifest, facts),
     ...checkDuplicateContributedModules(manifest),
     ...checkCapabilities(manifest, facts),
     ...checkMigrations(manifest, facts),

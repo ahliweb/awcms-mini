@@ -38,6 +38,7 @@ function facts(
   return {
     actualBaseVersion: "0.23.5",
     actualModuleContractVersion: "1.0.0",
+    actualSaasContractVersion: "1.0.0",
     capabilityVersions: { public_content: "1.0.0" },
     migrationFiles: [],
     actualOpenApiContractVersion: "1.0.0",
@@ -210,6 +211,53 @@ describe("checkModuleContractVersion (Issue #741)", () => {
       facts()
     );
     expect(issueTypes(issues)).toContain("module_contract_version_invalid");
+  });
+});
+
+describe("checkSaasContractVersion (Issue #874)", () => {
+  test("absent saasContractVersion is not a failure", () => {
+    const issues = evaluateExtensionManifest(
+      manifest({ saasContractVersion: undefined }),
+      facts({ actualSaasContractVersion: "1.0.0" })
+    );
+    expect(issueTypes(issues)).not.toContain(
+      "saas_contract_version_unsupported"
+    );
+    expect(issueTypes(issues)).not.toContain("saas_contract_version_invalid");
+  });
+
+  test("major mismatch is unsupported", () => {
+    const issues = evaluateExtensionManifest(
+      manifest({ saasContractVersion: "2.0.0" }),
+      facts({ actualSaasContractVersion: "1.0.0" })
+    );
+    expect(issueTypes(issues)).toContain("saas_contract_version_unsupported");
+  });
+
+  test("declared minor greater than actual minor is unsupported", () => {
+    const issues = evaluateExtensionManifest(
+      manifest({ saasContractVersion: "1.5.0" }),
+      facts({ actualSaasContractVersion: "1.0.0" })
+    );
+    expect(issueTypes(issues)).toContain("saas_contract_version_unsupported");
+  });
+
+  test("declared minor <= actual minor is supported", () => {
+    const issues = evaluateExtensionManifest(
+      manifest({ saasContractVersion: "1.0.0" }),
+      facts({ actualSaasContractVersion: "1.5.0" })
+    );
+    expect(issueTypes(issues)).not.toContain(
+      "saas_contract_version_unsupported"
+    );
+  });
+
+  test("an invalid version string is its own distinct diagnostic", () => {
+    const issues = evaluateExtensionManifest(
+      manifest({ saasContractVersion: "not-semver" }),
+      facts()
+    );
+    expect(issueTypes(issues)).toContain("saas_contract_version_invalid");
   });
 });
 

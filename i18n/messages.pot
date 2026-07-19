@@ -3292,7 +3292,7 @@ msgid "admin.layout.nav_security"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/service-catalog/module.ts:73
+#: src/modules/service-catalog/module.ts:165
 msgid "admin.layout.nav_service_catalog_plans"
 msgstr ""
 
