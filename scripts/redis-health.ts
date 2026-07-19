@@ -4,7 +4,7 @@ import { checkRedisHealth, closeRedisClient } from "../src/lib/redis/client";
 import {
   loadRedisConfig,
   redactRedisUrl,
-  validateRedisConfig,
+  validateRedisConfig
 } from "../src/lib/redis/config";
 
 const config = loadRedisConfig();
@@ -18,11 +18,11 @@ if (failures.length > 0) {
         check: "redis",
         status: "invalid_configuration",
         url: redactRedisUrl(config.url),
-        findings,
+        findings
       },
       null,
-      2,
-    ),
+      2
+    )
   );
   process.exitCode = 1;
 } else {
@@ -34,11 +34,11 @@ if (failures.length > 0) {
         check: "redis",
         url: redactRedisUrl(config.url),
         findings,
-        ...health,
+        ...health
       },
       null,
-      2,
-    ),
+      2
+    )
   );
 
   if (health.status === "unhealthy") {
