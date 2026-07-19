@@ -1,0 +1,729 @@
+---
+/**
+ * Service catalog plans admin screen (Issue #870, epic #868 SaaS control
+ * plane, ADR-0022). Same "SSR load, client-side mutate via fetch" pattern
+ * `admin/reference-data/value-sets.astro` establishes. All writes affect the
+ * GLOBAL control-plane catalog; every mutation permission is platform-operator
+ * only + default-deny, and this whole page is gated: `service_catalog` is
+ * `defaultTenantState: "disabled"`, so the SSR permission gate
+ * (`ssr-session.ts`) strips `service_catalog.*` keys for any tenant that has
+ * not explicitly enabled the module — the denied notice renders for them.
+ *
+ * Two views on one route: the plan list (+ create), and — with `?plan=<key>` —
+ * the plan detail (version history with clear draft/published state, a draft
+ * content editor, and validate/publish/retire/new-version actions).
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import StatusBadge from "../../../components/ui/StatusBadge.astro";
+import type { StatusBadgeVariant } from "../../../components/ui/StatusBadge.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import {
+  fetchPlanDetail,
+  listPlans,
+  type ServiceCatalogPlanDetailDto,
+  type ServiceCatalogPlanSummaryDto
+} from "../../../modules/service-catalog/application/plan-directory";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/service-catalog/plans.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("service_catalog", "plans", "read")
+);
+const CAN_CREATE = context.permissions.has(
+  permissionKey("service_catalog", "plans", "create")
+);
+const CAN_UPDATE = context.permissions.has(
+  permissionKey("service_catalog", "plans", "update")
+);
+const CAN_PUBLISH = context.permissions.has(
+  permissionKey("service_catalog", "offers", "publish")
+);
+const CAN_RETIRE = context.permissions.has(
+  permissionKey("service_catalog", "offers", "retire")
+);
+
+const selectedPlanKey = Astro.url.searchParams.get("plan");
+
+const clientStrings = {
+  createSuccess: t("admin.service_catalog.plans.create_success"),
+  saveSuccess: t("admin.service_catalog.plans.save_success"),
+  publishSuccess: t("admin.service_catalog.plans.publish_success"),
+  retireSuccess: t("admin.service_catalog.plans.retire_success"),
+  newVersionSuccess: t("admin.service_catalog.plans.new_version_success"),
+  validateValid: t("admin.service_catalog.plans.validate_valid"),
+  invalidJson: t("admin.service_catalog.plans.invalid_json"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let plans: ServiceCatalogPlanSummaryDto[] = [];
+let detail: ServiceCatalogPlanDetailDto | null = null;
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      if (selectedPlanKey) {
+        detail = await fetchPlanDetail(tx, selectedPlanKey);
+      } else {
+        plans = await listPlans(tx);
+      }
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/service-catalog/plans.astro: failed to load catalog",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+
+function planStatusVariant(status: string): StatusBadgeVariant {
+  return status === "active" ? "success" : "neutral";
+}
+
+function versionStatusVariant(status: string): StatusBadgeVariant {
+  if (status === "published") return "success";
+  if (status === "draft") return "warning";
+  if (status === "retired") return "danger";
+  return "neutral";
+}
+
+const draftVersion = detail?.versions.find((v) => v.status === "draft") ?? null;
+const draftContentJson = draftVersion
+  ? JSON.stringify(
+      {
+        currency: draftVersion.currency,
+        market: draftVersion.market,
+        trialEnabled: draftVersion.trialEnabled,
+        trialDays: draftVersion.trialDays,
+        availableFrom: draftVersion.availableFrom,
+        availableTo: draftVersion.availableTo,
+        notes: draftVersion.notes,
+        features: draftVersion.features,
+        quotas: draftVersion.quotas,
+        prices: draftVersion.prices
+      },
+      null,
+      2
+    )
+  : "";
+---
+
+<AdminLayout title={t("admin.service_catalog.plans.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.service_catalog.access_denied_title")}
+        body={t("admin.service_catalog.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="catalog-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {/* ---------- DETAIL VIEW ---------- */}
+        {selectedPlanKey && !detail && (
+          <StateNotice
+            kind="info"
+            title={t("admin.service_catalog.plans.not_found_title")}
+            body={t("admin.service_catalog.plans.not_found_body")}
+          />
+        )}
+
+        {detail && (
+          <section class="plan-detail" data-plan-key={detail.planKey}>
+            <p class="detail-breadcrumb">
+              <a href="/admin/service-catalog/plans">
+                {t("admin.service_catalog.plans.back_to_list")}
+              </a>
+            </p>
+            <h2>
+              {detail.name}{" "}
+              <StatusBadge
+                variant={planStatusVariant(detail.status)}
+                label={detail.status}
+              />
+            </h2>
+            <p class="detail-meta">
+              <code>{detail.planKey}</code> · {detail.planType}
+            </p>
+
+            <h3>{t("admin.service_catalog.plans.version_history")}</h3>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    {t("admin.service_catalog.plans.col_version")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.service_catalog.plans.col_status")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.service_catalog.plans.col_currency")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.service_catalog.plans.col_published_at")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.service_catalog.plans.col_actions")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.versions.map((v) => (
+                  <tr data-version={v.version} data-status={v.status}>
+                    <td>v{v.version}</td>
+                    <td>
+                      <StatusBadge
+                        variant={versionStatusVariant(v.status)}
+                        label={v.status}
+                      />
+                    </td>
+                    <td>{v.currency}</td>
+                    <td>{v.publishedAt ? v.publishedAt.slice(0, 10) : "—"}</td>
+                    <td class="row-actions">
+                      {v.status === "draft" && CAN_UPDATE && (
+                        <button
+                          type="button"
+                          class="validate-button ghost-button"
+                          data-version={v.version}
+                        >
+                          {t("admin.service_catalog.plans.validate_button")}
+                        </button>
+                      )}
+                      {v.status === "draft" && CAN_PUBLISH && (
+                        <button
+                          type="button"
+                          class="publish-button primary-button"
+                          data-version={v.version}
+                        >
+                          {t("admin.service_catalog.plans.publish_button")}
+                        </button>
+                      )}
+                      {v.status === "published" && CAN_RETIRE && (
+                        <button
+                          type="button"
+                          class="retire-button danger-button"
+                          data-version={v.version}
+                        >
+                          {t("admin.service_catalog.plans.retire_button")}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {!draftVersion && CAN_UPDATE && (
+              <button
+                type="button"
+                id="new-version-button"
+                class="primary-button"
+              >
+                {t("admin.service_catalog.plans.new_version_button")}
+              </button>
+            )}
+
+            {draftVersion && CAN_UPDATE && (
+              <form id="draft-form" class="draft-form">
+                <h3>{t("admin.service_catalog.plans.edit_draft")}</h3>
+                <label>
+                  {t("admin.service_catalog.plans.field_content")}
+                  <textarea
+                    name="content"
+                    id="draft-content"
+                    rows="16"
+                    spellcheck="false"
+                  >
+                    {draftContentJson}
+                  </textarea>
+                </label>
+                <button type="submit" class="primary-button">
+                  {t("admin.service_catalog.plans.save_draft_button")}
+                </button>
+              </form>
+            )}
+          </section>
+        )}
+
+        {/* ---------- LIST VIEW ---------- */}
+        {!selectedPlanKey && (
+          <section class="plan-list">
+            {plans.length === 0 ? (
+              <p class="empty-state">
+                {t("admin.service_catalog.plans.no_rows")}
+              </p>
+            ) : (
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_key")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_name")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_type")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_status")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_latest_version")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.map((plan) => (
+                    <tr data-key={plan.planKey}>
+                      <td>
+                        <a
+                          href={`/admin/service-catalog/plans?plan=${encodeURIComponent(plan.planKey)}`}
+                        >
+                          {plan.planKey}
+                        </a>
+                      </td>
+                      <td>{plan.name}</td>
+                      <td>{plan.planType}</td>
+                      <td>
+                        <StatusBadge
+                          variant={planStatusVariant(plan.status)}
+                          label={plan.status}
+                        />
+                      </td>
+                      <td>
+                        {plan.latestVersion !== null ? (
+                          <>
+                            v{plan.latestVersion}{" "}
+                            {plan.latestVersionStatus && (
+                              <StatusBadge
+                                variant={versionStatusVariant(
+                                  plan.latestVersionStatus
+                                )}
+                                label={plan.latestVersionStatus}
+                              />
+                            )}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {CAN_CREATE && (
+              <details class="create-plan">
+                <summary>
+                  {t("admin.service_catalog.plans.create_summary")}
+                </summary>
+                <form id="create-form" class="create-plan-form">
+                  <label>
+                    {t("admin.service_catalog.plans.field_key")}
+                    <input
+                      type="text"
+                      name="planKey"
+                      required
+                      maxlength="100"
+                      pattern="^[a-z][a-z0-9_]*$"
+                    />
+                  </label>
+                  <label>
+                    {t("admin.service_catalog.plans.field_name")}
+                    <input type="text" name="name" required maxlength="200" />
+                  </label>
+                  <label>
+                    {t("admin.service_catalog.plans.field_type")}
+                    <select name="planType">
+                      <option value="subscription">subscription</option>
+                      <option value="addon">addon</option>
+                      <option value="bundle">bundle</option>
+                      <option value="custom">custom</option>
+                    </select>
+                  </label>
+                  <label>
+                    {t("admin.service_catalog.plans.field_currency")}
+                    <input
+                      type="text"
+                      name="currency"
+                      required
+                      value="USD"
+                      maxlength="3"
+                      pattern="^[A-Z]{3}$"
+                    />
+                  </label>
+                  <button type="submit" class="primary-button">
+                    {t("admin.service_catalog.plans.create_submit")}
+                  </button>
+                </form>
+              </details>
+            )}
+          </section>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .catalog-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  .action-banner {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-surface, #e6f4ea);
+    color: var(--color-success-strong, #1e7e34);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-surface, #fdecea);
+    color: var(--color-danger-strong);
+  }
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .data-table th,
+  .data-table td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .row-actions {
+    display: flex;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+  }
+  .detail-meta code,
+  .plan-list code {
+    font-size: var(--fs-sm);
+  }
+  .primary-button,
+  .danger-button,
+  .ghost-button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-3);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: 1px solid var(--color-border);
+  }
+  .primary-button {
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    border: none;
+  }
+  .danger-button {
+    background: var(--color-surface-2);
+    color: var(--color-danger-strong);
+    border: 1px solid var(--color-danger-strong);
+  }
+  .ghost-button {
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .create-plan {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3);
+  }
+  .create-plan summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .create-plan-form,
+  .draft-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    max-width: 640px;
+    margin-top: var(--sp-2);
+  }
+  .create-plan-form label,
+  .draft-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+  }
+  .create-plan-form input,
+  .create-plan-form select,
+  .draft-form textarea {
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit;
+  }
+  .draft-form textarea {
+    font-family: monospace;
+    font-size: var(--fs-sm);
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    createSuccess: string;
+    saveSuccess: string;
+    publishSuccess: string;
+    retireSuccess: string;
+    newVersionSuccess: string;
+    validateValid: string;
+    invalidJson: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const BASE_URL = "/api/v1/service-catalog/plans";
+
+  const detailEl = document.querySelector<HTMLElement>(".plan-detail");
+  const planKey = detailEl?.dataset.planKey ?? "";
+  const versionsBase = `${BASE_URL}/${encodeURIComponent(planKey)}/versions`;
+
+  // ---- create (list view) ----
+  document
+    .getElementById("create-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+      try {
+        const formData = new FormData(form);
+        const result = await submitJson(
+          BASE_URL,
+          "POST",
+          {
+            planKey: formData.get("planKey"),
+            name: formData.get("name"),
+            planType: formData.get("planType"),
+            content: { currency: formData.get("currency") }
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        if (result.ok) {
+          showBanner("action-banner", strings.createSuccess, "success");
+          const key = String(formData.get("planKey") ?? "");
+          window.setTimeout(() => {
+            window.location.href = `/admin/service-catalog/plans?plan=${encodeURIComponent(key)}`;
+          }, 400);
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  // ---- save draft (detail view) ----
+  document
+    .getElementById("draft-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const raw =
+        (document.getElementById("draft-content") as HTMLTextAreaElement)
+          ?.value ?? "";
+      let content: unknown;
+      try {
+        content = JSON.parse(raw);
+      } catch {
+        showBanner("action-banner", strings.invalidJson, "error");
+        return;
+      }
+      const unlock = lockElement(button, strings.pleaseWait);
+      try {
+        const result = await submitJson(
+          `${BASE_URL}/${encodeURIComponent(planKey)}`,
+          "PATCH",
+          { content },
+          strings
+        );
+        if (result.ok) {
+          showBanner("action-banner", strings.saveSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  // ---- validate ----
+  document
+    .querySelectorAll<HTMLButtonElement>(".validate-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const version = button.dataset.version ?? "";
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const result = await submitJson<{
+            valid: boolean;
+            errors: { field: string; message: string }[];
+          }>(`${versionsBase}/${version}/validate`, "POST", {}, strings);
+          if (result.ok && result.data?.valid) {
+            showBanner("action-banner", strings.validateValid, "success");
+          } else if (result.ok) {
+            const msg = (result.data?.errors ?? [])
+              .map((e) => `${e.field}: ${e.message}`)
+              .join("; ");
+            showBanner("action-banner", msg || strings.networkError, "error");
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  // ---- publish ----
+  document
+    .querySelectorAll<HTMLButtonElement>(".publish-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const version = button.dataset.version ?? "";
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const result = await submitJson(
+            `${versionsBase}/${version}/publish`,
+            "POST",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          if (result.ok) {
+            showBanner("action-banner", strings.publishSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  // ---- retire ----
+  document
+    .querySelectorAll<HTMLButtonElement>(".retire-button")
+    .forEach((button) => {
+      button.addEventListener("click", async () => {
+        if (button.disabled) return;
+        const version = button.dataset.version ?? "";
+        const unlock = lockElement(button, strings.pleaseWait);
+        try {
+          const result = await submitJson(
+            `${versionsBase}/${version}/retire`,
+            "POST",
+            {},
+            strings,
+            { "Idempotency-Key": newIdempotencyKey() }
+          );
+          if (result.ok) {
+            showBanner("action-banner", strings.retireSuccess, "success");
+            reloadAfterDelay();
+          } else {
+            showBanner("action-banner", result.message, "error");
+          }
+        } finally {
+          unlock();
+        }
+      });
+    });
+
+  // ---- new draft version ----
+  document
+    .getElementById("new-version-button")
+    ?.addEventListener("click", async (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      if (button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+      try {
+        const result = await submitJson(versionsBase, "POST", {}, strings, {
+          "Idempotency-Key": newIdempotencyKey()
+        });
+        if (result.ok) {
+          showBanner("action-banner", strings.newVersionSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+</script>

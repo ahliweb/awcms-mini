@@ -201,14 +201,24 @@ suite(
       ).toBe(true);
     });
 
-    test("default tenant state: every module enabled, core/protected flags match resolveProtectedModuleKeys", async () => {
+    test("default tenant state: every module enabled except default-disabled control-plane, core/protected flags match resolveProtectedModuleKeys", async () => {
       const owner = await bootstrap();
       const sql = getDatabaseClient();
 
       const rows = await withTenant(sql, owner.tenantId, (tx) =>
         fetchModuleMatrix(tx, owner.tenantId, { includeHealth: false })
       );
-      expect(rows.every((row) => row.tenantEnabled)).toBe(true);
+      // Issue #870 (ADR-0022 §7): `service_catalog` is `defaultTenantState:
+      // "disabled"`, so with no explicit tenant_modules row it resolves
+      // DISABLED here — every OTHER module is enabled by default.
+      expect(
+        rows
+          .filter((row) => row.moduleKey !== "service_catalog")
+          .every((row) => row.tenantEnabled)
+      ).toBe(true);
+      expect(
+        rows.find((row) => row.moduleKey === "service_catalog")?.tenantEnabled
+      ).toBe(false);
       expect(rows.every((row) => row.dependencyWarning === null)).toBe(true);
 
       const byKey = new Map(rows.map((row) => [row.moduleKey, row]));

@@ -63,6 +63,98 @@ const ENDPOINT_CASES: EndpointCase[] = [
       const descriptors = collectExchangeDescriptors(listModules());
       return ok({ descriptors }).json();
     }
+  },
+  {
+    // Issue #870 — service_catalog plan summary list (ServiceCatalogPlanSummary).
+    name: "GET /api/v1/service-catalog/plans",
+    path: "/api/v1/service-catalog/plans",
+    method: "GET",
+    status: "200",
+    buildResponseBody: async () =>
+      ok({
+        plans: [
+          {
+            planKey: "starter",
+            name: "Starter",
+            description: null,
+            planType: "subscription",
+            status: "active",
+            versionCount: 2,
+            latestVersion: 2,
+            latestVersionStatus: "published",
+            hasDraft: false,
+            createdAt: "2026-07-19T00:00:00.000Z",
+            updatedAt: "2026-07-19T00:00:00.000Z"
+          }
+        ]
+      }).json()
+  },
+  {
+    // Issue #870 — the complex nested detail (ServiceCatalogPlanDetail with a
+    // fully populated version incl. features/quotas/prices).
+    name: "GET /api/v1/service-catalog/plans/{planKey}",
+    path: "/api/v1/service-catalog/plans/{planKey}",
+    method: "GET",
+    status: "200",
+    buildResponseBody: async () =>
+      ok({
+        plan: {
+          planKey: "starter",
+          name: "Starter",
+          description: "A starter plan",
+          planType: "subscription",
+          status: "active",
+          createdAt: "2026-07-19T00:00:00.000Z",
+          updatedAt: "2026-07-19T00:00:00.000Z",
+          versions: [
+            {
+              id: "00000000-0000-0000-0000-000000000001",
+              version: 1,
+              status: "published",
+              currency: "IDR",
+              market: null,
+              trialEnabled: true,
+              trialDays: 14,
+              availableFrom: null,
+              availableTo: null,
+              notes: null,
+              offerHash: "abc123",
+              publishedAt: "2026-07-19T00:00:00.000Z",
+              retiredAt: null,
+              createdAt: "2026-07-19T00:00:00.000Z",
+              updatedAt: "2026-07-19T00:00:00.000Z",
+              features: [
+                {
+                  featureKind: "module",
+                  featureKey: "blog_content",
+                  enabled: true,
+                  metadata: {}
+                }
+              ],
+              quotas: [
+                {
+                  meterKey: "platform.api_calls",
+                  isUnlimited: false,
+                  limitValue: 1000,
+                  unit: "requests",
+                  resetPolicy: "monthly",
+                  metadata: {}
+                }
+              ],
+              prices: [
+                {
+                  componentKey: "base",
+                  amountMinor: 9900000,
+                  currency: "IDR",
+                  interval: "monthly",
+                  visibility: "public",
+                  metadata: {}
+                }
+              ]
+            }
+          ]
+        }
+      }).json()
   }
 ];
 

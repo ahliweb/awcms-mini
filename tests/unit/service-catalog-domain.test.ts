@@ -1,0 +1,355 @@
+/**
+ * `service_catalog` pure-domain tests (Issue #870, epic #868) — key registry
+ * (fail-closed), plan/version validation (bounds, exact money, currency
+ * match), lifecycle transitions, and the published-offer snapshot/hash.
+ *
+ * MUTATION-GUARD (AC): the "unknown feature key is rejected" and "unknown
+ * meter key is rejected" tests are the fail-closed guard — if the validator
+ * were changed to accept unknown keys, they turn red. (Editing a published
+ * version is guarded end-to-end in the integration test.)
+ */
+import { describe, expect, test } from "bun:test";
+import type { ModuleDescriptor } from "../../src/modules/_shared/module-contract";
+import {
+  isKnownFeatureGrant,
+  isKnownMeterKey,
+  isValidServiceCatalogKeyFormat,
+  resolveServiceCatalogKeyRegistry
+} from "../../src/modules/service-catalog/domain/key-registry";
+import {
+  validatePlanHeader,
+  validateVersionContent,
+  type VersionContentInput
+} from "../../src/modules/service-catalog/domain/plan";
+import {
+  assertPublishable,
+  assertRetirable,
+  canEditDraft,
+  canPublish,
+  canRetire
+} from "../../src/modules/service-catalog/domain/lifecycle";
+import { buildOfferSnapshot } from "../../src/modules/service-catalog/domain/offer-snapshot";
+
+function descriptor(
+  key: string,
+  serviceCatalog?: ModuleDescriptor["serviceCatalog"]
+): ModuleDescriptor {
+  return {
+    key,
+    name: key,
+    version: "1.0.0",
+    status: "active",
+    description: "",
+    dependencies: [],
+    serviceCatalog
+  };
+}
+
+const registry = resolveServiceCatalogKeyRegistry([
+  descriptor("blog_content"),
+  descriptor("service_catalog", {
+    contributesFeatureKeys: ["platform.api_access"],
+    contributesMeterKeys: ["platform.api_calls"]
+  })
+]);
+
+function content(
+  overrides: Partial<VersionContentInput> = {}
+): VersionContentInput {
+  return {
+    currency: "IDR",
+    market: null,
+    trialEnabled: false,
+    trialDays: null,
+    availableFrom: null,
+    availableTo: null,
+    notes: null,
+    features: [],
+    quotas: [],
+    prices: [],
+    ...overrides
+  };
+}
+
+describe("key registry (fail-closed)", () => {
+  test("aggregates feature + meter keys from descriptors, module keys from the registry", () => {
+    expect(registry.moduleKeys.has("blog_content")).toBe(true);
+    expect(registry.moduleKeys.has("service_catalog")).toBe(true);
+    expect(registry.featureKeys.has("platform.api_access")).toBe(true);
+    expect(registry.meterKeys.has("platform.api_calls")).toBe(true);
+  });
+
+  test("module-kind grant checks the module registry; feature-kind checks feature keys", () => {
+    expect(isKnownFeatureGrant(registry, "module", "blog_content")).toBe(true);
+    expect(
+      isKnownFeatureGrant(registry, "feature", "platform.api_access")
+    ).toBe(true);
+    // cross-kind mismatch: a module key is NOT a feature key and vice versa
+    expect(isKnownFeatureGrant(registry, "feature", "blog_content")).toBe(
+      false
+    );
+    expect(isKnownFeatureGrant(registry, "module", "platform.api_access")).toBe(
+      false
+    );
+  });
+
+  test("unknown keys fail closed", () => {
+    expect(isKnownFeatureGrant(registry, "module", "does_not_exist")).toBe(
+      false
+    );
+    expect(isKnownFeatureGrant(registry, "feature", "nope.nope")).toBe(false);
+    expect(isKnownMeterKey(registry, "nope.meter")).toBe(false);
+  });
+
+  test("format gate rejects malformed keys before membership", () => {
+    expect(isValidServiceCatalogKeyFormat("platform.api_access")).toBe(true);
+    expect(isValidServiceCatalogKeyFormat("Bad Key")).toBe(false);
+    expect(isValidServiceCatalogKeyFormat("1leading")).toBe(false);
+    expect(isValidServiceCatalogKeyFormat("a".repeat(200))).toBe(false);
+  });
+});
+
+describe("version content validation", () => {
+  test("a minimal valid content passes", () => {
+    expect(validateVersionContent(content(), registry)).toEqual([]);
+  });
+
+  test("MUTATION-GUARD: an unknown feature key is rejected (fail-closed)", () => {
+    const errors = validateVersionContent(
+      content({
+        features: [
+          {
+            featureKind: "feature",
+            featureKey: "totally.unknown",
+            enabled: true,
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(errors.some((e) => e.field === "features[0].featureKey")).toBe(true);
+  });
+
+  test("MUTATION-GUARD: an unknown meter key is rejected (fail-closed)", () => {
+    const errors = validateVersionContent(
+      content({
+        quotas: [
+          {
+            meterKey: "unknown.meter",
+            isUnlimited: false,
+            limitValue: 10,
+            unit: "count",
+            resetPolicy: "monthly",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(errors.some((e) => e.field === "quotas[0].meterKey")).toBe(true);
+  });
+
+  test("a whole-module entitlement to a real module is accepted", () => {
+    const errors = validateVersionContent(
+      content({
+        features: [
+          {
+            featureKind: "module",
+            featureKey: "blog_content",
+            enabled: true,
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(errors).toEqual([]);
+  });
+
+  test("a fractional (float) amount is rejected — money is exact minor units", () => {
+    const errors = validateVersionContent(
+      content({
+        prices: [
+          {
+            componentKey: "base",
+            amountMinor: 99.5,
+            currency: "IDR",
+            interval: "monthly",
+            visibility: "public",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(errors.some((e) => e.field === "prices[0].amountMinor")).toBe(true);
+  });
+
+  test("a price currency that differs from the version currency is rejected", () => {
+    const errors = validateVersionContent(
+      content({
+        prices: [
+          {
+            componentKey: "base",
+            amountMinor: 1000,
+            currency: "USD",
+            interval: "monthly",
+            visibility: "public",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(errors.some((e) => e.field === "prices[0].currency")).toBe(true);
+  });
+
+  test("unlimited quota with a non-null limitValue is rejected; unlimited with null passes", () => {
+    const bad = validateVersionContent(
+      content({
+        quotas: [
+          {
+            meterKey: "platform.api_calls",
+            isUnlimited: true,
+            limitValue: 5,
+            unit: "requests",
+            resetPolicy: "none",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(bad.some((e) => e.field === "quotas[0].limitValue")).toBe(true);
+
+    const good = validateVersionContent(
+      content({
+        quotas: [
+          {
+            meterKey: "platform.api_calls",
+            isUnlimited: true,
+            limitValue: null,
+            unit: "requests",
+            resetPolicy: "none",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(good).toEqual([]);
+  });
+
+  test("invalid currency and availability range are rejected", () => {
+    expect(
+      validateVersionContent(content({ currency: "idr" }), registry).some(
+        (e) => e.field === "currency"
+      )
+    ).toBe(true);
+    expect(
+      validateVersionContent(
+        content({
+          availableFrom: "2026-02-01T00:00:00Z",
+          availableTo: "2026-01-01T00:00:00Z"
+        }),
+        registry
+      ).some((e) => e.field === "availableTo")
+    ).toBe(true);
+  });
+
+  test("plan header validation catches bad keys and names", () => {
+    expect(
+      validatePlanHeader("Good_Key", "Name", null, "subscription").length
+    ).toBeGreaterThan(0); // uppercase rejected
+    expect(
+      validatePlanHeader("good_key", "", null, "subscription").some(
+        (e) => e.field === "name"
+      )
+    ).toBe(true);
+    expect(
+      validatePlanHeader("good_key", "Name", null, "subscription")
+    ).toEqual([]);
+  });
+});
+
+describe("lifecycle transitions", () => {
+  test("only draft is editable/publishable; only published is retirable", () => {
+    expect(canEditDraft("draft")).toBe(true);
+    expect(canEditDraft("published")).toBe(false);
+    expect(canPublish("draft")).toBe(true);
+    expect(canPublish("published")).toBe(false);
+    expect(canRetire("published")).toBe(true);
+    expect(canRetire("draft")).toBe(false);
+  });
+
+  test("assert helpers return an error for the wrong state, null for the right one", () => {
+    expect(assertPublishable("draft")).toBeNull();
+    expect(assertPublishable("published")?.code).toBe("NOT_DRAFT");
+    expect(assertRetirable("published")).toBeNull();
+    expect(assertRetirable("draft")?.code).toBe("NOT_PUBLISHED");
+  });
+});
+
+describe("offer snapshot + hash", () => {
+  const snapshotContent = content({
+    prices: [
+      {
+        componentKey: "base",
+        amountMinor: 9900,
+        currency: "IDR",
+        interval: "monthly",
+        visibility: "public",
+        metadata: {}
+      },
+      {
+        componentKey: "internal_cost",
+        amountMinor: 4000,
+        currency: "IDR",
+        interval: "monthly",
+        visibility: "internal",
+        metadata: {}
+      }
+    ],
+    features: [
+      {
+        featureKind: "module",
+        featureKey: "blog_content",
+        enabled: true,
+        metadata: {}
+      }
+    ]
+  });
+
+  test("public projection EXCLUDES internal-visibility prices (ADR-0022 §3 Medium-1)", () => {
+    const snapshot = buildOfferSnapshot("plan_a", 1, snapshotContent);
+    expect(snapshot.publicPrices.map((p) => p.componentKey)).toEqual(["base"]);
+    expect(
+      snapshot.publicPrices.some((p) => p.componentKey === "internal_cost")
+    ).toBe(false);
+  });
+
+  test("hash is deterministic for identical content and independent of feature/price ordering", () => {
+    const a = buildOfferSnapshot("plan_a", 1, snapshotContent);
+    const reordered = content({
+      prices: [snapshotContent.prices[1]!, snapshotContent.prices[0]!],
+      features: snapshotContent.features
+    });
+    const b = buildOfferSnapshot("plan_a", 1, reordered);
+    expect(a.offerHash).toBe(b.offerHash);
+  });
+
+  test("hash changes when content changes (reproducibility)", () => {
+    const a = buildOfferSnapshot("plan_a", 1, snapshotContent);
+    const changed = buildOfferSnapshot(
+      "plan_a",
+      1,
+      content({
+        currency: "USD",
+        prices: [],
+        features: snapshotContent.features
+      })
+    );
+    expect(a.offerHash).not.toBe(changed.offerHash);
+  });
+});

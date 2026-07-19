@@ -3291,6 +3291,11 @@ msgstr ""
 msgid "admin.layout.nav_security"
 msgstr ""
 
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/service-catalog/module.ts:73
+msgid "admin.layout.nav_service_catalog_plans"
+msgstr ""
+
 #: src/layouts/AdminLayout.astro:295
 msgid "admin.layout.nav_settings"
 msgstr ""
@@ -5280,6 +5285,154 @@ msgstr ""
 
 #: src/pages/admin/security.astro:86
 msgid "admin.security.update_provider_success"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:135
+msgid "admin.service_catalog.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:134
+msgid "admin.service_catalog.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:173
+msgid "admin.service_catalog.plans.back_to_list"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:204
+msgid "admin.service_catalog.plans.col_actions"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:198
+msgid "admin.service_catalog.plans.col_currency"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:298
+msgid "admin.service_catalog.plans.col_key"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:310
+msgid "admin.service_catalog.plans.col_latest_version"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:301
+msgid "admin.service_catalog.plans.col_name"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:201
+msgid "admin.service_catalog.plans.col_published_at"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:195
+msgid "admin.service_catalog.plans.col_status"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:304
+msgid "admin.service_catalog.plans.col_type"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:192
+msgid "admin.service_catalog.plans.col_version"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:396
+msgid "admin.service_catalog.plans.create_submit"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:62
+msgid "admin.service_catalog.plans.create_success"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:358
+msgid "admin.service_catalog.plans.create_summary"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:266
+msgid "admin.service_catalog.plans.edit_draft"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:268
+msgid "admin.service_catalog.plans.field_content"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:385
+msgid "admin.service_catalog.plans.field_currency"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:362
+msgid "admin.service_catalog.plans.field_key"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:372
+msgid "admin.service_catalog.plans.field_name"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:376
+msgid "admin.service_catalog.plans.field_type"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:68
+msgid "admin.service_catalog.plans.invalid_json"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:260
+msgid "admin.service_catalog.plans.new_version_button"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:66
+msgid "admin.service_catalog.plans.new_version_success"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:291
+msgid "admin.service_catalog.plans.no_rows"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:165
+msgid "admin.service_catalog.plans.not_found_body"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:164
+msgid "admin.service_catalog.plans.not_found_title"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:236
+msgid "admin.service_catalog.plans.publish_button"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:64
+msgid "admin.service_catalog.plans.publish_success"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:245
+msgid "admin.service_catalog.plans.retire_button"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:65
+msgid "admin.service_catalog.plans.retire_success"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:279
+msgid "admin.service_catalog.plans.save_draft_button"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:63
+msgid "admin.service_catalog.plans.save_success"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:129
+msgid "admin.service_catalog.plans.title"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:227
+msgid "admin.service_catalog.plans.validate_button"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:67
+msgid "admin.service_catalog.plans.validate_valid"
+msgstr ""
+
+#: src/pages/admin/service-catalog/plans.astro:187
+msgid "admin.service_catalog.plans.version_history"
 msgstr ""
 
 #: src/pages/admin/settings.astro:84

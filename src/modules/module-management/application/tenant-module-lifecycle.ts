@@ -5,7 +5,10 @@
  */
 import packageJson from "../../../../package.json";
 import { listModules } from "../..";
-import type { ModuleDescriptor } from "../../_shared/module-contract";
+import {
+  isModuleTenantEnabledByDefault,
+  type ModuleDescriptor
+} from "../../_shared/module-contract";
 import { syncModuleDescriptors } from "./descriptor-sync";
 import {
   evaluateModuleDisable,
@@ -54,7 +57,14 @@ function resolveTenantState(
 ): ModuleTenantState {
   const row = rows.get(moduleKey);
 
-  return { moduleKey, tenantEnabled: row?.enabled ?? true };
+  // No explicit row → the descriptor default (Issue #870): `true` for every
+  // ordinary module, `false` for a `defaultTenantState: "disabled"` control-
+  // plane module (ADR-0022 §7). `findDescriptor` is hoisted (declared below).
+  return {
+    moduleKey,
+    tenantEnabled:
+      row?.enabled ?? isModuleTenantEnabledByDefault(findDescriptor(moduleKey))
+  };
 }
 
 export async function fetchTenantModuleEntries(
@@ -71,7 +81,7 @@ export async function fetchTenantModuleEntries(
       name: descriptor.name,
       version: descriptor.version,
       isCore: descriptor.isCore ?? false,
-      tenantEnabled: row?.enabled ?? true,
+      tenantEnabled: row?.enabled ?? isModuleTenantEnabledByDefault(descriptor),
       enabledAt: row?.enabled_at?.toISOString() ?? null,
       disabledAt: row?.disabled_at?.toISOString() ?? null,
       disableReason: row?.disable_reason ?? null
@@ -93,9 +103,11 @@ function findDescriptor(moduleKey: string): ModuleDescriptor | null {
  * unauthenticated code path — not a live DoS/leak, but unnecessary surface).
  * Returns `null` only if `moduleKey` isn't a registered descriptor at all
  * (the caller's own fail-closed default applies from there, same as the
- * plural function's per-entry shape). Same opt-out-by-default semantics as
- * `fetchTenantModuleEntries` — no `awcms_mini_tenant_modules` row means
- * `tenantEnabled: true`.
+ * plural function's per-entry shape). Same default semantics as
+ * `fetchTenantModuleEntries` — no `awcms_mini_tenant_modules` row resolves
+ * through the descriptor default (`tenantEnabled: true` for ordinary modules,
+ * `false` for a `defaultTenantState: "disabled"` control-plane module, Issue
+ * #870 / ADR-0022 §7).
  */
 export async function fetchTenantModuleEntry(
   tx: Bun.SQL,
@@ -125,7 +137,7 @@ export async function fetchTenantModuleEntry(
     name: descriptor.name,
     version: descriptor.version,
     isCore: descriptor.isCore ?? false,
-    tenantEnabled: row?.enabled ?? true,
+    tenantEnabled: row?.enabled ?? isModuleTenantEnabledByDefault(descriptor),
     enabledAt: row?.enabled_at?.toISOString() ?? null,
     disabledAt: row?.disabled_at?.toISOString() ?? null,
     disableReason: row?.disable_reason ?? null

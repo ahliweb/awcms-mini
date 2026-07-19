@@ -203,6 +203,22 @@ export const INTEGRATION_HUB_EVENT_VERSION = "1.0";
 export const INTEGRATION_HUB_INBOUND_MESSAGE_NORMALIZED_EVENT_TYPE =
   "awcms-mini.integration-hub.inbound-message.normalized";
 
+/**
+ * `service_catalog`'s producer registration (Issue #870, epic #868 SaaS
+ * control plane, Wave 1, ADR-0022 §4) — the first control-plane module.
+ * `service-catalog/application/plan-directory.ts` calls `appendDomainEvent`
+ * with these inside the SAME transaction as the state change they describe:
+ * `.offer.published` when a draft version is published into an immutable
+ * offer, `.offer.retired` when a published offer is retired. No event for
+ * draft create/edit (working data, not a domain fact) — same precedent as
+ * `reference_data` (create/deprecate published, restore not).
+ */
+export const SERVICE_CATALOG_EVENT_VERSION = "1.0";
+export const SERVICE_CATALOG_OFFER_PUBLISHED_EVENT_TYPE =
+  "awcms-mini.service-catalog.offer.published";
+export const SERVICE_CATALOG_OFFER_RETIRED_EVENT_TYPE =
+  "awcms-mini.service-catalog.offer.retired";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -463,6 +479,18 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: INTEGRATION_HUB_EVENT_VERSION,
       description:
         "A signed inbound webhook delivery was verified and normalized into this repo's own domain-event shape (Issue #754). Payload carries only the normalized/bounded envelope (endpoint id, adapter key, provider delivery id, inbound delivery id, received-at, content type, body size, and the parsed JSON body when the content type was application/json) — never raw provider credentials."
+    },
+    {
+      eventType: SERVICE_CATALOG_OFFER_PUBLISHED_EVENT_TYPE,
+      eventVersion: SERVICE_CATALOG_EVENT_VERSION,
+      description:
+        "A service catalog plan version was published into an immutable offer (Issue #870). Payload carries plan key, version, offer hash, and currency — never internal prices."
+    },
+    {
+      eventType: SERVICE_CATALOG_OFFER_RETIRED_EVENT_TYPE,
+      eventVersion: SERVICE_CATALOG_EVENT_VERSION,
+      description:
+        "A published service catalog offer version was retired (Issue #870). The offer stays readable; the payload carries plan key and version."
     }
   ];
 

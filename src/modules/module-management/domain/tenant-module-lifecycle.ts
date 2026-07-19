@@ -28,7 +28,15 @@ export type LifecycleValidationResult =
   | { valid: true }
   | { valid: false; code: ModuleLifecycleErrorCode; message: string };
 
-/** `tenantEnabled` defaults to `true` when no `awcms_mini_tenant_modules` row exists — a module with no explicit tenant state is available by default (backward-compatible with pre-epic behavior). */
+/**
+ * The resolved per-tenant enabled state for one module. The application layer
+ * builds this: when no `awcms_mini_tenant_modules` row exists, `tenantEnabled`
+ * comes from the descriptor default (`isModuleTenantEnabledByDefault`,
+ * `_shared/module-contract.ts`) — `true` for an ordinary module (a module with
+ * no explicit tenant state is available by default), `false` for a
+ * `defaultTenantState: "disabled"` control-plane module (Issue #870, ADR-0022
+ * §7). This pure domain layer only reasons about the already-resolved boolean.
+ */
 export type ModuleTenantState = {
   moduleKey: string;
   tenantEnabled: boolean;

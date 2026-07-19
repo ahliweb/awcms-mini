@@ -11,6 +11,7 @@
  * service is deliberately as cheap as `fetchSyncIndicatorActive`.
  */
 import { listModules } from "../..";
+import { isModuleTenantEnabledByDefault } from "../../_shared/module-contract";
 import {
   filterVisibleNavigationEntries,
   type NavigationCandidate
@@ -36,11 +37,36 @@ async function fetchTenantDisabledModuleKeys(
   tenantId: string
 ): Promise<Set<string>> {
   const rows = (await tx`
-    SELECT module_key FROM awcms_mini_tenant_modules
-    WHERE tenant_id = ${tenantId} AND enabled = false
-  `) as { module_key: string }[];
+    SELECT module_key, enabled FROM awcms_mini_tenant_modules
+    WHERE tenant_id = ${tenantId}
+  `) as { module_key: string; enabled: boolean }[];
 
-  return new Set(rows.map((row) => row.module_key));
+  const explicitState = new Map(
+    rows.map((row) => [row.module_key, row.enabled])
+  );
+  const disabled = new Set<string>();
+
+  for (const [moduleKey, enabled] of explicitState) {
+    if (!enabled) {
+      disabled.add(moduleKey);
+    }
+  }
+
+  // A `defaultTenantState: "disabled"` control-plane module (Issue #870,
+  // ADR-0022 §7) with NO explicit `enabled = true` row is disabled here too —
+  // at parity with `resolveModuleEnabled` (route) and the SSR permission gate,
+  // so its nav entry never shows for a tenant that has not opted in, even if
+  // that entry lacked a `requiredPermission`.
+  for (const descriptor of listModules()) {
+    if (
+      !isModuleTenantEnabledByDefault(descriptor) &&
+      explicitState.get(descriptor.key) !== true
+    ) {
+      disabled.add(descriptor.key);
+    }
+  }
+
+  return disabled;
 }
 
 /**

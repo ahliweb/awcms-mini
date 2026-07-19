@@ -1,0 +1,1006 @@
+paths:
+  /api/v1/service-catalog/plans:
+    get:
+      tags:
+        - Service Catalog
+      summary: List service catalog plans
+      operationId: serviceCatalogPlansList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - active
+              - archived
+        - name: planType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - subscription
+              - addon
+              - bundle
+              - custom
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Service catalog plans (global control-plane catalog).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - plans
+                        properties:
+                          plans:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ServiceCatalogPlanSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Service Catalog
+      summary: Create a draft service catalog plan
+      description: Creates a plan and its first draft version. Platform-operator only; requires Idempotency-Key.
+      operationId: serviceCatalogPlansCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceCatalogCreatePlanRequest"
+      responses:
+        "200":
+          description: Plan created (draft version 1).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - plan
+                        properties:
+                          plan:
+                            $ref: "#/components/schemas/ServiceCatalogPlanDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Duplicate planKey, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/service-catalog/plans/{planKey}:
+    get:
+      tags:
+        - Service Catalog
+      summary: Get a plan with its version history
+      operationId: serviceCatalogPlanGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: planKey
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+            maxLength: 100
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Plan detail including every version.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - plan
+                        properties:
+                          plan:
+                            $ref: "#/components/schemas/ServiceCatalogPlanDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      tags:
+        - Service Catalog
+      summary: Edit a plan's draft version
+      description: Absent fields are kept; provided child collections replace. Only the draft version is editable (published versions are immutable).
+      operationId: serviceCatalogPlanUpdate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: planKey
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+            maxLength: 100
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceCatalogUpdatePlanRequest"
+      responses:
+        "200":
+          description: Draft updated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - plan
+                        properties:
+                          plan:
+                            $ref: "#/components/schemas/ServiceCatalogPlanDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: No draft version exists to edit (a published version is immutable).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/service-catalog/plans/{planKey}/versions:
+    post:
+      tags:
+        - Service Catalog
+      summary: Start a new draft version
+      description: Creates version N+1 as a draft, seeded from the latest version. Requires Idempotency-Key.
+      operationId: serviceCatalogVersionCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: planKey
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+            maxLength: 100
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: New draft version created.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - plan
+                          - version
+                        properties:
+                          plan:
+                            $ref: "#/components/schemas/ServiceCatalogPlanDetail"
+                          version:
+                            type: integer
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A draft version already exists, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/service-catalog/plans/{planKey}/versions/{version}/validate:
+    post:
+      tags:
+        - Service Catalog
+      summary: Validate a version (non-mutating)
+      operationId: serviceCatalogVersionValidate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: planKey
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+            maxLength: 100
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Validation result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - valid
+                          - errors
+                        properties:
+                          valid:
+                            type: boolean
+                          errors:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/ServiceCatalogValidationError"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/service-catalog/plans/{planKey}/versions/{version}/publish:
+    post:
+      tags:
+        - Service Catalog
+      summary: Publish a draft version into an immutable offer
+      description: Platform-operator only; requires Idempotency-Key. Emits awcms-mini.service-catalog.offer.published.
+      operationId: serviceCatalogOfferPublish
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: planKey
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+            maxLength: 100
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Offer published (or already published — idempotent).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - offer
+                        properties:
+                          offer:
+                            $ref: "#/components/schemas/ServiceCatalogPublishResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Version is not a draft, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/service-catalog/plans/{planKey}/versions/{version}/retire:
+    post:
+      tags:
+        - Service Catalog
+      summary: Retire a published offer version
+      description: The offer stays readable. Platform-operator only; requires Idempotency-Key. Emits awcms-mini.service-catalog.offer.retired.
+      operationId: serviceCatalogOfferRetire
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: planKey
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+            maxLength: 100
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Offer retired (or already retired — idempotent).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - offer
+                        properties:
+                          offer:
+                            $ref: "#/components/schemas/ServiceCatalogRetireResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Version is not published, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    ServiceCatalogValidationError:
+      type: object
+      additionalProperties: false
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    ServiceCatalogFeature:
+      type: object
+      additionalProperties: false
+      required:
+        - featureKind
+        - featureKey
+        - enabled
+        - metadata
+      properties:
+        featureKind:
+          type: string
+          enum:
+            - feature
+            - module
+        featureKey:
+          type: string
+        enabled:
+          type: boolean
+        metadata:
+          type: object
+    ServiceCatalogQuota:
+      type: object
+      additionalProperties: false
+      required:
+        - meterKey
+        - isUnlimited
+        - limitValue
+        - unit
+        - resetPolicy
+        - metadata
+      properties:
+        meterKey:
+          type: string
+        isUnlimited:
+          type: boolean
+        limitValue:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+        resetPolicy:
+          type: string
+          enum:
+            - none
+            - daily
+            - weekly
+            - monthly
+            - quarterly
+            - yearly
+            - billing_cycle
+        metadata:
+          type: object
+    ServiceCatalogPrice:
+      type: object
+      additionalProperties: false
+      required:
+        - componentKey
+        - amountMinor
+        - currency
+        - interval
+        - visibility
+        - metadata
+      properties:
+        componentKey:
+          type: string
+        amountMinor:
+          type: integer
+          description: Exact minor currency units (never a float).
+        currency:
+          type: string
+        interval:
+          type: string
+          enum:
+            - one_time
+            - daily
+            - weekly
+            - monthly
+            - quarterly
+            - yearly
+            - usage
+        visibility:
+          type: string
+          enum:
+            - public
+            - internal
+        metadata:
+          type: object
+    ServiceCatalogVersion:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - version
+        - status
+        - currency
+        - market
+        - trialEnabled
+        - trialDays
+        - availableFrom
+        - availableTo
+        - notes
+        - offerHash
+        - publishedAt
+        - retiredAt
+        - createdAt
+        - updatedAt
+        - features
+        - quotas
+        - prices
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        status:
+          type: string
+          enum:
+            - draft
+            - published
+            - retired
+            - archived
+        currency:
+          type: string
+        market:
+          type: string
+          nullable: true
+        trialEnabled:
+          type: boolean
+        trialDays:
+          type: integer
+          nullable: true
+        availableFrom:
+          type: string
+          format: date-time
+          nullable: true
+        availableTo:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        offerHash:
+          type: string
+          nullable: true
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        retiredAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogFeature"
+        quotas:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogQuota"
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogPrice"
+    ServiceCatalogPlanSummary:
+      type: object
+      description: A service catalog plan with a per-plan version summary (GLOBAL control-plane data).
+      additionalProperties: false
+      required:
+        - planKey
+        - name
+        - description
+        - planType
+        - status
+        - versionCount
+        - latestVersion
+        - latestVersionStatus
+        - hasDraft
+        - createdAt
+        - updatedAt
+      properties:
+        planKey:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        planType:
+          type: string
+          enum:
+            - subscription
+            - addon
+            - bundle
+            - custom
+        status:
+          type: string
+          enum:
+            - active
+            - archived
+        versionCount:
+          type: integer
+        latestVersion:
+          type: integer
+          nullable: true
+        latestVersionStatus:
+          type: string
+          nullable: true
+          enum:
+            - draft
+            - published
+            - retired
+            - archived
+        hasDraft:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ServiceCatalogPlanDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - planKey
+        - name
+        - description
+        - planType
+        - status
+        - createdAt
+        - updatedAt
+        - versions
+      properties:
+        planKey:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        planType:
+          type: string
+          enum:
+            - subscription
+            - addon
+            - bundle
+            - custom
+        status:
+          type: string
+          enum:
+            - active
+            - archived
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogVersion"
+    ServiceCatalogPublishResult:
+      type: object
+      additionalProperties: false
+      required:
+        - planKey
+        - version
+        - offerHash
+        - alreadyPublished
+      properties:
+        planKey:
+          type: string
+        version:
+          type: integer
+        offerHash:
+          type: string
+        alreadyPublished:
+          type: boolean
+    ServiceCatalogRetireResult:
+      type: object
+      additionalProperties: false
+      required:
+        - planKey
+        - version
+        - alreadyRetired
+      properties:
+        planKey:
+          type: string
+        version:
+          type: integer
+        alreadyRetired:
+          type: boolean
+    ServiceCatalogFeatureInput:
+      type: object
+      additionalProperties: false
+      required:
+        - featureKind
+        - featureKey
+      properties:
+        featureKind:
+          type: string
+          enum:
+            - feature
+            - module
+        featureKey:
+          type: string
+          maxLength: 120
+        enabled:
+          type: boolean
+        metadata:
+          type: object
+    ServiceCatalogQuotaInput:
+      type: object
+      additionalProperties: false
+      required:
+        - meterKey
+        - unit
+      properties:
+        meterKey:
+          type: string
+          maxLength: 120
+        isUnlimited:
+          type: boolean
+        limitValue:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+          maxLength: 40
+        resetPolicy:
+          type: string
+          enum:
+            - none
+            - daily
+            - weekly
+            - monthly
+            - quarterly
+            - yearly
+            - billing_cycle
+        metadata:
+          type: object
+    ServiceCatalogPriceInput:
+      type: object
+      additionalProperties: false
+      required:
+        - componentKey
+        - amountMinor
+        - currency
+      properties:
+        componentKey:
+          type: string
+          maxLength: 60
+        amountMinor:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        interval:
+          type: string
+          enum:
+            - one_time
+            - daily
+            - weekly
+            - monthly
+            - quarterly
+            - yearly
+            - usage
+        visibility:
+          type: string
+          enum:
+            - public
+            - internal
+        metadata:
+          type: object
+    ServiceCatalogVersionContentInput:
+      type: object
+      additionalProperties: false
+      required:
+        - currency
+      properties:
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        market:
+          type: string
+          nullable: true
+          maxLength: 32
+        trialEnabled:
+          type: boolean
+        trialDays:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 3650
+        availableFrom:
+          type: string
+          format: date-time
+          nullable: true
+        availableTo:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogFeatureInput"
+        quotas:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogQuotaInput"
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogPriceInput"
+    ServiceCatalogCreatePlanRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - planKey
+        - name
+        - content
+      properties:
+        planKey:
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+          maxLength: 100
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        planType:
+          type: string
+          enum:
+            - subscription
+            - addon
+            - bundle
+            - custom
+        content:
+          $ref: "#/components/schemas/ServiceCatalogVersionContentInput"
+    ServiceCatalogVersionContentPatch:
+      type: object
+      additionalProperties: false
+      description: Partial draft content — every field is optional (PATCH); a provided child collection replaces.
+      properties:
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        market:
+          type: string
+          nullable: true
+          maxLength: 32
+        trialEnabled:
+          type: boolean
+        trialDays:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 3650
+        availableFrom:
+          type: string
+          format: date-time
+          nullable: true
+        availableTo:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+          maxLength: 2000
+        features:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogFeatureInput"
+        quotas:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogQuotaInput"
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceCatalogPriceInput"
+    ServiceCatalogUpdatePlanRequest:
+      type: object
+      additionalProperties: false
+      description: PATCH — any omitted field is kept; a provided child collection replaces.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          nullable: true
+          maxLength: 2000
+        planType:
+          type: string
+          enum:
+            - subscription
+            - addon
+            - bundle
+            - custom
+        content:
+          $ref: "#/components/schemas/ServiceCatalogVersionContentPatch"

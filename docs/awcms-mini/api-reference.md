@@ -10639,6 +10639,226 @@ Module-contributed read-model projection extension to Management Reporting (epic
 | 404    | Resource not found or hidden by soft-delete policy.                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
 
+## Service Catalog
+
+Provider-neutral SaaS control-plane service catalog (epic #868 SaaS control plane Wave 1, Issue #870, ADR-0022) — the first control-plane module, admitted Official Optional and default-disabled per tenant. Versioned commercial PLANS with an immutable-once-published OFFER lifecycle (draft -> validate -> publish -> retire), feature/whole-module entitlement grants, usage quotas (unit + reset policy), EXACT minor-unit prices (no floating point), and trial/availability/market/currency metadata. All catalog data is GLOBAL control-plane data (reviewed RLS-exempt, ADR-0022 §3): operator authoring tables are platform-operator-only + default-deny, and a separate tenant-readable published projection carries only published versions + public prices. Published offer versions are IMMUTABLE (corrections create a new version). Feature/module/meter keys resolve through a reviewed static registry; unknown keys fail closed. Not an ERP item/product master.
+
+### `GET /api/v1/service-catalog/plans` — List service catalog plans
+
+- **operationId**: `serviceCatalogPlansList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type                                              | Description                                 |
+| ------------------ | ------ | -------- | ------------------------------------------------- | ------------------------------------------- |
+| `status`           | query  | no       | enum(`active`, `archived`)                        |                                             |
+| `planType`         | query  | no       | enum(`subscription`, `addon`, `bundle`, `custom`) |                                             |
+| `X-Correlation-ID` | header | no       | string                                            | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                                            | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                           | Schema                                                   |
+| ------ | ----------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Service catalog plans (global control-plane catalog). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                          | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                   | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.        | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.            | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/service-catalog/plans` — Create a draft service catalog plan
+
+- **operationId**: `serviceCatalogPlansCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Creates a plan and its first draft version. Platform-operator only; requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ServiceCatalogCreatePlanRequest`](#schema-servicecatalogcreateplanrequest)
+
+**Responses**
+
+| Status | Description                                                            | Schema                                                   |
+| ------ | ---------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Plan created (draft version 1).                                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                           | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                    | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                         | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Duplicate planKey, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                             | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/service-catalog/plans/{planKey}` — Get a plan with its version history
+
+- **operationId**: `serviceCatalogPlanGet`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `planKey`          | path   | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Plan detail including every version.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PATCH /api/v1/service-catalog/plans/{planKey}` — Edit a plan's draft version
+
+- **operationId**: `serviceCatalogPlanUpdate`
+- **Security**: bearerAuth + tenantHeader
+
+Absent fields are kept; provided child collections replace. Only the draft version is editable (published versions are immutable).
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `planKey`          | path   | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`ServiceCatalogUpdatePlanRequest`](#schema-servicecatalogupdateplanrequest)
+
+**Responses**
+
+| Status | Description                                                         | Schema                                                   |
+| ------ | ------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Draft updated.                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | No draft version exists to edit (a published version is immutable). | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/service-catalog/plans/{planKey}/versions` — Start a new draft version
+
+- **operationId**: `serviceCatalogVersionCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Creates version N+1 as a draft, seeded from the latest version. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `planKey`          | path   | yes      | string |                                             |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                         | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | New draft version created.                                                          | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                 | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A draft version already exists, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/service-catalog/plans/{planKey}/versions/{version}/publish` — Publish a draft version into an immutable offer
+
+- **operationId**: `serviceCatalogOfferPublish`
+- **Security**: bearerAuth + tenantHeader
+
+Platform-operator only; requires Idempotency-Key. Emits awcms-mini.service-catalog.offer.published.
+
+**Parameters**
+
+| Name               | In     | Required | Type    | Description                                 |
+| ------------------ | ------ | -------- | ------- | ------------------------------------------- |
+| `planKey`          | path   | yes      | string  |                                             |
+| `version`          | path   | yes      | integer |                                             |
+| `Idempotency-Key`  | header | yes      | string  | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                 | Schema                                                   |
+| ------ | --------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Offer published (or already published — idempotent).                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                         | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                              | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                         | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Version is not a draft, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                  | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/service-catalog/plans/{planKey}/versions/{version}/retire` — Retire a published offer version
+
+- **operationId**: `serviceCatalogOfferRetire`
+- **Security**: bearerAuth + tenantHeader
+
+The offer stays readable. Platform-operator only; requires Idempotency-Key. Emits awcms-mini.service-catalog.offer.retired.
+
+**Parameters**
+
+| Name               | In     | Required | Type    | Description                                 |
+| ------------------ | ------ | -------- | ------- | ------------------------------------------- |
+| `planKey`          | path   | yes      | string  |                                             |
+| `version`          | path   | yes      | integer |                                             |
+| `Idempotency-Key`  | header | yes      | string  | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                   | Schema                                                   |
+| ------ | ----------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Offer retired (or already retired — idempotent).                              | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                  | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                           | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                           | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Version is not published, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                    | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/service-catalog/plans/{planKey}/versions/{version}/validate` — Validate a version (non-mutating)
+
+- **operationId**: `serviceCatalogVersionValidate`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type    | Description                                 |
+| ------------------ | ------ | -------- | ------- | ------------------------------------------- |
+| `planKey`          | path   | yes      | string  |                                             |
+| `version`          | path   | yes      | integer |                                             |
+| `X-Correlation-ID` | header | no       | string  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Validation result.                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
@@ -15607,6 +15827,306 @@ Issue #837 -- true partial-PATCH body. Every property is optional: an ABSENT pro
 }
 ```
 
+### Schema: ServiceCatalogCreatePlanRequest
+
+| Field         | Type                                                                             | Required | Nullable | Description |
+| ------------- | -------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `planKey`     | string                                                                           | yes      | no       |             |
+| `name`        | string                                                                           | yes      | no       |             |
+| `description` | string                                                                           | no       | yes      |             |
+| `planType`    | enum(`subscription`, `addon`, `bundle`, `custom`)                                | no       | no       |             |
+| `content`     | [`ServiceCatalogVersionContentInput`](#schema-servicecatalogversioncontentinput) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "planKey": "string",
+  "name": "string",
+  "description": "string",
+  "planType": "subscription",
+  "content": {
+    "currency": "string",
+    "market": "string",
+    "trialEnabled": false,
+    "trialDays": 0,
+    "availableFrom": "2026-01-01T00:00:00.000Z",
+    "availableTo": "2026-01-01T00:00:00.000Z",
+    "notes": "string",
+    "features": [
+      {
+        "featureKind": "feature",
+        "featureKey": "string",
+        "enabled": false,
+        "metadata": "(operation-specific payload)"
+      }
+    ],
+    "quotas": [
+      {
+        "meterKey": "string",
+        "isUnlimited": false,
+        "limitValue": 0,
+        "unit": "string",
+        "resetPolicy": "none",
+        "metadata": "(operation-specific payload)"
+      }
+    ],
+    "prices": [
+      {
+        "componentKey": "string",
+        "amountMinor": 0,
+        "currency": "string",
+        "interval": "one_time",
+        "visibility": "public",
+        "metadata": "(operation-specific payload)"
+      }
+    ]
+  }
+}
+```
+
+### Schema: ServiceCatalogFeatureInput
+
+| Field         | Type                      | Required | Nullable | Description |
+| ------------- | ------------------------- | -------- | -------- | ----------- |
+| `featureKind` | enum(`feature`, `module`) | yes      | no       |             |
+| `featureKey`  | string                    | yes      | no       |             |
+| `enabled`     | boolean                   | no       | no       |             |
+| `metadata`    | object                    | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "featureKind": "feature",
+  "featureKey": "string",
+  "enabled": false,
+  "metadata": "(operation-specific payload)"
+}
+```
+
+### Schema: ServiceCatalogPriceInput
+
+| Field          | Type                                                                           | Required | Nullable | Description |
+| -------------- | ------------------------------------------------------------------------------ | -------- | -------- | ----------- |
+| `componentKey` | string                                                                         | yes      | no       |             |
+| `amountMinor`  | integer                                                                        | yes      | no       |             |
+| `currency`     | string                                                                         | yes      | no       |             |
+| `interval`     | enum(`one_time`, `daily`, `weekly`, `monthly`, `quarterly`, `yearly`, `usage`) | no       | no       |             |
+| `visibility`   | enum(`public`, `internal`)                                                     | no       | no       |             |
+| `metadata`     | object                                                                         | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "componentKey": "string",
+  "amountMinor": 0,
+  "currency": "string",
+  "interval": "one_time",
+  "visibility": "public",
+  "metadata": "(operation-specific payload)"
+}
+```
+
+### Schema: ServiceCatalogQuotaInput
+
+| Field         | Type                                                                               | Required | Nullable | Description |
+| ------------- | ---------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `meterKey`    | string                                                                             | yes      | no       |             |
+| `isUnlimited` | boolean                                                                            | no       | no       |             |
+| `limitValue`  | integer                                                                            | no       | yes      |             |
+| `unit`        | string                                                                             | yes      | no       |             |
+| `resetPolicy` | enum(`none`, `daily`, `weekly`, `monthly`, `quarterly`, `yearly`, `billing_cycle`) | no       | no       |             |
+| `metadata`    | object                                                                             | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "meterKey": "string",
+  "isUnlimited": false,
+  "limitValue": 0,
+  "unit": "string",
+  "resetPolicy": "none",
+  "metadata": "(operation-specific payload)"
+}
+```
+
+### Schema: ServiceCatalogUpdatePlanRequest
+
+PATCH — any omitted field is kept; a provided child collection replaces.
+
+| Field         | Type                                                                             | Required | Nullable | Description |
+| ------------- | -------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `name`        | string                                                                           | no       | no       |             |
+| `description` | string                                                                           | no       | yes      |             |
+| `planType`    | enum(`subscription`, `addon`, `bundle`, `custom`)                                | no       | no       |             |
+| `content`     | [`ServiceCatalogVersionContentPatch`](#schema-servicecatalogversioncontentpatch) | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "name": "string",
+  "description": "string",
+  "planType": "subscription",
+  "content": {
+    "currency": "string",
+    "market": "string",
+    "trialEnabled": false,
+    "trialDays": 0,
+    "availableFrom": "2026-01-01T00:00:00.000Z",
+    "availableTo": "2026-01-01T00:00:00.000Z",
+    "notes": "string",
+    "features": [
+      {
+        "featureKind": "feature",
+        "featureKey": "string",
+        "enabled": false,
+        "metadata": "(operation-specific payload)"
+      }
+    ],
+    "quotas": [
+      {
+        "meterKey": "string",
+        "isUnlimited": false,
+        "limitValue": 0,
+        "unit": "string",
+        "resetPolicy": "none",
+        "metadata": "(operation-specific payload)"
+      }
+    ],
+    "prices": [
+      {
+        "componentKey": "string",
+        "amountMinor": 0,
+        "currency": "string",
+        "interval": "one_time",
+        "visibility": "public",
+        "metadata": "(operation-specific payload)"
+      }
+    ]
+  }
+}
+```
+
+### Schema: ServiceCatalogVersionContentInput
+
+| Field           | Type                                                                        | Required | Nullable | Description |
+| --------------- | --------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `currency`      | string                                                                      | yes      | no       |             |
+| `market`        | string                                                                      | no       | yes      |             |
+| `trialEnabled`  | boolean                                                                     | no       | no       |             |
+| `trialDays`     | integer                                                                     | no       | yes      |             |
+| `availableFrom` | string (date-time)                                                          | no       | yes      |             |
+| `availableTo`   | string (date-time)                                                          | no       | yes      |             |
+| `notes`         | string                                                                      | no       | yes      |             |
+| `features`      | array of [`ServiceCatalogFeatureInput`](#schema-servicecatalogfeatureinput) | no       | no       |             |
+| `quotas`        | array of [`ServiceCatalogQuotaInput`](#schema-servicecatalogquotainput)     | no       | no       |             |
+| `prices`        | array of [`ServiceCatalogPriceInput`](#schema-servicecatalogpriceinput)     | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "currency": "string",
+  "market": "string",
+  "trialEnabled": false,
+  "trialDays": 0,
+  "availableFrom": "2026-01-01T00:00:00.000Z",
+  "availableTo": "2026-01-01T00:00:00.000Z",
+  "notes": "string",
+  "features": [
+    {
+      "featureKind": "feature",
+      "featureKey": "string",
+      "enabled": false,
+      "metadata": "(operation-specific payload)"
+    }
+  ],
+  "quotas": [
+    {
+      "meterKey": "string",
+      "isUnlimited": false,
+      "limitValue": 0,
+      "unit": "string",
+      "resetPolicy": "none",
+      "metadata": "(operation-specific payload)"
+    }
+  ],
+  "prices": [
+    {
+      "componentKey": "string",
+      "amountMinor": 0,
+      "currency": "string",
+      "interval": "one_time",
+      "visibility": "public",
+      "metadata": "(operation-specific payload)"
+    }
+  ]
+}
+```
+
+### Schema: ServiceCatalogVersionContentPatch
+
+Partial draft content — every field is optional (PATCH); a provided child collection replaces.
+
+| Field           | Type                                                                        | Required | Nullable | Description |
+| --------------- | --------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `currency`      | string                                                                      | no       | no       |             |
+| `market`        | string                                                                      | no       | yes      |             |
+| `trialEnabled`  | boolean                                                                     | no       | no       |             |
+| `trialDays`     | integer                                                                     | no       | yes      |             |
+| `availableFrom` | string (date-time)                                                          | no       | yes      |             |
+| `availableTo`   | string (date-time)                                                          | no       | yes      |             |
+| `notes`         | string                                                                      | no       | yes      |             |
+| `features`      | array of [`ServiceCatalogFeatureInput`](#schema-servicecatalogfeatureinput) | no       | no       |             |
+| `quotas`        | array of [`ServiceCatalogQuotaInput`](#schema-servicecatalogquotainput)     | no       | no       |             |
+| `prices`        | array of [`ServiceCatalogPriceInput`](#schema-servicecatalogpriceinput)     | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "currency": "string",
+  "market": "string",
+  "trialEnabled": false,
+  "trialDays": 0,
+  "availableFrom": "2026-01-01T00:00:00.000Z",
+  "availableTo": "2026-01-01T00:00:00.000Z",
+  "notes": "string",
+  "features": [
+    {
+      "featureKind": "feature",
+      "featureKey": "string",
+      "enabled": false,
+      "metadata": "(operation-specific payload)"
+    }
+  ],
+  "quotas": [
+    {
+      "meterKey": "string",
+      "isUnlimited": false,
+      "limitValue": 0,
+      "unit": "string",
+      "resetPolicy": "none",
+      "metadata": "(operation-specific payload)"
+    }
+  ],
+  "prices": [
+    {
+      "componentKey": "string",
+      "amountMinor": 0,
+      "currency": "string",
+      "interval": "one_time",
+      "visibility": "public",
+      "metadata": "(operation-specific payload)"
+    }
+  ]
+}
+```
+
 ### Schema: SetupInitializeRequest
 
 | Field                  | Type   | Required | Nullable | Description                                                                                                                                                                                                             |
@@ -17795,7 +18315,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (96)
+### Channels (98)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -17867,6 +18387,8 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.reference-data.value-set.created` — A reference value set was created (Issue #750, epic `platform-evolution` #738 Wave 3). Producer: `reference-data/ application/value-set-directory.ts`'s `createReferenceValueSet`.
 - `awcms-mini.reference-data.value-set.deprecated` — A reference value set was deprecated (soft-deleted, Issue #750). Producer: `reference-data/application/value-set-directory.ts`'s `deprecateReferenceValueSet`.
 - `awcms-mini.reference-data.value-set.updated` — A reference value set's metadata was updated (Issue #750). Producer: `reference-data/application/value-set-directory.ts`'s `updateReferenceValueSet`.
+- `awcms-mini.service-catalog.offer.published` — A service catalog plan version was published into an immutable offer (Issue #870, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `planKey`, `version`, `offerHash`, `currency` — never internal prices. Producer: `service-catalog/application/plan-directory.ts`'s `publishVersion`, via `appendDomainEvent` in the same transaction as the published projection write.
+- `awcms-mini.service-catalog.offer.retired` — A published service catalog offer version was retired (Issue #870). The offer stays readable for reproducibility; the payload carries `planKey` and `version`. Producer: `service-catalog/application/ plan-directory.ts`'s `retireVersion`.
 - `awcms-mini.social-publishing.account.connected` — A social account was connected or reconnected/reauthorized (Issue #643). Documented contract only, same producer convention as every other event in this file — the structured JSON logger, invoked from `social-publishing/application/social-account-directory.ts`'s `connectSocialAccount` (`social_publishing.account.connected` audit event + log line).
 - `awcms-mini.social-publishing.account.disconnected` — A social account was disconnected (Issue #643) — a status transition, not a delete. Producer: `social-account-directory.ts`'s `disconnectSocialAccount`.
 - `awcms-mini.social-publishing.account.needs-reauth` — A connected social account's token expired/was rejected by its provider and now requires reauthorization (Issue #643). Producer: `social-account-directory.ts`'s `markSocialAccountNeedsReauth`, called by the outbox dispatcher on a `needs_reauth` publish outcome.
