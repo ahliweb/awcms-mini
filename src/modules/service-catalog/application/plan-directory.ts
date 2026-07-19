@@ -930,7 +930,18 @@ export async function publishVersion(
     SELECT name, plan_type FROM awcms_mini_service_catalog_plans WHERE plan_key = ${planKey}
   `) as { name: string; plan_type: PlanType }[];
 
-  const snapshot = buildOfferSnapshot(planKey, version, content);
+  // Fix 1: the hash covers the tenant-visible HEADER (plan_name/plan_type) too,
+  // not just version content — so two offers differing only in name/type never
+  // share a hash.
+  const snapshot = buildOfferSnapshot(
+    {
+      planKey,
+      planName: plan[0]!.name,
+      planType: plan[0]!.plan_type,
+      version
+    },
+    content
+  );
 
   // Status-predicated UPDATE (Fix 2): under the lock this always affects the
   // one row; the `AND status = 'draft'` predicate is the belt-and-suspenders

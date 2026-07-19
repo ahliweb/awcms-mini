@@ -56,8 +56,10 @@ that must cover EVERY table, column, and edge (not just content) — the pattern
   must be draft) — otherwise a row could be moved out of a frozen version.
 - **plans.plan_key**: immutable (renaming orphans published offers).
 - **published_offers**: an immutable projection — every column frozen except
-  `retired_at`. Grant-level `REVOKE DELETE` is not enough (publish/retire need
-  UPDATE), so the trigger enforces the column-level freeze.
+  `retired_at`, which is **write-once one-way** (`NULL -> non-null` only; a
+  retired offer can never be re-activated or re-dated). Grant-level
+  `REVOKE DELETE` is not enough (publish/retire need UPDATE), so the trigger
+  enforces the column-level freeze.
 
 The mutation-guard tests (`service-catalog-domain.test.ts`,
 `service-catalog.integration.test.ts`) prove each is real.
@@ -65,12 +67,21 @@ The mutation-guard tests (`service-catalog-domain.test.ts`,
 ## Tenant-facing fingerprint (offer hash)
 
 The `offerHash` is stored on the projection AND returned to the tenant-plane by
-`service_catalog_read`, so it is computed over ONLY the tenant-visible set
-(`publicPrices` + features + quotas + version metadata) — NEVER over internal
-prices. Hashing operator-only data and then exposing the hash would make it a
-brute-force ORACLE for that data. This also satisfies "hash changes iff the
-tenant-visible offer changes". Lesson for #871-#877: any fingerprint exposed to
-the tenant must be derived from the tenant-visible projection shape only.
+`service_catalog_read`, so it is computed over EXACTLY the tenant-visible
+projection shape and nothing else. Two invariants, both gated by tests:
+
+- **Covers every tenant-visible column** (`OFFER_HASH_FIELDS` /
+  `PROJECTION_COLUMN_TO_HASH_FIELD`): plan_key, **plan_name, plan_type**,
+  version, currency, market, trial_*, availability, features, quotas, and the
+  PUBLIC prices. An integration test asserts the map's keys equal the real
+  projection columns, so a new column forces a decision — no tenant-visible
+  field can ever be left unhashed.
+- **Never over operator-only data**: internal price amounts are excluded, so
+  the exposed hash can't be a brute-force ORACLE for them.
+
+Lesson for #871-#877: any fingerprint exposed to the tenant must be derived from
+the tenant-visible projection shape ONLY, and its coverage must be gated against
+the real projection columns (not assumed).
 
 ## Static key registry (fail-closed)
 

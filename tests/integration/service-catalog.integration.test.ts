@@ -44,7 +44,10 @@ import {
   updatePlanDraft
 } from "../../src/modules/service-catalog/application/plan-directory";
 import { listPublishedOffers } from "../../src/modules/service-catalog/application/service-catalog-read-query";
-import { buildOfferSnapshot } from "../../src/modules/service-catalog/domain/offer-snapshot";
+import {
+  buildOfferSnapshot,
+  PROJECTION_COLUMN_TO_HASH_FIELD
+} from "../../src/modules/service-catalog/domain/offer-snapshot";
 import type { VersionContentInput } from "../../src/modules/service-catalog/domain/plan";
 import { ok } from "../../src/modules/_shared/api-response";
 import {
@@ -630,18 +633,26 @@ suite(
           // The offer hash the projection carries must equal a hash re-derived
           // from the version's ACTUAL stored content — proving publish snapshotted
           // the FINAL locked state, not a stale pre-lock read.
-          const derived = buildOfferSnapshot("cpatch", 1, {
-            currency: v1.currency,
-            market: v1.market,
-            trialEnabled: v1.trialEnabled,
-            trialDays: v1.trialDays,
-            availableFrom: v1.availableFrom,
-            availableTo: v1.availableTo,
-            notes: v1.notes,
-            features: v1.features,
-            quotas: v1.quotas,
-            prices: v1.prices
-          });
+          const derived = buildOfferSnapshot(
+            {
+              planKey: "cpatch",
+              planName: detail!.name,
+              planType: detail!.planType,
+              version: 1
+            },
+            {
+              currency: v1.currency,
+              market: v1.market,
+              trialEnabled: v1.trialEnabled,
+              trialDays: v1.trialDays,
+              availableFrom: v1.availableFrom,
+              availableTo: v1.availableTo,
+              notes: v1.notes,
+              features: v1.features,
+              quotas: v1.quotas,
+              prices: v1.prices
+            }
+          );
           expect(offers[0]!.offerHash).toBe(derived.offerHash);
           expect(v1.offerHash).toBe(derived.offerHash);
         }
@@ -949,6 +960,77 @@ suite(
         expect(createVersionAudit[0]!.c).toBe(1);
         expect(updateVersionAudit[0]!.c).toBe(1);
       });
+    });
+
+    test("Fix 1: the offer-hash field map covers EXACTLY the real projection columns (no tenant-visible column left unhashed)", async () => {
+      const admin = getAdminSql();
+      const rows = (await admin`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'awcms_mini_service_catalog_published_offers'
+      `) as { column_name: string }[];
+      const actual = rows.map((r) => r.column_name).sort();
+      const mapped = Object.keys(PROJECTION_COLUMN_TO_HASH_FIELD).sort();
+      // Adding a projection column WITHOUT deciding its hash treatment fails here.
+      expect(actual).toEqual(mapped);
+    });
+
+    test("Fix 2: a PATCH with a malformed (non-array) prices collection is REJECTED and does NOT delete the existing draft prices", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "wipe"); // seeded with base(public) + internal_cost prices
+      await withTenant(sql, tenantId, async (tx) => {
+        const bad = await updatePlanDraft(
+          tx,
+          tenantId,
+          actor,
+          "wipe",
+          { content: { prices: { not: "an array" } as unknown as [] } },
+          registry
+        );
+        expect(bad.ok).toBe(false);
+        if (!bad.ok) expect(bad.reason).toBe("validation");
+
+        // The existing draft prices survive — the malformed collection did NOT
+        // trigger a delete-and-replace (silent data loss).
+        const detail = await fetchPlanDetail(tx, "wipe");
+        expect(detail!.versions[0]!.prices).toHaveLength(2);
+      });
+    });
+
+    test("Fix 3: published-offer retired_at is write-once (NULL->ts once; non-null->NULL and non-null->different rejected)", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "wo");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "wo", 1, registry)
+      );
+      // NULL -> ts: the legit first retire.
+      const retired = await withTenant(sql, tenantId, (tx) =>
+        retireVersion(tx, tenantId, actor, "wo", 1)
+      );
+      expect(retired.ok).toBe(true);
+
+      // non-null -> NULL: re-activation rejected.
+      let reactivateBlocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          await tx`UPDATE awcms_mini_service_catalog_published_offers SET retired_at = NULL WHERE plan_key = 'wo'`;
+        });
+      } catch {
+        reactivateBlocked = true;
+      }
+      expect(reactivateBlocked).toBe(true);
+
+      // non-null -> different non-null: re-dating rejected.
+      let redateBlocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          await tx`UPDATE awcms_mini_service_catalog_published_offers SET retired_at = now() + interval '1 day' WHERE plan_key = 'wo'`;
+        });
+      } catch {
+        redateBlocked = true;
+      }
+      expect(redateBlocked).toBe(true);
     });
 
     test("runtime default-disabled: service_catalog resolves DISABLED without a tenant_modules row, ENABLED after opt-in", async () => {

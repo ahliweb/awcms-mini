@@ -484,6 +484,20 @@ BEGIN
     RAISE EXCEPTION 'service_catalog: a published offer projection is immutable except retired_at'
       USING ERRCODE = 'check_violation';
   END IF;
+
+  -- Fix 3 (write-once, one-way): `retired_at` may transition ONLY NULL ->
+  -- non-null (retire once). Rejecting non-null -> NULL stops an app-role SQL
+  -- from RE-ACTIVATING a retired offer in the tenant read model (which treats
+  -- `retired_at IS NULL` as active) while the source version stays 'retired';
+  -- rejecting non-null -> different-non-null stops re-dating a retirement.
+  -- (Write-once audit of this schema: plan_versions.published_at/published_by
+  -- are frozen once out of draft, and retired_at/retired_by once retired, by
+  -- the version trigger above; version.status is one-way there; this is the
+  -- last remaining one-way field.)
+  IF OLD.retired_at IS NOT NULL AND NEW.retired_at IS DISTINCT FROM OLD.retired_at THEN
+    RAISE EXCEPTION 'service_catalog: published offer retired_at is write-once (a retired offer cannot be reactivated or re-dated)'
+      USING ERRCODE = 'check_violation';
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

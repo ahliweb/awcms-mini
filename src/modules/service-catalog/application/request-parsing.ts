@@ -54,8 +54,13 @@ function asNumberOrNull(value: unknown): number | null {
   return typeof value === "number" ? value : null;
 }
 
+/**
+ * FAIL-CLOSED metadata (Fix 2): an ABSENT metadata defaults to `{}`; a PRESENT
+ * value is kept VERBATIM (cast) so the domain validator's `isPlainObject` check
+ * rejects a non-object (array/scalar) instead of silently coercing it to `{}`.
+ */
 function asMetadata(value: unknown): Record<string, unknown> {
-  return asRecord(value);
+  return (value === undefined ? {} : value) as Record<string, unknown>;
 }
 
 export function parseFeatureGrant(raw: unknown): FeatureGrantInput {
@@ -114,8 +119,19 @@ export function parsePrice(raw: unknown): PriceInput {
   };
 }
 
-function parseArray<T>(value: unknown, mapper: (item: unknown) => T): T[] {
-  return Array.isArray(value) ? value.map(mapper) : [];
+/**
+ * FAIL-CLOSED collection (Fix 2): a PRESENT value is mapped when it is an array,
+ * else passed through VERBATIM (cast) so the domain validator's `Array.isArray`
+ * check rejects it (400) — NEVER coerced to `[]`, which in the PATCH path would
+ * DELETE the existing rows (silent data loss). Callers use present-key
+ * detection so an ABSENT collection defaults to `[]` (create) / is left unset
+ * (PATCH = keep), and only a present value reaches here.
+ */
+function parseCollectionPresent<T>(
+  value: unknown,
+  mapper: (item: unknown) => T
+): T[] {
+  return Array.isArray(value) ? value.map(mapper) : (value as unknown as T[]);
 }
 
 /** Full version content (create) — every field materialized with a default so the domain validator sees a complete object. */
@@ -129,9 +145,20 @@ export function parseVersionContent(raw: unknown): VersionContentInput {
     availableFrom: asStringOrNull(record.availableFrom),
     availableTo: asStringOrNull(record.availableTo),
     notes: asStringOrNull(record.notes),
-    features: parseArray(record.features, parseFeatureGrant),
-    quotas: parseArray(record.quotas, parseQuota),
-    prices: parseArray(record.prices, parsePrice)
+    // present-key detection: absent -> [] (default); present -> fail-closed
+    // collection parse (a present non-array is rejected downstream, not wiped).
+    features:
+      "features" in record
+        ? parseCollectionPresent(record.features, parseFeatureGrant)
+        : [],
+    quotas:
+      "quotas" in record
+        ? parseCollectionPresent(record.quotas, parseQuota)
+        : [],
+    prices:
+      "prices" in record
+        ? parseCollectionPresent(record.prices, parsePrice)
+        : []
   };
 }
 
@@ -187,12 +214,18 @@ export function parseUpdateDraftBody(body: unknown): UpdatePlanDraftInput {
     if ("availableTo" in content)
       parsedContent.availableTo = asStringOrNull(content.availableTo);
     if ("notes" in content) parsedContent.notes = asStringOrNull(content.notes);
+    // Fix 2: a PRESENT collection is fail-closed — a non-array is passed
+    // through (rejected 400 by the validator), NEVER coerced to [] (which would
+    // DELETE the existing rows). Absent = keep (not set here).
     if ("features" in content)
-      parsedContent.features = parseArray(content.features, parseFeatureGrant);
+      parsedContent.features = parseCollectionPresent(
+        content.features,
+        parseFeatureGrant
+      );
     if ("quotas" in content)
-      parsedContent.quotas = parseArray(content.quotas, parseQuota);
+      parsedContent.quotas = parseCollectionPresent(content.quotas, parseQuota);
     if ("prices" in content)
-      parsedContent.prices = parseArray(content.prices, parsePrice);
+      parsedContent.prices = parseCollectionPresent(content.prices, parsePrice);
     result.content = parsedContent;
   }
 

@@ -134,8 +134,19 @@ function isSafeNonNegativeInteger(value: unknown): value is number {
   );
 }
 
-function metadataTooLarge(metadata: Record<string, unknown>): boolean {
-  return JSON.stringify(metadata).length > MAX_METADATA_BYTES;
+function isPlainObject(value: unknown): boolean {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Fix 2: a PRESENT-but-non-object metadata is rejected, never coerced to `{}`; also bounds size. */
+function metadataError(metadata: unknown): string | null {
+  if (!isPlainObject(metadata)) {
+    return "metadata must be an object.";
+  }
+  if (JSON.stringify(metadata).length > MAX_METADATA_BYTES) {
+    return "metadata is too large.";
+  }
+  return null;
 }
 
 function isValidTimestamp(value: string): boolean {
@@ -215,9 +226,25 @@ export function validateVersionContent(
     });
   }
 
-  validateFeatureGrants(content.features, registry, errors);
-  validateQuotas(content.quotas, registry, errors);
-  validatePrices(content.prices, content.currency, errors);
+  // Fix 2: a PRESENT-but-non-array collection is rejected (400), NEVER iterated
+  // (which would throw) and NEVER treated as an empty replacement (which in the
+  // PATCH path would DELETE the existing rows). Each collection is guarded
+  // before its item validator runs.
+  if (!Array.isArray(content.features)) {
+    errors.push({ field: "features", message: "features must be an array." });
+  } else {
+    validateFeatureGrants(content.features, registry, errors);
+  }
+  if (!Array.isArray(content.quotas)) {
+    errors.push({ field: "quotas", message: "quotas must be an array." });
+  } else {
+    validateQuotas(content.quotas, registry, errors);
+  }
+  if (!Array.isArray(content.prices)) {
+    errors.push({ field: "prices", message: "prices must be an array." });
+  } else {
+    validatePrices(content.prices, content.currency, errors);
+  }
 
   return errors;
 }
@@ -268,11 +295,9 @@ function validateFeatureGrants(
           "enabled must be a boolean (E1: a present-but-invalid value is rejected, never coerced to true)."
       });
     }
-    if (metadataTooLarge(feature.metadata)) {
-      errors.push({
-        field: `${at}.metadata`,
-        message: "metadata is too large."
-      });
+    const featureMetaErr = metadataError(feature.metadata);
+    if (featureMetaErr) {
+      errors.push({ field: `${at}.metadata`, message: featureMetaErr });
     }
   });
 }
@@ -342,11 +367,9 @@ function validateQuotas(
         message: "resetPolicy is invalid."
       });
     }
-    if (metadataTooLarge(quota.metadata)) {
-      errors.push({
-        field: `${at}.metadata`,
-        message: "metadata is too large."
-      });
+    const quotaMetaErr = metadataError(quota.metadata);
+    if (quotaMetaErr) {
+      errors.push({ field: `${at}.metadata`, message: quotaMetaErr });
     }
   });
 }
@@ -406,11 +429,9 @@ function validatePrices(
         message: "visibility must be 'public' or 'internal'."
       });
     }
-    if (metadataTooLarge(price.metadata)) {
-      errors.push({
-        field: `${at}.metadata`,
-        message: "metadata is too large."
-      });
+    const priceMetaErr = metadataError(price.metadata);
+    if (priceMetaErr) {
+      errors.push({ field: `${at}.metadata`, message: priceMetaErr });
     }
   });
 }

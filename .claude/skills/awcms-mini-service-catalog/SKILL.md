@@ -124,6 +124,22 @@ Dari audit adversarial 5-lensa (10 defect di PR #885). Terapkan ke SEMUA modul c
 ELSE col END` — tulis hanya kolom yang disediakan (ELSE baca nilai live di bawah row-lock UPDATE).
 6. **Audit action DISKRIMINATIF:** createDraftVersion action='create' (bukan 'update' identik
    updatePlanDraft) → bisa dibedakan di trail (resource_type+action = diskriminator).
+7. **Hash tenant-facing WAJIB cover SEMUA kolom projeksi tenant-visible (bukan subset).** Fix B1
+   sempat mempersempit ke konten version → LUPA plan_name/plan_type (juga di projeksi) → 2 offer
+   beda header emit hash SAMA. FIX: hash cover SETIAP kolom `published_offers` yang tenant-visible
+   (header+konten+publicPrices); GATE `PROJECTION_COLUMN_TO_HASH_FIELD` vs kolom nyata (test
+   information_schema) + behavioral (ubah tiap field → hash beda). Tambah kolom projeksi = paksa
+   keputusan hash. Pelajaran: cakupan hash di-GATE vs kolom nyata, jangan diasumsikan.
+8. **Fail-closed utk SEMUA bentuk input termasuk COLLECTION/OBJECT — present-malformed JANGAN pernah
+   wipe.** PATCH `{"prices":{...}}` (objek bukan array) → `parseArray` coerce `[]` → field PRESENT →
+   updatePlanDraft DELETE prices existing + insert nol = DATA LOSS diam. FIX: parseCollectionPresent
+   teruskan non-array verbatim (validator `Array.isArray` tolak 400) + present-key detection (absent=[]
+   create/keep patch, present-valid=replace, present-malformed=REJECT jangan []). Metadata non-object
+   juga (isPlainObject). Bedakan ABSENT vs PRESENT-MALFORMED di SEMUA field (scalar+enum+collection+object).
+9. **Write-once one-way di trigger.** projeksi retired_at DULU boleh rewrite apa pun (termasuk →NULL) →
+   app-role SQL RE-AKTIFKAN offer retired di read tenant (`retired_at IS NULL`=active) walau version
+   'retired'. FIX: trigger izinkan HANYA `NULL→non-null`; tolak non-null→NULL & non-null→beda. Audit
+   field write-once lain (published_at/by, retired_at/by, status) — pastikan semua one-way.
 
 ## Lifecycle offer
 

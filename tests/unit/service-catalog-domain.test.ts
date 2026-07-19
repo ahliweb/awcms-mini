@@ -31,11 +31,18 @@ import {
   canPublish,
   canRetire
 } from "../../src/modules/service-catalog/domain/lifecycle";
-import { buildOfferSnapshot } from "../../src/modules/service-catalog/domain/offer-snapshot";
+import {
+  buildOfferSnapshot,
+  offerHashInputKeys,
+  OFFER_HASH_FIELDS,
+  PROJECTION_COLUMN_TO_HASH_FIELD,
+  type OfferHeader
+} from "../../src/modules/service-catalog/domain/offer-snapshot";
 import {
   parseFeatureGrant,
   parsePrice,
-  parseQuota
+  parseQuota,
+  parseVersionContent
 } from "../../src/modules/service-catalog/application/request-parsing";
 
 function descriptor(
@@ -75,6 +82,16 @@ function content(
     features: [],
     quotas: [],
     prices: [],
+    ...overrides
+  };
+}
+
+function header(overrides: Partial<OfferHeader> = {}): OfferHeader {
+  return {
+    planKey: "plan_a",
+    planName: "Plan A",
+    planType: "subscription",
+    version: 1,
     ...overrides
   };
 }
@@ -476,7 +493,7 @@ describe("offer snapshot + hash", () => {
   });
 
   test("public projection EXCLUDES internal-visibility prices (ADR-0022 §3 Medium-1)", () => {
-    const snapshot = buildOfferSnapshot("plan_a", 1, snapshotContent);
+    const snapshot = buildOfferSnapshot(header(), snapshotContent);
     expect(snapshot.publicPrices.map((p) => p.componentKey)).toEqual(["base"]);
     expect(
       snapshot.publicPrices.some((p) => p.componentKey === "internal_cost")
@@ -484,20 +501,19 @@ describe("offer snapshot + hash", () => {
   });
 
   test("hash is deterministic for identical content and independent of feature/price ordering", () => {
-    const a = buildOfferSnapshot("plan_a", 1, snapshotContent);
+    const a = buildOfferSnapshot(header(), snapshotContent);
     const reordered = content({
       prices: [snapshotContent.prices[1]!, snapshotContent.prices[0]!],
       features: snapshotContent.features
     });
-    const b = buildOfferSnapshot("plan_a", 1, reordered);
+    const b = buildOfferSnapshot(header(), reordered);
     expect(a.offerHash).toBe(b.offerHash);
   });
 
   test("hash changes when content changes (reproducibility)", () => {
-    const a = buildOfferSnapshot("plan_a", 1, snapshotContent);
+    const a = buildOfferSnapshot(header(), snapshotContent);
     const changed = buildOfferSnapshot(
-      "plan_a",
-      1,
+      header(),
       content({
         currency: "USD",
         prices: [],
@@ -534,8 +550,8 @@ describe("offer snapshot + hash", () => {
       ],
       features: []
     });
-    const a = buildOfferSnapshot("plan_a", 1, priceInternal);
-    const b = buildOfferSnapshot("plan_a", 1, pricePublic);
+    const a = buildOfferSnapshot(header(), priceInternal);
+    const b = buildOfferSnapshot(header(), pricePublic);
     // The tenant-visible offer differs (public projection now includes the price),
     // so the immutable fingerprint exposed in the publish event MUST differ.
     expect(a.publicPrices).toHaveLength(0);
@@ -566,13 +582,150 @@ describe("offer snapshot + hash", () => {
         ],
         features: []
       });
-    const a = buildOfferSnapshot("plan_a", 1, base(1000));
-    const b = buildOfferSnapshot("plan_a", 1, base(9999999));
+    const a = buildOfferSnapshot(header(), base(1000));
+    const b = buildOfferSnapshot(header(), base(9999999));
     // The exposed hash must NOT be an oracle for the internal amount: it is
     // independent of it, and the tenant-visible projection is byte-identical.
     expect(a.offerHash).toBe(b.offerHash);
     expect(a.publicPrices).toEqual(b.publicPrices);
     expect(a.publicPrices.map((p) => p.componentKey)).toEqual(["pub"]);
+  });
+});
+
+describe("Fix 1 — offer hash covers EVERY tenant-visible projection field", () => {
+  test("the declared OFFER_HASH_FIELDS equals the actual canonical hash-input keys", () => {
+    expect(([...OFFER_HASH_FIELDS] as string[]).sort()).toEqual(
+      offerHashInputKeys().sort()
+    );
+  });
+
+  test("PROJECTION_COLUMN_TO_HASH_FIELD's non-null values equal OFFER_HASH_FIELDS (every hashed field maps back from a column)", () => {
+    const mapped = Object.values(PROJECTION_COLUMN_TO_HASH_FIELD).filter(
+      (v): v is string => v !== null
+    );
+    expect(mapped.sort()).toEqual([...OFFER_HASH_FIELDS].sort());
+  });
+
+  test("changing ANY tenant-visible header/content field changes the hash (behavioral completeness)", () => {
+    const baseContent = content({
+      market: "id",
+      trialEnabled: true,
+      trialDays: 7,
+      availableFrom: "2026-01-01T00:00:00.000Z",
+      availableTo: "2026-12-31T00:00:00.000Z",
+      features: [
+        {
+          featureKind: "module",
+          featureKey: "blog_content",
+          enabled: true,
+          metadata: {}
+        }
+      ],
+      quotas: [
+        {
+          meterKey: "platform.api_calls",
+          isUnlimited: false,
+          limitValue: 100,
+          unit: "requests",
+          resetPolicy: "monthly",
+          metadata: {}
+        }
+      ],
+      prices: [
+        {
+          componentKey: "base",
+          amountMinor: 1000,
+          currency: "IDR",
+          interval: "monthly",
+          visibility: "public",
+          metadata: {}
+        }
+      ]
+    });
+    const base = buildOfferSnapshot(header(), baseContent).offerHash;
+
+    // Header fields.
+    expect(
+      buildOfferSnapshot(header({ planKey: "other" }), baseContent).offerHash
+    ).not.toBe(base);
+    expect(
+      buildOfferSnapshot(header({ planName: "Other" }), baseContent).offerHash
+    ).not.toBe(base);
+    expect(
+      buildOfferSnapshot(header({ planType: "addon" }), baseContent).offerHash
+    ).not.toBe(base);
+    expect(
+      buildOfferSnapshot(header({ version: 2 }), baseContent).offerHash
+    ).not.toBe(base);
+
+    // Content fields.
+    const mut = (o: Partial<VersionContentInput>) =>
+      buildOfferSnapshot(header(), { ...baseContent, ...o }).offerHash;
+    expect(mut({ currency: "USD" })).not.toBe(base);
+    expect(mut({ market: "us" })).not.toBe(base);
+    expect(mut({ trialEnabled: false })).not.toBe(base);
+    expect(mut({ trialDays: 14 })).not.toBe(base);
+    expect(mut({ availableFrom: "2026-02-01T00:00:00.000Z" })).not.toBe(base);
+    expect(mut({ availableTo: "2026-11-30T00:00:00.000Z" })).not.toBe(base);
+    expect(mut({ features: [] })).not.toBe(base);
+    expect(mut({ quotas: [] })).not.toBe(base);
+    expect(
+      mut({
+        prices: [
+          {
+            componentKey: "base",
+            amountMinor: 2000,
+            currency: "IDR",
+            interval: "monthly",
+            visibility: "public",
+            metadata: {}
+          }
+        ]
+      })
+    ).not.toBe(base);
+  });
+});
+
+describe("Fix 2 — fail-closed collections/objects (present-malformed rejected, never wiped)", () => {
+  test("a present-but-non-array features/quotas/prices is rejected (never iterated or treated as [])", () => {
+    expect(
+      validateVersionContent(
+        content({ features: { bad: true } as unknown as [] }),
+        registry
+      ).some((e) => e.field === "features")
+    ).toBe(true);
+    expect(
+      validateVersionContent(
+        content({ quotas: "nope" as unknown as [] }),
+        registry
+      ).some((e) => e.field === "quotas")
+    ).toBe(true);
+    expect(
+      validateVersionContent(
+        content({ prices: 42 as unknown as [] }),
+        registry
+      ).some((e) => e.field === "prices")
+    ).toBe(true);
+  });
+
+  test("a present-but-non-object metadata is rejected", () => {
+    expect(
+      validateVersionContent(
+        content({
+          prices: [
+            {
+              componentKey: "base",
+              amountMinor: 1,
+              currency: "IDR",
+              interval: "monthly",
+              visibility: "public",
+              metadata: [1, 2] as unknown as Record<string, unknown>
+            }
+          ]
+        }),
+        registry
+      ).some((e) => e.field === "prices[0].metadata")
+    ).toBe(true);
   });
 });
 
@@ -625,5 +778,17 @@ describe("request parsing — fail-closed enums (Issue #870 review Codex-A)", ()
       parsePrice({ componentKey: "b", interval: "" }).interval as string
     ).toBe("");
     expect(parsePrice({ componentKey: "b" }).interval).toBe("one_time");
+  });
+
+  test("Fix 2: parseVersionContent keeps a present non-array collection verbatim (NOT coerced to []); absent -> []", () => {
+    const malformed = parseVersionContent({
+      currency: "IDR",
+      prices: { not: "an array" }
+    });
+    // Verbatim — so the validator rejects it, instead of a silent [] that would
+    // delete existing rows in the PATCH path.
+    expect(Array.isArray(malformed.prices)).toBe(false);
+    // Absent -> [] default (no wipe signal).
+    expect(parseVersionContent({ currency: "IDR" }).prices).toEqual([]);
   });
 });
