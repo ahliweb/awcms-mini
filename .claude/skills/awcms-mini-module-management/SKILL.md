@@ -287,6 +287,52 @@ ke kategori tersebut (termasuk catatan remediasi field `type`/`isCore`/
 itu sebelum mengusulkan modul baru atau mengubah kategori/status lifecycle
 modul yang sudah ada.
 
+### Contoh keputusan arsitektur — batas control-plane vs tenant-plane (SaaS Control Plane, ADR-0022, epic #868)
+
+Preseden konkret cara sebuah kluster modul baru diadmisi TANPA merusak
+boundary yang sudah ada — pakai sebagai template saat mengerjakan issue
+#870–#881 (atau menilai apakah sebuah issue melanggar boundary):
+
+- **Placement**: tujuh modul (`service_catalog`, `tenant_entitlement`,
+  `tenant_provisioning`, `tenant_lifecycle`, `usage_metering`,
+  `subscription_billing`, `payment_gateway`) = **Official Optional Business
+  Foundation _in-repo, default-disabled_** (bukan repo terpisah). ADR-0022
+  meng-**amend** placement ADR-0013 §1 (yang dulu menaruh SaaS "di luar
+  base") lewat catatan bertanggal + ADR baru — JANGAN tulis ulang badan ADR
+  Accepted.
+- **Arah dependency**: control-plane boleh depend Core/System; **base/core/
+  modul bisnis TIDAK PERNAH depend ke logika SaaS**. Satu-satunya jalur
+  tenant-plane → control-plane adalah kontrak capability
+  `effective_entitlement` **read-only** — bukan FK/import/table-write.
+- **JUJUR soal gate: policy boundary ini BELUM ter-gate untuk 7 modul SaaS.**
+  `modules:dag:check` hanya memvalidasi graf dependency **deklaratif**
+  (`dependencies`/`capabilities` di `module.ts`), **bukan** policy
+  "tenant-plane hanya boleh konsumsi read-only entitlement port / no
+  shared-table-write". `tests/unit/module-boundary.test.ts` yang ada saat ini
+  **hard-coded ke pasangan `blog_content` ↔ `news_portal`** dan **tidak
+  memeriksa** ketujuh modul control-plane sama sekali. Artinya: mengandalkan
+  kedua check itu untuk meloloskan review #870–#881 adalah jebakan
+  [[validator-exists-but-unwired-critical-pattern]] / [[cycle-detector-fed-incomplete-graph]]
+  — import/FK/table-write langsung ke internal SaaS bisa lolos diam-diam.
+  **Wave-1 (issue modul control-plane pertama, #870/#871) WAJIB menambah/
+  memperluas `module-boundary.test.ts` (atau gate setara)** untuk menegakkan
+  read-only-entitlement-port + no-shared-table-write bagi 7 modul —
+  sesuai Consequences ADR-0022. Sampai gate itu mendarat, penegakan boundary
+  tujuh modul ini bersandar review manual + checklist, bukan mesin — jangan
+  klaim sudah tergate.
+- **Trust**: platform/operator role **bukan `BYPASSRLS`** (akses
+  lintas-tenant tetap lewat RLS + permission eksplisit); support access
+  cross-tenant **reason/time-bound/audited**; secret provider **hanya di
+  `process.env`**, tak pernah di tabel tenant-readable.
+- **Fail-safe**: downgrade/suspend **tidak pernah `DELETE`** data tenant
+  (ubah state + gate); provider di luar transaksi (outbox + webhook signed
+  inbox `integration_hub`, retry/DLQ, reconciliation); billing SaaS ≠
+  general ledger/AR-AP/tax (ADR-0013 §3, ADR-0020).
+- **"Default-disabled" masih gap runtime**: default hari ini = enabled
+  (`tenant-module-lifecycle.ts`). ADR-0022 §7 mewajibkan #870–#874
+  menutupnya (flag `defaultTenantState` atau aktivasi lewat preset/
+  entitlement) sebelum merge — verifikasi ini saat review modul SaaS.
+
 ## Komposisi modul build-time untuk aplikasi turunan (Issue #740, ADR-0014)
 
 Pertanyaan BERBEDA dari admission (§ di atas, yang mengatur "modul apa

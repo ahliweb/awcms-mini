@@ -2,7 +2,7 @@
 
 > **Dokumen base (bukan contoh domain).** Dokumen ini menjelaskan cara membangun aplikasi turunan **di atas** AWCMS-Mini setelah base generik selesai (v0.23.5, seluruh 18 issue backlog doc06 + peningkatan pasca-backlog M9 tuntas — lihat [`README.md`](README.md) §Langkah berikutnya dan [`AGENTS.md`](../../AGENTS.md) §Mulai dari sini). Lima contoh aplikasi di §Contoh aplikasi turunan adalah **ilustrasi**, bukan modul yang ditambahkan ke base ini.
 >
-> **Lapisan ekstensi (epic #738).** Semua aplikasi turunan di dokumen ini hidup di lapisan **Derived Application** — satu dari tiga lapisan "di luar base" (Derived Application generik, SaaS Control Plane, ERP Extension) yang didefinisikan `docs/adr/0013-extension-layers-and-boundary-model.md`. ADR itu juga mendefinisikan batas tenant vs legal entity vs organization unit, dan aturan "no shared-table write" untuk kolaborasi lintas-repo — baca sebelum aplikasi turunan Anda perlu berbagi data dengan repo turunan lain (mis. sebuah SaaS billing control-plane yang menagih tenant yang sama).
+> **Lapisan ekstensi (epic #738).** Semua aplikasi turunan di dokumen ini hidup di lapisan **Derived Application** — salah satu lapisan "di luar base" yang didefinisikan `docs/adr/0013-extension-layers-and-boundary-model.md`. ADR itu juga mendefinisikan batas tenant vs legal entity vs organization unit, dan aturan "no shared-table write" untuk kolaborasi lintas-repo — baca sebelum aplikasi turunan Anda perlu berbagi data dengan repo turunan lain. **Catatan:** ADR-0013 semula menaruh **SaaS Control Plane** sebagai lapisan "di luar base", tetapi `docs/adr/0022-saas-control-plane-admission-boundary-and-lifecycle-contracts.md` (Issue #869) **meng-amend** itu — SaaS Control Plane kini adalah tujuh modul Official Optional Business Foundation **in-repo, default-disabled** (lihat bagian "SaaS Control Plane" di bawah). ERP Extension tetap lapisan di luar base (ADR-0020).
 >
 > **Komposisi modul build-time (Issue #740, ADR-0014).** Sejak Issue #740, aplikasi turunan **tidak lagi perlu mengedit `src/modules/index.ts`** untuk mendaftarkan modul domainnya. Ganti nilai `undefined` di `src/modules/application-registry.ts` milik repo turunan Anda dengan `ApplicationModuleRegistry` sendiri (`{ id, modules, migrationNamespace? }`, tipe di `_shared/module-contract.ts`) — satu-satunya file yang perlu diedit. `composeModuleRegistry()` (`module-management/domain/module-composition.ts`) menggabungkan registry base + registry Anda dan memvalidasi key/dependency DAG/capability binding/migration-namespace/deployment-profile sebelum build dianggap sah. Lihat `docs/adr/0014-deterministic-build-time-module-composition.md` untuk keputusan lengkap dan `tests/fixtures/derived-application-example/` untuk contoh nyata yang bisa langsung dijalankan (`bun test tests/unit/module-composition-fixture.test.ts`).
 >
@@ -89,6 +89,52 @@ descriptor yang mengonsumsi capability `party_directory`/
 `organization_hierarchy_resolution` secara opsional, mesin posting
 idempotent+fail-closed-period-lock, dan satu kontribusi `reporting`
 projection — semua tanpa satu baris pun logika akuntansi nyata.
+
+## SaaS Control Plane (opt-in, in-repo, default-disabled — Issue #868/#869, ADR-0022)
+
+Bila aplikasi turunan Anda menjual akses platform ke **tenant** (model
+SaaS: provisioning tenant, entitlement, metering pemakaian, langganan/
+invoice, checkout pembayaran), kemampuan itu **direncanakan** disediakan
+tujuh modul **Official Optional Business Foundation** in-repo
+(`service_catalog`, `tenant_entitlement`, `tenant_provisioning`,
+`tenant_lifecycle`, `usage_metering`, `subscription_billing`,
+`payment_gateway`), **default-disabled** dan **opt-in per tenant** — pola
+yang sama seperti `news_portal`/`social_publishing`.
+
+> **⚠️ BELUM TERSEDIA hari ini.** Ketujuh modul ini baru **diadmisi/
+> direncanakan** oleh `docs/adr/0022-saas-control-plane-admission-boundary-and-lifecycle-contracts.md`
+> (Issue #869) — **kode-nya belum ada** di `src/modules/index.ts`. Key modul
+> baru mendarat lewat issue implementasi #870–#877 (lihat epic #868 dan doc
+> 21 §8: "`module.ts` masing-masing baru ditambahkan di Wave-1/2/3"). Jangan
+> mencoba `enable`/build ke modul-modul ini sekarang — belum ada yang bisa
+> di-enable. Baca ADR-0022 untuk memahami boundary yang mengikat sebelum
+> issue implementasinya dikerjakan; bagian ini adalah **kontrak arah**, bukan
+> pengumuman fitur yang sudah dapat dipakai.
+
+Batas keras yang **tidak boleh dilanggar** aplikasi turunan (ADR-0022):
+
+- **Control-plane ≠ tenant-plane.** Modul bisnis tenant Anda **hanya**
+  membaca kontrak `effective_entitlement` (read-only) untuk gating fitur/
+  kuota — tidak pernah query/menulis tabel control-plane langsung.
+- **LAN/offline tetap jalan.** Deployment `offline-lan` yang tidak
+  mengaktifkan control plane berjalan 100%; jangan buat jalur LAN/POS
+  bergantung pada billing/entitlement.
+- **Platform role bukan `BYPASSRLS`.** Akses lintas-tenant operator tetap
+  lewat RLS + permission eksplisit; support access reason/time-bound/audited.
+- **Secret provider di `process.env` saja**, tidak pernah di tabel
+  tenant-readable; rotasi = konfigurasi deployment.
+- **Subscription billing ≠ general ledger.** Invoice langganan platform
+  bukan sales invoice/GL/AR-AP/tax tenant (ADR-0013 §3, ADR-0020); alokasi/
+  settlement pembayaran bukan double-entry.
+- **Downgrade/suspend tidak pernah hapus data tenant** (fail-safe, ubah
+  state + gate saja).
+- **Provider di luar transaksi DB** (outbox + webhook signed inbox via
+  `integration_hub`, retry/DLQ, reconciliation).
+
+Provider pembayaran/plan/harga spesifik (mis. Midtrans/Xendit/Stripe milik
+Anda) tetap adapter opt-in yang Anda daftarkan di repo turunan Anda sendiri
+lewat `src/modules/application-registry.ts` — base tidak pernah meng-hardcode
+provider/kredensial/aturan harga apa pun.
 
 ## Checklist keamanan & kepatuhan praktis
 

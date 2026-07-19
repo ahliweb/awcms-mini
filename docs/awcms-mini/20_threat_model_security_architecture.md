@@ -1590,3 +1590,72 @@ ABAC default-deny, audit) yang sudah berlaku sama di sini.
   dideklarasikan forward-compatible di tipe (`ArchivePortKind` setara)
   tapi tidak diimplementasikan — offline-lan-safe di v1 lebih diutamakan
   daripada dukungan file sangat besar.
+
+## Standar tambahan dipicu epic SaaS Control Plane (Issue #868/#869, ADR-0022)
+
+Wave-0 (Issue #869, docs-only) menetapkan boundary/trust/threat model untuk
+tujuh modul control-plane **opt-in, in-repo, default-disabled** — memblokir
+implementasi #870–#881. Detail mengikat ada di
+`docs/adr/0022-saas-control-plane-admission-boundary-and-lifecycle-contracts.md`
+(§10 memuat diagram trust boundary Mermaid + tabel ancaman lengkap). Ringkasan
+tujuh ancaman yang wajib ditutup implementasi:
+
+| Ancaman                | Kontrol wajib (ADR-0022 §-nya)                                                                                                       | Issue penegak |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
+| Cross-tenant access    | RLS `tenant_id` tunggal; platform role **bukan `BYPASSRLS`**; modul bisnis hanya baca `effective_entitlement` read-only (§3/§4/§6)   | #879          |
+| Operator abuse         | SoD platform/billing/support operator (§5); step-up; semua aksi high-risk audited; support access reason/time-bound (§6)             | #879          |
+| Webhook replay/forgery | `integration_hub` signed inbox + replay-protection (ADR-0019); idempotency per event id (§9)                                         | #877          |
+| Duplicate billing      | `Idempotency-Key` wajib + hash ber-resource-id; invoice append-only + reconciliation (§9)                                            | #876/#877     |
+| Provider outage        | Provider di luar transaksi + outbox + retry/DLQ + reconciliation; billing state dihitung lokal/offline-safe (§9)                     | #877          |
+| Downgrade data loss    | Fail-safe: ubah state + gate, **tidak pernah `DELETE`** data tenant; soft-delete + legal hold (§6/§8/§9/§11)                         | #873          |
+| Secret leakage         | Secret provider **hanya di `process.env`**, tak pernah di tabel tenant-readable; rotasi = deployment; redaction audit/log (§3/§6/§8) | #879          |
+
+**Batas kepercayaan baru (di atas trust boundaries §Batas kepercayaan):**
+batas control-plane (RLS per tenant, default-disabled) memisahkan modul SaaS
+dari data tenant — satu-satunya jalur lintas-batas adalah modul
+tenant-plane/bisnis **membaca** kontrak `effective_entitlement` read-only dari
+`tenant_entitlement` (`Biz → TE`); control-plane tidak pernah menjangkau data
+tenant-plane, dan tak ada FK/table write lintas-batas. Batas
+secret provider berada **di luar database** (`process.env`/secret store
+deployment), bukan tabel apa pun.
+
+**Dua invariant tambahan yang diikat ADR-0022 (bukan sekadar prosa):**
+
+- **No "soft super-tenant" (ADR-0022 §6 High-1).** Selain melarang atribut
+  `BYPASSRLS`, ADR-0022 **melarang eksplisit** memperluas predikat RLS
+  tenant dengan klausa platform-claim (`OR current_setting('app.is_platform')
+= 't'` / `OR has_platform_claim()`) — celah yang lolos `security-
+readiness.ts` (ia memeriksa atribut role, bukan isi predikat). Baca
+  operator lintas-tenant hanya via konteks per-tenant audited; agregat lewat
+  read-model purpose-built permission-gated.
+- **`effective_entitlement` fail-closed (ADR-0022 §4 High-2).** Entitlement
+  absent/indeterminate/unavailable = **DENY**, tak pernah grant-all; gate di
+  helper capability (bukan per-route). Axis berbeda dari ABAC permission
+  default-deny — keduanya harus lolos.
+
+**Pemetaan ke matriks standar existing (Low, tanpa mengklaim sertifikasi):**
+
+| Ancaman control-plane         | OWASP API Security Top 10 (2023)                | OWASP Top 10 (2021) / ASVS               | ISO/IEC                          |
+| ----------------------------- | ----------------------------------------------- | ---------------------------------------- | -------------------------------- |
+| Cross-tenant access           | API1 Broken Object-Level Auth (BOLA)            | A01 Broken Access Control / ASVS V4      | 27017 (isolasi multi-tenant)     |
+| Operator abuse                | API5 Broken Function-Level Auth                 | A01 / ASVS V1 (arsitektur), V4           | 27001 A.5.15/A.5.18 (akses, SoD) |
+| Entitlement bypass            | API3 Broken Object Property-Level / broken auth | A01 / ASVS V4                            | 27001 A.8.3 (pembatasan akses)   |
+| Webhook replay/forgery        | API8 Security Misconfiguration                  | A08 Software & Data Integrity / ASVS V13 | 27001 A.8.26 (keamanan aplikasi) |
+| Secret leakage / PII envelope | API2 Broken Authentication                      | A02 Cryptographic Failures / ASVS V6, V7 | 27018 (PII PII processor), 27701 |
+
+### Batasan yang dicatat, bukan diabaikan (SaaS Control Plane)
+
+- **"Default-disabled" belum jadi mekanisme runtime.** Hari ini
+  `tenant-module-lifecycle.ts` men-default modul tanpa baris
+  `awcms_mini_tenant_modules` ke `enabled`. ADR-0022 §7 menetapkan
+  default-disabled sebagai **requirement** yang wajib ditutup #870–#874
+  (mis. flag descriptor `defaultTenantState` atau aktivasi lewat preset/
+  entitlement) sebelum modul manapun ter-merge — dicatat sebagai gap, bukan
+  diklaim sudah berlaku.
+- **Belum ada penegakan struktural no-shared-table-write untuk tujuh modul
+  ini** — kodenya belum ada; kepatuhan control-plane ≠ tenant-plane
+  bersandar review + boundary test yang ditambahkan saat modul mendarat.
+- **Belum ada adapter provider pembayaran nyata** — provider spesifik
+  (Midtrans/Xendit/Stripe/dst.) tetap adapter opt-in aplikasi turunan; base
+  hanya kontrak provider-netral + fake/sandbox coverage (epic #868 entry
+  criteria).
