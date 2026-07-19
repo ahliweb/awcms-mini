@@ -5,7 +5,7 @@ import { log } from "../logging/logger";
 import {
   loadRedisConfig,
   validateRedisConfig,
-  type RedisConfig,
+  type RedisConfig
 } from "./config";
 
 export type RedisCommandClient = Pick<
@@ -26,7 +26,7 @@ function createRedisClient(config: RedisConfig): RedisClient {
     autoReconnect: true,
     maxRetries: config.maxRetries,
     enableOfflineQueue: false,
-    enableAutoPipelining: true,
+    enableAutoPipelining: true
   });
 }
 
@@ -35,14 +35,14 @@ function createRedisClient(config: RedisConfig): RedisClient {
  * connection attempt so deployment mistakes are visible during preflight.
  */
 export function getRedisClient(
-  config: RedisConfig = loadRedisConfig(),
+  config: RedisConfig = loadRedisConfig()
 ): RedisClient | null {
   if (!config.enabled) {
     return null;
   }
 
   const failures = validateRedisConfig(config).filter(
-    (finding) => finding.severity === "fail",
+    (finding) => finding.severity === "fail"
   );
 
   if (failures.length > 0) {
@@ -59,14 +59,14 @@ export function getRedisClient(
 
   singleton.onconnect = () => {
     log("info", "Redis connection established.", {
-      moduleKey: "redis-foundation",
+      moduleKey: "redis-foundation"
     });
   };
 
   singleton.onclose = (error) => {
     log("warning", "Redis connection closed.", {
       moduleKey: "redis-foundation",
-      error: safeErrorDetail(error),
+      error: safeErrorDetail(error)
     });
   };
 
@@ -87,7 +87,7 @@ export function resetRedisClientForTests(): void {
 export async function withRedisCommandTimeout<T>(
   operation: Promise<T>,
   timeoutMs: number,
-  operationName: string,
+  operationName: string
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -97,9 +97,9 @@ export async function withRedisCommandTimeout<T>(
       new Promise<never>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error(`Redis ${operationName} timed out.`)),
-          timeoutMs,
+          timeoutMs
         );
-      }),
+      })
     ]);
   } finally {
     if (timer) {
@@ -118,7 +118,7 @@ export type RedisHealthResult = {
 };
 
 export async function checkRedisHealth(
-  config: RedisConfig = loadRedisConfig(),
+  config: RedisConfig = loadRedisConfig()
 ): Promise<RedisHealthResult> {
   if (!config.enabled) {
     return {
@@ -126,7 +126,7 @@ export async function checkRedisHealth(
       status: "disabled",
       latencyMs: null,
       connected: false,
-      bufferedAmount: 0,
+      bufferedAmount: 0
     };
   }
 
@@ -142,7 +142,7 @@ export async function checkRedisHealth(
     const response = await withRedisCommandTimeout(
       client.send("PING", []),
       config.commandTimeoutMs,
-      "PING",
+      "PING"
     );
 
     if (response !== "PONG") {
@@ -154,7 +154,7 @@ export async function checkRedisHealth(
       status: "healthy",
       latencyMs: Math.round((performance.now() - startedAt) * 100) / 100,
       connected: client.connected,
-      bufferedAmount: client.bufferedAmount,
+      bufferedAmount: client.bufferedAmount
     };
   } catch (error) {
     return {
@@ -163,7 +163,7 @@ export async function checkRedisHealth(
       latencyMs: Math.round((performance.now() - startedAt) * 100) / 100,
       connected: singleton?.connected ?? false,
       bufferedAmount: singleton?.bufferedAmount ?? 0,
-      error: safeErrorDetail(error),
+      error: safeErrorDetail(error)
     };
   }
 }
