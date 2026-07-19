@@ -930,6 +930,18 @@ export type ModuleMigrationNamespace = {
  * by the registry) so an old derived `module.ts` still type-checks and gets
  * an actionable migration diagnostic from `saas-contracts:registry:check`
  * rather than a compile error. No field was removed or retyped.
+ *
+ * Why MINOR despite the new gate *rejecting* `contributes*` (a validation
+ * tightening the `SAAS_CONTRACT_VERSION` policy below would classify MAJOR): the
+ * fields were introduced only one step earlier by #870/#871 (`1.3.0`, same epic,
+ * merged days before) purely as the internal contribution seam — they were
+ * never published to, nor consumed by, any external derived repo, so no
+ * previously-valid *external* descriptor stops validating. The tightening lands
+ * at the newly-declared `SAAS_CONTRACT_VERSION 1.0.0` seam (a first declaration
+ * with nothing prior to break), and at this `MODULE_CONTRACT_VERSION` level the
+ * change is purely additive (no field removed/retyped). This specific tightening
+ * is therefore MAJOR-exempt; a future removal of the `@deprecated` fields WILL be
+ * a MAJOR bump.
  */
 export const MODULE_CONTRACT_VERSION = "1.4.0";
 

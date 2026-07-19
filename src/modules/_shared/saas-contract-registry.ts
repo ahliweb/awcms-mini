@@ -36,11 +36,17 @@
 import type {
   ModuleDescriptor,
   SaasCommercialEventDescriptor,
+  SaasCommercialEventKind,
   SaasFeatureDescriptor,
   SaasMeterAggregation,
+  SaasMeterClassification,
+  SaasMeterCorrectionSemantics,
   SaasMeterDescriptor,
   SaasMeterValueType,
-  SaasQuotaDescriptor
+  SaasPrivacyClassification,
+  SaasQuotaDescriptor,
+  SaasQuotaEnforcementMode,
+  SaasQuotaResetPeriod
 } from "./module-contract";
 
 /** Same syntactic key gate `service_catalog`/`tenant_entitlement` used before #874, and the DB CHECK constraints in sql/079/081 mirror. */
@@ -52,34 +58,40 @@ const EVENT_TYPE_FORMAT = /^[a-z0-9]+([.-][a-z0-9]+)+$/;
 const MAX_KEY_LENGTH = 120;
 const MAX_UNIT_LENGTH = 40;
 const MAX_SAFE = Number.MAX_SAFE_INTEGER;
+const MIN_SAFE = Number.MIN_SAFE_INTEGER;
 
-export const SAAS_PRIVACY_CLASSIFICATIONS: readonly string[] = [
+// Runtime enum lists coupled to their compile-time unions (Issue #874 review
+// L3): `as const satisfies readonly <Union>[]` makes each list a literal tuple
+// whose every member is checked against the union in `module-contract.ts`, so a
+// typo or a value dropped from the union fails typecheck here rather than
+// drifting silently. (Previously `readonly string[]`, which accepted anything.)
+export const SAAS_PRIVACY_CLASSIFICATIONS = [
   "non_personal",
   "pseudonymous",
   "personal"
-];
-export const SAAS_METER_VALUE_TYPES: readonly string[] = [
+] as const satisfies readonly SaasPrivacyClassification[];
+export const SAAS_METER_VALUE_TYPES = [
   "count",
   "gauge",
   "amount_minor",
   "duration_seconds",
   "bytes"
-];
-export const SAAS_METER_AGGREGATIONS: readonly string[] = [
+] as const satisfies readonly SaasMeterValueType[];
+export const SAAS_METER_AGGREGATIONS = [
   "sum",
   "max",
   "last",
   "unique_count"
-];
-export const SAAS_METER_CORRECTIONS: readonly string[] = [
+] as const satisfies readonly SaasMeterAggregation[];
+export const SAAS_METER_CORRECTIONS = [
   "none",
   "signed_delta"
-];
-export const SAAS_METER_CLASSIFICATIONS: readonly string[] = [
+] as const satisfies readonly SaasMeterCorrectionSemantics[];
+export const SAAS_METER_CLASSIFICATIONS = [
   "billable",
   "informational"
-];
-export const SAAS_QUOTA_RESET_PERIODS: readonly string[] = [
+] as const satisfies readonly SaasMeterClassification[];
+export const SAAS_QUOTA_RESET_PERIODS = [
   "none",
   "daily",
   "weekly",
@@ -87,16 +99,16 @@ export const SAAS_QUOTA_RESET_PERIODS: readonly string[] = [
   "quarterly",
   "yearly",
   "billing_cycle"
-];
-export const SAAS_QUOTA_ENFORCEMENT_MODES: readonly string[] = [
+] as const satisfies readonly SaasQuotaResetPeriod[];
+export const SAAS_QUOTA_ENFORCEMENT_MODES = [
   "hard",
   "soft",
   "advisory"
-];
-export const SAAS_COMMERCIAL_EVENT_KINDS: readonly string[] = [
+] as const satisfies readonly SaasQuotaEnforcementMode[];
+export const SAAS_COMMERCIAL_EVENT_KINDS = [
   "lifecycle",
   "commercial"
-];
+] as const satisfies readonly SaasCommercialEventKind[];
 
 /**
  * Which aggregation rules make sense for each value type — the "conflicting
@@ -223,12 +235,15 @@ export function isKnownQuotaKey(
   return isValidSaasKeyFormat(key) && registry.quotaKeys.has(key);
 }
 
-/** Whether a commercial-event identifier is a known, reviewed event (fail-closed). */
+/** Whether a commercial-event identifier is a known, reviewed event (fail-closed). Format pre-check mirrors the sibling `isKnown*` lookups (Issue #874 audit L4). */
 export function isKnownCommercialEventType(
   registry: SaasContractRegistry,
   eventType: string
 ): boolean {
-  return registry.commercialEventTypes.has(eventType);
+  return (
+    EVENT_TYPE_FORMAT.test(eventType) &&
+    registry.commercialEventTypes.has(eventType)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -359,6 +374,16 @@ function validateMeter(
     if (Number.isInteger(maxValue) && maxValue > MAX_SAFE) {
       push(
         `bounds.maxValue ${maxValue} exceeds Number.MAX_SAFE_INTEGER (${MAX_SAFE}) — overflow guard.`
+      );
+    }
+    // Symmetric lower floor: `Number.isInteger` returns true for imprecise
+    // large-magnitude floats (e.g. -1e21, -(2^53)-1), so a `signed_delta` meter
+    // could otherwise declare a minValue below MIN_SAFE_INTEGER where integer
+    // arithmetic silently loses precision — the same overflow class the maxValue
+    // guard exists to stop, in the negative direction (Issue #874 audit H1).
+    if (Number.isInteger(minValue) && minValue < MIN_SAFE) {
+      push(
+        `bounds.minValue ${minValue} is below Number.MIN_SAFE_INTEGER (${MIN_SAFE}) — underflow guard.`
       );
     }
     if (

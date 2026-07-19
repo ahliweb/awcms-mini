@@ -138,7 +138,15 @@ export function buildSaasContractInventoryJson(
 }
 
 function mdEscape(value: string): string {
-  return value.replace(/\|/g, "\\|");
+  // Order is load-bearing: escape backslash FIRST (else the escaping we add for
+  // `|` would be re-escaped), THEN the pipe so a value cannot open a new table
+  // column, THEN collapse CR/LF so a value cannot terminate the row / inject a
+  // new one. Escaping `|` before `\` reintroduces the CodeQL incomplete-string-
+  // escaping alert this fixes (#62, Issue #874 audit L1).
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, " ");
 }
 
 function buildRawMarkdown(inventory: SaasContractInventory): string {

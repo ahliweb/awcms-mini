@@ -9,6 +9,8 @@
  * lookup default from `=== true` to a truthy/allow default breaks them.
  */
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import {
   assignmentSubstate,
@@ -43,6 +45,7 @@ import {
   resolveGatedModuleKeys
 } from "../../src/modules/tenant-entitlement/domain/entitlement-key-registry";
 import { resolveServiceCatalogKeyRegistry } from "../../src/modules/service-catalog/domain/key-registry";
+import { resolveSaasContractRegistry } from "../../src/modules/_shared/saas-contract-registry";
 import { listModules } from "../../src/modules";
 import {
   parseAssignBody,
@@ -794,13 +797,52 @@ describe("request parsing — fail-closed tri-state", () => {
   });
 });
 
-describe("Fix 6: key registry does not drift from service_catalog's", () => {
-  test("resolveEntitlementKeyRegistry == resolveServiceCatalogKeyRegistry for the live registry", () => {
-    const ent = resolveEntitlementKeyRegistry(listModules());
-    const sc = resolveServiceCatalogKeyRegistry(listModules());
-    expect([...ent.moduleKeys].sort()).toEqual([...sc.moduleKeys].sort());
-    expect([...ent.featureKeys].sort()).toEqual([...sc.featureKeys].sort());
-    expect([...ent.meterKeys].sort()).toEqual([...sc.meterKeys].sort());
+describe("Fix 6: consumer key registries stay a re-export of the single source (no re-divergence)", () => {
+  // NOTE: comparing resolveEntitlementKeyRegistry to resolveServiceCatalogKeyRegistry
+  // (the pre-#874 shape of this test) is now TAUTOLOGICAL — both are pure
+  // delegations to resolveSaasContractRegistry, so the assertion compares the
+  // single source to itself and can never fail. The real invariant to guard is
+  // that neither consumer RE-INTRODUCES a local key aggregation (the #871 drift
+  // this refactor removed). That is a source-level property, asserted below.
+  const CONSUMER_FILES = [
+    "src/modules/service-catalog/domain/key-registry.ts",
+    "src/modules/tenant-entitlement/domain/entitlement-key-registry.ts"
+  ] as const;
+
+  function sourceWithoutComments(relPath: string): string {
+    const raw = readFileSync(
+      path.resolve(import.meta.dir, "../..", relPath),
+      "utf8"
+    );
+    return raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  }
+
+  for (const relPath of CONSUMER_FILES) {
+    test(`${relPath} delegates to the single source and re-declares no local aggregation`, () => {
+      const code = sourceWithoutComments(relPath);
+      // Must resolve keys through the one shared source of truth…
+      expect(code).toContain("resolveSaasContractRegistry");
+      // …and must NOT read the descriptor aggregation inputs. Those belong ONLY
+      // to _shared/saas-contract-registry.ts; re-reading them here would be the
+      // first move of re-introducing a divergent local aggregation.
+      expect(code).not.toContain(".serviceCatalog");
+      expect(code).not.toContain("contributesFeatureKeys");
+      expect(code).not.toContain("contributesMeterKeys");
+    });
+  }
+
+  test("both consumers resolve the SAME key sets as the single source (harmful re-divergence trips this)", () => {
+    const shared = resolveSaasContractRegistry(listModules());
+    for (const reg of [
+      resolveServiceCatalogKeyRegistry(listModules()),
+      resolveEntitlementKeyRegistry(listModules())
+    ]) {
+      expect([...reg.moduleKeys].sort()).toEqual([...shared.moduleKeys].sort());
+      expect([...reg.featureKeys].sort()).toEqual(
+        [...shared.featureKeys].sort()
+      );
+      expect([...reg.meterKeys].sort()).toEqual([...shared.meterKeys].sort());
+    }
   });
 });
 

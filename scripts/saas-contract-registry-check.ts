@@ -67,9 +67,19 @@ export async function runSaasContractRegistryCheck(
     try {
       const raw = await readFile(path.join(rootDir, ASYNCAPI_PATH), "utf8");
       const document = parse(raw) as {
-        channels?: Record<string, unknown>;
+        channels?: Record<string, { address?: unknown }>;
       } | null;
-      channelAddresses = new Set(Object.keys(document?.channels ?? {}));
+      // A commercial event's `eventType` is an AsyncAPI channel ADDRESS, which
+      // is the `address` field of a channel — NOT its map key. They are equal by
+      // convention in this repo today, but keying on the map id would false-pass
+      // (or false-fail) the moment a channel id diverges from its address, so
+      // read `address` and fall back to the id only when absent (Issue #874
+      // audit L3).
+      channelAddresses = new Set(
+        Object.entries(document?.channels ?? {}).map(([id, channel]) =>
+          typeof channel?.address === "string" ? channel.address : id
+        )
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return [

@@ -326,6 +326,210 @@ describe("validateSaasContractRegistry — mutations must fail", () => {
     ]);
     expect(out).toContain("eventVersion");
   });
+
+  // --- Issue #874 review L2: close the mutation-coverage gaps. Each case below
+  // RED-verifies a specific fail-closed guard — delete the guard and the case's
+  // `expect(r.valid).toBe(false)` (inside messages()) starts failing.
+
+  test("underflow minValue below MIN_SAFE_INTEGER (even with signed_delta)", () => {
+    const out = messages([
+      mod("m", {
+        meters: [
+          meter({
+            correction: "signed_delta",
+            bounds: { minValue: -9007199254740992, maxValue: 10 }
+          })
+        ]
+      })
+    ]);
+    expect(out).toContain("underflow guard");
+  });
+
+  test("unknown meter valueType (also proves the aggregation-compat block cannot silently skip)", () => {
+    const out = messages([
+      mod("m", { meters: [meter({ valueType: "nope" })] })
+    ]);
+    expect(out).toContain("valueType");
+    expect(out).toContain("count, gauge");
+  });
+
+  test("unknown meter aggregation", () => {
+    const out = messages([
+      mod("m", { meters: [meter({ aggregation: "nope" })] })
+    ]);
+    expect(out).toContain("aggregation");
+    expect(out).toContain("sum, max, last, unique_count");
+  });
+
+  test("unknown meter correction", () => {
+    const out = messages([
+      mod("m", { meters: [meter({ correction: "nope" })] })
+    ]);
+    expect(out).toContain("correction");
+    expect(out).toContain("none, signed_delta");
+  });
+
+  test("unknown meter classification", () => {
+    const out = messages([
+      mod("m", { meters: [meter({ classification: "nope" })] })
+    ]);
+    expect(out).toContain("billable, informational");
+  });
+
+  test("meter with a missing description", () => {
+    const out = messages([mod("m", { meters: [meter({ description: "" })] })]);
+    expect(out).toContain("description is required");
+  });
+
+  test("meter with missing bounds", () => {
+    const out = messages([
+      mod("m", { meters: [meter({ bounds: undefined })] })
+    ]);
+    expect(out).toContain("bounds is required");
+  });
+
+  test("meter with minValue greater than maxValue", () => {
+    const out = messages([
+      mod("m", { meters: [meter({ bounds: { minValue: 10, maxValue: 5 } })] })
+    ]);
+    expect(out).toContain("must be <= bounds.maxValue");
+  });
+
+  test("feature with a missing description", () => {
+    const out = messages([
+      mod("m", { features: [{ key: "m.f", ownerModuleKey: "m" }] })
+    ]);
+    expect(out).toContain("description is required");
+  });
+
+  test("unknown quota resetPeriod", () => {
+    const out = messages([
+      mod("m", {
+        meters: [meter()],
+        quotas: [
+          {
+            key: "m.q",
+            ownerModuleKey: "m",
+            description: "q",
+            meterKey: "m.meter",
+            unit: "call",
+            resetPeriod: "nope",
+            enforcement: "soft"
+          }
+        ]
+      })
+    ]);
+    expect(out).toContain("resetPeriod");
+    expect(out).toContain("billing_cycle");
+  });
+
+  test("unknown quota enforcement", () => {
+    const out = messages([
+      mod("m", {
+        meters: [meter()],
+        quotas: [
+          {
+            key: "m.q",
+            ownerModuleKey: "m",
+            description: "q",
+            meterKey: "m.meter",
+            unit: "call",
+            resetPeriod: "monthly",
+            enforcement: "nope"
+          }
+        ]
+      })
+    ]);
+    expect(out).toContain("hard, soft, advisory");
+  });
+
+  test("quota with a missing description", () => {
+    const out = messages([
+      mod("m", {
+        meters: [meter()],
+        quotas: [
+          {
+            key: "m.q",
+            ownerModuleKey: "m",
+            meterKey: "m.meter",
+            unit: "call",
+            resetPeriod: "monthly",
+            enforcement: "soft"
+          }
+        ]
+      })
+    ]);
+    expect(out).toContain("description is required");
+  });
+
+  test("unknown commercial-event kind", () => {
+    const out = messages([
+      mod(
+        "m",
+        {
+          commercialEvents: [
+            {
+              eventType: "awcms-mini.m.thing.happened",
+              ownerModuleKey: "m",
+              eventVersion: "1.0",
+              kind: "nope",
+              description: "e"
+            }
+          ]
+        },
+        { events: { publishes: ["awcms-mini.m.thing.happened"] } }
+      )
+    ]);
+    expect(out).toContain("lifecycle, commercial");
+  });
+
+  test("malformed commercial-event eventType (isolated from the publishes-parity guard)", () => {
+    const out = messages([
+      mod(
+        "m",
+        {
+          commercialEvents: [
+            {
+              eventType: "Bad Type!",
+              ownerModuleKey: "m",
+              eventVersion: "1.0",
+              kind: "lifecycle",
+              description: "e"
+            }
+          ]
+        },
+        // publishes the same malformed value, so ONLY the format guard fires.
+        { events: { publishes: ["Bad Type!"] } }
+      )
+    ]);
+    expect(out).toContain("must be a dotted address");
+  });
+
+  test("commercial event owned by another module", () => {
+    const out = messages([
+      mod(
+        "m",
+        {
+          commercialEvents: [
+            {
+              eventType: "awcms-mini.m.thing.happened",
+              ownerModuleKey: "somebody_else",
+              eventVersion: "1.0",
+              kind: "lifecycle",
+              description: "e"
+            }
+          ]
+        },
+        { events: { publishes: ["awcms-mini.m.thing.happened"] } }
+      )
+    ]);
+    expect(out).toContain("must equal the declaring module's own key");
+  });
+
+  test("deprecated thin contributesMeterKeys is rejected", () => {
+    const out = messages([mod("m", { contributesMeterKeys: ["m.legacy"] })]);
+    expect(out).toContain("contributesMeterKeys is deprecated");
+  });
 });
 
 describe("build with vs without application contributions (dummy derived module)", () => {
