@@ -35,13 +35,13 @@ Prinsipnya:
 ## 3. Komponen implementasi
 
 | Komponen | Fungsi |
-|---|---|
+| --- | --- |
 | `src/lib/redis/config.ts` | Parsing konfigurasi, validasi, redaksi URL, key builder tenant-aware |
 | `src/lib/redis/client.ts` | Singleton `RedisClient` native Bun, timeout, health check, lifecycle |
 | `src/lib/redis/cache.ts` | Helper JSON cache-aside, invalidasi, dan fail-open |
 | `scripts/redis-health.ts` | Pemeriksaan konfigurasi serta PING tanpa membocorkan credential |
 | `docker-compose.redis.yml` | Overlay deployment opsional dan hardened |
-| `.env.redis.example` | Contoh konfigurasi terpisah dari profil default |
+| `config/redis.env.example` | Contoh konfigurasi terpisah dari profil default dan sesuai hygiene repo |
 | `tests/unit/redis-foundation.test.ts` | Unit test tanpa Redis/network hidup |
 
 Tidak ada dependency runtime baru dan `bun.lock` tidak berubah.
@@ -105,10 +105,10 @@ Perubahan pada area tersebut memerlukan issue tersendiri, threat model, data cla
 
 ## 6. Konfigurasi
 
-Gunakan `.env.redis.example` sebagai referensi terpisah.
+Gunakan `config/redis.env.example` sebagai referensi terpisah. Salin menjadi file lokal yang diabaikan Git sebelum dipakai, misalnya `.env.redis`.
 
 | Variable | Default | Keterangan |
-|---|---:|---|
+| --- | ---: | --- |
 | `REDIS_ENABLED` | `false` | Gate utama; tidak ada koneksi ketika false |
 | `REDIS_URL` | tidak ada | URL Redis/Valkey yang didukung Bun; wajib bila enabled |
 | `REDIS_KEY_PREFIX` | `awcms-mini` | Prefix aplikasi dan boundary ACL key |
@@ -139,7 +139,7 @@ Credential pada URL selalu diredaksi pada output.
 ### 7.1 Menjalankan overlay
 
 ```bash
-cp .env.redis.example .env.redis
+cp config/redis.env.example .env.redis
 # Simpan REDIS_PASSWORD yang panjang dan URL-safe di secret manager.
 
 docker compose \
@@ -223,7 +223,7 @@ Mulai dengan `maxmemory=256mb` dan `maxmemory-policy=noeviction`, lalu ukur. Unt
 Sebaiknya pisahkan logical purpose atau bahkan instance Redis ketika karakteristiknya berbeda:
 
 | Purpose | Persistence | Eviction | Dampak kehilangan data |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Cache laporan | opsional | LRU/LFU dapat diterima | query kembali ke PostgreSQL |
 | Rate limiting | biasanya tidak wajib | hindari eviction prematur | limit sementara kurang akurat |
 | Lock/coordination | tidak untuk recovery | `noeviction` | duplicate work mungkin terjadi |
@@ -248,9 +248,12 @@ docker compose \
   -f docker-compose.redis.yml \
   up -d redis-acl-init redis
 
-REDIS_ENABLED=true \
-REDIS_URL="redis://awcms_app:${REDIS_PASSWORD}@127.0.0.1:6379/0" \
-bun run redis:health
+docker compose \
+  --env-file .env \
+  --env-file .env.redis \
+  -f docker-compose.yml \
+  -f docker-compose.redis.yml \
+  exec app bun run redis:health
 ```
 
 Catatan: overlay tidak mempublish port Redis. Untuk health dari host, gunakan `docker compose exec app bun run redis:health` atau buat override development yang hanya bind ke `127.0.0.1`, jangan `0.0.0.0`.
