@@ -28,6 +28,14 @@ business-scope, SoD) or RLS.
   `POST /api/v1/access/evaluate` now reflects active policies too.
 - **Decision log** records `matched_policy` + `matched_policy_version` + reason,
   with no raw PII.
+- **Hardening (adversarial review):** allow-list membership is now own-property
+  only (`Object.prototype.hasOwnProperty.call`) in both the validator and the
+  eval-time backstop, so prototype-chain keys (`__proto__`/`constructor`/
+  `toString`/…) can no longer pass the unknown-attribute check and silently skip
+  a `deny` (fail-open closed). The simulation endpoint now requires
+  `identity_access.user_management.read` to simulate a DIFFERENT existing tenant
+  user (foreign-subject horizontal-read oracle), and records the probed subject
+  id in the audit event for attribution.
 - Migrations `sql/081` (policy DSL columns + decision-log version) and `sql/082`
   (admin permission seed). ADR-0023, identity-access README, threat model, and
   five illustrative ERP example policies (`fixtures/abac-example-policies.json`,

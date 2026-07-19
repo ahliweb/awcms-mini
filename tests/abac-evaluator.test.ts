@@ -216,6 +216,34 @@ describe("evaluateCondition — operators", () => {
       evaluateCondition({ attr: "resource.status", op: "regex" } as never, bag)
     ).toThrow(AbacEvaluationError);
   });
+
+  // Eval-time backstop: a corrupt/hand-crafted stored condition carrying a
+  // prototype-chain key must fail CLOSED (throw), not resolve an inherited
+  // member off the bag/allow-list. `bag[attr]` and `attr in ABAC_ATTRIBUTES`
+  // walk the prototype chain — own-property membership closes that.
+  for (const key of [
+    "__proto__",
+    "constructor",
+    "toString",
+    "hasOwnProperty",
+    "valueOf",
+    "isPrototypeOf"
+  ]) {
+    test(`throws AbacEvaluationError on prototype-chain key "${key}" (exists)`, () => {
+      expect(() =>
+        evaluateCondition({ attr: key, op: "exists" } as never, bag)
+      ).toThrow(AbacEvaluationError);
+    });
+  }
+
+  test("a not(exists) over a prototype-chain key still throws (no always-true allow)", () => {
+    expect(() =>
+      evaluateCondition(
+        { not: { attr: "__proto__", op: "exists" } } as never,
+        bag
+      )
+    ).toThrow(AbacEvaluationError);
+  });
 });
 
 describe("isPolicyApplicable", () => {

@@ -143,6 +143,29 @@ export const ABAC_ATTRIBUTES: Readonly<Record<string, AbacAttributeSpec>> = {
   }
 };
 
+/**
+ * OWN-PROPERTY membership against the allow-list. Bracket access / the `in`
+ * operator walk the prototype chain, so prototype-chain keys (`__proto__`,
+ * `constructor`, `toString`, `hasOwnProperty`, `valueOf`, …) would otherwise
+ * resolve an inherited member and slip past the unknown-attribute check —
+ * defeating the fail-closed "unknown attribute -> deny/invalid" contract in
+ * BOTH the authoring validator and the eval-time backstop. Gate every
+ * allow-list lookup through this helper. Returns the spec (never an inherited
+ * one) or undefined for anything not authored on the object itself.
+ */
+export function lookupAbacAttribute(
+  attr: string
+): AbacAttributeSpec | undefined {
+  return Object.prototype.hasOwnProperty.call(ABAC_ATTRIBUTES, attr)
+    ? ABAC_ATTRIBUTES[attr]
+    : undefined;
+}
+
+/** True only when `attr` is an OWN key of the allow-list (no prototype keys). */
+export function isKnownAbacAttribute(attr: string): boolean {
+  return Object.prototype.hasOwnProperty.call(ABAC_ATTRIBUTES, attr);
+}
+
 export type AbacLeafNode = {
   attr: string;
   op: AbacOperator;
@@ -240,7 +263,7 @@ type LeafValidationContext = {
 };
 
 function validateLeaf(leaf: AbacLeafNode, ctx: LeafValidationContext): void {
-  const spec = ABAC_ATTRIBUTES[leaf.attr];
+  const spec = lookupAbacAttribute(leaf.attr);
 
   if (!spec) {
     ctx.errors.push(`${ctx.path}: unknown attribute "${leaf.attr}".`);
@@ -296,7 +319,7 @@ function validateLeaf(leaf: AbacLeafNode, ctx: LeafValidationContext): void {
   }
 
   if (hasValueAttr) {
-    const otherSpec = ABAC_ATTRIBUTES[leaf.valueAttr as string];
+    const otherSpec = lookupAbacAttribute(leaf.valueAttr as string);
     if (!otherSpec) {
       ctx.errors.push(
         `${ctx.path}: unknown valueAttr "${String(leaf.valueAttr)}".`

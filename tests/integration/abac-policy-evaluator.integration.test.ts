@@ -120,6 +120,73 @@ async function createAndReturnId(
   return { status: res.status, id: res.body?.data?.policy?.id };
 }
 
+/**
+ * Provisions a second user IN THE SAME TENANT holding ONLY
+ * `identity_access.abac_policies.analyze` — deliberately NOT
+ * `user_management.read`. Used to prove the simulation foreign-subject gate:
+ * such a principal may simulate a hypothetical role set but must NOT be able to
+ * resolve another existing tenant user's real grants (horizontal-read oracle).
+ */
+async function provisionAnalyzeOnlyUser(
+  tenantId: string
+): Promise<{ token: string; tenantUserId: string }> {
+  const admin = getAdminSql();
+  const password = "integration-analyze-only-password";
+  const passwordHash = await Bun.password.hash(password);
+  const loginIdentifier = `analyze-only-${tenantId.slice(0, 8)}@example.com`;
+  let tenantUserId = "";
+
+  await admin.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+    const profile = (await tx`
+      INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
+      VALUES (${tenantId}, 'person', 'Analyze Only') RETURNING id
+    `) as { id: string }[];
+    const identity = (await tx`
+      INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
+      VALUES (${tenantId}, ${profile[0]!.id}, ${loginIdentifier}, ${passwordHash})
+      RETURNING id
+    `) as { id: string }[];
+    const tenantUser = (await tx`
+      INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
+      VALUES (${tenantId}, ${identity[0]!.id}) RETURNING id
+    `) as { id: string }[];
+    tenantUserId = tenantUser[0]!.id;
+    const role = (await tx`
+      INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name)
+      VALUES (${tenantId}, 'abac_analyst', 'ABAC Analyst') RETURNING id
+    `) as { id: string }[];
+    const permissions = (await tx`
+      SELECT id FROM awcms_mini_permissions
+      WHERE module_key = 'identity_access'
+        AND activity_code = 'abac_policies' AND action = 'analyze'
+    `) as { id: string }[];
+    for (const permission of permissions) {
+      await tx`
+        INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
+        VALUES (${tenantId}, ${role[0]!.id}, ${permission.id})
+      `;
+    }
+    await tx`
+      INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id)
+      VALUES (${tenantId}, ${tenantUser[0]!.id}, ${role[0]!.id})
+    `;
+  });
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password },
+    cookies: createCookieJar()
+  });
+  expect(login.status).toBe(200);
+  return { token: login.body.data.token, tenantUserId };
+}
+
 const suite = integrationEnabled ? describe : describe.skip;
 
 suite("ABAC dynamic policy evaluator (Issue #179)", () => {
@@ -391,5 +458,87 @@ suite("ABAC dynamic policy evaluator (Issue #179)", () => {
       WHERE tenant_id = ${owner.tenantId} AND module_key = 'sales'
     `) as unknown[];
     expect(decisionLogs.length).toBe(0);
+  });
+
+  test("foreign-subject simulation requires user_management.read: an analyze-only principal is refused, the owner is allowed and attributed in the audit", async () => {
+    const owner = await bootstrap("gamma");
+    const admin = getAdminSql();
+
+    const ownerTenantUserId = (
+      (await admin`
+        SELECT tu.id FROM awcms_mini_tenant_users tu
+        JOIN awcms_mini_identities i ON i.id = tu.identity_id
+        WHERE tu.tenant_id = ${owner.tenantId}
+          AND i.login_identifier = 'gamma-owner@example.com'
+      `) as { id: string }[]
+    )[0]!.id;
+
+    const analyst = await provisionAnalyzeOnlyUser(owner.tenantId);
+    const analystHeaders = {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": owner.tenantId,
+      authorization: `Bearer ${analyst.token}`
+    };
+    const simRequest = {
+      moduleKey: "identity_access",
+      activityCode: "access_control",
+      action: "read"
+    };
+
+    // A HYPOTHETICAL role set is a pure `analyze` capability → allowed.
+    const byRole = await invoke(simulatePolicy, {
+      method: "POST",
+      path: "/api/v1/access/policies/simulate",
+      headers: analystHeaders,
+      body: { subject: { roles: ["owner"] }, request: simRequest }
+    });
+    expect(byRole.status).toBe(200);
+
+    // A DIFFERENT existing tenant user resolves that user's real grants — an
+    // enumeration oracle — so it needs user_management.read, which the analyst
+    // lacks → 403 (the gate bites; without the fix this would 200 and leak).
+    const foreign = await invoke(simulatePolicy, {
+      method: "POST",
+      path: "/api/v1/access/policies/simulate",
+      headers: analystHeaders,
+      body: {
+        subject: { tenantUserId: ownerTenantUserId },
+        request: simRequest
+      }
+    });
+    expect(foreign.status).toBe(403);
+
+    // Simulating one's OWN tenantUserId is never a horizontal read → allowed.
+    const ownSubject = await invoke(simulatePolicy, {
+      method: "POST",
+      path: "/api/v1/access/policies/simulate",
+      headers: analystHeaders,
+      body: {
+        subject: { tenantUserId: analyst.tenantUserId },
+        request: simRequest
+      }
+    });
+    expect(ownSubject.status).toBe(200);
+
+    // The owner DOES hold user_management.read → foreign subject allowed, and
+    // the probed subject id is recorded in the audit event for attribution.
+    const ownerForeign = await invoke(simulatePolicy, {
+      method: "POST",
+      path: "/api/v1/access/policies/simulate",
+      headers: headers(owner),
+      body: {
+        subject: { tenantUserId: analyst.tenantUserId },
+        request: simRequest
+      }
+    });
+    expect(ownerForeign.status).toBe(200);
+
+    const attributed = (await admin`
+      SELECT 1 FROM awcms_mini_audit_events
+      WHERE tenant_id = ${owner.tenantId}
+        AND resource_type = 'abac_simulation'
+        AND attributes->>'simulatedSubjectTenantUserId' = ${analyst.tenantUserId}
+    `) as unknown[];
+    expect(attributed.length).toBeGreaterThan(0);
   });
 });

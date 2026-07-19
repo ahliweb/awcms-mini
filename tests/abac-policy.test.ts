@@ -81,6 +81,40 @@ describe("parseAbacCondition — allow-list (fail-closed)", () => {
     });
     expect(result.valid).toBe(false);
   });
+
+  // The allow-list is a plain object, so a naive `ABAC_ATTRIBUTES[attr]` /
+  // `attr in ABAC_ATTRIBUTES` membership test would resolve inherited members
+  // for prototype-chain keys and let them PASS the unknown-attribute check —
+  // a fail-OPEN hole. Membership must be own-property only.
+  const PROTOTYPE_KEYS = [
+    "__proto__",
+    "constructor",
+    "prototype",
+    "toString",
+    "hasOwnProperty",
+    "valueOf",
+    "isPrototypeOf",
+    "propertyIsEnumerable"
+  ];
+
+  for (const key of PROTOTYPE_KEYS) {
+    test(`rejects prototype-chain key "${key}" as an unknown attribute`, () => {
+      const result = parseAbacCondition({ attr: key, op: "exists" });
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.join(" ")).toContain("unknown attribute");
+      }
+    });
+
+    test(`rejects prototype-chain key "${key}" as an unknown valueAttr`, () => {
+      const result = parseAbacCondition({
+        attr: "resource.ownerTenantUserId",
+        op: "eq",
+        valueAttr: key
+      });
+      expect(result.valid).toBe(false);
+    });
+  }
 });
 
 describe("parseAbacCondition — operator/type compatibility", () => {

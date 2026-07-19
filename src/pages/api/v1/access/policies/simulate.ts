@@ -34,6 +34,11 @@ const ANALYZE_GUARD = {
   action: "analyze" as const
 };
 
+// Reading another tenant user's real roles/effective grants is a horizontal
+// read of that user's access — gated behind the same authority that reading a
+// user record requires.
+const USER_READ_KEY = "identity_access.user_management.read";
+
 // A clearly-synthetic subject id used when the caller simulates by role only.
 const SIMULATED_SUBJECT_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -42,10 +47,19 @@ const SIMULATED_SUBJECT_ID = "00000000-0000-0000-0000-000000000000";
  * subject (roles and/or an existing tenant user id), a hypothetical request,
  * and a hypothetical environment, it returns exactly what `evaluateAccess`
  * would decide against the tenant's CURRENT active policies — plus a per-policy
- * applicability/condition trace. It NEVER mutates domain data (no decision-log
- * row is written; the outcome is hypothetical) and never returns the resolved
- * attribute VALUES, only structural booleans — so no subject/resource PII
- * leaks. The simulation request itself IS audited.
+ * applicability/condition trace (structural booleans only, never a resolved
+ * attribute VALUE, so the trace leaks no subject/resource PII). It NEVER
+ * mutates domain data (no decision-log row is written; the outcome is
+ * hypothetical).
+ *
+ * Simulating a HYPOTHETICAL role set is a pure `analyze` capability. Simulating
+ * a DIFFERENT existing tenant user (a `subject.tenantUserId` other than the
+ * caller's own) resolves that user's REAL roles/effective grants and would let
+ * an analyze-only principal enumerate another user's access — so it
+ * additionally requires `identity_access.user_management.read` (the authority
+ * to read a user record), and the probed subject id is recorded in the audit
+ * event for attribution. Absent that permission the foreign subject is refused.
+ * The simulation request itself IS always audited.
  */
 export const POST: APIRoute = async ({ request, cookies }) => {
   const { tenantId, token } = resolveAuthInputs(request, cookies);
@@ -88,6 +102,23 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     );
     if (!auth.allowed) {
       return auth.denied;
+    }
+
+    // Resolving a DIFFERENT tenant user's real roles/effective grants is a
+    // horizontal read of that user's access (an enumeration oracle for an
+    // analyze-only principal). `analyze` authorizes simulating policy LOGIC,
+    // not reading another user's permissions — require the same authority a
+    // user-record read needs (#179: no sensitive subject attribute is resolved
+    // from the client body without a clear authorization check).
+    const foreignSubject =
+      !!input.subject.tenantUserId &&
+      input.subject.tenantUserId !== auth.context.tenantUserId;
+    if (foreignSubject && !auth.grantedPermissionKeys.has(USER_READ_KEY)) {
+      return fail(
+        403,
+        "ACCESS_DENIED",
+        "Simulating another tenant user's access requires the identity_access.user_management.read permission."
+      );
     }
 
     // Resolve the hypothetical subject's granted permission keys + role codes.
@@ -206,6 +237,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         requestActivityCode: input.request.activityCode,
         requestAction: input.request.action,
         requestResourceType: input.request.resourceType,
+        // Record the probed subject id so a foreign-subject simulation is
+        // attributable to a victim (not a covert enumeration).
+        simulatedSubjectTenantUserId: input.subject.tenantUserId ?? null,
         simulatedRoles: roles,
         decision: decision.allowed ? "allow" : "deny",
         matchedPolicy: decision.matchedPolicy

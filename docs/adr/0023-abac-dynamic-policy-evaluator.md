@@ -30,6 +30,8 @@ Kondisi kebijakan disimpan sebagai AST jsonb (`conditions`) dengan `dsl_version`
 
 Parser/validator (`abac-policy.ts`) fail-closed: attribute tak dikenal, operator tak dikenal, tipe nilai salah, arity operand salah, versi DSL lebih baru dari yang didukung, atau cacat struktural apa pun → kebijakan **invalid** saat authoring (ditolak endpoint CRUD) sehingga tak pernah bisa diaktifkan.
 
+Keanggotaan allow-list diuji **own-property saja** (`Object.prototype.hasOwnProperty.call`, via `lookupAbacAttribute`/`isKnownAbacAttribute`), bukan `ABAC_ATTRIBUTES[attr]`/`attr in …` yang menelusuri prototype chain. Tanpa ini, key prototype (`__proto__`, `constructor`, `toString`, `hasOwnProperty`, `valueOf`, …) akan me-resolve anggota warisan dan **lolos** cek attribute-tak-dikenal — sebuah lubang fail-OPEN: sebuah `deny` beratribut prototype akan diam-diam dilewati, atau `not(exists)` atasnya menjadi allow yang selalu-terpenuhi. Gerbang own-property berlaku di kedua sisi: validator authoring **dan** backstop eval-time (`abac-evaluator.ts` `lookup()`), sehingga bahkan kondisi tersimpan yang dibuat-tangan tetap fail-closed (throw → DENY).
+
 ### 2. Precedence: fail-closed, deny-overrides, allow-as-constraint, RBAC tetap wajib
 
 Setelah semua guard bawaan (tenant isolation, self-approval, force-decision, business-scope) yang tetap berjalan lebih dulu dan tak dilemahkan, atas himpunan kebijakan **aktif** yang **applicability**-nya cocok (`module_key`/`activity_code`/`action`/`resource_type`, masing-masing nullable = wildcard):
@@ -49,6 +51,8 @@ Kebijakan aktif dikompilasi sekali per tenant dan disimpan di cache in-process y
 ### 4. Decision log
 
 Setiap keputusan mencatat `decision`, `reason`, `matched_policy` (kode), dan `matched_policy_version` ke `awcms_mini_abac_decision_logs` — tanpa PII/identifier sensitif mentah (hanya kode kebijakan, versi, dan reason statis). Endpoint simulasi read-only diaudit lewat `awcms_mini_audit_events` (bukan decision log) karena keputusannya hipotetis.
+
+**Simulasi & subjek asing.** Mensimulasikan himpunan **role hipotetis** adalah kapabilitas `analyze` murni. Namun mensimulasikan **tenant user yang sudah ada dan berbeda** (`subject.tenantUserId` selain milik pemanggil) me-resolve role/grant **nyata** user itu — sebuah oracle enumerasi horizontal bagi principal `analyze`-saja. Karena itu jalur subjek-asing **juga** mensyaratkan `identity_access.user_management.read` (otoritas membaca record user); tanpanya subjek asing ditolak `403`. Id subjek yang di-probe direkam di audit (`simulatedSubjectTenantUserId`) agar dapat diatribusikan (bukan enumerasi diam-diam). Trace per-policy tetap hanya boolean struktural — tak pernah mengembalikan VALUE atribut ter-resolve.
 
 ## Konsekuensi
 

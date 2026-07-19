@@ -23,7 +23,7 @@ import type {
   AbacPolicyApplicability,
   AbacPolicyEffect
 } from "./abac-policy";
-import { ABAC_ATTRIBUTES, ABAC_OPERATORS } from "./abac-policy";
+import { ABAC_OPERATORS, isKnownAbacAttribute } from "./abac-policy";
 import type { AccessRequest, TenantContext } from "./access-control";
 
 /** Raised when a condition references something outside the allow-list at
@@ -154,8 +154,14 @@ function lookup(
   bag: Record<string, ResolvedAttribute>,
   attr: string
 ): ResolvedAttribute {
-  const entry = bag[attr];
-  if (!entry || !(attr in ABAC_ATTRIBUTES)) {
+  // OWN-property membership on BOTH the bag and the allow-list. `bag[attr]`
+  // and `attr in ABAC_ATTRIBUTES` walk the prototype chain, so prototype keys
+  // (__proto__/constructor/toString/…) would resolve inherited members and
+  // skip this fail-closed throw. hasOwnProperty closes that hole.
+  const entry = Object.prototype.hasOwnProperty.call(bag, attr)
+    ? bag[attr]
+    : undefined;
+  if (!entry || !isKnownAbacAttribute(attr)) {
     throw new AbacEvaluationError(`Unknown attribute "${attr}".`);
   }
   return entry;
