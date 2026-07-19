@@ -140,6 +140,17 @@ ELSE col END` — tulis hanya kolom yang disediakan (ELSE baca nilai live di baw
    app-role SQL RE-AKTIFKAN offer retired di read tenant (`retired_at IS NULL`=active) walau version
    'retired'. FIX: trigger izinkan HANYA `NULL→non-null`; tolak non-null→NULL & non-null→beda. Audit
    field write-once lain (published_at/by, retired_at/by, status) — pastikan semua one-way.
+10. **Fail-closed TRI-STATE utk field NULLABLE (varian terakhir kelas fail-closed).** Helper
+    `asStringOrNull`/`asNumberOrNull` coerce present-wrong-type→null → di PATCH dianggap explicit
+    CLEAR → HAPUS data (availability/description/notes) diam. FIX tri-state KETAT tiap nullable
+    (description/market/availableFrom/availableTo/notes/trialDays/limitValue): ABSENT(`!(key in)`)→keep,
+    explicit `null`→clear, PRESENT wrong-type→REJECT 400 (keep raw, validator cek typeof). isValidTimestamp
+    - market/notes/description WAJIB cek `typeof==="string"` (Date.parse/`.test`/`.length` coerce non-string
+      diam). Setelah ini SEMUA tipe (scalar/enum/boolean/collection/object/nullable) fail-closed tri-state.
+11. **Projeksi tenant-readable: TUTUP KETIGA DML.** FK hanya buktikan version ADA, bukan published/identity.
+    INSERT → BEFORE trigger: source `published` + plan_key/version COCOK source (cegah insert offer utk
+    DRAFT/mismatch = bocor draft ke tenant). UPDATE → hanya retired_at one-way. DELETE → revoke grant.
+    Konfirmasi 3 DML tertutup saat modul tenant-readable-projection mendarat.
 
 ## Lifecycle offer
 

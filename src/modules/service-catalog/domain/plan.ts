@@ -149,8 +149,9 @@ function metadataError(metadata: unknown): string | null {
   return null;
 }
 
-function isValidTimestamp(value: string): boolean {
-  return !Number.isNaN(Date.parse(value));
+/** A valid timestamp is a STRING that `Date.parse` accepts — the typeof guard (Fix 1) stops a non-string (e.g. a number) coercing through `Date.parse`. */
+function isValidTimestamp(value: unknown): boolean {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 
 /** Validate the shared version content (currency, availability, and each feature/quota/price). Used by both create and draft update, and (re-run) at publish. */
@@ -167,10 +168,15 @@ export function validateVersionContent(
     });
   }
 
-  if (content.market !== null && !MARKET_FORMAT.test(content.market)) {
+  if (
+    content.market !== null &&
+    (typeof content.market !== "string" || !MARKET_FORMAT.test(content.market))
+  ) {
     errors.push({
       field: "market",
-      message: "market must be a short alphanumeric market/region code."
+      // Fix 1: a present non-string (or null-clear) is distinct — a non-string
+      // present value is rejected, never treated as a valid clear.
+      message: "market must be a short alphanumeric string or null."
     });
   }
 
@@ -190,13 +196,13 @@ export function validateVersionContent(
   ) {
     errors.push({
       field: "availableFrom",
-      message: "availableFrom must be an ISO-8601 timestamp."
+      message: "availableFrom must be an ISO-8601 timestamp string or null."
     });
   }
   if (content.availableTo !== null && !isValidTimestamp(content.availableTo)) {
     errors.push({
       field: "availableTo",
-      message: "availableTo must be an ISO-8601 timestamp."
+      message: "availableTo must be an ISO-8601 timestamp string or null."
     });
   }
   if (
@@ -212,10 +218,13 @@ export function validateVersionContent(
     });
   }
 
-  if (content.notes !== null && content.notes.length > 2000) {
+  if (
+    content.notes !== null &&
+    (typeof content.notes !== "string" || content.notes.length > 2000)
+  ) {
     errors.push({
       field: "notes",
-      message: "notes must be <= 2000 characters."
+      message: "notes must be a string (<= 2000 characters) or null."
     });
   }
 
@@ -454,10 +463,14 @@ export function validatePlanHeader(
   if (name.length < 1 || name.length > 200) {
     errors.push({ field: "name", message: "name must be 1-200 characters." });
   }
-  if (description !== null && description.length > 2000) {
+  if (
+    description !== null &&
+    (typeof description !== "string" || description.length > 2000)
+  ) {
     errors.push({
       field: "description",
-      message: "description must be <= 2000 characters."
+      // Fix 1: a present non-string is rejected, not treated as a valid clear.
+      message: "description must be a string (<= 2000 characters) or null."
     });
   }
   if (!PLAN_TYPES.includes(planType)) {

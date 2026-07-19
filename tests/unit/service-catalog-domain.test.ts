@@ -729,6 +729,101 @@ describe("Fix 2 — fail-closed collections/objects (present-malformed rejected,
   });
 });
 
+describe("Fix 1 — nullable tri-state (absent=keep, null=clear, present-wrong-type=400)", () => {
+  test("content.market: present non-string rejected; explicit null accepted", () => {
+    expect(
+      validateVersionContent(
+        content({ market: 123 as unknown as string }),
+        registry
+      ).some((e) => e.field === "market")
+    ).toBe(true);
+    expect(
+      validateVersionContent(content({ market: null }), registry).some(
+        (e) => e.field === "market"
+      )
+    ).toBe(false);
+  });
+
+  test("content.availableFrom / availableTo: present non-string rejected; null accepted", () => {
+    expect(
+      validateVersionContent(
+        content({ availableFrom: 123 as unknown as string }),
+        registry
+      ).some((e) => e.field === "availableFrom")
+    ).toBe(true);
+    expect(
+      validateVersionContent(
+        content({ availableTo: 123 as unknown as string }),
+        registry
+      ).some((e) => e.field === "availableTo")
+    ).toBe(true);
+    expect(
+      validateVersionContent(
+        content({ availableFrom: null, availableTo: null }),
+        registry
+      ).some((e) => e.field.startsWith("available"))
+    ).toBe(false);
+  });
+
+  test("content.notes: present non-string rejected; null accepted", () => {
+    expect(
+      validateVersionContent(
+        content({ notes: 5 as unknown as string }),
+        registry
+      ).some((e) => e.field === "notes")
+    ).toBe(true);
+    expect(
+      validateVersionContent(content({ notes: null }), registry).some(
+        (e) => e.field === "notes"
+      )
+    ).toBe(false);
+  });
+
+  test("content.trialDays: present non-number rejected; null accepted", () => {
+    expect(
+      validateVersionContent(
+        content({ trialDays: "7" as unknown as number }),
+        registry
+      ).some((e) => e.field === "trialDays")
+    ).toBe(true);
+    expect(
+      validateVersionContent(content({ trialDays: null }), registry).some(
+        (e) => e.field === "trialDays"
+      )
+    ).toBe(false);
+  });
+
+  test("plan header description: present non-string rejected; null accepted", () => {
+    expect(
+      validatePlanHeader(
+        "k",
+        "Name",
+        123 as unknown as string,
+        "subscription"
+      ).some((e) => e.field === "description")
+    ).toBe(true);
+    expect(
+      validatePlanHeader("k", "Name", null, "subscription").some(
+        (e) => e.field === "description"
+      )
+    ).toBe(false);
+  });
+
+  test("parser keeps a present wrong-type nullable VERBATIM (never coerced to null = silent clear); absent -> null; explicit null -> null", () => {
+    // present wrong-type kept verbatim so the validator rejects it.
+    expect(
+      parseVersionContent({ currency: "IDR", availableTo: 123 })
+        .availableTo as unknown
+    ).toBe(123);
+    // absent -> null default.
+    expect(parseVersionContent({ currency: "IDR" }).availableTo).toBeNull();
+    // explicit null -> null (clear).
+    expect(
+      parseVersionContent({ currency: "IDR", availableTo: null }).availableTo
+    ).toBeNull();
+  });
+});
+
 describe("request parsing — fail-closed enums (Issue #870 review Codex-A)", () => {
   test("parsePrice passes a present-but-invalid visibility through verbatim (not coerced to public)", () => {
     const parsed = parsePrice({

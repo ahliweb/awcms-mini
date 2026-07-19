@@ -1033,6 +1033,62 @@ suite(
       expect(redateBlocked).toBe(true);
     });
 
+    test("Fix 2: the projection INSERT guard rejects a DRAFT source and an identity mismatch; the publish path (published+match) is accepted", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "insguard"); // draft v1 exists
+
+      // (a) INSERT a tenant-readable offer for a DRAFT version -> rejected.
+      let draftInsertBlocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          const v = (await tx`
+            SELECT v.id, v.version FROM awcms_mini_service_catalog_plan_versions v
+            JOIN awcms_mini_service_catalog_plans p ON p.id = v.plan_id
+            WHERE p.plan_key = 'insguard' AND v.status = 'draft'
+          `) as { id: string; version: number }[];
+          await tx`
+            INSERT INTO awcms_mini_service_catalog_published_offers
+              (plan_version_id, plan_key, plan_name, plan_type, version, currency, offer_hash)
+            VALUES (${v[0]!.id}, 'insguard', 'x', 'subscription', ${v[0]!.version}, 'IDR', 'h')
+          `;
+        });
+      } catch {
+        draftInsertBlocked = true;
+      }
+      expect(draftInsertBlocked).toBe(true);
+
+      // Publish v1 (the legit publish path INSERTs published+match -> accepted).
+      const published = await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "insguard", 1, registry)
+      );
+      expect(published.ok).toBe(true);
+      await withTenant(sql, tenantId, async (tx) => {
+        const offers = await listPublishedOffers(tx, { planKey: "insguard" });
+        expect(offers).toHaveLength(1);
+      });
+
+      // (b) INSERT with a plan_key/version that mismatches the source -> rejected.
+      let mismatchInsertBlocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          const v = (await tx`
+            SELECT v.id FROM awcms_mini_service_catalog_plan_versions v
+            JOIN awcms_mini_service_catalog_plans p ON p.id = v.plan_id
+            WHERE p.plan_key = 'insguard' AND v.status = 'published'
+          `) as { id: string }[];
+          await tx`
+            INSERT INTO awcms_mini_service_catalog_published_offers
+              (plan_version_id, plan_key, plan_name, plan_type, version, currency, offer_hash)
+            VALUES (${v[0]!.id}, 'wrong_key', 'x', 'subscription', 999, 'IDR', 'h')
+          `;
+        });
+      } catch {
+        mismatchInsertBlocked = true;
+      }
+      expect(mismatchInsertBlocked).toBe(true);
+    });
+
     test("runtime default-disabled: service_catalog resolves DISABLED without a tenant_modules row, ENABLED after opt-in", async () => {
       const tenantId = await seedTenant();
       const sql = getTestSql();

@@ -30,8 +30,20 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function asStringOrNull(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
+/**
+ * FAIL-CLOSED tri-state nullable field (Issue #870 round 6, Fix 1) at CREATE.
+ * ABSENT (`!(key in record)`) -> `null` (nullable default). PRESENT `null` ->
+ * `null` (explicit clear). PRESENT any OTHER value -> kept VERBATIM (cast) so
+ * the domain validator rejects a wrong type — NEVER coerced to `null`, which
+ * the application layer reads as an explicit clear and would use to DELETE
+ * existing data (silent loss). PATCH callers do the `key in` check themselves
+ * (absent = keep) and pass the raw value through the same verbatim cast.
+ */
+function nullableAtCreate(
+  record: Record<string, unknown>,
+  key: string
+): unknown {
+  return key in record ? record[key] : null;
 }
 
 /**
@@ -48,10 +60,6 @@ function asBoolFailClosed(
   absentDefault: boolean
 ): boolean {
   return (key in record ? record[key] : absentDefault) as boolean;
-}
-
-function asNumberOrNull(value: unknown): number | null {
-  return typeof value === "number" ? value : null;
 }
 
 /**
@@ -84,7 +92,9 @@ export function parseQuota(raw: unknown): QuotaInput {
   return {
     meterKey: asString(record.meterKey),
     isUnlimited: asBoolFailClosed(record, "isUnlimited", false),
-    limitValue: asNumberOrNull(record.limitValue),
+    // Fix 1 tri-state nullable: absent -> null; present -> verbatim (the
+    // isSafeNonNegativeInteger check rejects a non-number, never coerces).
+    limitValue: nullableAtCreate(record, "limitValue") as number | null,
     unit: asString(record.unit),
     // E2: present-key detection — a present-but-falsy ("") value is passed
     // through so the domain enum check rejects it, never coerced to "none".
@@ -139,12 +149,14 @@ export function parseVersionContent(raw: unknown): VersionContentInput {
   const record = asRecord(raw);
   return {
     currency: asString(record.currency),
-    market: asStringOrNull(record.market),
+    // Fix 1 tri-state nullable: absent -> null; present -> verbatim (validator
+    // rejects a wrong type; never coerced to null = silent clear).
+    market: nullableAtCreate(record, "market") as string | null,
     trialEnabled: asBoolFailClosed(record, "trialEnabled", false),
-    trialDays: asNumberOrNull(record.trialDays),
-    availableFrom: asStringOrNull(record.availableFrom),
-    availableTo: asStringOrNull(record.availableTo),
-    notes: asStringOrNull(record.notes),
+    trialDays: nullableAtCreate(record, "trialDays") as number | null,
+    availableFrom: nullableAtCreate(record, "availableFrom") as string | null,
+    availableTo: nullableAtCreate(record, "availableTo") as string | null,
+    notes: nullableAtCreate(record, "notes") as string | null,
     // present-key detection: absent -> [] (default); present -> fail-closed
     // collection parse (a present non-array is rejected downstream, not wiped).
     features:
@@ -167,7 +179,8 @@ export function parseCreatePlanBody(body: unknown): CreatePlanInput {
   return {
     planKey: asString(record.planKey),
     name: asString(record.name),
-    description: asStringOrNull(record.description),
+    // Fix 1 tri-state nullable: absent -> null; present -> verbatim.
+    description: nullableAtCreate(record, "description") as string | null,
     // E2: present-key detection — a present "" is rejected by the enum check.
     planType: ("planType" in record
       ? asString(record.planType)
@@ -189,8 +202,11 @@ export function parseUpdateDraftBody(body: unknown): UpdatePlanDraftInput {
   if ("name" in record) {
     result.name = asString(record.name);
   }
+  // Fix 1 tri-state nullable (PATCH): present -> verbatim; the outer `key in`
+  // check keeps an ABSENT field; a present wrong-type is rejected by the
+  // validator (NOT coerced to null = a silent clear/delete).
   if ("description" in record) {
-    result.description = asStringOrNull(record.description);
+    result.description = record.description as string | null;
   }
   if ("planType" in record) {
     result.planType = asString(record.planType) as PlanType;
@@ -202,18 +218,19 @@ export function parseUpdateDraftBody(body: unknown): UpdatePlanDraftInput {
     if ("currency" in content)
       parsedContent.currency = asString(content.currency);
     if ("market" in content)
-      parsedContent.market = asStringOrNull(content.market);
+      parsedContent.market = content.market as string | null;
     // E1 fail-closed: present value passed through verbatim (validator rejects
     // a non-boolean), never coerced.
     if ("trialEnabled" in content)
       parsedContent.trialEnabled = content.trialEnabled as boolean;
     if ("trialDays" in content)
-      parsedContent.trialDays = asNumberOrNull(content.trialDays);
+      parsedContent.trialDays = content.trialDays as number | null;
     if ("availableFrom" in content)
-      parsedContent.availableFrom = asStringOrNull(content.availableFrom);
+      parsedContent.availableFrom = content.availableFrom as string | null;
     if ("availableTo" in content)
-      parsedContent.availableTo = asStringOrNull(content.availableTo);
-    if ("notes" in content) parsedContent.notes = asStringOrNull(content.notes);
+      parsedContent.availableTo = content.availableTo as string | null;
+    if ("notes" in content)
+      parsedContent.notes = content.notes as string | null;
     // Fix 2: a PRESENT collection is fail-closed — a non-array is passed
     // through (rejected 400 by the validator), NEVER coerced to [] (which would
     // DELETE the existing rows). Absent = keep (not set here).

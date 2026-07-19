@@ -55,11 +55,15 @@ that must cover EVERY table, column, and edge (not just content) — the pattern
   not be **reparented** (`version_id` change forbidden; both OLD and NEW parents
   must be draft) — otherwise a row could be moved out of a frozen version.
 - **plans.plan_key**: immutable (renaming orphans published offers).
-- **published_offers**: an immutable projection — every column frozen except
-  `retired_at`, which is **write-once one-way** (`NULL -> non-null` only; a
-  retired offer can never be re-activated or re-dated). Grant-level
-  `REVOKE DELETE` is not enough (publish/retire need UPDATE), so the trigger
-  enforces the column-level freeze.
+- **published_offers**: an immutable projection with ALL THREE DML closed —
+  **INSERT** is guarded (the source version must be `published` AND
+  plan_key/version must match the source, so a tenant-readable offer can never
+  be inserted for a draft or a mismatched identity); **UPDATE** freezes every
+  column except `retired_at`, which is **write-once one-way** (`NULL ->
+non-null` only; a retired offer can never be re-activated or re-dated);
+  **DELETE** is revoked at the grant level. (Grant-level revokes are not enough
+  for INSERT/UPDATE because publish/retire need write access, so triggers
+  enforce the row/column integrity.)
 
 The mutation-guard tests (`service-catalog-domain.test.ts`,
 `service-catalog.integration.test.ts`) prove each is real.

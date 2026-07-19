@@ -507,6 +507,49 @@ CREATE TRIGGER awcms_mini_service_catalog_published_offers_immutability
   FOR EACH ROW
   EXECUTE FUNCTION awcms_mini_service_catalog_guard_published_offer_immutability();
 
+-- Fix 2 (round 6): the projection is tenant-readable (RLS-free, read by
+-- `service_catalog_read`), and the app-role keeps INSERT for the publish path,
+-- so ANY app-role SQL could otherwise INSERT a tenant-visible offer for a DRAFT
+-- version (the FK only proves the version EXISTS) — bypassing the
+-- authoring/projection split and leaking draft data. This BEFORE INSERT trigger
+-- verifies the source version is actually `published` AND that plan_key/version
+-- match the source (identity), so the ONLY way a row lands here is the real
+-- publish transition. Together with the UPDATE guard (retired_at one-way) and
+-- the DELETE revoke, all three DML on the projection are now closed.
+CREATE OR REPLACE FUNCTION awcms_mini_service_catalog_guard_published_offer_insert()
+RETURNS trigger AS $$
+DECLARE
+  v_status text;
+  v_version integer;
+  v_plan_key text;
+BEGIN
+  SELECT ver.status, ver.version, p.plan_key
+    INTO v_status, v_version, v_plan_key
+  FROM awcms_mini_service_catalog_plan_versions ver
+  JOIN awcms_mini_service_catalog_plans p ON p.id = ver.plan_id
+  WHERE ver.id = NEW.plan_version_id;
+
+  IF v_status IS NULL THEN
+    RAISE EXCEPTION 'service_catalog: published offer references an unknown source version'
+      USING ERRCODE = 'foreign_key_violation';
+  END IF;
+  IF v_status <> 'published' THEN
+    RAISE EXCEPTION 'service_catalog: a published offer may only project a PUBLISHED source version (source is %)', v_status
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.plan_key <> v_plan_key OR NEW.version <> v_version THEN
+    RAISE EXCEPTION 'service_catalog: published offer plan_key/version must match its source version'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER awcms_mini_service_catalog_published_offers_insert_guard
+  BEFORE INSERT ON awcms_mini_service_catalog_published_offers
+  FOR EACH ROW
+  EXECUTE FUNCTION awcms_mini_service_catalog_guard_published_offer_insert();
+
 -- =====================================================================
 -- Least-privilege grants for the runtime app role (ADR-0022 §12)
 -- =====================================================================
