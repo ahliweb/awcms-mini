@@ -1,6 +1,6 @@
 # Extension Contract Incompatible Fixtures (Issue #741)
 
-Eight `extension.manifest.json` fixtures, each an exact clone of
+Nine `extension.manifest.json` fixtures, each an exact clone of
 [`../derived-application-example/extension.manifest.json`](../derived-application-example/extension.manifest.json)
 (the COMPATIBLE case) with **exactly one deliberate defect** — proving
 `bun run extension:check` fails for distinct reasons, not the same check
@@ -17,6 +17,7 @@ underlying validator function returns the right boolean.
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `base-version-range/`             | `compatibleAwcmsMiniRange` set to `">=99.0.0 <100.0.0"`, excluding this repo's real current version                                                 | `base_version_range_incompatible`          |
 | `module-contract-version/`        | `moduleContractVersion` set to `"2.0.0"` — major differs from the real `MODULE_CONTRACT_VERSION`                                                    | `module_contract_version_unsupported`      |
+| `saas-contract-version/`          | `saasContractVersion` set to `"2.0.0"` — major differs from the real `SAAS_CONTRACT_VERSION` (Issue #874)                                           | `saas_contract_version_unsupported`        |
 | `unknown-capability/`             | Adds a `capabilities.requires` entry for `"totally_unknown_capability"`, unknown to both the base registry and the manifest's own `provides`        | `capability_unknown`                       |
 | `capability-version-mismatch/`    | `public_content` required at version `"9.0.0"` — the base's real registered version is `"1.0.0"`                                                    | `capability_version_unsupported`           |
 | `duplicate-migration/`            | The same `900_example_crm_schema.sql` entry declared twice in `historicalChecksums`                                                                 | `duplicate_migration_identifier`           |

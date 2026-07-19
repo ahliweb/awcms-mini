@@ -1,13 +1,13 @@
 {
   "manifestVersion": "1.0.0",
   "application": {
-    "key": "derived-application-example-fixture",
+    "key": "extension-contract-incompatible-fixture",
     "version": "0.1.0",
-    "name": "Derived Application Example (fixture)"
+    "name": "Incompatible case: SaaS contract version"
   },
   "compatibleAwcmsMiniRange": ">=0.20.0 <1.0.0",
   "moduleContractVersion": "1.0.0",
-  "saasContractVersion": "1.0.0",
+  "saasContractVersion": "2.0.0",
   "contributedModules": [
     {
       "key": "example_crm",
@@ -16,10 +16,6 @@
     },
     {
       "key": "example_loyalty",
-      "minVersion": "0.1.0"
-    },
-    {
-      "key": "example_erp_extension",
       "minVersion": "0.1.0"
     }
   ],
@@ -42,12 +38,6 @@
       {
         "key": "public_content",
         "providedBy": "blog_content",
-        "version": "1.0.0",
-        "optional": true
-      },
-      {
-        "key": "party_directory",
-        "providedBy": "profile_identity",
         "version": "1.0.0",
         "optional": true
       }

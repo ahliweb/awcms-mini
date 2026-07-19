@@ -29,8 +29,12 @@
  * PATCH is documentation-only. `scripts/extension-check.ts` fails with an
  * actionable diagnostic when a manifest declares a `manifestVersion`
  * whose MAJOR differs from this constant, rather than a raw parse error.
+ *
+ * `1.1.0` (Issue #874, epic #868 SaaS control plane) — added the optional
+ * `saasContractVersion` field. MINOR: purely additive, backward-compatible
+ * (a manifest that omits it is unaffected).
  */
-export const EXTENSION_MANIFEST_SCHEMA_VERSION = "1.0.0";
+export const EXTENSION_MANIFEST_SCHEMA_VERSION = "1.1.0";
 
 /**
  * Same four values as `ModuleDescriptor`'s own
@@ -130,6 +134,17 @@ export type ExtensionCompatibilityManifest = {
   compatibleAwcmsMiniRange: string;
   /** SemVer this manifest was authored against — compared to the base's ACTUAL current `MODULE_CONTRACT_VERSION` (`module-contract.ts`). */
   moduleContractVersion: string;
+  /**
+   * SemVer of the SaaS commercial contract (`SAAS_CONTRACT_VERSION`,
+   * `module-contract.ts`) this derived application's own SaaS descriptors were
+   * authored against (Issue #874) — compared to the base's ACTUAL current
+   * `SAAS_CONTRACT_VERSION` with the same MAJOR-match/MINOR-ceiling rule as
+   * `moduleContractVersion`. OPTIONAL: absence means "no SaaS contract
+   * constraint declared" (a derived app that contributes no
+   * features/meters/quotas), same absence convention `minAppVersion`/
+   * `consumes.*` already use.
+   */
+  saasContractVersion?: string;
   contributedModules: readonly ExtensionManifestContributedModule[];
   migrations: ExtensionManifestMigrations;
   capabilities?: ExtensionManifestCapabilities;

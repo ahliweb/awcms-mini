@@ -9,7 +9,7 @@ extension:check` (`scripts/extension-check.ts`) is the machine
 enforcement of this policy — this document is the human-readable
 explanation of the rules it enforces.
 
-## The six independent versioning schemes
+## The seven independent versioning schemes
 
 AWCMS-Mini does not use one version number for everything — each scheme
 below changes on its own schedule, for its own reason. Conflating them
@@ -24,13 +24,14 @@ is a common mistake this document exists to prevent.
 | 4   | Module descriptor contract (`MODULE_CONTRACT_VERSION`)                            | `src/modules/_shared/module-contract.ts`              | The `ModuleDescriptor`/`ApplicationModuleRegistry` TYPE shape changes       | ADR-0015 §1                                                                      |
 | 5   | Capability contract (`CAPABILITY_CONTRACT_VERSIONS[key]`)                         | `src/modules/_shared/capability-contract-versions.ts` | A specific capability's port interface (`_shared/ports/*.ts`) shape changes | ADR-0015 §1                                                                      |
 | 6   | Manifest schema (`EXTENSION_MANIFEST_SCHEMA_VERSION`)                             | `src/modules/_shared/extension-manifest-contract.ts`  | The compatibility manifest's OWN field shape changes                        | ADR-0015 §1                                                                      |
+| 7   | SaaS contract (`SAAS_CONTRACT_VERSION`)                                           | `src/modules/_shared/module-contract.ts`              | The SaaS feature/quota/meter/commercial-event descriptor shape changes      | ADR-0022, Issue #874                                                             |
 
 Every scheme uses the same three-tier bump rule:
 
 - **MAJOR** — a field/type is removed, renamed, or an optional field
   becomes required. Breaking. `bun run extension:check` fails a manifest
   whose declared version's MAJOR does not exactly match the actual
-  current MAJOR for schemes 4-6, and fails a `compatibleAwcmsMiniRange`
+  current MAJOR for schemes 4-7, and fails a `compatibleAwcmsMiniRange`
   (scheme 1) or `consumes.*ContractVersion` (schemes 2-3) that excludes
   the actual current version.
 - **MINOR** — a new optional field/capability/endpoint/event is added.

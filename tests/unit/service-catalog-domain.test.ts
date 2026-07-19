@@ -63,8 +63,27 @@ function descriptor(
 const registry = resolveServiceCatalogKeyRegistry([
   descriptor("blog_content"),
   descriptor("service_catalog", {
-    contributesFeatureKeys: ["platform.api_access"],
-    contributesMeterKeys: ["platform.api_calls"]
+    features: [
+      {
+        key: "platform.api_access",
+        ownerModuleKey: "service_catalog",
+        description: "API access"
+      }
+    ],
+    meters: [
+      {
+        key: "platform.api_calls",
+        ownerModuleKey: "service_catalog",
+        description: "API calls",
+        eventVersion: "1.0",
+        valueType: "count",
+        aggregation: "sum",
+        correction: "none",
+        classification: "billable",
+        privacyClassification: "non_personal",
+        bounds: { minValue: 0, maxValue: 9007199254740991 }
+      }
+    ]
   })
 ]);
 

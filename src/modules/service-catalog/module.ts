@@ -42,23 +42,115 @@ export const serviceCatalogModule = defineModule({
     // read-only). #871 consumes it.
     provides: ["service_catalog_read"]
   },
-  // Neutral, non-authoritative EXAMPLE feature/meter keys proving the static-
-  // registry contribution mechanism end-to-end (same "ship neutral examples of
-  // your own mechanism" precedent reference_data set with currency/uom). A
-  // derived application contributes its own keys through its own modules'
-  // descriptors via `application-registry.ts` — never a base-registry edit.
-  // Whole-module entitlement keys need no contribution (they ARE the live
-  // module registry's keys).
+  // Neutral, non-authoritative EXAMPLE SaaS contract descriptors (Issue #874)
+  // proving the single-source registry contribution mechanism end-to-end (same
+  // "ship neutral examples of your own mechanism" precedent reference_data set
+  // with currency/uom). A derived application contributes its own descriptors
+  // through its own modules via `application-registry.ts` — never a base-
+  // registry edit. Whole-module entitlement keys need no contribution (they
+  // ARE the live module registry's keys). Aggregated + validated by the single
+  // source `src/modules/_shared/saas-contract-registry.ts`.
   serviceCatalog: {
-    contributesFeatureKeys: [
-      "platform.api_access",
-      "platform.priority_support",
-      "platform.custom_domain"
+    features: [
+      {
+        key: "platform.api_access",
+        ownerModuleKey: "service_catalog",
+        description: "Programmatic REST API access to the tenant's own data."
+      },
+      {
+        key: "platform.priority_support",
+        ownerModuleKey: "service_catalog",
+        description: "Priority operator support queue for the tenant."
+      },
+      {
+        key: "platform.custom_domain",
+        ownerModuleKey: "service_catalog",
+        description: "Serve the tenant portal from a custom domain."
+      }
     ],
-    contributesMeterKeys: [
-      "platform.api_calls",
-      "platform.active_users",
-      "platform.storage_bytes"
+    meters: [
+      {
+        key: "platform.api_calls",
+        ownerModuleKey: "service_catalog",
+        description: "Number of authenticated API calls made by the tenant.",
+        eventVersion: "1.0",
+        valueType: "count",
+        aggregation: "sum",
+        correction: "none",
+        classification: "billable",
+        privacyClassification: "non_personal",
+        bounds: { minValue: 0, maxValue: 9007199254740991 }
+      },
+      {
+        key: "platform.active_users",
+        ownerModuleKey: "service_catalog",
+        description: "Distinct active users within the reset window.",
+        eventVersion: "1.0",
+        valueType: "count",
+        aggregation: "unique_count",
+        correction: "none",
+        classification: "informational",
+        privacyClassification: "pseudonymous",
+        bounds: { minValue: 0, maxValue: 9007199254740991 }
+      },
+      {
+        key: "platform.storage_bytes",
+        ownerModuleKey: "service_catalog",
+        description: "Peak stored bytes across the reset window.",
+        eventVersion: "1.0",
+        valueType: "bytes",
+        aggregation: "max",
+        correction: "none",
+        classification: "billable",
+        privacyClassification: "non_personal",
+        bounds: { minValue: 0, maxValue: 9007199254740991 }
+      }
+    ],
+    quotas: [
+      {
+        key: "platform.api_call_quota",
+        ownerModuleKey: "service_catalog",
+        description: "Limit on billable API calls per billing cycle.",
+        meterKey: "platform.api_calls",
+        unit: "call",
+        resetPeriod: "billing_cycle",
+        enforcement: "hard"
+      },
+      {
+        key: "platform.storage_quota",
+        ownerModuleKey: "service_catalog",
+        description: "Limit on peak stored bytes.",
+        meterKey: "platform.storage_bytes",
+        unit: "byte",
+        resetPeriod: "none",
+        enforcement: "hard"
+      },
+      {
+        key: "platform.active_user_quota",
+        ownerModuleKey: "service_catalog",
+        description: "Advisory limit on distinct active users.",
+        meterKey: "platform.active_users",
+        unit: "user",
+        resetPeriod: "monthly",
+        enforcement: "advisory"
+      }
+    ],
+    commercialEvents: [
+      {
+        eventType: "awcms-mini.service-catalog.offer.published",
+        eventVersion: "1.0",
+        ownerModuleKey: "service_catalog",
+        kind: "lifecycle",
+        description:
+          "A draft plan version was published into an immutable offer."
+      },
+      {
+        eventType: "awcms-mini.service-catalog.offer.retired",
+        eventVersion: "1.0",
+        ownerModuleKey: "service_catalog",
+        kind: "lifecycle",
+        description: "A published offer version was retired."
+      }
     ]
   },
   events: {

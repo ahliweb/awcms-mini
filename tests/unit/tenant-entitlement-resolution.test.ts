@@ -539,8 +539,27 @@ describe("entitlement key registry — fail-closed unknown", () => {
       description: "",
       dependencies: [],
       serviceCatalog: {
-        contributesFeatureKeys: ["demo.feature_x"],
-        contributesMeterKeys: ["demo.meter_y"]
+        features: [
+          {
+            key: "demo.feature_x",
+            ownerModuleKey: "demo_module",
+            description: "x"
+          }
+        ],
+        meters: [
+          {
+            key: "demo.meter_y",
+            ownerModuleKey: "demo_module",
+            description: "y",
+            eventVersion: "1.0",
+            valueType: "count",
+            aggregation: "sum",
+            correction: "none",
+            classification: "informational",
+            privacyClassification: "non_personal",
+            bounds: { minValue: 0, maxValue: 9007199254740991 }
+          }
+        ]
       }
     } as ModuleDescriptor
   ]);
@@ -617,8 +636,23 @@ describe("validators", () => {
       description: "",
       dependencies: [],
       serviceCatalog: {
-        contributesFeatureKeys: ["f.known"],
-        contributesMeterKeys: ["mtr.known"]
+        features: [
+          { key: "f.known", ownerModuleKey: "m", description: "known feature" }
+        ],
+        meters: [
+          {
+            key: "mtr.known",
+            ownerModuleKey: "m",
+            description: "known meter",
+            eventVersion: "1.0",
+            valueType: "count",
+            aggregation: "sum",
+            correction: "none",
+            classification: "informational",
+            privacyClassification: "non_personal",
+            bounds: { minValue: 0, maxValue: 9007199254740991 }
+          }
+        ]
       }
     } as ModuleDescriptor
   ]);

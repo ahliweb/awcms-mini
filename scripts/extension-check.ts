@@ -64,7 +64,10 @@ import { parseDocument } from "yaml";
 import { listBaseModules } from "../src/modules";
 import { applicationModuleRegistry } from "../src/modules/application-registry";
 import { CAPABILITY_CONTRACT_VERSIONS } from "../src/modules/_shared/capability-contract-versions";
-import { MODULE_CONTRACT_VERSION } from "../src/modules/_shared/module-contract";
+import {
+  MODULE_CONTRACT_VERSION,
+  SAAS_CONTRACT_VERSION
+} from "../src/modules/_shared/module-contract";
 import {
   evaluateExtensionCompatibility,
   formatExtensionManifestIssue,
@@ -307,6 +310,7 @@ export async function runExtensionCheck(
   const facts: ExtensionCompatibilityFacts = {
     actualBaseVersion: JSON.parse(packageJsonText).version as string,
     actualModuleContractVersion: MODULE_CONTRACT_VERSION,
+    actualSaasContractVersion: SAAS_CONTRACT_VERSION,
     capabilityVersions: CAPABILITY_CONTRACT_VERSIONS,
     migrationFiles,
     actualOpenApiContractVersion,
@@ -324,6 +328,7 @@ export async function runExtensionCheck(
 const EMPTY_FACTS: ExtensionCompatibilityFacts = {
   actualBaseVersion: "0.0.0",
   actualModuleContractVersion: MODULE_CONTRACT_VERSION,
+  actualSaasContractVersion: SAAS_CONTRACT_VERSION,
   capabilityVersions: {},
   migrationFiles: [],
   actualOpenApiContractVersion: null,

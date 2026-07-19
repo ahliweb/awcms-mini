@@ -1,0 +1,101 @@
+{
+  "saasContractVersion": "1.0.0",
+  "features": [
+    {
+      "key": "platform.api_access",
+      "ownerModule": "service_catalog",
+      "description": "Programmatic REST API access to the tenant's own data."
+    },
+    {
+      "key": "platform.custom_domain",
+      "ownerModule": "service_catalog",
+      "description": "Serve the tenant portal from a custom domain."
+    },
+    {
+      "key": "platform.priority_support",
+      "ownerModule": "service_catalog",
+      "description": "Priority operator support queue for the tenant."
+    }
+  ],
+  "meters": [
+    {
+      "key": "platform.active_users",
+      "ownerModule": "service_catalog",
+      "eventVersion": "1.0",
+      "valueType": "count",
+      "aggregation": "unique_count",
+      "correction": "none",
+      "classification": "informational",
+      "billable": false,
+      "privacyClassification": "pseudonymous",
+      "minValue": 0,
+      "maxValue": 9007199254740991
+    },
+    {
+      "key": "platform.api_calls",
+      "ownerModule": "service_catalog",
+      "eventVersion": "1.0",
+      "valueType": "count",
+      "aggregation": "sum",
+      "correction": "none",
+      "classification": "billable",
+      "billable": true,
+      "privacyClassification": "non_personal",
+      "minValue": 0,
+      "maxValue": 9007199254740991
+    },
+    {
+      "key": "platform.storage_bytes",
+      "ownerModule": "service_catalog",
+      "eventVersion": "1.0",
+      "valueType": "bytes",
+      "aggregation": "max",
+      "correction": "none",
+      "classification": "billable",
+      "billable": true,
+      "privacyClassification": "non_personal",
+      "minValue": 0,
+      "maxValue": 9007199254740991
+    }
+  ],
+  "quotas": [
+    {
+      "key": "platform.active_user_quota",
+      "ownerModule": "service_catalog",
+      "meterKey": "platform.active_users",
+      "unit": "user",
+      "resetPeriod": "monthly",
+      "enforcement": "advisory"
+    },
+    {
+      "key": "platform.api_call_quota",
+      "ownerModule": "service_catalog",
+      "meterKey": "platform.api_calls",
+      "unit": "call",
+      "resetPeriod": "billing_cycle",
+      "enforcement": "hard"
+    },
+    {
+      "key": "platform.storage_quota",
+      "ownerModule": "service_catalog",
+      "meterKey": "platform.storage_bytes",
+      "unit": "byte",
+      "resetPeriod": "none",
+      "enforcement": "hard"
+    }
+  ],
+  "commercialEvents": [
+    {
+      "eventType": "awcms-mini.service-catalog.offer.published",
+      "ownerModule": "service_catalog",
+      "eventVersion": "1.0",
+      "kind": "lifecycle"
+    },
+    {
+      "eventType": "awcms-mini.service-catalog.offer.retired",
+      "ownerModule": "service_catalog",
+      "eventVersion": "1.0",
+      "kind": "lifecycle"
+    }
+  ]
+}

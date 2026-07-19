@@ -106,13 +106,13 @@ describe("extension:check CLI — explicit missing manifest path is a hard failu
 });
 
 /**
- * The core adversarial proof: every one of these eight fixtures is a
+ * The core adversarial proof: every one of these nine fixtures is a
  * clone of the compatible manifest with exactly ONE deliberate defect
  * (see `tests/fixtures/extension-contract-incompatible/README.md` for
  * the full table) — each must be REJECTED by the real spawned CLI for
  * its own specific, distinct reason. Satisfies the acceptance criterion
  * "At least five incompatible fixtures prove the gates fail for distinct
- * reasons" with eight, and proves it through the full pipeline (process
+ * reasons" with nine, and proves it through the full pipeline (process
  * spawn + exit code + printed diagnostic), not a direct function call.
  */
 describe.each([
@@ -123,6 +123,10 @@ describe.each([
   [
     "module-contract-version",
     "unsupported by this release's actual module contract version"
+  ],
+  [
+    "saas-contract-version",
+    "unsupported by this release's actual SaaS contract version"
   ],
   ["unknown-capability", "neither a known base capability nor declared"],
   [
@@ -154,13 +158,14 @@ describe.each([
 );
 
 describe("extension:check CLI — every incompatible fixture fails for a genuinely DIFFERENT primary issue type (Issue #741)", () => {
-  test("the eight fixtures produce eight distinct issue-type sets via --report=, not the same check five times", async () => {
+  test("the nine fixtures produce nine distinct issue-type sets via --report=, not the same check five times", async () => {
     // Spawns 8 sequential extension:check CLI subprocesses against the full
     // module registry — already ~4.4s on main and growing with every module
     // this epic adds, so bun's 5000ms default per-test timeout is too tight.
     const caseNames = [
       "base-version-range",
       "module-contract-version",
+      "saas-contract-version",
       "unknown-capability",
       "capability-version-mismatch",
       "duplicate-migration",
@@ -191,10 +196,10 @@ describe("extension:check CLI — every incompatible fixture fails for a genuine
       await Bun.file(reportPath).delete();
     }
 
-    // Every case's own issue-type SET must be unique across all eight —
+    // Every case's own issue-type SET must be unique across all nine —
     // this is the machine-checked version of "distinct reasons, not the
     // same check five times".
     const serialized = primaryIssueTypesPerCase.map((types) => types.join(","));
     expect(new Set(serialized).size).toBe(caseNames.length);
-  }, 20000);
+  }, 28000);
 });

@@ -49,12 +49,14 @@ master (ADR-0013 §3). Baca `src/modules/service-catalog/README.md` +
    Koreksi = versi BARU (`createDraftVersion` → edit → publish), bukan edit
    in-place. Mutation-guard test membuktikan gate nyata.
 
-5. **Fail-closed key registry (§security).** `domain/key-registry.ts`: module
-   key = `listModules()` keys; feature/meter key = union
-   `ModuleDescriptor.serviceCatalog.contributes{Feature,Meter}Keys`. Key tak
-   dikenal → DITOLAK (bukan diterima diam) di draft-edit/validate/publish.
-   Kontribusi aplikasi turunan lewat `application-registry.ts` — jangan edit
-   base registry. #874 menambah conformance gate di atas seam ini.
+5. **Fail-closed key registry (§security).** Sejak #874 `domain/key-registry.ts`
+   me-**RE-EXPORT** SINGLE SOURCE `src/modules/_shared/saas-contract-registry.ts`
+   (bukan lagi agregasi privat). module key = `listModules()` keys; feature/meter
+   key = union rich descriptor `ModuleDescriptor.serviceCatalog.{features,meters}`.
+   Key tak dikenal → DITOLAK (bukan diterima diam) di draft-edit/validate/publish.
+   Kontribusi aplikasi turunan lewat `application-registry.ts` — jangan edit base
+   registry. Untuk bentuk descriptor lengkap (quota/commercial-event, validasi
+   fail-closed, versioning) pakai skill `awcms-mini-saas-contracts`.
 
 6. **Uang EXACT minor-unit.** `amount_minor bigint`, `limit_value bigint` — NO
    float/double. Validasi `Number.isInteger` + bound. Harga per komponen wajib

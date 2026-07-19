@@ -363,11 +363,162 @@ export type ModuleDescriptor = {
 };
 
 /**
- * A module's static contribution to the `service_catalog` allowed-key
- * registry (Issue #870, epic #868 SaaS control plane, ADR-0022). Same
- * "module declares its own plain-data descriptor, a central registry reads
+ * ============================================================================
+ * SaaS commercial contract descriptors (Issue #874, epic #868 SaaS control
+ * plane, ADR-0022). The versioned, build-time contract every module uses to
+ * declare the commercial capabilities it exposes — features, usage meters,
+ * quota limits, and lifecycle/commercial domain events. This is the SINGLE
+ * SOURCE OF TRUTH that `service_catalog` (#870), `tenant_entitlement` (#871),
+ * and usage metering (#875) all resolve descriptors from — `src/modules/
+ * _shared/saas-contract-registry.ts` is the one aggregator/validator, and
+ * both `service-catalog/domain/key-registry.ts` and `tenant-entitlement/
+ * domain/entitlement-key-registry.ts` re-export it rather than re-deriving
+ * their own private key lists (the drift Issue #874 exists to pay down).
+ *
+ * All of these are TRUSTED CODE-ONLY METADATA (same rule as every descriptor
+ * type above) — declared by the owning module's own `module.ts`, checked in
+ * to the repo, never tenant/request-controlled, never a secret/executable
+ * expression. There is NO runtime discovery, upload, or `eval` (doc 21 §7 /
+ * ADR-0012 §7): the registry is the compile-time union of these arrays,
+ * merged across base + application contributions through the same
+ * deterministic `listModules()` composition seam every other descriptor
+ * family uses. `SAAS_CONTRACT_VERSION` below versions this whole shape.
+ * ============================================================================
+ */
+
+/**
+ * How sensitive a meter's aggregate is with respect to a natural person —
+ * REQUIRED, EXPLICIT on every meter (Issue #874: "privacy classification
+ * must be explicit"). A meter descriptor carries only an aggregatable numeric
+ * quantity (there is deliberately NO raw-payload field on `SaasMeterDescriptor`
+ * — "descriptors cannot request raw sensitive payload storage by default"), so
+ * this classifies the SENSITIVITY of that counted dimension, not a stored blob.
+ */
+export type SaasPrivacyClassification =
+  | "non_personal" // pure operational counts with no personal linkage
+  | "pseudonymous" // keyed by an opaque tenant/subject id, not directly identifying
+  | "personal"; // relates to an identifiable person (UU PDP / ISO 27701 scope)
+
+/** The kind of quantity a meter counts — governs which aggregation rules are compatible (`saas-contract-registry.ts`'s `AGGREGATION_COMPATIBILITY`). */
+export type SaasMeterValueType =
+  | "count" // non-negative integer events
+  | "gauge" // a point-in-time level (active users, current storage)
+  | "amount_minor" // exact minor currency units (never a float)
+  | "duration_seconds"
+  | "bytes";
+
+/** How a meter's samples combine over an aggregation window. */
+export type SaasMeterAggregation =
+  | "sum" // add increments across the period
+  | "max" // peak of a gauge across the period
+  | "last" // latest gauge value
+  | "unique_count"; // distinct count of a dimension
+
+/**
+ * Whether a meter accepts signed corrections. `"none"` — only non-negative
+ * increments; the meter can never go negative (overflow/NaN/negative-abuse
+ * guard). `"signed_delta"` — signed corrections are EXPLICITLY permitted (a
+ * later reversal/adjustment can be negative), the only case `bounds.minValue`
+ * may be below zero (Issue #874 security requirement).
+ */
+export type SaasMeterCorrectionSemantics = "none" | "signed_delta";
+
+/** Whether a meter feeds billing or is dashboard/telemetry only (Issue #874 "billable versus informational classification"). */
+export type SaasMeterClassification = "billable" | "informational";
+
+/** When a quota's consumption window resets. */
+export type SaasQuotaResetPeriod =
+  | "none"
+  | "daily"
+  | "weekly"
+  | "monthly"
+  | "quarterly"
+  | "yearly"
+  | "billing_cycle";
+
+/** How strictly a quota limit is applied. `"hard"` blocks at the limit; `"soft"` allows overage but records it; `"advisory"` never blocks (informational only). */
+export type SaasQuotaEnforcementMode = "hard" | "soft" | "advisory";
+
+/** Whether a commercial/domain event marks a lifecycle transition or a commercial (billing-relevant) fact. */
+export type SaasCommercialEventKind = "lifecycle" | "commercial";
+
+/** One feature this module exposes for plan feature grants and entitlement overrides. */
+export type SaasFeatureDescriptor = {
+  /** Globally unique across every module's feature contributions. Format `^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$`, <= 120 chars. */
+  key: string;
+  /** Must equal the declaring module's own `key` — validated by the registry gate (source ownership), not the type system. */
+  ownerModuleKey: string;
+  description: string;
+};
+
+/** Inclusive numeric bounds for a single meter sample — the overflow/NaN/negative-abuse guard (Issue #874). */
+export type SaasMeterBounds = {
+  /** Must be a finite integer. `>= 0` unless the meter's `correction` is `"signed_delta"`. */
+  minValue: number;
+  /** Must be a finite integer `<= Number.MAX_SAFE_INTEGER` (9007199254740991) — the overflow guard. */
+  maxValue: number;
+};
+
+/** One usage meter this module exposes for quota limits and (in #875) usage events. */
+export type SaasMeterDescriptor = {
+  /** Globally unique across every module's meter contributions (and disjoint from feature keys). Same format as `SaasFeatureDescriptor.key`. */
+  key: string;
+  /** Must equal the declaring module's own `key` (source ownership). */
+  ownerModuleKey: string;
+  description: string;
+  /** The usage-event schema version this meter emits, e.g. `"1.0"` — matches `domain-event-runtime`'s `"X.Y"` event-version style. */
+  eventVersion: string;
+  valueType: SaasMeterValueType;
+  aggregation: SaasMeterAggregation;
+  correction: SaasMeterCorrectionSemantics;
+  classification: SaasMeterClassification;
+  /** REQUIRED, EXPLICIT — see `SaasPrivacyClassification`. A missing/invalid value fails the build. */
+  privacyClassification: SaasPrivacyClassification;
+  bounds: SaasMeterBounds;
+};
+
+/** One quota limit dimension this module exposes for plan quotas and entitlement overrides — a limitable view over a meter. */
+export type SaasQuotaDescriptor = {
+  /** Globally unique across every module's quota contributions. Same format as `SaasFeatureDescriptor.key`. */
+  key: string;
+  /** Must equal the declaring module's own `key` (source ownership). */
+  ownerModuleKey: string;
+  description: string;
+  /** The meter this quota limits — MUST resolve to a known `SaasMeterDescriptor.key` in the merged registry (fail-closed otherwise). */
+  meterKey: string;
+  /** Human unit label, e.g. `"call"`, `"byte"`, `"user"`. Format `^[a-z][a-z0-9_]*$`, <= 40 chars (matches the DB CHECK in sql/079). */
+  unit: string;
+  resetPeriod: SaasQuotaResetPeriod;
+  enforcement: SaasQuotaEnforcementMode;
+};
+
+/**
+ * One lifecycle/commercial domain event this module publishes, declared here
+ * so `service_catalog`/usage/billing resolve a single source for commercial
+ * event names. `eventType` MUST also appear in the owning module's own
+ * `events.publishes` (which `scripts/api-spec-check.ts` already ties to an
+ * AsyncAPI channel) — the registry gate enforces that parity so the AsyncAPI
+ * and these descriptors can never drift.
+ */
+export type SaasCommercialEventDescriptor = {
+  /** Dotted event address, e.g. `"awcms-mini.service-catalog.offer.published"`. Must match a channel in `asyncapi/awcms-mini-domain-events.asyncapi.yaml` and be listed in the owning module's `events.publishes`. */
+  eventType: string;
+  /** Event payload schema version, `"X.Y"`. */
+  eventVersion: string;
+  /** Must equal the declaring module's own `key` (source ownership). */
+  ownerModuleKey: string;
+  kind: SaasCommercialEventKind;
+  description: string;
+};
+
+/**
+ * A module's static contribution to the SaaS commercial contract registry
+ * (Issue #870/#874, epic #868 SaaS control plane, ADR-0022). Same "module
+ * declares its own plain-data descriptor, a central registry reads
  * `listModules()`" shape `referenceData`/`dataLifecycle`/`sodRules` above
- * already use — `service-catalog/domain/key-registry.ts` is the aggregator.
+ * already use — `src/modules/_shared/saas-contract-registry.ts` is the ONE
+ * aggregator/validator (Issue #874), consumed by `service-catalog` (#870),
+ * `tenant_entitlement` (#871), and usage metering (#875).
  *
  * WHY A STATIC DESCRIPTOR CONTRIBUTION. A plan's feature grants and usage
  * quotas reference `featureKey`/`meterKey` strings; those keys MUST resolve
@@ -376,26 +527,34 @@ export type ModuleDescriptor = {
  * requirement "unknown keys fail closed"), never accepted silently. The base
  * repo never hardcodes a business feature set; instead every module —
  * including a derived application's own modules contributed through
- * `application-registry.ts` (Issue #740) — declares the feature/meter keys it
- * exposes for entitlement right here, as plain data. There is NO runtime
- * discovery, upload, or `eval` (doc 21 §7 / ADR-0012 §7): the registry is the
- * compile-time union of these arrays.
+ * `application-registry.ts` (Issue #740) — declares the features/meters/
+ * quotas/commercial-events it exposes right here, as rich plain data.
  *
  * NOTE: *module-entitlement* keys are NOT declared here — a plan may grant a
  * tenant access to a whole module, and the set of valid module keys is simply
  * `listModules()`'s own keys (derived from the registry, never a hand-kept
- * list — see memory `derive-publish-roots-from-registry`). Only the finer-
- * grained FEATURE and METER keys need this contribution seam.
- *
- * TRUSTED CODE-ONLY METADATA (same rule as every descriptor type above) —
- * declared by the owning module's source, never tenant/request-controlled,
- * never a secret/executable expression.
+ * list — see memory `derive-publish-roots-from-registry`).
  */
 export type ServiceCatalogModuleContract = {
-  /** Feature keys this module exposes for plan feature grants (globally unique across every module's contributions; validated by `service-catalog/domain/key-registry.ts`). Format `^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$`. */
+  /**
+   * @deprecated Superseded by `features` (Issue #874). Kept in the type only
+   * so a derived repository written against the pre-#874 shape gets an
+   * actionable build-gate diagnostic ("migrate contributesFeatureKeys to
+   * features[]") from `saas-contracts:registry:check` instead of a raw
+   * TypeScript compile error. The registry no longer reads this field; a
+   * module that still declares it FAILS the gate.
+   */
   contributesFeatureKeys?: readonly string[];
-  /** Usage-meter keys this module exposes for plan quota/limit definitions (globally unique, same format as feature keys). */
+  /** @deprecated Superseded by `meters` (Issue #874) — same migration note as `contributesFeatureKeys`. */
   contributesMeterKeys?: readonly string[];
+  /** Features this module exposes for plan feature grants (Issue #874). */
+  features?: readonly SaasFeatureDescriptor[];
+  /** Usage meters this module exposes (Issue #874). */
+  meters?: readonly SaasMeterDescriptor[];
+  /** Quota limit dimensions this module exposes, each backed by one of its `meters` (Issue #874). */
+  quotas?: readonly SaasQuotaDescriptor[];
+  /** Lifecycle/commercial domain-event identifiers this module publishes (Issue #874). */
+  commercialEvents?: readonly SaasCommercialEventDescriptor[];
 };
 
 /**
@@ -761,8 +920,45 @@ export type ModuleMigrationNamespace = {
  * `ModuleDescriptor.serviceCatalog` (with `ServiceCatalogModuleContract`,
  * the static feature/meter key contribution seam). MINOR: purely additive,
  * same rule as `1.2.0`'s own `reportingProjections` addition.
+ *
+ * `1.4.0` (Issue #874, epic #868 SaaS control plane) — enriched
+ * `ServiceCatalogModuleContract` with the rich SaaS descriptor families
+ * (`features`/`meters`/`quotas`/`commercialEvents` plus their descriptor
+ * types) and the separate `SAAS_CONTRACT_VERSION` constant below. MINOR:
+ * purely additive — the pre-#874 `contributesFeatureKeys`/
+ * `contributesMeterKeys` fields are kept (now `@deprecated`, no longer read
+ * by the registry) so an old derived `module.ts` still type-checks and gets
+ * an actionable migration diagnostic from `saas-contracts:registry:check`
+ * rather than a compile error. No field was removed or retyped.
  */
-export const MODULE_CONTRACT_VERSION = "1.3.0";
+export const MODULE_CONTRACT_VERSION = "1.4.0";
+
+/**
+ * SemVer of the SaaS COMMERCIAL CONTRACT shape (Issue #874, epic #868) — the
+ * feature/meter/quota/commercial-event descriptor families on
+ * `ServiceCatalogModuleContract` plus their validation semantics
+ * (`src/modules/_shared/saas-contract-registry.ts`). This is a SEVENTH
+ * independent versioning scheme (see the list in `MODULE_CONTRACT_VERSION`'s
+ * doc comment above + `EXTENSION_MANIFEST_SCHEMA_VERSION`): a derived
+ * repository declares the SaaS contract version it was authored against in
+ * its compatibility manifest (`extension.manifest.json`'s
+ * `saasContractVersion`), and `bun run extension:check` fails with an
+ * actionable diagnostic when the MAJOR differs or the derived repo assumes a
+ * newer MINOR than this base actually ships — same rule ADR-0008 defines for
+ * the REST/event contract, applied here.
+ *
+ * Bump policy (mirrors `MODULE_CONTRACT_VERSION`'s own rules):
+ * - **MAJOR** — a descriptor field/enum value is removed or retyped, or a
+ *   validation rule tightens in a way that could reject a previously-valid
+ *   descriptor (a derived repo's existing descriptors could stop validating).
+ * - **MINOR** — a new optional descriptor field or a new enum member is
+ *   added, backward-compatible for existing descriptors.
+ * - **PATCH** — documentation-only clarification.
+ *
+ * `1.0.0` is the first declaration of this shape (same "first assigned
+ * number, not a stability milestone" framing `MODULE_CONTRACT_VERSION` uses).
+ */
+export const SAAS_CONTRACT_VERSION = "1.0.0";
 
 /**
  * One derived/downstream repository's contribution to the final composed

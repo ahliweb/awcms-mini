@@ -77,9 +77,13 @@ Tiap write path (`application/entitlement-directory.ts`): row-lock `FOR UPDATE`
 `application/request-parsing.ts`: absent scalar/enum/bool → default; present →
 verbatim (validator domain tolak 400); nullable → tri-state (absent→null,
 present-wrong-type→400 bukan coerce ke null). Override targetKey WAJIB dikenal
-(fail-closed unknown, `domain/entitlement-key-registry.ts` — union
-`ModuleDescriptor.serviceCatalog.contributes*` + `listModules()` keys; DIREPLIKASI
-dari service_catalog demi boundary, jangan import lintas modul).
+(fail-closed unknown, `domain/entitlement-key-registry.ts`). Sejak #874 file itu
+me-**RE-EXPORT** SINGLE SOURCE `src/modules/_shared/saas-contract-registry.ts`
+(union rich `ModuleDescriptor.serviceCatalog.{features,meters}` + `listModules()`
+keys) — TIDAK lagi replikasi agregasi service_catalog; boundary tetap terjaga
+(seam `_shared/`, bukan import lintas modul), drift-guard test tetap hijau. Helper
+entitlement (`isEntitlementGatedModule`/`resolveGatedModuleKeys`/`overrideResolutionCap`,
+mapping override kind→namespace) tetap di sini. Lihat skill `awcms-mini-saas-contracts`.
 
 ## Events + boundary
 

@@ -89,13 +89,17 @@ the real projection columns (not assumed).
 
 ## Static key registry (fail-closed)
 
-`domain/key-registry.ts` builds the allowed-key registry from `listModules()`:
+`domain/key-registry.ts` resolves the allowed-key registry from `listModules()`:
 module-entitlement keys are the live module registry's keys; feature/meter keys
-are the union of every module's `ModuleDescriptor.serviceCatalog`
-contributions. An **unknown key fails closed** (rejected at
-draft-edit/validate/publish). A derived application contributes its own keys
-through `application-registry.ts` — never a base-registry edit. #874 formalizes
-conformance gates on top of this seam.
+are the union of every module's `ModuleDescriptor.serviceCatalog` contributions.
+An **unknown key fails closed** (rejected at draft-edit/validate/publish). A
+derived application contributes its own keys through `application-registry.ts` —
+never a base-registry edit. Since **Issue #874** this file **re-exports** the
+single source of truth `src/modules/_shared/saas-contract-registry.ts` (shared by
+`tenant_entitlement` and usage metering) rather than aggregating privately; the
+richer descriptor contract (quota/meter/commercial-event, fail-closed validation,
+`bun run saas-contracts:registry:check`) is documented in
+[`docs/awcms-mini/saas-contract-registry.md`](../../../docs/awcms-mini/saas-contract-registry.md).
 
 ## Capability port
 
