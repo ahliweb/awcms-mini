@@ -37,7 +37,7 @@
 
 ## Migrations
 
-80 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `080_awcms_mini_service_catalog_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
+82 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `082_awcms_mini_abac_policy_admin_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -121,6 +121,8 @@
 | 078 | `078_awcms_mini_workflow_decisions_one_per_decider_unique.sql`           |
 | 079 | `079_awcms_mini_service_catalog_schema.sql`                              |
 | 080 | `080_awcms_mini_service_catalog_permissions.sql`                         |
+| 081 | `081_awcms_mini_abac_policy_dsl_schema.sql`                              |
+| 082 | `082_awcms_mini_abac_policy_admin_permissions.sql`                       |
 
 ## Tables & Row-Level Security
 
@@ -150,19 +152,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-361 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+364 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
-| `(root)`      | 47         |
+| `(root)`      | 49         |
 | `e2e`         | 10         |
-| `integration` | 107        |
+| `integration` | 108        |
 | `modules`     | 5          |
 | `unit`        | 192        |
 
 ## Routes / Operations (summary)
 
-295 OpenAPI paths, 404 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+300 OpenAPI paths, 411 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

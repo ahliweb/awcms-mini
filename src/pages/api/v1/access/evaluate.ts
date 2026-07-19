@@ -13,6 +13,7 @@ import {
   resolveTenantContext
 } from "../../../../modules/identity-access/application/auth-context";
 import { recordDecisionLog } from "../../../../modules/identity-access/application/decision-log";
+import { loadActivePolicies } from "../../../../modules/identity-access/application/policy-cache";
 import {
   evaluateAccess,
   type AccessRequest
@@ -80,10 +81,17 @@ export const POST: APIRoute = async ({ request }) => {
       tenantId,
       context.tenantUserId
     );
+
+    // Issue #179 — reflect the tenant's active ABAC policies so this endpoint
+    // returns the SAME decision the real guard would. `ipTrusted` defaults to
+    // false (fail-closed), consistent with `authorizeInTransaction`.
+    const policies = await loadActivePolicies(tx, tenantId);
     const decision = evaluateAccess(
       context,
       accessRequest,
-      grantedPermissionKeys
+      grantedPermissionKeys,
+      undefined,
+      { policies, env: { now, ipTrusted: false } }
     );
 
     await recordDecisionLog(

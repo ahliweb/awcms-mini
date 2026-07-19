@@ -685,7 +685,9 @@ describe("database migration runner helpers", () => {
       "077_awcms_mini_performance_missing_indexes.sql",
       "078_awcms_mini_workflow_decisions_one_per_decider_unique.sql",
       "079_awcms_mini_service_catalog_schema.sql",
-      "080_awcms_mini_service_catalog_permissions.sql"
+      "080_awcms_mini_service_catalog_permissions.sql",
+      "081_awcms_mini_abac_policy_dsl_schema.sql",
+      "082_awcms_mini_abac_policy_admin_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

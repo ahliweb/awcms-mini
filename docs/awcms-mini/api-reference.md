@@ -632,6 +632,178 @@ Login identity, session authentication, and tenant user membership.
 | 401    | Authentication required or expired.        | [`ApiError`](#standard-error-envelope)                                                                       |
 | 500    | Internal server error without stack trace. | [`ApiError`](#standard-error-envelope)                                                                       |
 
+### `GET /api/v1/access/policies` — List stored ABAC policies for the tenant
+
+- **operationId**: `accessListAbacPolicies`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                             | Schema                                                   |
+| ------ | ------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | All ABAC policies for the tenant (active and inactive). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                            | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                     | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.          | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.              | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/access/policies` — Create an ABAC policy (only valid DSL can be stored)
+
+- **operationId**: `accessCreateAbacPolicy`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`AbacPolicyWriteRequest`](#schema-abacpolicywriterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Policy created.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A policy with that policyCode already exists.                                                                                                                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/access/policies/{id}` — Read one ABAC policy
+
+- **operationId**: `accessGetAbacPolicy`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Policy found.                                       | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `PUT /api/v1/access/policies/{id}` — Update an ABAC policy (only valid DSL can be stored)
+
+- **operationId**: `accessUpdateAbacPolicy`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`AbacPolicyWriteRequest`](#schema-abacpolicywriterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                   |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Policy updated.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A policy with that policyCode already exists.                                                                                                                                                                    | [`ApiError`](#standard-error-envelope)                   |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/access/policies/{id}/disable` — Disable (deactivate) an ABAC policy
+
+- **operationId**: `accessDisableAbacPolicy`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Policy disabled.                                    | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/access/policies/{id}/enable` — Enable (activate) an ABAC policy
+
+- **operationId**: `accessEnableAbacPolicy`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `id`               | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | Policy enabled.                                     | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/access/policies/simulate` — Simulate an ABAC decision (read-only, audited)
+
+- **operationId**: `accessSimulateAbacPolicy`
+- **Security**: bearerAuth + tenantHeader
+
+Evaluate a HYPOTHETICAL subject/resource/action against the tenant's current active policies. Never mutates domain data and never records a real decision-log entry; the simulation request itself is audited. The per-policy trace returns only structural booleans, never resolved attribute values, so no subject/resource identifier is disclosed.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`AbacSimulationRequest`](#schema-abacsimulationrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 200    | Simulated decision and per-policy trace.                                                                                                                                                                         | [`ApiSuccess`](#standard-success-envelope)&lt;[`AbacSimulationResponse`](#schema-abacsimulationresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                       |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)                                                                       |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)                                                                       |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)                                                                       |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)                                                                       |
+
 ### `POST /api/v1/auth/login` — Authenticate an identity and issue a session token
 
 - **operationId**: `authLogin`
@@ -10862,6 +11034,118 @@ The offer stays readable. Platform-operator only; requires Idempotency-Key. Emit
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
+
+### Schema: AbacPolicyConditions
+
+Bounded, deterministic condition AST (Issue #179, ADR-0023). A node is a composition (`allOf`/`anyOf`/`not`) or a leaf (`{attr, op, value}` or `{attr, op, valueAttr}`). Attributes come from a fixed server-side allow-list (`subject.*`, `resource.*`, `action`, `env.*`); operators are eq/ne/in/nin/lt/lte/gt/gte/exists. No arbitrary code, expression, or SQL. Validated server-side; an invalid AST is rejected at authoring time.
+
+Bounded, deterministic condition AST (Issue #179, ADR-0023). A node is a composition (`allOf`/`anyOf`/`not`) or a leaf (`{attr, op, value}` or `{attr, op, valueAttr}`). Attributes come from a fixed server-side allow-list (`subject.*`, `resource.*`, `action`, `env.*`); operators are eq/ne/in/nin/lt/lte/gt/gte/exists. No arbitrary code, expression, or SQL. Validated server-side; an invalid AST is rejected at authoring time.
+
+**Example**
+
+```json
+{}
+```
+
+### Schema: AbacPolicyWriteRequest
+
+| Field          | Type                                                   | Required | Nullable | Description                                                          |
+| -------------- | ------------------------------------------------------ | -------- | -------- | -------------------------------------------------------------------- |
+| `policyCode`   | string                                                 | yes      | no       | 3-100 chars, alphanumerics plus . _ - (not at the edges).            |
+| `effect`       | enum(`allow`, `deny`)                                  | yes      | no       |                                                                      |
+| `description`  | string                                                 | no       | yes      |                                                                      |
+| `moduleKey`    | string                                                 | no       | yes      |                                                                      |
+| `activityCode` | string                                                 | no       | yes      |                                                                      |
+| `action`       | string                                                 | no       | yes      |                                                                      |
+| `resourceType` | string                                                 | no       | yes      |                                                                      |
+| `dslVersion`   | integer                                                | no       | no       | Defaults to 1. A version newer than the server supports is rejected. |
+| `priority`     | integer                                                | no       | no       | Defaults to 100.                                                     |
+| `isActive`     | boolean                                                | no       | no       | Create/update only; defaults to false (author, then enable).         |
+| `conditions`   | [`AbacPolicyConditions`](#schema-abacpolicyconditions) | yes      | no       |                                                                      |
+
+**Example**
+
+```json
+{
+  "policyCode": "string",
+  "effect": "allow",
+  "description": "string",
+  "moduleKey": "string",
+  "activityCode": "string",
+  "action": "string",
+  "resourceType": "string",
+  "dslVersion": 1,
+  "priority": 0,
+  "isActive": false,
+  "conditions": "(operation-specific payload)"
+}
+```
+
+### Schema: AbacSimulationRequest
+
+| Field         | Type   | Required | Nullable | Description                                                             |
+| ------------- | ------ | -------- | -------- | ----------------------------------------------------------------------- |
+| `subject`     | object | no       | no       | Hypothetical subject. Roles resolve into the permission set they grant. |
+| `request`     | object | yes      | no       |                                                                         |
+| `environment` | object | no       | no       |                                                                         |
+
+**Example**
+
+```json
+{
+  "subject": {
+    "tenantUserId": "00000000-0000-0000-0000-000000000000",
+    "roles": ["string"]
+  },
+  "request": {
+    "moduleKey": "string",
+    "activityCode": "string",
+    "action": "string",
+    "resourceType": "string",
+    "resourceAttributes": "(operation-specific payload)"
+  },
+  "environment": {
+    "ipTrusted": false,
+    "now": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### Schema: AbacSimulationResponse
+
+| Field               | Type            | Required | Nullable | Description                                                       |
+| ------------------- | --------------- | -------- | -------- | ----------------------------------------------------------------- |
+| `decision`          | object          | yes      | no       |                                                                   |
+| `evaluatedPolicies` | array of object | yes      | no       | Per-policy trace — structural booleans only, no attribute values. |
+| `subject`           | object          | yes      | no       |                                                                   |
+
+**Example**
+
+```json
+{
+  "decision": {
+    "allowed": false,
+    "reason": "string",
+    "matchedPolicy": "string",
+    "matchedPolicyVersion": 0
+  },
+  "evaluatedPolicies": [
+    {
+      "policyCode": "string",
+      "effect": "allow",
+      "dslVersion": 0,
+      "priority": 0,
+      "applicable": false,
+      "conditionSatisfied": false,
+      "invalid": false
+    }
+  ],
+  "subject": {
+    "tenantUserId": "string",
+    "roles": ["string"]
+  }
+}
+```
 
 ### Schema: AccessAssignmentRequest
 
