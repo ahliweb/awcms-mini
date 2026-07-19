@@ -36,7 +36,7 @@ business-scope, SoD) or RLS.
   `identity_access.user_management.read` to simulate a DIFFERENT existing tenant
   user (foreign-subject horizontal-read oracle), and records the probed subject
   id in the audit event for attribution.
-- Migrations `sql/081` (policy DSL columns + decision-log version) and `sql/082`
+- Migrations `sql/083` (policy DSL columns + decision-log version) and `sql/084`
   (admin permission seed). ADR-0023, identity-access README, threat model, and
   five illustrative ERP example policies (`fixtures/abac-example-policies.json`,
   not seeded into the base) added.
