@@ -704,7 +704,9 @@ describe("database migration runner helpers", () => {
       "079_awcms_mini_service_catalog_schema.sql",
       "080_awcms_mini_service_catalog_permissions.sql",
       "081_awcms_mini_tenant_entitlement_schema.sql",
-      "082_awcms_mini_tenant_entitlement_permissions.sql"
+      "082_awcms_mini_tenant_entitlement_permissions.sql",
+      "083_awcms_mini_abac_policy_dsl_schema.sql",
+      "084_awcms_mini_abac_policy_admin_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

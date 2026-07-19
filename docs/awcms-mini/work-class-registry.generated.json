@@ -21,6 +21,31 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/access/policies/[id].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/access/policies/[id]/disable.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/access/policies/[id]/enable.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/access/policies/index.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/access/policies/simulate.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/analytics/devices.ts",
       "workClass": "interactive",
       "source": "default"
