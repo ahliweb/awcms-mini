@@ -16,12 +16,19 @@ import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   applyMigrations,
+  createCookieJar,
   getAdminSql,
   getTestSql,
   integrationEnabled,
+  invoke,
   provisionAppRole,
   resetDatabase
 } from "./harness";
+
+import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize";
+import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
+import { POST as publishRoute } from "../../src/pages/api/v1/service-catalog/plans/[planKey]/versions/[version]/publish";
+import { POST as retireRoute } from "../../src/pages/api/v1/service-catalog/plans/[planKey]/versions/[version]/retire";
 
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { listModules } from "../../src/modules";
@@ -786,6 +793,164 @@ suite(
       });
     });
 
+    test("A1: a raw UPDATE of a published-offer projection (non-retired_at) is rejected by the DB trigger", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "a1");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "a1", 1, registry)
+      );
+      let blocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          await tx`UPDATE awcms_mini_service_catalog_published_offers SET prices = '[]'::jsonb WHERE plan_key = 'a1'`;
+        });
+      } catch {
+        blocked = true;
+      }
+      expect(blocked).toBe(true);
+      // retired_at IS allowed (that is exactly what retire does).
+      const retired = await withTenant(sql, tenantId, (tx) =>
+        retireVersion(tx, tenantId, actor, "a1", 1)
+      );
+      expect(retired.ok).toBe(true);
+    });
+
+    test("A2: a child row cannot be REPARENTED out of a published version into a draft", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "a2");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "a2", 1, registry)
+      );
+      await withTenant(sql, tenantId, (tx) =>
+        createDraftVersion(tx, tenantId, actor, "a2", registry)
+      );
+      let blocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          const ids = (await tx`
+            SELECT v.id, v.status FROM awcms_mini_service_catalog_plan_versions v
+            JOIN awcms_mini_service_catalog_plans p ON p.id = v.plan_id
+            WHERE p.plan_key = 'a2'
+          `) as { id: string; status: string }[];
+          const published = ids.find((r) => r.status === "published")!;
+          const draft = ids.find((r) => r.status === "draft")!;
+          await tx`UPDATE awcms_mini_service_catalog_version_prices SET version_id = ${draft.id} WHERE version_id = ${published.id}`;
+        });
+      } catch {
+        blocked = true;
+      }
+      expect(blocked).toBe(true);
+    });
+
+    test("A3: a raw plan_key rename is rejected by the DB trigger", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "a3");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "a3", 1, registry)
+      );
+      let blocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          await tx`UPDATE awcms_mini_service_catalog_plans SET plan_key = 'a3renamed' WHERE plan_key = 'a3'`;
+        });
+      } catch {
+        blocked = true;
+      }
+      expect(blocked).toBe(true);
+    });
+
+    test("A4: a raw rewrite of a published version's provenance (published_by) is rejected", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "a4");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "a4", 1, registry)
+      );
+      let blocked = false;
+      try {
+        await withTenant(sql, tenantId, async (tx) => {
+          await tx`
+            UPDATE awcms_mini_service_catalog_plan_versions v
+            SET published_by = ${crypto.randomUUID()}
+            FROM awcms_mini_service_catalog_plans p
+            WHERE p.id = v.plan_id AND p.plan_key = 'a4' AND v.status = 'published'
+          `;
+        });
+      } catch {
+        blocked = true;
+      }
+      expect(blocked).toBe(true);
+    });
+
+    test("C1: two concurrent header PATCHes touching DIFFERENT fields both persist (no lost update)", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "c1"); // name 'c1', planType 'subscription'
+
+      await Promise.all([
+        withTenant(sql, tenantId, (tx) =>
+          updatePlanDraft(
+            tx,
+            tenantId,
+            actor,
+            "c1",
+            { name: "Renamed" },
+            registry
+          )
+        ),
+        withTenant(sql, tenantId, (tx) =>
+          updatePlanDraft(
+            tx,
+            tenantId,
+            actor,
+            "c1",
+            { planType: "addon" },
+            registry
+          )
+        )
+      ]);
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const detail = await fetchPlanDetail(tx, "c1");
+        // Both edits survive — neither PATCH clobbered the other's field.
+        expect(detail!.name).toBe("Renamed");
+        expect(detail!.planType).toBe("addon");
+      });
+    });
+
+    test("F1: createDraftVersion audits action='create', updatePlanDraft audits action='update' — discriminable", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "f1");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "f1", 1, registry)
+      );
+      await withTenant(sql, tenantId, (tx) =>
+        createDraftVersion(tx, tenantId, actor, "f1", registry)
+      );
+      await withTenant(sql, tenantId, (tx) =>
+        updatePlanDraft(tx, tenantId, actor, "f1", { name: "F1x" }, registry)
+      );
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const createVersionAudit = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_audit_events
+          WHERE tenant_id = ${tenantId} AND action = 'create'
+            AND resource_type = 'service_catalog_plan_version'
+        `) as { c: number }[];
+        const updateVersionAudit = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_audit_events
+          WHERE tenant_id = ${tenantId} AND action = 'update'
+            AND resource_type = 'service_catalog_plan_version'
+        `) as { c: number }[];
+        expect(createVersionAudit[0]!.c).toBe(1);
+        expect(updateVersionAudit[0]!.c).toBe(1);
+      });
+    });
+
     test("runtime default-disabled: service_catalog resolves DISABLED without a tenant_modules row, ENABLED after opt-in", async () => {
       const tenantId = await seedTenant();
       const sql = getTestSql();
@@ -811,3 +976,177 @@ suite(
     });
   }
 );
+
+/**
+ * D1 (idempotency replay) — needs the real ROUTE + auth (the replay wiring
+ * lives in the route's conflict branch). Bootstraps a platform operator (setup
+ * grants the owner ALL permissions, incl. service_catalog.*), enables the
+ * module for the tenant, then fires two concurrent SAME-Idempotency-Key
+ * mutations. Whether the second is caught by the top-level idempotency check or
+ * by the D1 conflict-branch replay, the RESULT must be: both 200 (one performs
+ * the operation, one replays), never a business 409, with exactly one event +
+ * one audit.
+ */
+const OPERATOR_PASSWORD = "service-catalog-d1-operator-password";
+
+async function bootstrapOperator(
+  tenantCode: string
+): Promise<{ tenantId: string; token: string }> {
+  const loginIdentifier = `${tenantCode}-owner@example.com`;
+  const setup = await invoke<{ data: { tenantId: string } }>(setupInitialize, {
+    method: "POST",
+    path: "/api/v1/setup/initialize",
+    headers: { "content-type": "application/json" },
+    body: {
+      tenantName: `D1 ${tenantCode}`,
+      tenantCode,
+      officeCode: "hq",
+      officeName: "HQ",
+      ownerLoginIdentifier: loginIdentifier,
+      ownerPassword: OPERATOR_PASSWORD,
+      ownerDisplayName: "Owner"
+    }
+  });
+  const tenantId = setup.body.data.tenantId;
+
+  const login = await invoke<{ data: { token: string } }>(authLogin, {
+    method: "POST",
+    path: "/api/v1/auth/login",
+    headers: {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId
+    },
+    body: { loginIdentifier, password: OPERATOR_PASSWORD },
+    cookies: createCookieJar()
+  });
+
+  const admin = getAdminSql();
+  await admin.begin((tx) => syncModuleDescriptors(tx as unknown as Bun.SQL));
+  await admin`
+    INSERT INTO awcms_mini_tenant_modules (tenant_id, module_key, enabled, enabled_at)
+    VALUES (${tenantId}, 'service_catalog', true, now())
+    ON CONFLICT (tenant_id, module_key) DO UPDATE SET enabled = true, enabled_at = now()
+  `;
+
+  return { tenantId, token: login.body.data.token };
+}
+
+const routeSuite = integrationEnabled ? describe : describe.skip;
+
+routeSuite("service_catalog routes — D1 idempotency replay", () => {
+  beforeAll(async () => {
+    await applyMigrations();
+    await provisionAppRole();
+  });
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  function operatorHeaders(
+    tenantId: string,
+    token: string,
+    idempotencyKey: string
+  ): Record<string, string> {
+    return {
+      "content-type": "application/json",
+      "x-awcms-mini-tenant-id": tenantId,
+      authorization: `Bearer ${token}`,
+      "idempotency-key": idempotencyKey
+    };
+  }
+
+  test("concurrent same-key PUBLISH -> both 200 (one publishes, one replays), never a 409; exactly one event + one audit", async () => {
+    const { tenantId, token } = await bootstrapOperator("d1pub");
+    await withTenant(getTestSql(), tenantId, (tx) =>
+      createPlan(
+        tx,
+        tenantId,
+        actor,
+        {
+          planKey: "d1p",
+          name: "D1P",
+          description: null,
+          planType: "subscription",
+          content: content()
+        },
+        registry
+      )
+    );
+
+    const key = crypto.randomUUID();
+    const call = () =>
+      invoke<unknown>(publishRoute, {
+        method: "POST",
+        path: "/api/v1/service-catalog/plans/d1p/versions/1/publish",
+        params: { planKey: "d1p", version: "1" },
+        headers: operatorHeaders(tenantId, token, key),
+        cookies: createCookieJar()
+      });
+    const [r1, r2] = await Promise.all([call(), call()]);
+
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+
+    const admin = getAdminSql();
+    const events = (await admin`
+      SELECT count(*)::int AS c FROM awcms_mini_domain_events
+      WHERE tenant_id = ${tenantId}
+        AND event_type = 'awcms-mini.service-catalog.offer.published'
+    `) as { c: number }[];
+    expect(events[0]!.c).toBe(1);
+    const audits = (await admin`
+      SELECT count(*)::int AS c FROM awcms_mini_audit_events
+      WHERE tenant_id = ${tenantId} AND action = 'publish'
+        AND resource_type = 'service_catalog_offer'
+    `) as { c: number }[];
+    expect(audits[0]!.c).toBe(1);
+  });
+
+  test("concurrent same-key RETIRE -> both 200, never a 409; exactly one retired event + one audit", async () => {
+    const { tenantId, token } = await bootstrapOperator("d1ret");
+    await withTenant(getTestSql(), tenantId, async (tx) => {
+      await createPlan(
+        tx,
+        tenantId,
+        actor,
+        {
+          planKey: "d1r",
+          name: "D1R",
+          description: null,
+          planType: "subscription",
+          content: content()
+        },
+        registry
+      );
+      await publishVersion(tx, tenantId, actor, "d1r", 1, registry);
+    });
+
+    const key = crypto.randomUUID();
+    const call = () =>
+      invoke<unknown>(retireRoute, {
+        method: "POST",
+        path: "/api/v1/service-catalog/plans/d1r/versions/1/retire",
+        params: { planKey: "d1r", version: "1" },
+        headers: operatorHeaders(tenantId, token, key),
+        cookies: createCookieJar()
+      });
+    const [r1, r2] = await Promise.all([call(), call()]);
+
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+
+    const admin = getAdminSql();
+    const events = (await admin`
+      SELECT count(*)::int AS c FROM awcms_mini_domain_events
+      WHERE tenant_id = ${tenantId}
+        AND event_type = 'awcms-mini.service-catalog.offer.retired'
+    `) as { c: number }[];
+    expect(events[0]!.c).toBe(1);
+    const audits = (await admin`
+      SELECT count(*)::int AS c FROM awcms_mini_audit_events
+      WHERE tenant_id = ${tenantId} AND action = 'retire'
+        AND resource_type = 'service_catalog_offer'
+    `) as { c: number }[];
+    expect(audits[0]!.c).toBe(1);
+  });
+});

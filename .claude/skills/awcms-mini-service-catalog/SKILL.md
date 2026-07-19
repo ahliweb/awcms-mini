@@ -91,6 +91,40 @@ Deteksi unique violation manual (jika perlu catch): `String(error.errno) ===
 Tiap path punya test konkurensi (1 pemenang + 1 409 bersih; publish/retire tepat
 1 event + 1 audit) di `service-catalog.integration.test.ts`.
 
+## PELAJARAN KUNCI keamanan/integritas (template #871-#877)
+
+Dari audit adversarial 5-lensa (10 defect di PR #885). Terapkan ke SEMUA modul control-plane:
+
+1. **Fingerprint/hash tenant-facing = HANYA atas bentuk projeksi tenant-visible.**
+   `offerHash` disimpan di projeksi + dikembalikan `service_catalog_read` → JANGAN hash
+   data operator-only (harga internal) lalu ekspos = ORACLE brute-force. Hash atas
+   publicPrices+features+quotas+metadata saja. Properti: hash berubah IFF offer
+   tenant-visible berubah.
+2. **DB immutability trigger COVER SEMUA tabel+kolom+reparent+identity-key, bukan hanya konten.**
+   Grant REVOKE DELETE TAK cukup (publish/retire perlu UPDATE) → pakai BEFORE trigger.
+   Bekukan: plan_versions (status backward + konten + provenance published__/retired__),
+   child (frozen non-draft + LARANG reparent `version_id` change + cek KEDUA parent OLD&NEW),
+   plan_key (immutable), published_offers (semua kolom kecuali retired_at).
+   Child trigger pakai `COALESCE(NEW,OLD)` bug: `WHERE id=COALESCE(NEW.version_id,OLD.version_id)`
+   pada UPDATE selalu resolve NEW → OLD parent (published) tak dicek → reparent bypass.
+3. **Idempotency replay HARUS menang atas business-conflict pada race same-key.**
+   DB row-lock/ON CONFLICT selesaikan race SEBELUM saveIdempotencyRecord → framework
+   `IdempotencyRaceLostError.replay` tak terpicu → loser dapat 409 padahal operasi SUKSES
+   (oleh winner same-key). FIX: di cabang business-conflict, panggil
+   `replayConcurrentIdempotentWinner` (re-query findIdempotencyRecord) SEBELUM 409 → replay
+   200 winner bila hash cocok. Wire di SEMUA route mutasi. Helper di `_shared/idempotency.ts`.
+4. **Fail-closed present-but-invalid utk SEMUA field, bukan sebagian.**
+   `asBool(x, true)` kembalikan true utk non-boolean → feature yang dimaksud OFF tersimpan ON.
+   `x || default` coerce empty-string → default. FIX: default HANYA saat ABSENT (`"key" in record`);
+   nilai HADIR diteruskan verbatim → validator domain tolak (typeof boolean / enum includes).
+   Terapkan enabled/trialEnabled/isUnlimited (boolean) + interval/resetPolicy/planType/visibility/
+   featureKind (enum). Pakai strict `=== true` di logika (truthy string jangan lolos).
+5. **Partial-column UPDATE utk PATCH header** (lost-update): dua PATCH field beda, yang kedua
+   merge dari read pra-lock STALE → menimpa. FIX: `SET col = CASE WHEN <provided> THEN <new>
+ELSE col END` — tulis hanya kolom yang disediakan (ELSE baca nilai live di bawah row-lock UPDATE).
+6. **Audit action DISKRIMINATIF:** createDraftVersion action='create' (bukan 'update' identik
+   updatePlanDraft) → bisa dibedakan di trail (resource_type+action = diskriminator).
+
 ## Lifecycle offer
 
 `draft → (validate) → published → retired → (archived)`. Satu draft per plan

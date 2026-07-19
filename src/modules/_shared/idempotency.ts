@@ -115,6 +115,45 @@ export async function findIdempotencyRecord(
   };
 }
 
+/**
+ * Replay a concurrent SAME-key winner's stored response (Issue #870 review D1).
+ *
+ * When a mutation resolves its own concurrency with a DB row-lock / `ON
+ * CONFLICT` (the service-catalog pattern), the LOSER of a same-Idempotency-Key
+ * race returns a BUSINESS conflict (e.g. `not_draft`/`duplicate_key`) BEFORE it
+ * ever reaches `saveIdempotencyRecord` — so the built-in `IdempotencyRaceLostError`
+ * replay never fires, and the caller would wrongly return a business 409 for an
+ * operation that actually SUCCEEDED (under the winner's identical request).
+ *
+ * Call this in the conflict branch BEFORE returning the 409: it re-reads the
+ * idempotency record for THIS request's key and, if a winner with an identical
+ * `requestHash` has committed, returns its stored response to replay. Returns
+ * `null` for a genuine conflict (no same-key winner, or a different payload) —
+ * the caller then returns its deterministic 409. Because the loser only reaches
+ * its conflict after the winner released the DB lock (committing its
+ * idempotency row), the winner's record is guaranteed visible here.
+ */
+export async function replayConcurrentIdempotentWinner(
+  tx: Bun.SQL,
+  tenantId: string,
+  requestScope: string,
+  idempotencyKey: string,
+  requestHash: string
+): Promise<{ responseStatus: number; responseBody: unknown } | null> {
+  const winner = await findIdempotencyRecord(
+    tx,
+    tenantId,
+    requestScope,
+    idempotencyKey
+  );
+  return winner && winner.requestHash === requestHash
+    ? {
+        responseStatus: winner.responseStatus,
+        responseBody: winner.responseBody
+      }
+    : null;
+}
+
 export async function saveIdempotencyRecord(
   tx: Bun.SQL,
   tenantId: string,

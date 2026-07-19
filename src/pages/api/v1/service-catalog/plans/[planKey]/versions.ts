@@ -15,6 +15,7 @@ import { hashSessionToken } from "../../../../../../lib/auth/session-token";
 import {
   computeRequestHash,
   findIdempotencyRecord,
+  replayConcurrentIdempotentWinner,
   saveIdempotencyRecord
 } from "../../../../../../modules/_shared/idempotency";
 import { listModules } from "../../../../../../modules";
@@ -101,6 +102,19 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
         return fail(404, "RESOURCE_NOT_FOUND", "Plan not found.");
       }
       if (result.reason === "draft_exists") {
+        // D1: a concurrent SAME-key version-create may have won — replay its 200.
+        const replay = await replayConcurrentIdempotentWinner(
+          tx,
+          tenantId,
+          IDEMPOTENCY_SCOPE,
+          idempotencyKey,
+          requestHash
+        );
+        if (replay) {
+          return jsonResponse(replay.responseBody, {
+            status: replay.responseStatus
+          });
+        }
         return fail(
           409,
           "VALIDATION_ERROR",

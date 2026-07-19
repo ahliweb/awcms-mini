@@ -15,6 +15,7 @@ import { hashSessionToken } from "../../../../../../../../lib/auth/session-token
 import {
   computeRequestHash,
   findIdempotencyRecord,
+  replayConcurrentIdempotentWinner,
   saveIdempotencyRecord
 } from "../../../../../../../../modules/_shared/idempotency";
 import { retireVersion } from "../../../../../../../../modules/service-catalog/application/plan-directory";
@@ -102,6 +103,19 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     if (!result.ok) {
       if (result.reason === "not_found") {
         return fail(404, "RESOURCE_NOT_FOUND", "Plan version not found.");
+      }
+      // D1: a concurrent SAME-key retire may have won — replay its 200.
+      const replay = await replayConcurrentIdempotentWinner(
+        tx,
+        tenantId,
+        IDEMPOTENCY_SCOPE,
+        idempotencyKey,
+        requestHash
+      );
+      if (replay) {
+        return jsonResponse(replay.responseBody, {
+          status: replay.responseStatus
+        });
       }
       return fail(409, "VALIDATION_ERROR", result.message);
     }

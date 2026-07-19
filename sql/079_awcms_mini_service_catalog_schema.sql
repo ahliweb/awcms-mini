@@ -340,6 +340,10 @@ BEGIN
   END IF;
 
   IF OLD.status <> 'draft' THEN
+    -- Content is frozen once out of draft. `published_at`/`published_by` are
+    -- included (A4): they are written only at publish time (draft->published,
+    -- which bypasses this block since OLD.status='draft'), so freezing them for
+    -- any later UPDATE prevents an app-role rewrite of the publish provenance.
     IF NEW.currency <> OLD.currency
        OR NEW.market IS DISTINCT FROM OLD.market
        OR NEW.trial_enabled <> OLD.trial_enabled
@@ -349,8 +353,22 @@ BEGIN
        OR NEW.version <> OLD.version
        OR NEW.plan_id <> OLD.plan_id
        OR NEW.offer_hash IS DISTINCT FROM OLD.offer_hash
-       OR NEW.notes IS DISTINCT FROM OLD.notes THEN
-      RAISE EXCEPTION 'service_catalog: plan version % is % and its published content is immutable (corrections require a new version)', OLD.id, OLD.status
+       OR NEW.notes IS DISTINCT FROM OLD.notes
+       OR NEW.published_at IS DISTINCT FROM OLD.published_at
+       OR NEW.published_by IS DISTINCT FROM OLD.published_by THEN
+      RAISE EXCEPTION 'service_catalog: plan version % is % and its published content/provenance is immutable (corrections require a new version)', OLD.id, OLD.status
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
+  -- Retirement provenance is frozen ONCE retired/archived (A4). `retired_at`/
+  -- `retired_by` are legitimately written at retire time (published->retired,
+  -- OLD.status='published', which is not in this set), so this only blocks a
+  -- later rewrite of the retirement provenance.
+  IF OLD.status IN ('retired', 'archived') THEN
+    IF NEW.retired_at IS DISTINCT FROM OLD.retired_at
+       OR NEW.retired_by IS DISTINCT FROM OLD.retired_by THEN
+      RAISE EXCEPTION 'service_catalog: plan version % retirement provenance is immutable', OLD.id
         USING ERRCODE = 'check_violation';
     END IF;
   END IF;
@@ -366,16 +384,32 @@ CREATE TRIGGER awcms_mini_service_catalog_plan_versions_immutability
 -- Reject any INSERT/UPDATE/DELETE of a feature/quota/price row whose parent
 -- version has left draft — a published version's feature/quota/price set is
 -- frozen at the DB level, not just in the application service.
+--
+-- A2 (reparent bypass): on UPDATE, checking only `COALESCE(NEW.version_id,
+-- OLD.version_id)` (= NEW on UPDATE) let a row be MOVED OUT of a published
+-- version into a draft (`UPDATE ... SET version_id = '<draft>' WHERE version_id
+-- = '<published>'` — NEW resolves to the draft, passes). So: (1) forbid
+-- changing `version_id` at all on UPDATE, and (2) check BOTH the OLD and NEW
+-- parent's status — a write is allowed only when every parent touched is a
+-- draft.
 CREATE OR REPLACE FUNCTION awcms_mini_service_catalog_guard_child_immutability()
 RETURNS trigger AS $$
 DECLARE
-  v_status text;
+  v_bad_status text;
 BEGIN
-  SELECT status INTO v_status
-  FROM awcms_mini_service_catalog_plan_versions
-  WHERE id = COALESCE(NEW.version_id, OLD.version_id);
+  IF TG_OP = 'UPDATE' AND NEW.version_id IS DISTINCT FROM OLD.version_id THEN
+    RAISE EXCEPTION 'service_catalog: a feature/quota/price row may not be reparented to another version'
+      USING ERRCODE = 'check_violation';
+  END IF;
 
-  IF v_status IS DISTINCT FROM 'draft' THEN
+  -- Any parent version this write touches (OLD on UPDATE/DELETE, NEW on
+  -- INSERT/UPDATE) must be a draft.
+  SELECT status INTO v_bad_status
+  FROM awcms_mini_service_catalog_plan_versions
+  WHERE id IN (NEW.version_id, OLD.version_id) AND status IS DISTINCT FROM 'draft'
+  LIMIT 1;
+
+  IF v_bad_status IS NOT NULL THEN
     RAISE EXCEPTION 'service_catalog: features/quotas/prices of a non-draft version are immutable'
       USING ERRCODE = 'check_violation';
   END IF;
@@ -398,6 +432,66 @@ CREATE TRIGGER awcms_mini_service_catalog_version_prices_immutability
   BEFORE INSERT OR UPDATE OR DELETE ON awcms_mini_service_catalog_version_prices
   FOR EACH ROW
   EXECUTE FUNCTION awcms_mini_service_catalog_guard_child_immutability();
+
+-- A3: `plan_key` is a stable identity — renaming it after an offer is published
+-- would orphan the published projection (old rows keep the old key, tenants
+-- reading the old key stop seeing new versions). Documented immutable; enforced
+-- here (the app-role has UPDATE on this table for metadata/archive changes).
+CREATE OR REPLACE FUNCTION awcms_mini_service_catalog_guard_plan_key_immutability()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.plan_key <> OLD.plan_key THEN
+    RAISE EXCEPTION 'service_catalog: plan_key is immutable (renaming would orphan published offers)'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER awcms_mini_service_catalog_plans_key_immutability
+  BEFORE UPDATE ON awcms_mini_service_catalog_plans
+  FOR EACH ROW
+  EXECUTE FUNCTION awcms_mini_service_catalog_guard_plan_key_immutability();
+
+-- A1: a published-offer projection row is an immutable tenant-visible snapshot.
+-- Only `retired_at` may change (set once at retire). Grant-level REVOKE of
+-- DELETE is not enough, because publish (INSERT) and retire (UPDATE retired_at)
+-- legitimately need write access; the trigger enforces the column-level freeze
+-- so an app-role `UPDATE ... SET prices/features/offer_hash` on a published
+-- offer is rejected.
+CREATE OR REPLACE FUNCTION awcms_mini_service_catalog_guard_published_offer_immutability()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.id IS DISTINCT FROM OLD.id
+     OR NEW.plan_version_id IS DISTINCT FROM OLD.plan_version_id
+     OR NEW.plan_key IS DISTINCT FROM OLD.plan_key
+     OR NEW.plan_name IS DISTINCT FROM OLD.plan_name
+     OR NEW.plan_type IS DISTINCT FROM OLD.plan_type
+     OR NEW.version IS DISTINCT FROM OLD.version
+     OR NEW.currency IS DISTINCT FROM OLD.currency
+     OR NEW.market IS DISTINCT FROM OLD.market
+     OR NEW.trial_enabled IS DISTINCT FROM OLD.trial_enabled
+     OR NEW.trial_days IS DISTINCT FROM OLD.trial_days
+     OR NEW.effective_from IS DISTINCT FROM OLD.effective_from
+     OR NEW.effective_to IS DISTINCT FROM OLD.effective_to
+     OR NEW.features IS DISTINCT FROM OLD.features
+     OR NEW.quotas IS DISTINCT FROM OLD.quotas
+     OR NEW.prices IS DISTINCT FROM OLD.prices
+     OR NEW.offer_hash IS DISTINCT FROM OLD.offer_hash
+     OR NEW.published_at IS DISTINCT FROM OLD.published_at
+     OR NEW.published_by IS DISTINCT FROM OLD.published_by
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'service_catalog: a published offer projection is immutable except retired_at'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER awcms_mini_service_catalog_published_offers_immutability
+  BEFORE UPDATE ON awcms_mini_service_catalog_published_offers
+  FOR EACH ROW
+  EXECUTE FUNCTION awcms_mini_service_catalog_guard_published_offer_immutability();
 
 -- =====================================================================
 -- Least-privilege grants for the runtime app role (ADR-0022 §12)

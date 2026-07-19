@@ -34,8 +34,20 @@ function asStringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function asBool(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback;
+/**
+ * FAIL-CLOSED boolean (Issue #870 review E1): an ABSENT field takes the
+ * default; a PRESENT field is passed through VERBATIM (cast) so a non-boolean
+ * value (`"false"`, `0`, `null`) is rejected by the domain validator's
+ * `typeof === "boolean"` check — never coerced to `true`, which would publish a
+ * feature the operator meant to leave OFF. Mirrors the visibility/featureKind
+ * fail-closed pattern.
+ */
+function asBoolFailClosed(
+  record: Record<string, unknown>,
+  key: string,
+  absentDefault: boolean
+): boolean {
+  return (key in record ? record[key] : absentDefault) as boolean;
 }
 
 function asNumberOrNull(value: unknown): number | null {
@@ -57,7 +69,7 @@ export function parseFeatureGrant(raw: unknown): FeatureGrantInput {
       ? asString(record.featureKind)
       : "feature") as FeatureGrantInput["featureKind"],
     featureKey: asString(record.featureKey),
-    enabled: asBool(record.enabled, true),
+    enabled: asBoolFailClosed(record, "enabled", true),
     metadata: asMetadata(record.metadata)
   };
 }
@@ -66,10 +78,14 @@ export function parseQuota(raw: unknown): QuotaInput {
   const record = asRecord(raw);
   return {
     meterKey: asString(record.meterKey),
-    isUnlimited: asBool(record.isUnlimited, false),
+    isUnlimited: asBoolFailClosed(record, "isUnlimited", false),
     limitValue: asNumberOrNull(record.limitValue),
     unit: asString(record.unit),
-    resetPolicy: asString(record.resetPolicy || "none") as QuotaResetPolicy,
+    // E2: present-key detection — a present-but-falsy ("") value is passed
+    // through so the domain enum check rejects it, never coerced to "none".
+    resetPolicy: ("resetPolicy" in record
+      ? asString(record.resetPolicy)
+      : "none") as QuotaResetPolicy,
     metadata: asMetadata(record.metadata)
   };
 }
@@ -81,7 +97,10 @@ export function parsePrice(raw: unknown): PriceInput {
     amountMinor:
       typeof record.amountMinor === "number" ? record.amountMinor : NaN,
     currency: asString(record.currency),
-    interval: asString(record.interval || "one_time") as PriceInterval,
+    // E2: present-key detection — a present "" is rejected by the enum check.
+    interval: ("interval" in record
+      ? asString(record.interval)
+      : "one_time") as PriceInterval,
     // FAIL-CLOSED (Issue #870 review Codex-A): a PRESENT-but-invalid
     // `visibility` (e.g. "internl") is passed through verbatim so
     // `validatePrices` rejects it (400) — NEVER coerced to "public", which
@@ -105,7 +124,7 @@ export function parseVersionContent(raw: unknown): VersionContentInput {
   return {
     currency: asString(record.currency),
     market: asStringOrNull(record.market),
-    trialEnabled: asBool(record.trialEnabled, false),
+    trialEnabled: asBoolFailClosed(record, "trialEnabled", false),
     trialDays: asNumberOrNull(record.trialDays),
     availableFrom: asStringOrNull(record.availableFrom),
     availableTo: asStringOrNull(record.availableTo),
@@ -122,7 +141,10 @@ export function parseCreatePlanBody(body: unknown): CreatePlanInput {
     planKey: asString(record.planKey),
     name: asString(record.name),
     description: asStringOrNull(record.description),
-    planType: asString(record.planType || "subscription") as PlanType,
+    // E2: present-key detection — a present "" is rejected by the enum check.
+    planType: ("planType" in record
+      ? asString(record.planType)
+      : "subscription") as PlanType,
     content: parseVersionContent(record.content)
   };
 }
@@ -154,8 +176,10 @@ export function parseUpdateDraftBody(body: unknown): UpdatePlanDraftInput {
       parsedContent.currency = asString(content.currency);
     if ("market" in content)
       parsedContent.market = asStringOrNull(content.market);
+    // E1 fail-closed: present value passed through verbatim (validator rejects
+    // a non-boolean), never coerced.
     if ("trialEnabled" in content)
-      parsedContent.trialEnabled = asBool(content.trialEnabled, false);
+      parsedContent.trialEnabled = content.trialEnabled as boolean;
     if ("trialDays" in content)
       parsedContent.trialDays = asNumberOrNull(content.trialDays);
     if ("availableFrom" in content)

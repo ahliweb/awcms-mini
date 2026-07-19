@@ -44,10 +44,33 @@ is tenant-readable:
 ## Immutability
 
 Enforced in two layers: the application service rejects editing a non-draft
-version, AND DB `BEFORE` triggers (sql/079) reject any edit of a published
-version's content or its feature/quota/price rows. The mutation-guard tests
-(`tests/unit/service-catalog-domain.test.ts`,
-`tests/integration/service-catalog.integration.test.ts`) prove this is real.
+version, AND DB `BEFORE` triggers (sql/079) enforce a DEFENCE-IN-DEPTH freeze
+that must cover EVERY table, column, and edge (not just content) — the pattern
+#871-#877 copy:
+
+- **plan_versions**: no backward status transition; content frozen once out of
+  draft; publish/retire **provenance** (`published_at`/`published_by`,
+  `retired_at`/`retired_by`) frozen after their own transition.
+- **features/quotas/prices**: frozen once the parent leaves draft, AND a row may
+  not be **reparented** (`version_id` change forbidden; both OLD and NEW parents
+  must be draft) — otherwise a row could be moved out of a frozen version.
+- **plans.plan_key**: immutable (renaming orphans published offers).
+- **published_offers**: an immutable projection — every column frozen except
+  `retired_at`. Grant-level `REVOKE DELETE` is not enough (publish/retire need
+  UPDATE), so the trigger enforces the column-level freeze.
+
+The mutation-guard tests (`service-catalog-domain.test.ts`,
+`service-catalog.integration.test.ts`) prove each is real.
+
+## Tenant-facing fingerprint (offer hash)
+
+The `offerHash` is stored on the projection AND returned to the tenant-plane by
+`service_catalog_read`, so it is computed over ONLY the tenant-visible set
+(`publicPrices` + features + quotas + version metadata) — NEVER over internal
+prices. Hashing operator-only data and then exposing the hash would make it a
+brute-force ORACLE for that data. This also satisfies "hash changes iff the
+tenant-visible offer changes". Lesson for #871-#877: any fingerprint exposed to
+the tenant must be derived from the tenant-visible projection shape only.
 
 ## Static key registry (fail-closed)
 

@@ -208,6 +208,13 @@ export function validateVersionContent(
     });
   }
 
+  if (typeof content.trialEnabled !== "boolean") {
+    errors.push({
+      field: "trialEnabled",
+      message: "trialEnabled must be a boolean (E1)."
+    });
+  }
+
   validateFeatureGrants(content.features, registry, errors);
   validateQuotas(content.quotas, registry, errors);
   validatePrices(content.prices, content.currency, errors);
@@ -254,6 +261,13 @@ function validateFeatureGrants(
       });
     }
     seen.add(dedupeKey);
+    if (typeof feature.enabled !== "boolean") {
+      errors.push({
+        field: `${at}.enabled`,
+        message:
+          "enabled must be a boolean (E1: a present-but-invalid value is rejected, never coerced to true)."
+      });
+    }
     if (metadataTooLarge(feature.metadata)) {
       errors.push({
         field: `${at}.metadata`,
@@ -291,7 +305,17 @@ function validateQuotas(
     }
     seen.add(quota.meterKey);
 
-    if (quota.isUnlimited) {
+    if (typeof quota.isUnlimited !== "boolean") {
+      // E1: a present-but-invalid isUnlimited is rejected, never coerced. Use
+      // strict `=== true` below so a truthy non-boolean can't sneak into the
+      // "unlimited" branch.
+      errors.push({
+        field: `${at}.isUnlimited`,
+        message: "isUnlimited must be a boolean (E1)."
+      });
+    }
+
+    if (quota.isUnlimited === true) {
       if (quota.limitValue !== null) {
         errors.push({
           field: `${at}.limitValue`,

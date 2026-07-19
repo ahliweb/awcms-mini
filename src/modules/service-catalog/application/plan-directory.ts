@@ -667,12 +667,24 @@ export async function updatePlanDraft(
     return { ok: false, reason: "validation", errors };
   }
 
-  await tx`
-    UPDATE awcms_mini_service_catalog_plans
-    SET name = ${mergedName}, description = ${mergedDescription}, plan_type = ${mergedPlanType},
-        updated_by = ${actorTenantUserId}, updated_at = now()
-    WHERE plan_key = ${planKey}
-  `;
+  // C1 (Codex-F lost-update): PARTIAL-column header update — write ONLY the
+  // columns actually provided in this request, keeping the others at their
+  // CURRENT DB value (the `CASE ... ELSE <col>` reads the live row under this
+  // UPDATE's own row lock). So two concurrent PATCHes touching DIFFERENT header
+  // fields no longer overwrite each other with a stale full-header merge.
+  const nameProvided = input.name !== undefined;
+  const descriptionProvided = "description" in input;
+  const planTypeProvided = input.planType !== undefined;
+  if (nameProvided || descriptionProvided || planTypeProvided) {
+    await tx`
+      UPDATE awcms_mini_service_catalog_plans
+      SET name = CASE WHEN ${nameProvided} THEN ${input.name ?? null} ELSE name END,
+          description = CASE WHEN ${descriptionProvided} THEN ${input.description ?? null} ELSE description END,
+          plan_type = CASE WHEN ${planTypeProvided} THEN ${input.planType ?? null} ELSE plan_type END,
+          updated_by = ${actorTenantUserId}, updated_at = now()
+      WHERE plan_key = ${planKey}
+    `;
+  }
 
   await tx`
     UPDATE awcms_mini_service_catalog_plan_versions
@@ -783,7 +795,10 @@ export async function createDraftVersion(
     tenantId,
     actorTenantUserId,
     moduleKey: MODULE_KEY,
-    action: "update",
+    // F1: `create` (not `update`) so a new-version create is discriminable from
+    // a draft edit in the structured audit trail (resource_type + action are
+    // the discriminators), matching createPlan's precedent.
+    action: "create",
     resourceType: "service_catalog_plan_version",
     resourceId: versionRows[0]!.id,
     severity: "info",

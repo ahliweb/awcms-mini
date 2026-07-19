@@ -19,6 +19,7 @@ import {
 import {
   computeRequestHash,
   findIdempotencyRecord,
+  replayConcurrentIdempotentWinner,
   saveIdempotencyRecord
 } from "../../../../../modules/_shared/idempotency";
 import { listModules } from "../../../../../modules";
@@ -165,6 +166,19 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     if (!result.ok) {
       if (result.reason === "duplicate_key") {
+        // D1: a concurrent SAME-key create may have won — replay its 200.
+        const replay = await replayConcurrentIdempotentWinner(
+          tx,
+          tenantId,
+          IDEMPOTENCY_SCOPE,
+          idempotencyKey,
+          requestHash
+        );
+        if (replay) {
+          return jsonResponse(replay.responseBody, {
+            status: replay.responseStatus
+          });
+        }
         return fail(
           409,
           "VALIDATION_ERROR",

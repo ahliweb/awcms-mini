@@ -19,6 +19,9 @@ import {
 import {
   validatePlanHeader,
   validateVersionContent,
+  type PlanType,
+  type PriceInterval,
+  type QuotaResetPolicy,
   type VersionContentInput
 } from "../../src/modules/service-catalog/domain/plan";
 import {
@@ -31,7 +34,8 @@ import {
 import { buildOfferSnapshot } from "../../src/modules/service-catalog/domain/offer-snapshot";
 import {
   parseFeatureGrant,
-  parsePrice
+  parsePrice,
+  parseQuota
 } from "../../src/modules/service-catalog/application/request-parsing";
 
 function descriptor(
@@ -249,6 +253,93 @@ describe("version content validation", () => {
     expect(errors.some((e) => e.field === "prices[0].visibility")).toBe(true);
   });
 
+  test("E1: a present-but-non-boolean feature.enabled / trialEnabled / isUnlimited is rejected (never coerced to true)", () => {
+    const enabledErr = validateVersionContent(
+      content({
+        features: [
+          {
+            featureKind: "feature",
+            featureKey: "platform.api_access",
+            // Cast: the parser passes a present "false" string through verbatim.
+            enabled: "false" as unknown as boolean,
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(enabledErr.some((e) => e.field === "features[0].enabled")).toBe(
+      true
+    );
+
+    const trialErr = validateVersionContent(
+      content({ trialEnabled: "true" as unknown as boolean }),
+      registry
+    );
+    expect(trialErr.some((e) => e.field === "trialEnabled")).toBe(true);
+
+    const unlimitedErr = validateVersionContent(
+      content({
+        quotas: [
+          {
+            meterKey: "platform.api_calls",
+            isUnlimited: "false" as unknown as boolean,
+            limitValue: null,
+            unit: "requests",
+            resetPolicy: "none",
+            metadata: {}
+          }
+        ]
+      }),
+      registry
+    );
+    expect(unlimitedErr.some((e) => e.field === "quotas[0].isUnlimited")).toBe(
+      true
+    );
+  });
+
+  test("E2: a present-but-empty interval / resetPolicy / planType is rejected (never coerced to a default)", () => {
+    expect(
+      validateVersionContent(
+        content({
+          prices: [
+            {
+              componentKey: "base",
+              amountMinor: 100,
+              currency: "IDR",
+              interval: "" as PriceInterval,
+              visibility: "public",
+              metadata: {}
+            }
+          ]
+        }),
+        registry
+      ).some((e) => e.field === "prices[0].interval")
+    ).toBe(true);
+    expect(
+      validateVersionContent(
+        content({
+          quotas: [
+            {
+              meterKey: "platform.api_calls",
+              isUnlimited: false,
+              limitValue: 1,
+              unit: "requests",
+              resetPolicy: "" as QuotaResetPolicy,
+              metadata: {}
+            }
+          ]
+        }),
+        registry
+      ).some((e) => e.field === "quotas[0].resetPolicy")
+    ).toBe(true);
+    expect(
+      validatePlanHeader("k", "Name", null, "" as PlanType).some(
+        (e) => e.field === "planType"
+      )
+    ).toBe(true);
+  });
+
   test("a price currency that differs from the version currency is rejected", () => {
     const errors = validateVersionContent(
       content({
@@ -451,6 +542,38 @@ describe("offer snapshot + hash", () => {
     expect(b.publicPrices).toHaveLength(1);
     expect(a.offerHash).not.toBe(b.offerHash);
   });
+
+  test("B1 (no oracle): changing an INTERNAL price's amount (staying internal) leaves offerHash AND the tenant projection unchanged", () => {
+    const base = (internalAmount: number) =>
+      content({
+        prices: [
+          {
+            componentKey: "pub",
+            amountMinor: 5000,
+            currency: "IDR",
+            interval: "monthly",
+            visibility: "public",
+            metadata: {}
+          },
+          {
+            componentKey: "cost",
+            amountMinor: internalAmount,
+            currency: "IDR",
+            interval: "monthly",
+            visibility: "internal",
+            metadata: {}
+          }
+        ],
+        features: []
+      });
+    const a = buildOfferSnapshot("plan_a", 1, base(1000));
+    const b = buildOfferSnapshot("plan_a", 1, base(9999999));
+    // The exposed hash must NOT be an oracle for the internal amount: it is
+    // independent of it, and the tenant-visible projection is byte-identical.
+    expect(a.offerHash).toBe(b.offerHash);
+    expect(a.publicPrices).toEqual(b.publicPrices);
+    expect(a.publicPrices.map((p) => p.componentKey)).toEqual(["pub"]);
+  });
 });
 
 describe("request parsing — fail-closed enums (Issue #870 review Codex-A)", () => {
@@ -481,5 +604,26 @@ describe("request parsing — fail-closed enums (Issue #870 review Codex-A)", ()
       featureKey: "blog_content"
     });
     expect(parsed.featureKind as string).toBe("moddule");
+  });
+
+  test("E1: parseFeatureGrant passes a present non-boolean enabled through verbatim (not coerced to true); absent defaults to true", () => {
+    expect(
+      parseFeatureGrant({ featureKey: "x", enabled: "false" })
+        .enabled as unknown
+    ).toBe("false");
+    expect(parseFeatureGrant({ featureKey: "x" }).enabled).toBe(true);
+  });
+
+  test("E1: parseQuota passes a present non-boolean isUnlimited through verbatim", () => {
+    expect(
+      parseQuota({ meterKey: "m", isUnlimited: 0 }).isUnlimited as unknown
+    ).toBe(0);
+  });
+
+  test("E2: parsePrice keeps a present empty interval (rejected downstream); absent defaults to one_time", () => {
+    expect(
+      parsePrice({ componentKey: "b", interval: "" }).interval as string
+    ).toBe("");
+    expect(parsePrice({ componentKey: "b" }).interval).toBe("one_time");
   });
 });

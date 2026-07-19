@@ -103,24 +103,19 @@ export function buildOfferSnapshot(
     (p) => p.componentKey
   );
 
-  // Hash over ALL prices (public + internal) INCLUDING visibility (Issue #870
-  // review Codex-B): two versions identical except a price's visibility
-  // (internal <-> public) produce DIFFERENT tenant-visible offers, so they must
-  // NOT share an offer hash — `toPrice` deliberately drops `visibility` (it is
-  // the tenant projection shape), so the hash uses a distinct representation
-  // that keeps it.
-  const pricesForHash = byKey(
-    content.prices.map((price) => ({
-      componentKey: price.componentKey,
-      amountMinor: price.amountMinor,
-      currency: price.currency,
-      interval: price.interval,
-      visibility: price.visibility,
-      metadata: price.metadata
-    })),
-    (p) => p.componentKey
-  );
-
+  // HIGH (Issue #870 review B1): the offer hash is stored on the projection AND
+  // returned to the tenant-plane by `service_catalog_read`, so it MUST be a
+  // fingerprint of ONLY the tenant-visible content — the exact same set that
+  // lands in the projection (`publicPrices`, features, quotas + version
+  // metadata). Hashing INTERNAL price amounts here would turn the exposed hash
+  // into a brute-force ORACLE for those amounts (every other field is already
+  // visible on the same row). This also naturally satisfies Codex-B: flipping a
+  // price public->internal REMOVES it from `publicPrices` -> the hash changes;
+  // changing an internal price's amount while it stays internal is not in the
+  // public set -> the hash (and the projection) are unchanged, as they must be.
+  // The full operator record (incl. internal prices) is already reproducible
+  // from the frozen authoring tables, so no separate operator-only fingerprint
+  // is needed.
   const canonical = JSON.stringify(
     sortKeysDeep({
       planKey,
@@ -133,7 +128,7 @@ export function buildOfferSnapshot(
       availableTo: content.availableTo,
       features,
       quotas,
-      prices: pricesForHash
+      prices: publicPrices
     })
   );
 
