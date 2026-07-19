@@ -1612,8 +1612,10 @@ tujuh ancaman yang wajib ditutup implementasi:
 
 **Batas kepercayaan baru (di atas trust boundaries §Batas kepercayaan):**
 batas control-plane (RLS per tenant, default-disabled) memisahkan modul SaaS
-dari data tenant — satu-satunya jalur control-plane → tenant-plane adalah
-kontrak `effective_entitlement` read-only, bukan FK/table write. Batas
+dari data tenant — satu-satunya jalur lintas-batas adalah modul
+tenant-plane/bisnis **membaca** kontrak `effective_entitlement` read-only dari
+`tenant_entitlement` (`Biz → TE`); control-plane tidak pernah menjangkau data
+tenant-plane, dan tak ada FK/table write lintas-batas. Batas
 secret provider berada **di luar database** (`process.env`/secret store
 deployment), bukan tabel apa pun.
 

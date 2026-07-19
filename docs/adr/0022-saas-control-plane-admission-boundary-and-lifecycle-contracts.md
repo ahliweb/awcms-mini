@@ -462,7 +462,7 @@ flowchart TB
   provider -->|"signed + replay-protected (integration_hub)"| cp
   op -->|"permission eksplisit + SoD + step-up, BUKAN BYPASSRLS"| cp
   op -->|"support access: reason+time-bound+audited"| tdata
-  cp -->|"hanya effective_entitlement read-only"| tdata
+  tdata -->|"baca effective_entitlement read-only (Biz → TE), tak pernah write balik"| cp
   cp -.->|"baca saat verifikasi, tak pernah simpan di tabel"| secret
 ```
 
