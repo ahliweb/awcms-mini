@@ -92,11 +92,21 @@ export async function setRedisJson<T>(
   const ttlSec = options.ttlSec ?? config.cacheDefaultTtlSec;
 
   if (!Number.isInteger(ttlSec) || ttlSec < 1 || ttlSec > 86_400) {
-    throw new Error("Redis cache TTL must be an integer between 1 and 86400 seconds.");
+    throw new Error(
+      "Redis cache TTL must be an integer between 1 and 86400 seconds."
+    );
   }
 
   try {
     const payload = JSON.stringify(value);
+
+    if (payload === undefined) {
+      log("warning", "Non-serializable Redis cache value was skipped.", {
+        moduleKey: "redis-foundation"
+      });
+      return false;
+    }
+
     const result = await withRedisCommandTimeout(
       client.send("SET", [key, payload, "EX", String(ttlSec)]),
       config.commandTimeoutMs,
