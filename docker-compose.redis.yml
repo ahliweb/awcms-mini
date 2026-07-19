@@ -3,7 +3,7 @@
 # Redis is deliberately NOT part of the default offline/LAN stack. Enable it
 # explicitly alongside the base compose file:
 #
-#   cp .env.redis.example .env.redis
+#   cp config/redis.env.example .env.redis
 #   # set a long URL-safe REDIS_PASSWORD in the deployment secret manager
 #   docker compose --env-file .env --env-file .env.redis \
 #     -f docker-compose.yml -f docker-compose.redis.yml up --build
