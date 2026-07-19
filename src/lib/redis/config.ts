@@ -21,7 +21,7 @@ const DEFAULTS = {
   connectionTimeoutMs: 2_000,
   commandTimeoutMs: 1_000,
   maxRetries: 3,
-  cacheDefaultTtlSec: 300
+  cacheDefaultTtlSec: 300,
 } as const;
 
 const SUPPORTED_SCHEMES = [
@@ -29,7 +29,7 @@ const SUPPORTED_SCHEMES = [
   "rediss://",
   "redis+tls://",
   "redis+unix://",
-  "redis+tls+unix://"
+  "redis+tls+unix://",
 ] as const;
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -44,7 +44,7 @@ function parseBoundedInteger(
   value: string | undefined,
   fallback: number,
   min: number,
-  max: number
+  max: number,
 ): number {
   if (value === undefined || value.trim() === "") {
     return fallback;
@@ -60,7 +60,7 @@ function parseBoundedInteger(
 }
 
 export function loadRedisConfig(
-  env: RedisEnvironment = process.env
+  env: RedisEnvironment = process.env,
 ): RedisConfig {
   const url = env.REDIS_URL?.trim() || null;
 
@@ -72,32 +72,32 @@ export function loadRedisConfig(
       env.REDIS_CONNECTION_TIMEOUT_MS,
       DEFAULTS.connectionTimeoutMs,
       100,
-      30_000
+      30_000,
     ),
     commandTimeoutMs: parseBoundedInteger(
       env.REDIS_COMMAND_TIMEOUT_MS,
       DEFAULTS.commandTimeoutMs,
       50,
-      30_000
+      30_000,
     ),
     maxRetries: parseBoundedInteger(
       env.REDIS_MAX_RETRIES,
       DEFAULTS.maxRetries,
       0,
-      20
+      20,
     ),
     cacheDefaultTtlSec: parseBoundedInteger(
       env.REDIS_CACHE_DEFAULT_TTL_SEC,
       DEFAULTS.cacheDefaultTtlSec,
       1,
-      86_400
-    )
+      86_400,
+    ),
   };
 }
 
 export function validateRedisConfig(
   config: RedisConfig,
-  env: RedisEnvironment = process.env
+  env: RedisEnvironment = process.env,
 ): RedisValidationFinding[] {
   const findings: RedisValidationFinding[] = [];
 
@@ -109,14 +109,16 @@ export function validateRedisConfig(
     findings.push({
       severity: "fail",
       code: "redis_url_required",
-      message: "REDIS_URL is required when REDIS_ENABLED=true."
+      message: "REDIS_URL is required when REDIS_ENABLED=true.",
     });
-  } else if (!SUPPORTED_SCHEMES.some((scheme) => config.url?.startsWith(scheme))) {
+  } else if (
+    !SUPPORTED_SCHEMES.some((scheme) => config.url?.startsWith(scheme))
+  ) {
     findings.push({
       severity: "fail",
       code: "redis_url_scheme_unsupported",
       message:
-        "REDIS_URL must use redis://, rediss://, redis+tls://, redis+unix://, or redis+tls+unix://."
+        "REDIS_URL must use redis://, rediss://, redis+tls://, redis+unix://, or redis+tls+unix://.",
     });
   }
 
@@ -125,7 +127,7 @@ export function validateRedisConfig(
       severity: "fail",
       code: "redis_key_prefix_invalid",
       message:
-        "REDIS_KEY_PREFIX must be 2-64 characters using letters, numbers, dot, underscore, or hyphen."
+        "REDIS_KEY_PREFIX must be 2-64 characters using letters, numbers, dot, underscore, or hyphen.",
     });
   }
 
@@ -141,7 +143,7 @@ export function validateRedisConfig(
       severity: "warning",
       code: "redis_tls_recommended",
       message:
-        "Use rediss:// or a private/internal network for Redis in staging and production."
+        "Use rediss:// or a private/internal network for Redis in staging and production.",
     });
   }
 
@@ -150,7 +152,7 @@ export function validateRedisConfig(
       severity: "warning",
       code: "redis_auth_recommended",
       message:
-        "Use a dedicated Redis ACL username and secret in staging and production."
+        "Use a dedicated Redis ACL username and secret in staging and production.",
     });
   }
 
@@ -233,7 +235,7 @@ function encodeKeySegment(segment: string, label: string): string {
  */
 export function buildRedisKey(
   parts: RedisKeyParts,
-  config: Pick<RedisConfig, "keyPrefix"> = loadRedisConfig()
+  config: Pick<RedisConfig, "keyPrefix"> = loadRedisConfig(),
 ): string {
   const prefix = encodeKeySegment(config.keyPrefix, "prefix");
   const version = encodeKeySegment(parts.version ?? "v1", "version");
