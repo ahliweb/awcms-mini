@@ -38,12 +38,17 @@ services:
             ;;
         esac
         password_hash="$$(printf '%s' "$${REDIS_PASSWORD}" | sha256sum | awk '{print $$1}')"
-        umask 077
+        umask 022
         {
           printf 'user default off\n'
           printf 'user awcms_app on #%s ~%s:* +ping +@read +@write -@dangerous\n' \
             "$${password_hash}" "$${REDIS_KEY_PREFIX}"
         } > /redis-config/users.acl
+        # The file contains a one-way password hash only. Mode 0644 is required
+        # because the official Redis container drops to its non-root redis user,
+        # while this init container writes the named volume as root. The volume
+        # is private to the Compose network and mounted read-only by Redis.
+        chmod 0644 /redis-config/users.acl
     volumes:
       - awcms-mini-redis-config:/redis-config
     cap_drop: [ALL]
@@ -108,7 +113,7 @@ services:
   app:
     environment:
       REDIS_ENABLED: "true"
-      REDIS_URL: redis://awcms_app:${REDIS_PASSWORD:?Set REDIS_PASSWORD in deployment secrets}@redis:6379/0
+      REDIS_URL: "redis://awcms_app:${REDIS_PASSWORD:?Set REDIS_PASSWORD in deployment secrets}@redis:6379/0"
       REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-awcms-mini}
       REDIS_CONNECTION_TIMEOUT_MS: ${REDIS_CONNECTION_TIMEOUT_MS:-2000}
       REDIS_COMMAND_TIMEOUT_MS: ${REDIS_COMMAND_TIMEOUT_MS:-1000}
