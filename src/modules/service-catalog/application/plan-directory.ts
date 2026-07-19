@@ -283,6 +283,45 @@ async function loadPlanWithVersions(
   return { plan, versions };
 }
 
+/**
+ * Lock the plan row (`SELECT ... FOR UPDATE`) — the uniform concurrency pattern
+ * for a check-then-write on an EXISTING plan (Codex-E). Serializes concurrent
+ * `createDraftVersion` on the same plan so the `draft_exists` check + version
+ * INSERT can never race into a raw one-draft/version unique violation (500).
+ */
+async function loadPlanIdForUpdate(
+  tx: Bun.SQL,
+  planKey: string
+): Promise<string | null> {
+  const rows = (await tx`
+    SELECT id FROM awcms_mini_service_catalog_plans WHERE plan_key = ${planKey}
+    FOR UPDATE
+  `) as { id: string }[];
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * Lock this plan's single DRAFT version (`FOR UPDATE`, filtered `status='draft'`)
+ * — the uniform pattern for editing the draft (Codex-D). Returns `null` when no
+ * draft remains (e.g. a concurrent publish just won), so the caller returns a
+ * clean `no_draft_version` (409) BEFORE mutating the plan header — never leaving
+ * the published projection carrying an old header the API reports as changed.
+ */
+async function loadDraftVersionForUpdate(
+  tx: Bun.SQL,
+  planId: string
+): Promise<VersionDbRow | null> {
+  const rows = (await tx`
+    SELECT id, plan_id, version, status, currency, market, trial_enabled,
+      trial_days, available_from, available_to, notes, offer_hash, published_at,
+      retired_at, created_at, updated_at
+    FROM awcms_mini_service_catalog_plan_versions
+    WHERE plan_id = ${planId} AND status = 'draft'
+    FOR UPDATE
+  `) as VersionDbRow[];
+  return rows[0] ?? null;
+}
+
 /** Full operator detail: plan header + every version (history) with its features/quotas/prices. */
 export async function fetchPlanDetail(
   tx: Bun.SQL,
@@ -481,12 +520,20 @@ export async function createPlan(
     return { ok: false, reason: "duplicate_key" };
   }
 
+  // Concurrency (uniform pattern): the plan row does not exist yet, so there is
+  // nothing to lock — `ON CONFLICT (plan_key) DO NOTHING RETURNING` turns a
+  // concurrent same-key create into a clean `duplicate_key` (409) instead of a
+  // raw 23505 (500), with NO version/child/audit side effects.
   const planRows = (await tx`
     INSERT INTO awcms_mini_service_catalog_plans
       (plan_key, name, description, plan_type, created_by, updated_by)
     VALUES (${input.planKey}, ${input.name}, ${input.description}, ${input.planType}, ${actorTenantUserId}, ${actorTenantUserId})
+    ON CONFLICT (plan_key) DO NOTHING
     RETURNING id
   `) as { id: string }[];
+  if (planRows.length === 0) {
+    return { ok: false, reason: "duplicate_key" };
+  }
   const planId = planRows[0]!.id;
 
   const versionRows = (await tx`
@@ -560,7 +607,12 @@ export async function updatePlanDraft(
   if (!loaded) {
     return { ok: false, reason: "not_found" };
   }
-  const draft = loaded.versions.find((v) => v.status === "draft");
+  // Codex-D: LOCK the draft version BEFORE touching the global plan header. A
+  // concurrent publish either loses (this PATCH wins, publishes the NEW header)
+  // or wins (the lock returns no draft -> 409, header untouched) — the
+  // published projection can never carry an old plan_name/plan_type that the
+  // API then reports as changed.
+  const draft = await loadDraftVersionForUpdate(tx, loaded.plan.id);
   if (!draft) {
     return { ok: false, reason: "no_draft_version" };
   }
@@ -628,7 +680,7 @@ export async function updatePlanDraft(
         trial_enabled = ${mergedContent.trialEnabled}, trial_days = ${mergedContent.trialDays},
         available_from = ${mergedContent.availableFrom}, available_to = ${mergedContent.availableTo},
         notes = ${mergedContent.notes}, updated_by = ${actorTenantUserId}, updated_at = now()
-    WHERE id = ${draft.id}
+    WHERE id = ${draft.id} AND status = 'draft'
   `;
 
   // Replace child collections that were provided in this request only.
@@ -684,6 +736,14 @@ export async function createDraftVersion(
   registry: ServiceCatalogKeyRegistry,
   correlationId?: string
 ): Promise<CreateDraftVersionResult> {
+  // Codex-E: LOCK the plan row FIRST, so two concurrent `createDraftVersion`
+  // calls serialize — the `draft_exists` check + version INSERT below can never
+  // race into a raw one-draft/version unique violation (500). The loser blocks,
+  // then sees the winner's draft and returns a clean `draft_exists` (409).
+  const planId = await loadPlanIdForUpdate(tx, planKey);
+  if (!planId) {
+    return { ok: false, reason: "not_found" };
+  }
   const loaded = await loadPlanWithVersions(tx, planKey);
   if (!loaded) {
     return { ok: false, reason: "not_found" };

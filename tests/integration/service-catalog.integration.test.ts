@@ -686,6 +686,106 @@ suite(
       });
     });
 
+    test("Concurrency: two concurrent createPlan with the same key -> one succeeds, one clean duplicate_key (409), exactly one plan", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      const mk = (name: string) =>
+        withTenant(sql, tenantId, (tx) =>
+          createPlan(
+            tx,
+            tenantId,
+            actor,
+            {
+              planKey: "dupe",
+              name,
+              description: null,
+              planType: "subscription",
+              content: content()
+            },
+            registry
+          )
+        );
+      const [r1, r2] = await Promise.all([mk("A"), mk("B")]);
+      expect([r1, r2].filter((r) => r.ok)).toHaveLength(1);
+      const losers = [r1, r2].filter((r) => !r.ok);
+      expect(losers).toHaveLength(1);
+      expect(losers[0]!.ok === false && losers[0]!.reason).toBe(
+        "duplicate_key"
+      );
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const rows = (await tx`
+          SELECT count(*)::int AS c FROM awcms_mini_service_catalog_plans WHERE plan_key = 'dupe'
+        `) as { c: number }[];
+        expect(rows[0]!.c).toBe(1);
+      });
+    });
+
+    test("Codex-D: concurrent plan-header PATCH + publish -> the published projection's plan_name is never stale vs the reported header", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "hdr");
+
+      await Promise.all([
+        withTenant(sql, tenantId, (tx) =>
+          updatePlanDraft(
+            tx,
+            tenantId,
+            actor,
+            "hdr",
+            { name: "Renamed" },
+            registry
+          )
+        ),
+        withTenant(sql, tenantId, (tx) =>
+          publishVersion(tx, tenantId, actor, "hdr", 1, registry)
+        )
+      ]).catch(() => undefined);
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const detail = await fetchPlanDetail(tx, "hdr");
+        const offers = await listPublishedOffers(tx, { planKey: "hdr" });
+        if (offers.length === 1) {
+          // The projected plan_name equals the CURRENT plan header the API
+          // reports — either PATCH won (publish used the new header) or publish
+          // won (PATCH got no_draft, header stayed old). Never stale.
+          expect(offers[0]!.planName).toBe(detail!.name);
+        }
+      });
+    });
+
+    test("Codex-E: two concurrent createDraftVersion -> one succeeds, one clean draft_exists (409), exactly one draft", async () => {
+      const tenantId = await seedTenant();
+      const sql = getTestSql();
+      await seedPlan(tenantId, "ver");
+      await withTenant(sql, tenantId, (tx) =>
+        publishVersion(tx, tenantId, actor, "ver", 1, registry)
+      );
+
+      const [r1, r2] = await Promise.all([
+        withTenant(sql, tenantId, (tx) =>
+          createDraftVersion(tx, tenantId, actor, "ver", registry)
+        ),
+        withTenant(sql, tenantId, (tx) =>
+          createDraftVersion(tx, tenantId, actor, "ver", registry)
+        )
+      ]);
+      expect([r1, r2].filter((r) => r.ok)).toHaveLength(1);
+      const losers = [r1, r2].filter((r) => !r.ok);
+      expect(losers).toHaveLength(1);
+      expect(losers[0]!.ok === false && losers[0]!.reason).toBe("draft_exists");
+
+      await withTenant(sql, tenantId, async (tx) => {
+        const rows = (await tx`
+          SELECT count(*)::int AS c
+          FROM awcms_mini_service_catalog_plan_versions v
+          JOIN awcms_mini_service_catalog_plans p ON p.id = v.plan_id
+          WHERE p.plan_key = 'ver' AND v.status = 'draft'
+        `) as { c: number }[];
+        expect(rows[0]!.c).toBe(1);
+      });
+    });
+
     test("runtime default-disabled: service_catalog resolves DISABLED without a tenant_modules row, ENABLED after opt-in", async () => {
       const tenantId = await seedTenant();
       const sql = getTestSql();

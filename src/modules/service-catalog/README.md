@@ -82,6 +82,32 @@ retire}`. `create`/`versions`/`publish`/`retire` require `Idempotency-Key`;
 state change. Payload carries plan key/version/offer hash — never internal
 prices.
 
+## Concurrency template (uniform across every operator write path)
+
+Every mutation in `application/plan-directory.ts` follows ONE pattern so a
+concurrent operation never produces a raw 500 or a stale projection — the
+template #871-#877 should copy:
+
+1. **Row-lock before check-then-write.** Lock the row you are about to
+   transition/validate with `SELECT ... FOR UPDATE` FIRST:
+   - `publishVersion`/`retireVersion` lock the **version** row
+     (`loadVersionByPlanKeyForUpdate`).
+   - `updatePlanDraft` locks the **draft version** (`loadDraftVersionForUpdate`)
+     BEFORE touching the plan header — so a racing publish can't leave the
+     projection carrying an old `plan_name`/`plan_type` (Codex-D).
+   - `createDraftVersion` locks the **plan** row (`loadPlanIdForUpdate`) before
+     the `draft_exists` check (Codex-E).
+2. **Status-predicated UPDATE.** Transition with `UPDATE ... WHERE id = ? AND
+status = <expected>`; a 0-row result is a clean idempotent conflict → the
+   caller returns a deterministic **409**, never a second event/audit.
+3. **INSERT-with-uniqueness → `ON CONFLICT DO NOTHING RETURNING`.** When there
+   is no row to lock yet (`createPlan`), a concurrent same-key insert returns 0
+   rows → clean `duplicate_key` (409), never a raw 23505 (500).
+
+There is no check-then-write left without a lock. Each path has a concurrency
+test in `tests/integration/service-catalog.integration.test.ts` proving one
+winner + one clean 409 (and, for publish/retire, exactly one event + one audit).
+
 ## Default-disabled mechanism (ADR-0022 §7)
 
 This module introduced `ModuleDescriptor.defaultTenantState` +

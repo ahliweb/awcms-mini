@@ -67,6 +67,30 @@ master (ADR-0013 §3). Baca `src/modules/service-catalog/README.md` +
    di `domain-event-runtime/domain/event-type-registry.ts` + AsyncAPI channel +
    operation + `module.ts` events.publishes (parity di-gate).
 
+## Pola concurrency SERAGAM (template Wave-1, dipakai #871-#877)
+
+SETIAP operator write path di `application/plan-directory.ts` wajib pola SAMA —
+tak ada satu pun check-then-write tanpa lock:
+
+1. **Row-lock SEBELUM check-then-write.** `SELECT ... FOR UPDATE` pada row yang
+   akan ditransisikan DULU: publish/retire lock row **version**
+   (`loadVersionByPlanKeyForUpdate`); updatePlanDraft lock **draft version**
+   (`loadDraftVersionForUpdate`) SEBELUM sentuh plan header (Codex-D: cegah
+   projeksi published simpan plan_name/type LAMA saat header di-PATCH konkuren);
+   createDraftVersion lock row **plan** (`loadPlanIdForUpdate`) sebelum cek
+   `draft_exists` (Codex-E: cegah 2 draft konkuren → unique violation 500).
+2. **UPDATE ter-predikat status.** `UPDATE ... WHERE id=? AND status=<expected>`;
+   0-row = konflik idempoten bersih → caller kembalikan **409 deterministik**,
+   TANPA event/audit kedua.
+3. **INSERT-ber-uniqueness → `ON CONFLICT DO NOTHING RETURNING`.** Bila belum ada
+   row utk di-lock (createPlan): concurrent same-key → 0-row → `duplicate_key`
+   (409) bersih, bukan raw 23505 (500).
+
+Deteksi unique violation manual (jika perlu catch): `String(error.errno) ===
+"23505"` (pola repo, `profile-identity/application/identifier-directory.ts`).
+Tiap path punya test konkurensi (1 pemenang + 1 409 bersih; publish/retire tepat
+1 event + 1 audit) di `service-catalog.integration.test.ts`.
+
 ## Lifecycle offer
 
 `draft → (validate) → published → retired → (archived)`. Satu draft per plan
