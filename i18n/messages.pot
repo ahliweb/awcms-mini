@@ -3324,6 +3324,11 @@ msgstr ""
 msgid "admin.layout.nav_tenant_domains"
 msgstr ""
 
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/tenant-entitlement/module.ts:70
+msgid "admin.layout.nav_tenant_entitlement"
+msgstr ""
+
 #: src/layouts/AdminLayout.astro:200
 msgid "admin.layout.nav_toggle_aria_label"
 msgstr ""
@@ -6161,6 +6166,182 @@ msgstr ""
 
 #: src/pages/admin/tenant/domains.astro:111
 msgid "admin.tenant_domain.verify_success"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:157
+msgid "admin.tenant_entitlement.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:156
+msgid "admin.tenant_entitlement.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:450
+msgid "admin.tenant_entitlement.active"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:317
+msgid "admin.tenant_entitlement.assign_button"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:73
+msgid "admin.tenant_entitlement.assign_success"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:301
+msgid "admin.tenant_entitlement.assignments_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:375
+msgid "admin.tenant_entitlement.cancel_button"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:330
+msgid "admin.tenant_entitlement.col_actions"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:206
+msgid "admin.tenant_entitlement.col_allowed"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:329
+msgid "admin.tenant_entitlement.col_current"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:432
+msgid "admin.tenant_entitlement.col_effect"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:433
+msgid "admin.tenant_entitlement.col_effective_to"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:205
+msgid "admin.tenant_entitlement.col_key"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:269
+msgid "admin.tenant_entitlement.col_limit"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:327
+msgid "admin.tenant_entitlement.col_plan"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:207
+msgid "admin.tenant_entitlement.col_source"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:328
+msgid "admin.tenant_entitlement.col_status"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:431
+msgid "admin.tenant_entitlement.col_target"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:184
+msgid "admin.tenant_entitlement.effective_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:198
+msgid "admin.tenant_entitlement.features_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:406
+msgid "admin.tenant_entitlement.field_effect"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:313
+msgid "admin.tenant_entitlement.field_effective_to"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:309
+msgid "admin.tenant_entitlement.field_offer_version"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:305
+msgid "admin.tenant_entitlement.field_plan_key"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:413
+msgid "admin.tenant_entitlement.field_reason"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:402
+msgid "admin.tenant_entitlement.field_target_key"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:394
+msgid "admin.tenant_entitlement.field_target_kind"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:229
+msgid "admin.tenant_entitlement.modules_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:200
+msgid "admin.tenant_entitlement.none"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:421
+msgid "admin.tenant_entitlement.override_button"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:75
+msgid "admin.tenant_entitlement.override_success"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:390
+msgid "admin.tenant_entitlement.overrides_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:260
+msgid "admin.tenant_entitlement.quotas_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:77
+msgid "admin.tenant_entitlement.reason_prompt"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:365
+msgid "admin.tenant_entitlement.resume_button"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:462
+msgid "admin.tenant_entitlement.revoke_button"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:76
+msgid "admin.tenant_entitlement.revoke_success"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:451
+msgid "admin.tenant_entitlement.revoked"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:194
+msgid "admin.tenant_entitlement.snapshot_label"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:186
+msgid "admin.tenant_entitlement.status_label"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:355
+msgid "admin.tenant_entitlement.suspend_button"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:151
+msgid "admin.tenant_entitlement.title"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:74
+msgid "admin.tenant_entitlement.transition_success"
+msgstr ""
+
+#: src/pages/admin/tenant-entitlement/index.astro:287
+msgid "admin.tenant_entitlement.unlimited"
 msgstr ""
 
 #: src/pages/admin/workflows/index.astro:103

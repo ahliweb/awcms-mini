@@ -5007,3 +5007,138 @@ msgstr "Currency"
 
 msgid "admin.service_catalog.plans.create_submit"
 msgstr "Create plan"
+
+msgid "admin.layout.nav_tenant_entitlement"
+msgstr "Tenant Entitlement"
+
+msgid "admin.tenant_entitlement.title"
+msgstr "Tenant Entitlement"
+
+msgid "admin.tenant_entitlement.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.tenant_entitlement.access_denied_body"
+msgstr "You do not have permission to view tenant entitlements, or this tenant has not enabled the entitlement control plane."
+
+msgid "admin.tenant_entitlement.effective_heading"
+msgstr "Effective entitlement"
+
+msgid "admin.tenant_entitlement.status_label"
+msgstr "Status"
+
+msgid "admin.tenant_entitlement.snapshot_label"
+msgstr "Snapshot"
+
+msgid "admin.tenant_entitlement.features_heading"
+msgstr "Features"
+
+msgid "admin.tenant_entitlement.modules_heading"
+msgstr "Modules"
+
+msgid "admin.tenant_entitlement.quotas_heading"
+msgstr "Quotas"
+
+msgid "admin.tenant_entitlement.none"
+msgstr "None"
+
+msgid "admin.tenant_entitlement.unlimited"
+msgstr "Unlimited"
+
+msgid "admin.tenant_entitlement.col_key"
+msgstr "Key"
+
+msgid "admin.tenant_entitlement.col_allowed"
+msgstr "Allowed"
+
+msgid "admin.tenant_entitlement.col_source"
+msgstr "Source"
+
+msgid "admin.tenant_entitlement.col_limit"
+msgstr "Limit"
+
+msgid "admin.tenant_entitlement.col_plan"
+msgstr "Plan"
+
+msgid "admin.tenant_entitlement.col_status"
+msgstr "Status"
+
+msgid "admin.tenant_entitlement.col_current"
+msgstr "Current"
+
+msgid "admin.tenant_entitlement.col_actions"
+msgstr "Actions"
+
+msgid "admin.tenant_entitlement.col_target"
+msgstr "Target"
+
+msgid "admin.tenant_entitlement.col_effect"
+msgstr "Effect"
+
+msgid "admin.tenant_entitlement.col_effective_to"
+msgstr "Effective to"
+
+msgid "admin.tenant_entitlement.assignments_heading"
+msgstr "Assignments"
+
+msgid "admin.tenant_entitlement.overrides_heading"
+msgstr "Overrides"
+
+msgid "admin.tenant_entitlement.field_plan_key"
+msgstr "Plan key"
+
+msgid "admin.tenant_entitlement.field_offer_version"
+msgstr "Offer version"
+
+msgid "admin.tenant_entitlement.field_effective_to"
+msgstr "Effective to (optional)"
+
+msgid "admin.tenant_entitlement.field_target_kind"
+msgstr "Target kind"
+
+msgid "admin.tenant_entitlement.field_target_key"
+msgstr "Target key"
+
+msgid "admin.tenant_entitlement.field_effect"
+msgstr "Effect"
+
+msgid "admin.tenant_entitlement.field_reason"
+msgstr "Reason"
+
+msgid "admin.tenant_entitlement.assign_button"
+msgstr "Assign"
+
+msgid "admin.tenant_entitlement.suspend_button"
+msgstr "Suspend"
+
+msgid "admin.tenant_entitlement.resume_button"
+msgstr "Resume"
+
+msgid "admin.tenant_entitlement.cancel_button"
+msgstr "Cancel"
+
+msgid "admin.tenant_entitlement.override_button"
+msgstr "Add override"
+
+msgid "admin.tenant_entitlement.revoke_button"
+msgstr "Revoke"
+
+msgid "admin.tenant_entitlement.active"
+msgstr "Active"
+
+msgid "admin.tenant_entitlement.revoked"
+msgstr "Revoked"
+
+msgid "admin.tenant_entitlement.assign_success"
+msgstr "Assignment saved."
+
+msgid "admin.tenant_entitlement.transition_success"
+msgstr "Assignment updated."
+
+msgid "admin.tenant_entitlement.override_success"
+msgstr "Override created."
+
+msgid "admin.tenant_entitlement.revoke_success"
+msgstr "Override revoked."
+
+msgid "admin.tenant_entitlement.reason_prompt"
+msgstr "Enter a reason (required for audit):"

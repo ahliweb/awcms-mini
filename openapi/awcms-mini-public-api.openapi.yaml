@@ -93,6 +93,8 @@ tags:
     description: "Module-contributed read-model projection extension to Management Reporting (epic `platform-evolution` #738 Wave 3, Issue #753) — list registered projection descriptors with live snapshot/freshness status, trigger/resume/cancel an idempotent full rebuild, trigger an on-demand reconciliation against a source control total, and manage/trigger/download scheduled exports of a projection's current snapshot (manifest/checksum/expiry, secure tenant-scoped download). A projection is a DERIVED read model, never an authorization source of truth — every operation here independently re-checks RBAC/ABAC. Real incremental updates (`bun run reporting:projections:refresh`, `bun run reporting:exports:dispatch`) are internal scheduled jobs, not exposed over HTTP."
   - name: Service Catalog
     description: "Provider-neutral SaaS control-plane service catalog (epic #868 SaaS control plane Wave 1, Issue #870, ADR-0022) — the first control-plane module, admitted Official Optional and default-disabled per tenant. Versioned commercial PLANS with an immutable-once-published OFFER lifecycle (draft -> validate -> publish -> retire), feature/whole-module entitlement grants, usage quotas (unit + reset policy), EXACT minor-unit prices (no floating point), and trial/availability/market/currency metadata. All catalog data is GLOBAL control-plane data (reviewed RLS-exempt, ADR-0022 §3): operator authoring tables are platform-operator-only + default-deny, and a separate tenant-readable published projection carries only published versions + public prices. Published offer versions are IMMUTABLE (corrections create a new version). Feature/module/meter keys resolve through a reviewed static registry; unknown keys fail closed. Not an ERP item/product master."
+  - name: Tenant Entitlement
+    description: "Provider-neutral SaaS control-plane tenant entitlement (epic #868 SaaS control plane Wave 1, Issue #871, ADR-0022) — the second control-plane module and the epic's HEART, the first tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Resolves a tenant's DETERMINISTIC, EXPLAINABLE effective feature/module/quota access from published service catalog offers (read via the service_catalog_read capability port), trial/grace effective-dating, operator overrides (grant/deny, reason-bound, optionally time-bound, revocable without restart), suspension/lifecycle restriction, and module-dependency safe-downgrade. Exposes ONE read-only fail-closed contract (effective_entitlement): unknown/absent/indeterminate/disabled = DENY, on a DIFFERENT axis from RBAC/ABAC/RLS — a positive entitlement NEVER grants a permission the actor lacks. Operator-only + default-deny + default-disabled per tenant. assign/override/revoke require Idempotency-Key + audit + versioned events; entitlement loss changes state + gates, NEVER deletes tenant data."
 paths:
   /api/v1/access/assignments:
     post:
@@ -19765,6 +19767,370 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-entitlement/assignments:
+    get:
+      tags:
+        - Tenant Entitlement
+      summary: List the current tenant's entitlement assignments
+      operationId: tenantEntitlementAssignmentsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The current tenant's entitlement assignments.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - assignments
+                        properties:
+                          assignments:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/TenantEntitlementAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Tenant Entitlement
+      summary: Assign the current tenant to a published offer
+      description: Subscribes the current tenant to a published service catalog offer version; supersedes the current assignment for that plan. Platform-operator only; requires Idempotency-Key.
+      operationId: tenantEntitlementAssignmentsAssign
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantEntitlementAssignRequest"
+      responses:
+        "200":
+          description: The created assignment.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - assignment
+                        properties:
+                          assignment:
+                            $ref: "#/components/schemas/TenantEntitlementAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A concurrent assignment superseded this request, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-entitlement/assignments/{assignmentId}:
+    patch:
+      tags:
+        - Tenant Entitlement
+      summary: Transition an entitlement assignment (suspend/resume/cancel)
+      description: Suspend/resume (permission `assignments.update`) or cancel (permission `assignments.revoke`; entitlement loss — tenant data is never deleted) an assignment. Requires Idempotency-Key.
+      operationId: tenantEntitlementAssignmentTransition
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantEntitlementTransitionRequest"
+      responses:
+        "200":
+          description: The updated assignment.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - assignment
+                        properties:
+                          assignment:
+                            $ref: "#/components/schemas/TenantEntitlementAssignment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Illegal/concurrent transition, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-entitlement/effective:
+    get:
+      tags:
+        - Tenant Entitlement
+      summary: Resolve the current tenant's effective entitlement
+      description: Deterministic, explainable effective feature/module/quota entitlement for the current tenant, optionally as-of a timestamp. Operator-only.
+      operationId: tenantEntitlementEffectiveGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: at
+          in: query
+          required: false
+          description: ISO 8601 timestamp to resolve at (defaults to now). Must be NOW or in the FUTURE — resolution runs against the current record set, so a past timestamp is rejected (400); entitlement history lives in the append-only evaluation snapshots, not here.
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The resolved effective entitlement.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - entitlement
+                        properties:
+                          entitlement:
+                            $ref: "#/components/schemas/TenantEntitlementEffective"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-entitlement/overrides:
+    get:
+      tags:
+        - Tenant Entitlement
+      summary: List the current tenant's entitlement overrides
+      operationId: tenantEntitlementOverridesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The current tenant's entitlement overrides.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - overrides
+                        properties:
+                          overrides:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/TenantEntitlementOverride"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Tenant Entitlement
+      summary: Create a platform-operator entitlement override
+      description: Grant/deny a feature, module, or quota for the current tenant. Reason-bound, optionally time-bound. Unknown target keys fail closed (400). Requires Idempotency-Key.
+      operationId: tenantEntitlementOverridesCreate
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantEntitlementOverrideRequest"
+      responses:
+        "200":
+          description: The created override.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - override
+                        properties:
+                          override:
+                            $ref: "#/components/schemas/TenantEntitlementOverride"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: An active override already exists for this target, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-entitlement/overrides/{overrideId}/revoke:
+    post:
+      tags:
+        - Tenant Entitlement
+      summary: Revoke an entitlement override
+      description: Revoke an override (one-way; stops applying immediately without restart). Requires Idempotency-Key.
+      operationId: tenantEntitlementOverrideRevoke
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: overrideId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantEntitlementRevokeRequest"
+      responses:
+        "200":
+          description: The revoked override.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - override
+                        properties:
+                          override:
+                            $ref: "#/components/schemas/TenantEntitlementOverride"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The override is already revoked, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/tenant/domains:
     get:
       tags:
@@ -31862,6 +32228,432 @@ components:
           type: string
           nullable: true
           description: Opaque keyset pagination cursor; pass back as the `cursor` query parameter to fetch the next page. `null` when this is the last page.
+    TenantEntitlementAssignment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - planKey
+        - offerVersion
+        - offerHash
+        - currency
+        - source
+        - reason
+        - status
+        - effectiveFrom
+        - effectiveTo
+        - trialEndsAt
+        - graceEndsAt
+        - isCurrent
+        - supersededAt
+        - suspendedAt
+        - suspendReason
+        - resumedAt
+        - canceledAt
+        - cancelReason
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        planKey:
+          type: string
+        offerVersion:
+          type: integer
+        offerHash:
+          type: string
+        currency:
+          type: string
+        source:
+          type: string
+        reason:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+            - canceled
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        graceEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        isCurrent:
+          type: boolean
+        supersededAt:
+          type: string
+          format: date-time
+          nullable: true
+        suspendedAt:
+          type: string
+          format: date-time
+          nullable: true
+        suspendReason:
+          type: string
+          nullable: true
+        resumedAt:
+          type: string
+          format: date-time
+          nullable: true
+        canceledAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TenantEntitlementAssignmentExplanation:
+      type: object
+      additionalProperties: false
+      required:
+        - assignmentId
+        - planKey
+        - version
+        - offerHash
+        - substate
+      properties:
+        assignmentId:
+          type: string
+          format: uuid
+        planKey:
+          type: string
+        version:
+          type: integer
+        offerHash:
+          type: string
+        substate:
+          type: string
+          enum:
+            - active
+            - trial
+            - grace
+    TenantEntitlementAssignRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - planKey
+        - offerVersion
+      properties:
+        planKey:
+          type: string
+          pattern: ^[a-z][a-z0-9_]*$
+          maxLength: 100
+        offerVersion:
+          type: integer
+          minimum: 1
+        source:
+          type: string
+          enum:
+            - manual
+            - subscription
+            - trial
+            - migration
+        reason:
+          type: string
+          nullable: true
+          maxLength: 500
+        effectiveFrom:
+          type: string
+          format: date-time
+          nullable: true
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        graceEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+    TenantEntitlementDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - allowed
+        - source
+      properties:
+        allowed:
+          type: boolean
+        source:
+          $ref: "#/components/schemas/TenantEntitlementSource"
+    TenantEntitlementEffective:
+      type: object
+      additionalProperties: false
+      required:
+        - tenantId
+        - resolvedAt
+        - status
+        - features
+        - modules
+        - quotas
+        - assignments
+        - snapshotHash
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        resolvedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - resolved
+            - disabled
+        features:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/TenantEntitlementDecision"
+        modules:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/TenantEntitlementDecision"
+        quotas:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/TenantEntitlementQuotaDecision"
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/TenantEntitlementAssignmentExplanation"
+        snapshotHash:
+          type: string
+    TenantEntitlementOverride:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - targetKind
+        - targetKey
+        - effect
+        - quotaIsUnlimited
+        - quotaLimitValue
+        - quotaUnit
+        - reason
+        - source
+        - effectiveFrom
+        - effectiveTo
+        - isActive
+        - revokedAt
+        - revokeReason
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        targetKind:
+          type: string
+          enum:
+            - feature
+            - module
+            - quota
+        targetKey:
+          type: string
+        effect:
+          type: string
+          enum:
+            - grant
+            - deny
+        quotaIsUnlimited:
+          type: boolean
+        quotaLimitValue:
+          type: integer
+          nullable: true
+        quotaUnit:
+          type: string
+          nullable: true
+        reason:
+          type: string
+        source:
+          type: string
+          enum:
+            - manual
+            - addon
+            - compensation
+            - support
+        effectiveFrom:
+          type: string
+          format: date-time
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        isActive:
+          type: boolean
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokeReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    TenantEntitlementOverrideRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - targetKind
+        - targetKey
+        - effect
+        - reason
+      properties:
+        targetKind:
+          type: string
+          enum:
+            - feature
+            - module
+            - quota
+        targetKey:
+          type: string
+          maxLength: 120
+        effect:
+          type: string
+          enum:
+            - grant
+            - deny
+        quotaIsUnlimited:
+          type: boolean
+        quotaLimitValue:
+          type: integer
+          nullable: true
+          minimum: 0
+        quotaUnit:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        source:
+          type: string
+          enum:
+            - manual
+            - addon
+            - compensation
+            - support
+        effectiveFrom:
+          type: string
+          format: date-time
+          nullable: true
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+    TenantEntitlementQuotaDecision:
+      type: object
+      additionalProperties: false
+      required:
+        - allowed
+        - isUnlimited
+        - limit
+        - unit
+        - source
+      properties:
+        allowed:
+          type: boolean
+        isUnlimited:
+          type: boolean
+        limit:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        source:
+          $ref: "#/components/schemas/TenantEntitlementSource"
+    TenantEntitlementRevokeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+    TenantEntitlementSource:
+      type: object
+      additionalProperties: false
+      description: High-level provenance of a resolved decision (no operator free-text reason — tenant-facing).
+      required:
+        - kind
+      properties:
+        kind:
+          type: string
+          enum:
+            - offer
+            - override
+            - dependency_not_entitled
+            - default_deny
+        assignmentId:
+          type: string
+          format: uuid
+        planKey:
+          type: string
+        version:
+          type: integer
+        offerHash:
+          type: string
+        substate:
+          type: string
+          enum:
+            - active
+            - trial
+            - grace
+        overrideId:
+          type: string
+          format: uuid
+        effect:
+          type: string
+          enum:
+            - grant
+            - deny
+        effectiveTo:
+          type: string
+          format: date-time
+          nullable: true
+        dependencyKey:
+          type: string
+    TenantEntitlementTransitionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - active
+            - suspended
+            - canceled
+        reason:
+          type: string
+          nullable: true
+          maxLength: 500
     TenantModuleEntry:
       type: object
       required:
