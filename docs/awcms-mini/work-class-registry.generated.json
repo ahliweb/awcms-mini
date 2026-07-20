@@ -1436,6 +1436,41 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/usage-metering/aggregates.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/usage-metering/aggregation/rebuild.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/usage-metering/aggregation/status.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/usage-metering/corrections.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/usage-metering/events.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/usage-metering/quota.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/usage-metering/reconciliation.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/users/[id].ts",
       "workClass": "interactive",
       "source": "default"
@@ -1606,6 +1641,18 @@
       "workClass": "background_sync",
       "source": "registry",
       "rationale": "Outbox dispatcher (social-publishing:dispatch) — same recurring dispatcher profile."
+    },
+    {
+      "path": "scripts/usage-metering-aggregate.ts",
+      "workClass": "background_sync",
+      "source": "registry",
+      "rationale": "Recurring outbox-draining aggregation worker (usage-metering:aggregate, Issue #875), recommended every 30-60 seconds — same recurring dispatcher profile as domain-events/social-publish/object-sync dispatch (drains the usage events/corrections outbox and materializes windows tenants/billing read), not a tolerant-of-delay maintenance sweep; every withTenant call inside aggregation-job.ts already passes workClass: \"maintenance\" for the lease-holding transaction only, but the JOB-level connection profile is background_sync."
+    },
+    {
+      "path": "scripts/usage-metering-purge.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Scheduled bounded retention purge (usage-metering:purge, Issue #875) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; the withTenant call inside retention-purge.ts already passes workClass: \"maintenance\" explicitly."
     },
     {
       "path": "scripts/visitor-analytics-purge.ts",

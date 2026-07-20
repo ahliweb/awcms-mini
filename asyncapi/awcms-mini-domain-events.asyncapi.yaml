@@ -1103,6 +1103,30 @@ channels:
       completed (Issue #872). Payload: `requestId`, `tenantId`, `status`,
       `driftCount` — no auto-fix is ever applied. Producer:
       `provisioning-orchestrator.ts`'s `reconcileProvisioning`.
+  awcms-mini.usage-metering.usage.corrected:
+    address: awcms-mini.usage-metering.usage.corrected
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A signed usage correction/reversal was applied to a billable meter
+      (Issue #875, epic #868 SaaS control plane Wave 1, ADR-0022). Payload:
+      `correctionId`, `originalEventId`, `meterKey`, `correctionType`, and the
+      signed `deltaQuantity` — numeric-only, never the operator's free-text
+      reason. Producer: `usage-metering/application/correction-directory.ts`'s
+      `applyCorrection`, via `appendDomainEvent` in the same transaction as the
+      append-only correction row.
+  awcms-mini.usage-metering.usage.reconciled:
+    address: awcms-mini.usage-metering.usage.reconciled
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A usage reconciliation run compared recomputed windows to stored
+      aggregates (Issue #875). Payload: `runId`, `meterKey`, `windowType`,
+      `status`, and `windowsChecked` / `driftCount` / `missingCount` —
+      numeric-only evidence. Producer:
+      `usage-metering/application/reconciliation.ts`'s `runReconciliation`.
 operations:
   publishSyncPushRequested:
     action: send
@@ -1740,6 +1764,18 @@ operations:
       $ref: "#/channels/awcms-mini.tenant-provisioning.reconciled"
     messages:
       - $ref: "#/channels/awcms-mini.tenant-provisioning.reconciled/messages/DomainEvent"
+  publishUsageMeteringUsageCorrected:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.usage-metering.usage.corrected"
+    messages:
+      - $ref: "#/channels/awcms-mini.usage-metering.usage.corrected/messages/DomainEvent"
+  publishUsageMeteringUsageReconciled:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.usage-metering.usage.reconciled"
+    messages:
+      - $ref: "#/channels/awcms-mini.usage-metering.usage.reconciled/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

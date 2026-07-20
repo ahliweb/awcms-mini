@@ -69,7 +69,7 @@ flowchart LR
   SEC[Production Security] -.gates.-> ALL
 ```
 
-> **Diagram ini menyederhanakan.** Ia menggambar alur arsitektur inti, **bukan** seluruh 26 modul terdaftar, dan beberapa node-nya (UI Experience, Localization UI, Database Connectivity, Production Security) **bukan modul terdaftar** sama sekali — lihat §"Kapabilitas base yang BUKAN modul terdaftar" di bawah. Ketergantungan yang mengikat secara mesin adalah field `dependencies` di tiap `module.ts`, divalidasi `bun run modules:dag:check`.
+> **Diagram ini menyederhanakan.** Ia menggambar alur arsitektur inti, **bukan** seluruh 27 modul terdaftar, dan beberapa node-nya (UI Experience, Localization UI, Database Connectivity, Production Security) **bukan modul terdaftar** sama sekali — lihat §"Kapabilitas base yang BUKAN modul terdaftar" di bawah. Ketergantungan yang mengikat secara mesin adalah field `dependencies` di tiap `module.ts`, divalidasi `bun run modules:dag:check`.
 
 > Modul domain aplikasi turunan (mis. katalog produk, POS, gudang, pajak, CRM) menambah node-nya sendiri di diagram ketergantungan milik aplikasi tersebut — tidak digambar di sini karena disumbangkan lewat `src/modules/application-registry.ts`, bukan oleh base.
 
@@ -91,7 +91,7 @@ flowchart LR
 ## Modul utama (base)
 
 Sumber kebenaran tabel ini adalah **`listBaseModules()`** di
-`src/modules/index.ts` — **26 modul terdaftar**, bukan daftar tulis-tangan.
+`src/modules/index.ts` — **27 modul terdaftar**, bukan daftar tulis-tangan.
 Kolom `key` adalah key yang benar-benar didaftarkan; **jangan menurunkannya
 dari nama direktori** (`src/modules/workflow-approval` terdaftar sebagai
 `workflow`). Kolom Kategori mengikuti taksonomi
@@ -126,6 +126,7 @@ modul ke registry tanpa menambah barisnya di sini akan gagal di CI.
 | `service_catalog`         | Service Catalog                  | Official Optional | Katalog plan/offer SaaS berversi (control-plane, default-disabled, ADR-0022) — offer immutable, harga exact minor-unit                                                                                                               |
 | `tenant_entitlement`      | Tenant Entitlement               | Official Optional | Entitlement efektif fitur/modul/kuota tenant (control-plane, default-disabled, tenant-scoped, ADR-0022) — kontrak fail-closed `effective_entitlement`, override reason/time-bound                                                    |
 | `tenant_provisioning`     | Tenant Provisioning              | Official Optional | Provisioning tenant idempoten/resumable (control-plane, default-disabled, tenant-scoped, ADR-0022) — plan/step registry berversi, lease/checkpoint/bounded-retry, kompensasi diklasifikasi, reconciliation non-destruktif, readiness |
+| `usage_metering`          | Usage Metering                   | Official Optional | Fondasi metering provider-neutral (control-plane, default-disabled, tenant-scoped, ADR-0022) — event append-only numeric-only, aggregation deterministik, koreksi bertanda, quota fail-closed, reconciliation                        |
 | `document_infrastructure` | Document Infrastructure          | Official Optional | Infrastruktur METADATA dokumen generik tenant-scoped                                                                                                                                                                                 |
 | `data_exchange`           | Data Exchange                    | Official Optional | Framework import/export CSV/JSON bertahap provider-neutral                                                                                                                                                                           |
 

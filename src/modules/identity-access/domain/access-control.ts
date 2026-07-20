@@ -192,7 +192,19 @@ export type AccessAction =
   // reference_data addition; reporting's own commit-shaped action, if it
   // ever needs one, reuses that same literal, same convention `cancel`
   // already established for document_infrastructure just above.)
-  | "rebuild";
+  | "rebuild"
+  // Issue #875 (usage_metering, epic #868 SaaS control plane): migration 088
+  // seeds `usage_metering.corrections.correct` and
+  // `usage_metering.reconciliation.reconcile`. `correct` — applying a signed
+  // usage correction/reversal that changes a billable amount; `reconcile` —
+  // running a recompute-vs-stored reconciliation that declares the aggregate's
+  // source of truth. Both are their OWN actions (not reusing `update`/`commit`/
+  // `analyze`) so a role that can READ usage is not implicitly allowed to
+  // correct it or run a reconciliation — same "seed permission first, add the
+  // action when a real endpoint needs it" precedent as `verify`/`reserve`. Both
+  // added to `HIGH_RISK_ACTIONS` below.
+  | "correct"
+  | "reconcile";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -290,7 +302,12 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   // reference_data/document_infrastructure — not re-added here.
   "post",
   // Issue #753 — see the `AccessAction` union's own comment above.
-  "rebuild"
+  "rebuild",
+  // Issue #875 (usage_metering) — `correct` changes a billable amount via a
+  // signed correction/reversal; `reconcile` declares the aggregate's source of
+  // truth (a repair signal). See the `AccessAction` union's own comment above.
+  "correct",
+  "reconcile"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

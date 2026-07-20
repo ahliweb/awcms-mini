@@ -5242,3 +5242,119 @@ msgstr "Reconciliation complete (no auto-fix applied)."
 msgid "admin.tenant_provisioning.reason_prompt"
 msgstr "Reason (optional):"
 
+msgid "admin.layout.nav_usage_metering"
+msgstr "Usage Metering"
+
+msgid "admin.usage_metering.title"
+msgstr "Usage Metering"
+
+msgid "admin.usage_metering.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.usage_metering.access_denied_body"
+msgstr "You do not have permission to view usage metering, or the module is not enabled for this tenant."
+
+msgid "admin.usage_metering.status_heading"
+msgstr "Aggregation status"
+
+msgid "admin.usage_metering.no_cursor"
+msgstr "No aggregation has run yet."
+
+msgid "admin.usage_metering.checkpoint_label"
+msgstr "Checkpoint"
+
+msgid "admin.usage_metering.processed_label"
+msgstr "Processed events"
+
+msgid "admin.usage_metering.rebuild_button"
+msgstr "Request rebuild"
+
+msgid "admin.usage_metering.aggregates_heading"
+msgstr "Usage windows"
+
+msgid "admin.usage_metering.events_heading"
+msgstr "Usage timeline"
+
+msgid "admin.usage_metering.corrections_heading"
+msgstr "Corrections"
+
+msgid "admin.usage_metering.reconciliation_heading"
+msgstr "Reconciliation"
+
+msgid "admin.usage_metering.none"
+msgstr "None."
+
+msgid "admin.usage_metering.correct_button"
+msgstr "Apply correction"
+
+msgid "admin.usage_metering.reconcile_button"
+msgstr "Run reconciliation"
+
+msgid "admin.usage_metering.col_meter"
+msgstr "Meter"
+
+msgid "admin.usage_metering.col_window"
+msgstr "Window"
+
+msgid "admin.usage_metering.col_value"
+msgstr "Value"
+
+msgid "admin.usage_metering.col_freshness"
+msgstr "Freshness"
+
+msgid "admin.usage_metering.col_producer"
+msgstr "Producer"
+
+msgid "admin.usage_metering.col_quantity"
+msgstr "Quantity"
+
+msgid "admin.usage_metering.col_event_time"
+msgstr "Event time"
+
+msgid "admin.usage_metering.col_type"
+msgstr "Type"
+
+msgid "admin.usage_metering.col_delta"
+msgstr "Delta"
+
+msgid "admin.usage_metering.col_status"
+msgstr "Status"
+
+msgid "admin.usage_metering.col_drift"
+msgstr "Drift / missing"
+
+msgid "admin.usage_metering.col_started"
+msgstr "Started"
+
+msgid "admin.usage_metering.field_original_event_id"
+msgstr "Original event id"
+
+msgid "admin.usage_metering.field_correction_type"
+msgstr "Correction type"
+
+msgid "admin.usage_metering.field_delta_quantity"
+msgstr "Delta quantity"
+
+msgid "admin.usage_metering.field_reason"
+msgstr "Reason"
+
+msgid "admin.usage_metering.field_meter_key"
+msgstr "Meter key"
+
+msgid "admin.usage_metering.field_window_type"
+msgstr "Window type"
+
+msgid "admin.usage_metering.field_range_from"
+msgstr "Range from"
+
+msgid "admin.usage_metering.field_range_to"
+msgstr "Range to"
+
+msgid "admin.usage_metering.correct_success"
+msgstr "Correction applied."
+
+msgid "admin.usage_metering.reconcile_success"
+msgstr "Reconciliation complete."
+
+msgid "admin.usage_metering.rebuild_success"
+msgstr "Rebuild requested."
