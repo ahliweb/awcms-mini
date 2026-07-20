@@ -89,6 +89,14 @@ export async function withRedisCommandTimeout<T>(
   timeoutMs: number,
   operationName: string
 ): Promise<T> {
+  // Attach a no-op rejection handler to the command promise before racing it.
+  // When the timeout wins, the orphaned command promise may still reject a moment
+  // later during a real outage; this guarantees that late rejection is consumed
+  // here instead of surfacing as an unhandled rejection that bypasses the
+  // sanitized log()/safeErrorDetail pipeline and could print an un-redacted host.
+  // Racing the same promise keeps the timeout/fail-open semantics identical.
+  operation.catch(() => {});
+
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   try {

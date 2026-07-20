@@ -170,6 +170,78 @@ describe("Redis key namespacing", () => {
 
     expect(key).toBe("awcms-mini:v1:report%3Aadmin:tenant:tenant%3A1:a%3Ab");
   });
+
+  test("routes an absent tenantId to the shared global scope", () => {
+    const undefinedTenant = buildRedisKey(
+      { namespace: "reports", key: "summary", tenantId: undefined },
+      { keyPrefix: "awcms-mini" }
+    );
+    const nullTenant = buildRedisKey(
+      { namespace: "reports", key: "summary", tenantId: null },
+      { keyPrefix: "awcms-mini" }
+    );
+
+    expect(undefinedTenant).toBe("awcms-mini:v1:reports:global:summary");
+    expect(nullTenant).toBe("awcms-mini:v1:reports:global:summary");
+  });
+
+  test("rejects a present-but-empty tenantId instead of collapsing into global", () => {
+    expect(() =>
+      buildRedisKey(
+        { namespace: "reports", key: "summary", tenantId: "" },
+        { keyPrefix: "awcms-mini" }
+      )
+    ).toThrow(/tenantId must not be empty/);
+
+    expect(() =>
+      buildRedisKey(
+        { namespace: "reports", key: "summary", tenantId: "   " },
+        { keyPrefix: "awcms-mini" }
+      )
+    ).toThrow(/tenantId must not be empty/);
+  });
+});
+
+describe("Redis command timeout", () => {
+  test("fails open to a cache miss on timeout without an unhandled rejection", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+
+    try {
+      const slowClient: RedisCacheClient = {
+        async get() {
+          // The underlying command rejects a moment AFTER the command timeout
+          // fires, mimicking a real outage whose error arrives once we have
+          // already given up. The message embeds a host that must never reach
+          // stderr un-redacted via an unhandled rejection.
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          throw new Error("connect ECONNREFUSED redis-secret-host:6379");
+        },
+        async send() {
+          return null;
+        }
+      };
+
+      const value = await getRedisJson("awcms-mini:v1:test:global:item", {
+        client: slowClient,
+        config: enabledConfig({ commandTimeoutMs: 5 })
+      });
+
+      // Caller still gets a clean fail-open miss.
+      expect(value).toBeNull();
+
+      // Give the orphaned command promise time to reject after the timeout.
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      await Promise.resolve();
+
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
 });
 
 describe("Redis cache-aside helpers", () => {

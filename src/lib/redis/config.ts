@@ -240,9 +240,15 @@ export function buildRedisKey(
   const prefix = encodeKeySegment(config.keyPrefix, "prefix");
   const version = encodeKeySegment(parts.version ?? "v1", "version");
   const namespace = encodeKeySegment(parts.namespace, "namespace");
-  const scope = parts.tenantId
-    ? `tenant:${encodeKeySegment(parts.tenantId, "tenantId")}`
-    : "global";
+  // Only an absent tenantId (null/undefined) means the genuinely cross-tenant
+  // global scope. A present-but-empty/whitespace-only tenantId is a caller bug:
+  // silently collapsing it into "global" would leak tenant data into the shared
+  // namespace. encodeKeySegment already rejects empty segments, so route the
+  // present value through it to fail loudly.
+  const scope =
+    parts.tenantId === null || parts.tenantId === undefined
+      ? "global"
+      : `tenant:${encodeKeySegment(parts.tenantId, "tenantId")}`;
   const key = encodeKeySegment(parts.key, "key");
 
   return `${prefix}:${version}:${namespace}:${scope}:${key}`;
