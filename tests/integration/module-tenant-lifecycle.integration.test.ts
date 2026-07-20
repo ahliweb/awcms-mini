@@ -114,17 +114,18 @@ suite("tenant module lifecycle API", () => {
     });
 
     expect(result.status).toBe(200);
-    // Issue #870/#871/#872/#875 (ADR-0022 §7): the SaaS control-plane modules
-    // (`service_catalog`, `tenant_entitlement`, `tenant_provisioning`,
-    // `usage_metering`) are `defaultTenantState: "disabled"`, so they list as
-    // NOT enabled with no explicit row; every other module is enabled by
-    // default.
+    // Issue #870/#871/#872/#875/#873/#876 (ADR-0022 §7): the SaaS control-plane
+    // modules (`service_catalog`, `tenant_entitlement`, `tenant_provisioning`,
+    // `usage_metering`, `tenant_lifecycle`, `subscription_billing`) are
+    // `defaultTenantState: "disabled"`, so they list as NOT enabled with no
+    // explicit row; every other module is enabled by default.
     const defaultDisabled = new Set([
       "service_catalog",
       "tenant_entitlement",
       "tenant_provisioning",
       "usage_metering",
-      "tenant_lifecycle"
+      "tenant_lifecycle",
+      "subscription_billing"
     ]);
     expect(
       result.body.data.modules

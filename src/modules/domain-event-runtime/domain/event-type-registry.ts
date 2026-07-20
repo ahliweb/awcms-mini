@@ -298,6 +298,40 @@ export const TENANT_LIFECYCLE_RESTORED_EVENT_TYPE =
 export const TENANT_LIFECYCLE_SCHEDULED_EVENT_TYPE =
   "awcms-mini.tenant-lifecycle.scheduled";
 
+/**
+ * `subscription_billing` (Issue #876, epic #868 SaaS control plane Wave 1,
+ * ADR-0022). A REAL producer via `appendDomainEvent`, emitting these inside the
+ * SAME transaction as the commercial state change they describe (same-commit,
+ * memory `deferring-work-must-split-by-dependency`): `.subscription.transitioned`
+ * on a subscription state change; `.invoice.issued` when a draft invoice is
+ * finalized into an immutable document; `.invoice.paid` / `.invoice.voided` on
+ * those status advances; `.invoice.credited` when a credit note is issued;
+ * `.payment.recorded` when a validated payment allocation reference is recorded;
+ * `.subscription.changed` when an upgrade/downgrade/cancel is scheduled/applied;
+ * `.dunning.attempted` when a dunning attempt requests a lifecycle transition.
+ * Payloads carry ONLY bounded, non-sensitive fields (ids, from/to state,
+ * version, EXACT minor-unit amounts, currency) — NEVER the operator's raw reason
+ * free-text, a provider secret, or a raw billing contact (ADR-0022 §8,
+ * tenant-facing shape only).
+ */
+export const SUBSCRIPTION_BILLING_EVENT_VERSION = "1.0";
+export const SUBSCRIPTION_BILLING_SUBSCRIPTION_TRANSITIONED_EVENT_TYPE =
+  "awcms-mini.subscription-billing.subscription.transitioned";
+export const SUBSCRIPTION_BILLING_SUBSCRIPTION_CHANGED_EVENT_TYPE =
+  "awcms-mini.subscription-billing.subscription.changed";
+export const SUBSCRIPTION_BILLING_INVOICE_ISSUED_EVENT_TYPE =
+  "awcms-mini.subscription-billing.invoice.issued";
+export const SUBSCRIPTION_BILLING_INVOICE_PAID_EVENT_TYPE =
+  "awcms-mini.subscription-billing.invoice.paid";
+export const SUBSCRIPTION_BILLING_INVOICE_VOIDED_EVENT_TYPE =
+  "awcms-mini.subscription-billing.invoice.voided";
+export const SUBSCRIPTION_BILLING_INVOICE_CREDITED_EVENT_TYPE =
+  "awcms-mini.subscription-billing.invoice.credited";
+export const SUBSCRIPTION_BILLING_PAYMENT_RECORDED_EVENT_TYPE =
+  "awcms-mini.subscription-billing.payment.recorded";
+export const SUBSCRIPTION_BILLING_DUNNING_ATTEMPTED_EVENT_TYPE =
+  "awcms-mini.subscription-billing.dunning.attempted";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -642,6 +676,54 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: TENANT_LIFECYCLE_EVENT_VERSION,
       description:
         "A future tenant lifecycle transition (trial/grace expiry) was scheduled or canceled (Issue #873). Payload carries the tenant id, target state, scheduled time (null on cancel), and lifecycle version — numeric/enumerated evidence only."
+    },
+    {
+      eventType: SUBSCRIPTION_BILLING_SUBSCRIPTION_TRANSITIONED_EVENT_TYPE,
+      eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+      description:
+        "A subscription state transition was validated and applied (Issue #876). Payload carries the subscription id, from/to state, new version, offer plan key/version, and source — never the operator's raw reason or any secret."
+    },
+    {
+      eventType: SUBSCRIPTION_BILLING_SUBSCRIPTION_CHANGED_EVENT_TYPE,
+      eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+      description:
+        "A subscription upgrade/downgrade/cancel was scheduled or applied (Issue #876); historical terms are preserved. Payload carries the subscription id, change type, from/to offer plan key and version, effective time, and status."
+    },
+    {
+      eventType: SUBSCRIPTION_BILLING_INVOICE_ISSUED_EVENT_TYPE,
+      eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+      description:
+        "A draft invoice was issued into an immutable commercial document (Issue #876). Payload carries the invoice id, subscription id, period id, currency, EXACT minor-unit subtotal/total, offer version, and due time — never a raw billing contact."
+    },
+    {
+      eventType: SUBSCRIPTION_BILLING_INVOICE_PAID_EVENT_TYPE,
+      eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+      description:
+        "An issued invoice was marked paid from a validated payment allocation/reconciliation outcome (Issue #876). Payload carries the invoice id, currency, EXACT minor-unit allocated total, and source."
+    },
+    {
+      eventType: SUBSCRIPTION_BILLING_INVOICE_VOIDED_EVENT_TYPE,
+      eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+      description:
+        "An invoice was voided (correction, never edit/delete) (Issue #876). Payload carries the invoice id, prior status, currency, and EXACT minor-unit total — never the operator's raw reason."
+    },
+    {
+      eventType: SUBSCRIPTION_BILLING_INVOICE_CREDITED_EVENT_TYPE,
+      eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+      description:
+        "A credit note was issued against an original invoice/line (Issue #876). Payload carries the credit note id, invoice id, optional invoice line id, currency, and EXACT minor-unit credited amount — never the operator's raw reason."
+    },
+    {
+      eventType: SUBSCRIPTION_BILLING_PAYMENT_RECORDED_EVENT_TYPE,
+      eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+      description:
+        "A validated payment allocation reference (manual or provider outcome) was recorded against an invoice (Issue #876) — a reference only, never an accounting entry. Payload carries the allocation id, invoice id, allocation source, currency, EXACT minor-unit amount, and outcome — never a provider secret."
+    },
+    {
+      eventType: SUBSCRIPTION_BILLING_DUNNING_ATTEMPTED_EVENT_TYPE,
+      eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+      description:
+        "A dunning attempt requested a lifecycle transition through the #873 contract for a past-due invoice (Issue #876) — billing never mutates lifecycle state directly. Payload carries the attempt id, invoice id, subscription id, attempt number, requested lifecycle state, and outcome."
     }
   ];
 

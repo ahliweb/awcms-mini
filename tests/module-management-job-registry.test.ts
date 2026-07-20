@@ -109,6 +109,8 @@ describe("fetchModuleJobs", () => {
         "bun run reporting:projections:refresh",
         "bun run security:readiness",
         "bun run social-publishing:dispatch",
+        "bun run subscription-billing:run-dunning",
+        "bun run subscription-billing:run-renewal",
         "bun run sync:objects:dispatch",
         "bun run tenant-lifecycle:run-scheduled",
         "bun run tenant-provisioning:reconcile",

@@ -1,0 +1,1170 @@
+# Subscription Billing module OpenAPI fragment (Issue #876, epic #868, ADR-0022).
+# Merged into openapi/awcms-mini-public-api.openapi.yaml by `bun run openapi:bundle`.
+# Edit THIS file, never the generated bundle. The "Subscription Billing" tag lives
+# in the root fragment (openapi/awcms-mini-public-api.src.yaml).
+paths:
+  /api/v1/subscription-billing/tenants/{tenantId}/subscriptions:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "List subscriptions"
+      description: "List a tenant's subscriptions. Platform operator or the tenant's own user (self-read). Read-only."
+      operationId: subscriptionBillingListSubscriptions
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Subscriptions listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Create a subscription bound to an immutable published offer"
+      description: "Bind a subscription to a published offer version (immutable). Platform-operator only. Mandatory reason. Requires Idempotency-Key."
+      operationId: subscriptionBillingCreateSubscription
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingCreateSubscriptionRequest"
+      responses:
+        "201":
+          description: "Subscription created."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "A live subscription for the plan already exists, or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "Get a subscription and its periods"
+      description: "Fetch one subscription plus its billing periods. Platform operator or self-read."
+      operationId: subscriptionBillingGetSubscription
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Subscription returned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}/transition:
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Transition a subscription state"
+      description: "Forward-legal subscription transition (active/past_due/cancel/expire). Invalid transition or stale expectedVersion returns a deterministic 409. Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingTransitionSubscription
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingTransitionRequest"
+      responses:
+        "200":
+          description: "Subscription transitioned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Illegal transition or stale optimistic version."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}/invoices:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "List invoices for a subscription"
+      description: "List invoices belonging to a subscription. Platform operator or self-read."
+      operationId: subscriptionBillingListSubscriptionInvoices
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Invoices listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Generate an idempotent invoice draft"
+      description: "Generate a draft invoice for the subscription's current period from catalog prices and usage aggregates. Idempotent per (subscription, period): a concurrent worker never double-creates. Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingGenerateInvoice
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingGenerateInvoiceRequest"
+      responses:
+        "200":
+          description: "Existing draft returned (idempotent no-op)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "201":
+          description: "Invoice draft generated."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Subscription not billable, currency mismatch, or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}/changes:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "List scheduled subscription changes"
+      description: "List scheduled/applied upgrade/downgrade/cancel changes. Platform operator or self-read."
+      operationId: subscriptionBillingListChanges
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Changes listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Schedule an upgrade/downgrade/cancel"
+      description: "Schedule a deterministic subscription change preserving historical terms. A prior pending change is superseded. Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingScheduleChange
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: subscriptionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingChangeRequest"
+      responses:
+        "201":
+          description: "Change scheduled."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Invalid state, offer not found, or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/invoices:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "List a tenant's invoices"
+      description: "List a tenant's invoices, optionally filtered by status. Platform operator or self-read."
+      operationId: subscriptionBillingListInvoices
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Invoices listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "Get an invoice with lines, history, credits, payments"
+      description: "Tenant-facing invoice read: line items, status history, credit notes, payment allocation references, and a download metadata block. Platform operator or the tenant's own user; a tenant user sees only its own record and can never mutate an issued invoice."
+      operationId: subscriptionBillingGetInvoice
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Invoice returned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/issue:
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Issue a draft invoice (immutable)"
+      description: "Finalize a draft into an issued, immutable document (amounts frozen; correction via credit-note/void). Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingIssueInvoice
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingIssueInvoiceRequest"
+      responses:
+        "200":
+          description: "Invoice issued."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Illegal status transition or stale optimistic version."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/void:
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Void an invoice"
+      description: "Void a draft/issued invoice with a mandatory reason (correction, never edit/delete). Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingVoidInvoice
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingVoidInvoiceRequest"
+      responses:
+        "200":
+          description: "Invoice voided."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Illegal status transition or stale optimistic version."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/credits:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "List credit notes for an invoice"
+      description: "List credit notes issued against an invoice. Platform operator or self-read."
+      operationId: subscriptionBillingListCredits
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Credit notes listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Issue a credit note"
+      description: "Issue a credit note against an original issued/paid invoice (and optionally a line). Never edits the invoice. Exact minor-unit amount. Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingCreditInvoice
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingCreditNoteRequest"
+      responses:
+        "201":
+          description: "Credit note issued."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Invalid state, over-credit, or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/payments:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "List payment allocation references"
+      description: "List payment allocation references for an invoice (reference only, not an accounting ledger). Platform operator or self-read."
+      operationId: subscriptionBillingListPayments
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Allocations listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Record a validated payment allocation reference"
+      description: "Record a validated manual/provider payment allocation reference and optionally mark the invoice paid. The ONLY path that updates payment state — never a provider call in this transaction. Idempotent by (invoice, providerReference). Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingRecordPayment
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingPaymentRequest"
+      responses:
+        "200":
+          description: "Payment allocation recorded."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Invalid state or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/dunning:
+    get:
+      tags:
+        - Subscription Billing
+      summary: "List dunning attempts for an invoice"
+      description: "List dunning attempts for an invoice. Platform operator or self-read."
+      operationId: subscriptionBillingListDunning
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Dunning attempts listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Run a dunning attempt"
+      description: "Run a dunning attempt that REQUESTS a lifecycle transition through the #873 contract (fail-closed) — billing never mutates lifecycle state directly. Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingRunDunning
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionBillingDunningRequest"
+      responses:
+        "200":
+          description: "Dunning attempt recorded."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Invalid state or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    SubscriptionBillingCreateSubscriptionRequest:
+      type: object
+      required:
+        - offerPlanKey
+        - offerVersion
+        - reason
+      properties:
+        offerPlanKey:
+          type: string
+          description: The published offer plan key to bind (immutable).
+        offerVersion:
+          type: integer
+          minimum: 1
+        billingInterval:
+          type: string
+          enum: [day, week, month, quarter, year]
+          default: month
+        billingAnchorDay:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 31
+        prorationPolicy:
+          type: string
+          enum: [none, daily, full_period]
+          default: daily
+        roundingMode:
+          type: string
+          enum: [half_up, half_even, floor, ceil]
+          default: half_up
+        collectionMode:
+          type: string
+          enum: [manual, automatic]
+          default: manual
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        billingContactRef:
+          type: string
+          nullable: true
+          description: Minimized/masked billing contact reference (never a raw email).
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        source:
+          type: string
+          enum: [operator, system, scheduler, provisioning, lifecycle]
+          default: operator
+    SubscriptionBillingTransitionRequest:
+      type: object
+      required:
+        - toState
+        - reason
+      properties:
+        toState:
+          type: string
+          enum: [pending, trialing, active, past_due, canceled, expired]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        source:
+          type: string
+          enum: [operator, system, scheduler, provisioning, lifecycle]
+          default: operator
+        expectedVersion:
+          type: integer
+          nullable: true
+          minimum: 1
+    SubscriptionBillingGenerateInvoiceRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        includeUsage:
+          type: boolean
+          default: true
+        dueInDays:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 3650
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    SubscriptionBillingIssueInvoiceRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        invoiceNumber:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 100
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        expectedVersion:
+          type: integer
+          nullable: true
+          minimum: 1
+    SubscriptionBillingVoidInvoiceRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        expectedVersion:
+          type: integer
+          nullable: true
+          minimum: 1
+    SubscriptionBillingCreditNoteRequest:
+      type: object
+      required:
+        - amountMinor
+        - reason
+      properties:
+        invoiceLineId:
+          type: string
+          format: uuid
+          nullable: true
+        amountMinor:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          description: EXACT minor units (integer, never a float).
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    SubscriptionBillingPaymentRequest:
+      type: object
+      required:
+        - amountMinor
+      properties:
+        allocationSource:
+          type: string
+          enum: [manual, provider]
+          default: manual
+        providerKey:
+          type: string
+          nullable: true
+          maxLength: 100
+        providerReference:
+          type: string
+          nullable: true
+          maxLength: 200
+          description: Opaque provider reference (no secret); idempotency key for a provider outcome.
+        amountMinor:
+          type: integer
+          minimum: -9007199254740991
+          maximum: 9007199254740991
+          description: EXACT minor units (signed for a reversal; never a float).
+        outcome:
+          type: string
+          enum: [settled, partial, reversed]
+          default: settled
+        markPaid:
+          type: boolean
+          default: false
+        reason:
+          type: string
+          nullable: true
+          maxLength: 2000
+    SubscriptionBillingChangeRequest:
+      type: object
+      required:
+        - changeType
+        - effectiveAt
+        - reason
+      properties:
+        changeType:
+          type: string
+          enum: [upgrade, downgrade, cancel]
+        toOfferPlanKey:
+          type: string
+          nullable: true
+          description: Required for upgrade/downgrade; must be null for cancel.
+        toOfferVersion:
+          type: integer
+          nullable: true
+          minimum: 1
+        prorationPolicy:
+          type: string
+          enum: [none, daily, full_period]
+          default: daily
+        effectiveAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    SubscriptionBillingDunningRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        requestedLifecycleState:
+          type: string
+          enum: [past_due, grace, suspended]
+          default: past_due
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000

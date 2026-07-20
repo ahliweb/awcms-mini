@@ -5415,3 +5415,51 @@ msgstr "Reconciliation complete."
 
 msgid "admin.usage_metering.rebuild_success"
 msgstr "Rebuild requested."
+
+msgid "admin.layout.nav_subscription_billing"
+msgstr "Subscription Billing"
+
+msgid "admin.subscription_billing.title"
+msgstr "Subscription Billing"
+
+msgid "admin.subscription_billing.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.subscription_billing.access_denied_body"
+msgstr "You do not have permission to read subscription billing records."
+
+msgid "admin.subscription_billing.intro"
+msgstr "Look up a tenant's subscriptions and invoices. Billing records the commercial SaaS state only — it is not a general ledger."
+
+msgid "admin.subscription_billing.lookup_heading"
+msgstr "Look up a tenant"
+
+msgid "admin.subscription_billing.field_target_tenant"
+msgstr "Target tenant id"
+
+msgid "admin.subscription_billing.lookup_button"
+msgstr "Look up"
+
+msgid "admin.subscription_billing.not_found"
+msgstr "No billing records found for this tenant."
+
+msgid "admin.subscription_billing.subscriptions_heading"
+msgstr "Subscriptions"
+
+msgid "admin.subscription_billing.invoices_heading"
+msgstr "Invoices"
+
+msgid "admin.subscription_billing.col_state"
+msgstr "State"
+
+msgid "admin.subscription_billing.col_plan"
+msgstr "Plan"
+
+msgid "admin.subscription_billing.col_status"
+msgstr "Status"
+
+msgid "admin.subscription_billing.col_total"
+msgstr "Total"
+
+msgid "admin.subscription_billing.col_outstanding"
+msgstr "Outstanding"

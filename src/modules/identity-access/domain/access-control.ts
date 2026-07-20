@@ -204,7 +204,20 @@ export type AccessAction =
   // action when a real endpoint needs it" precedent as `verify`/`reserve`. Both
   // added to `HIGH_RISK_ACTIONS` below.
   | "correct"
-  | "reconcile";
+  | "reconcile"
+  // Issue #876 (subscription_billing, epic #868 SaaS control plane): migration
+  // 092 seeds `subscription_billing.invoices.issue`. `issue` — finalizing a
+  // draft invoice into an ISSUED, IMMUTABLE commercial document (amounts frozen;
+  // correction only via credit-note/void). Its OWN action, not reusing
+  // `publish`/`post`/`commit`/`update`, so a role that can GENERATE a draft
+  // invoice (`invoices.create`) is NOT implicitly allowed to issue it — same
+  // "decision step vs execution step" separation `profile_merge.approve` vs
+  // `.merge` established. Added to `HIGH_RISK_ACTIONS` below: issuing is
+  // irreversible-by-default (the document becomes immutable), same reasoning as
+  // `void`/`post`. (`void` is already a union member above, shared verbatim by
+  // this module for `invoices.void`; `create`/`update`/`read`/`configure` reused
+  // for the other billing permissions.)
+  | "issue";
 
 export type AccessRequest = {
   moduleKey: string;
@@ -307,7 +320,12 @@ const HIGH_RISK_ACTIONS: ReadonlySet<AccessAction> = new Set([
   // signed correction/reversal; `reconcile` declares the aggregate's source of
   // truth (a repair signal). See the `AccessAction` union's own comment above.
   "correct",
-  "reconcile"
+  "reconcile",
+  // Issue #876 (subscription_billing): issuing a draft invoice freezes it into
+  // an immutable commercial document — irreversible-by-default, same reasoning
+  // as `void`/`post`/`commit`. (`void` is already in this set above, shared by
+  // subscription_billing's `invoices.void`.)
+  "issue"
 ]);
 
 export function isHighRiskAction(action: AccessAction): boolean {

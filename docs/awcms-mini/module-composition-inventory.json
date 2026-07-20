@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 28,
+  "baseModuleCount": 29,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 28,
+  "totalModuleCount": 29,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -412,6 +412,44 @@
       "permissionCount": 11,
       "navigationCount": 3,
       "jobCount": 1,
+      "hasHealthCheck": false,
+      "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "subscription_billing",
+      "name": "Subscription Billing",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "domain",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime",
+        "logging"
+      ],
+      "capabilitiesProvided": ["billing_document_state"],
+      "capabilitiesConsumed": [
+        {
+          "capability": "service_catalog_read",
+          "providedBy": "service_catalog",
+          "optional": true
+        },
+        {
+          "capability": "usage_aggregate",
+          "providedBy": "usage_metering",
+          "optional": true
+        },
+        {
+          "capability": "lifecycle_transition",
+          "providedBy": "tenant_lifecycle",
+          "optional": true
+        }
+      ],
+      "permissionCount": 11,
+      "navigationCount": 1,
+      "jobCount": 2,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,
       "deploymentProfiles": null

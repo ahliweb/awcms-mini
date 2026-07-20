@@ -20,6 +20,7 @@ import { referenceDataModule } from "./reference-data/module";
 import { reportingModule } from "./reporting/module";
 import { serviceCatalogModule } from "./service-catalog/module";
 import { socialPublishingModule } from "./social-publishing/module";
+import { subscriptionBillingModule } from "./subscription-billing/module";
 import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
 import { tenantDomainModule } from "./tenant-domain/module";
@@ -107,7 +108,18 @@ const baseModules: ModuleDescriptor[] = [
   // preserving), and reconciled restore. Provides tenant_restrictions +
   // lifecycle_transition; consumes effective_entitlement (#871) and
   // provisioning_status (#872). Also default-disabled (opt-in per tenant).
-  tenantLifecycleModule
+  tenantLifecycleModule,
+  // Issue #876 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the fifth
+  // control-plane module: commercial SaaS subscription billing STATE
+  // (subscriptions bound to immutable published offers, billing periods,
+  // draft/issued/immutable invoices + lines, credit notes, payment allocation
+  // references, dunning, scheduled upgrade/downgrade/cancel). Money is EXACT
+  // minor units; issued invoices immutable; invoice generation idempotent per
+  // (subscription, period, offer version). Provides billing_document_state
+  // (consumed by payment_gateway #877); consumes service_catalog_read (#870),
+  // usage_aggregate (#875), and lifecycle_transition (#873). NOT a general
+  // ledger / AR-AP / tax engine (ADR-0022 §11). Also default-disabled.
+  subscriptionBillingModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

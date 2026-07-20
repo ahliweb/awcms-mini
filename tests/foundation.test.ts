@@ -60,8 +60,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, service_catalog, tenant_entitlement, tenant_provisioning, usage_metering, and tenant_lifecycle are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870, #871, #872, #875, #873", () => {
-    expect(listModules()).toHaveLength(28);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, service_catalog, tenant_entitlement, tenant_provisioning, usage_metering, tenant_lifecycle, and subscription_billing are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870, #871, #872, #875, #873, #876", () => {
+    expect(listModules()).toHaveLength(29);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -324,6 +324,25 @@ describe("module registry", () => {
         "tenant_admin",
         "identity_access",
         "module_management",
+        "domain_event_runtime",
+        "logging"
+      ]
+    });
+    // Issue #876 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the fifth
+    // control-plane module: commercial SaaS subscription billing STATE
+    // (subscriptions bound to immutable published offers, draft/issued/immutable
+    // invoices, credit notes, payment allocation references, dunning, scheduled
+    // upgrade/downgrade/cancel). Money is EXACT minor units; issued invoices
+    // immutable; generation idempotent per (subscription, period, offer version).
+    // NOT a general ledger / AR-AP / tax engine (ADR-0022 §11). Default-disabled.
+    expect(getModuleByKey("subscription_billing")).toMatchObject({
+      key: "subscription_billing",
+      status: "active",
+      type: "domain",
+      defaultTenantState: "disabled",
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
         "domain_event_runtime",
         "logging"
       ]
@@ -761,7 +780,9 @@ describe("database migration runner helpers", () => {
       "087_awcms_mini_usage_metering_schema.sql",
       "088_awcms_mini_usage_metering_permissions.sql",
       "089_awcms_mini_tenant_lifecycle_schema.sql",
-      "090_awcms_mini_tenant_lifecycle_permissions.sql"
+      "090_awcms_mini_tenant_lifecycle_permissions.sql",
+      "091_awcms_mini_subscription_billing_schema.sql",
+      "092_awcms_mini_subscription_billing_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
