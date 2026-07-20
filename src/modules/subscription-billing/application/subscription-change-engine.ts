@@ -1,12 +1,14 @@
 /**
- * `subscription_billing` upgrade/downgrade/cancel scheduling + application
- * (Issue #876, epic #868). Scheduling is DETERMINISTIC and PRESERVES old period
- * evidence (AC): a change never rewrites or deletes the current subscription's
- * offer binding or its billing periods — it records a scheduled change and, on
- * apply, an upgrade/downgrade creates a NEW subscription bound to the target
- * immutable offer and cancels the old one (all history retained). A prior
- * pending change is superseded (never silently overwritten). Runs inside the
- * caller's already tenant-scoped `tx`.
+ * `subscription_billing` upgrade/downgrade/cancel SCHEDULING (Issue #876, epic
+ * #868). This engine ONLY records a deterministic scheduled change; APPLYING a
+ * change (materialising an upgrade/downgrade as a new subscription bound to the
+ * target immutable offer and cancelling the old one) is OUT OF SCOPE for #876 —
+ * there is deliberately no apply code here yet (the `subscription_change` job
+ * kind is reserved, not-yet-scheduled). Scheduling is DETERMINISTIC and PRESERVES
+ * old period evidence (AC): it never rewrites or deletes the current
+ * subscription's offer binding or its billing periods. A prior pending change is
+ * superseded (never silently overwritten). Runs inside the caller's already
+ * tenant-scoped `tx`.
  */
 import { recordAuditEvent } from "../../logging/application/audit-log";
 import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";

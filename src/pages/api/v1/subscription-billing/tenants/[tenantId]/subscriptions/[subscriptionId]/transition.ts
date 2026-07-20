@@ -68,6 +68,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     subscriptionId,
     toState: input.toState,
     source: input.source,
+    reason: input.reason,
     expectedVersion: input.expectedVersion
   });
 

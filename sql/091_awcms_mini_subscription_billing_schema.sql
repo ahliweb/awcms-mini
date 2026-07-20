@@ -786,17 +786,46 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION awcms_mini_subscription_billing_guard_invoice_line_frozen()
 RETURNS trigger AS $$
 DECLARE
-  parent_status text;
-  target_invoice uuid;
+  old_status text;
+  new_status text;
 BEGIN
-  target_invoice := CASE WHEN TG_OP = 'DELETE' THEN OLD.invoice_id ELSE NEW.invoice_id END;
-  SELECT status INTO parent_status
-    FROM awcms_mini_subscription_billing_invoices
-    WHERE id = target_invoice;
-  IF parent_status IS NOT NULL AND parent_status <> 'draft' THEN
-    RAISE EXCEPTION 'subscription_billing: invoice line for invoice % is frozen (parent invoice is %); correct via credit note or void', target_invoice, parent_status
+  -- A line is mutable ONLY while its parent invoice is a draft. Both endpoints of
+  -- the mutation must be checked so a line can never be re-parented OUT of a
+  -- frozen (issued/paid/void) invoice:
+  --   INSERT -> only the destination parent (NEW.invoice_id) exists;
+  --   DELETE -> only the source parent (OLD.invoice_id) exists;
+  --   UPDATE -> BOTH the source parent (OLD.invoice_id) AND the destination
+  --     parent (NEW.invoice_id) must be draft. Checking only NEW would let
+  --     `UPDATE ... SET invoice_id = <some draft> WHERE id = <line of an ISSUED
+  --     invoice>` silently pull a line out of the frozen invoice's line-set,
+  --     breaking reconciliation to its FROZEN total (money-integrity hole).
+  IF TG_OP <> 'INSERT' THEN
+    SELECT status INTO old_status
+      FROM awcms_mini_subscription_billing_invoices
+      WHERE id = OLD.invoice_id;
+    IF old_status IS NOT NULL AND old_status <> 'draft' THEN
+      RAISE EXCEPTION 'subscription_billing: invoice line for invoice % is frozen (parent invoice is %); correct via credit note or void', OLD.invoice_id, old_status
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
+  IF TG_OP <> 'DELETE' THEN
+    SELECT status INTO new_status
+      FROM awcms_mini_subscription_billing_invoices
+      WHERE id = NEW.invoice_id;
+    IF new_status IS NOT NULL AND new_status <> 'draft' THEN
+      RAISE EXCEPTION 'subscription_billing: invoice line for invoice % is frozen (parent invoice is %); correct via credit note or void', NEW.invoice_id, new_status
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+
+  -- A line belongs to exactly one invoice for its lifetime: re-parenting is never
+  -- allowed (even draft -> draft), so the line-set of every invoice is stable.
+  IF TG_OP = 'UPDATE' AND NEW.invoice_id IS DISTINCT FROM OLD.invoice_id THEN
+    RAISE EXCEPTION 'subscription_billing: invoice line % cannot be re-parented (invoice_id is immutable: % -> %)', OLD.id, OLD.invoice_id, NEW.invoice_id
       USING ERRCODE = 'check_violation';
   END IF;
+
   RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END;
 $$ LANGUAGE plpgsql;

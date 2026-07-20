@@ -410,6 +410,136 @@ suite("subscription_billing — engine + integrity", () => {
     expect(deleteRejected).toBe(true);
   });
 
+  test("an invoice line cannot be re-parented OUT of an ISSUED invoice (money integrity, no-reparent trigger)", async () => {
+    const owner = await bootstrapOwner();
+    const sql = getTestSql();
+    // Two distinct plans -> two distinct live subscriptions (one live per plan).
+    await seedOffer(sql, owner.tenantId, "growth");
+    await seedOffer(sql, owner.tenantId, "starter");
+    const subA = await makeSubscription(sql, owner, "growth");
+    const subB = await makeSubscription(sql, owner, "starter");
+
+    // Issue invoice A (its line-set is FROZEN); keep invoice B as a live draft —
+    // a draft is the ONLY thing a naive reparent could target.
+    const { issuedInvoiceId, draftInvoiceId } = await withTenant(
+      sql,
+      owner.tenantId,
+      async (tx) => {
+        const genA = await generateInvoiceDraft(
+          tx,
+          owner.tenantId,
+          subA,
+          { includeUsage: false, dueInDays: null, reason: "A" },
+          invoiceDeps(tx),
+          { actorTenantUserId: owner.tenantUserId }
+        );
+        if (!genA.ok) throw new Error("genA failed");
+        const issued = await issueInvoice(
+          tx,
+          owner.tenantId,
+          genA.invoice.id,
+          {
+            invoiceNumber: "INV-A",
+            dueAt: null,
+            reason: "issue",
+            expectedVersion: null
+          },
+          { actorTenantUserId: owner.tenantUserId }
+        );
+        if (!issued.ok) throw new Error("issue A failed");
+        const genB = await generateInvoiceDraft(
+          tx,
+          owner.tenantId,
+          subB,
+          { includeUsage: false, dueInDays: null, reason: "B" },
+          invoiceDeps(tx),
+          { actorTenantUserId: owner.tenantUserId }
+        );
+        if (!genB.ok) throw new Error("genB failed");
+        return {
+          issuedInvoiceId: genA.invoice.id,
+          draftInvoiceId: genB.invoice.id
+        };
+      }
+    );
+
+    const admin = getAdminSql();
+    const lineRows = (await admin`
+      SELECT id FROM awcms_mini_subscription_billing_invoice_lines
+      WHERE invoice_id = ${issuedInvoiceId} ORDER BY line_no ASC LIMIT 1
+    `) as { id: string }[];
+    const lineId = lineRows[0]!.id;
+
+    // Re-parenting a line OUT of the frozen invoice into a draft is rejected
+    // (OLD parent is ISSUED) — the frozen invoice's line-set can never shrink.
+    let reparentRejected = false;
+    try {
+      await admin`
+        UPDATE awcms_mini_subscription_billing_invoice_lines
+        SET invoice_id = ${draftInvoiceId} WHERE id = ${lineId}
+      `;
+    } catch {
+      reparentRejected = true;
+    }
+    expect(reparentRejected).toBe(true);
+
+    // Editing the amount of a frozen invoice's line is likewise rejected.
+    let amountEditRejected = false;
+    try {
+      await admin`
+        UPDATE awcms_mini_subscription_billing_invoice_lines
+        SET amount_minor = 1 WHERE id = ${lineId}
+      `;
+    } catch {
+      amountEditRejected = true;
+    }
+    expect(amountEditRejected).toBe(true);
+
+    // The line is STILL attached to the ISSUED invoice (nothing moved).
+    const still = (await admin`
+      SELECT invoice_id FROM awcms_mini_subscription_billing_invoice_lines
+      WHERE id = ${lineId}
+    `) as { invoice_id: string }[];
+    expect(still[0]!.invoice_id).toBe(issuedInvoiceId);
+  });
+
+  test("invoice generation REFUSES deterministically when the subscription has no period anchor", async () => {
+    const owner = await bootstrapOwner();
+    const sql = getTestSql();
+    await seedOffer(sql, owner.tenantId, "growth");
+    const subId = await makeSubscription(sql, owner, "growth");
+
+    // Clear the period anchors (not guarded by the immutability trigger). Without
+    // an anchor, generation must REFUSE cleanly rather than fabricate a period
+    // from the wall clock (which two racing generations would do differently).
+    const admin = getAdminSql();
+    await admin`
+      UPDATE awcms_mini_subscription_billing_subscriptions
+      SET current_period_start = NULL, current_period_end = NULL
+      WHERE id = ${subId}
+    `;
+
+    const result = await withTenant(sql, owner.tenantId, (tx) =>
+      generateInvoiceDraft(
+        tx,
+        owner.tenantId,
+        subId,
+        { includeUsage: false, dueInDays: null, reason: "no anchor" },
+        invoiceDeps(tx),
+        { actorTenantUserId: owner.tenantUserId }
+      )
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("no_period_anchor");
+
+    // No invoice (and no wall-clock period) was created.
+    const count = (await admin`
+      SELECT count(*)::int AS n
+      FROM awcms_mini_subscription_billing_invoices WHERE subscription_id = ${subId}
+    `) as { n: number }[];
+    expect(count[0]!.n).toBe(0);
+  });
+
   test("correction uses credit-note (over-credit rejected) and void", async () => {
     const owner = await bootstrapOwner();
     const sql = getTestSql();

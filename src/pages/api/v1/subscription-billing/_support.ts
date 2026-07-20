@@ -321,6 +321,8 @@ export function billingFailureResponse(reason: string): {
       return { status: 409, code: "BILLING_CONFLICT" };
     case "not_billable":
       return { status: 409, code: "BILLING_NOT_BILLABLE" };
+    case "no_period_anchor":
+      return { status: 409, code: "BILLING_NO_PERIOD_ANCHOR" };
     case "invalid_state":
       return { status: 409, code: "BILLING_INVALID_STATE" };
     case "currency_mismatch":

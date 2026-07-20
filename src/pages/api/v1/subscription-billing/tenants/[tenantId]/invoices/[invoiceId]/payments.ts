@@ -2,7 +2,10 @@ import type { APIRoute } from "astro";
 
 import { fail } from "../../../../../../../../modules/_shared/api-response";
 import { computeRequestHash } from "../../../../../../../../modules/_shared/idempotency";
-import { parsePaymentAllocationBody } from "../../../../../../../../modules/subscription-billing/application/request-parsing";
+import {
+  parsePaymentAllocationBody,
+  paymentAllocationIdempotencyFields
+} from "../../../../../../../../modules/subscription-billing/application/request-parsing";
 import { validatePaymentAllocation } from "../../../../../../../../modules/subscription-billing/domain/request-validation";
 import { recordPaymentAllocation } from "../../../../../../../../modules/subscription-billing/application/invoice-engine";
 import { listPaymentAllocations } from "../../../../../../../../modules/subscription-billing/application/billing-directory";
@@ -86,15 +89,13 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   if (auth instanceof Response) return auth;
 
   const correlationId = locals.correlationId;
-  const requestHash = computeRequestHash({
-    tenantId,
-    invoiceId,
-    allocationSource: input.allocationSource,
-    providerReference: input.providerReference,
-    amountMinor: input.amountMinor,
-    outcome: input.outcome,
-    markPaid: input.markPaid
-  });
+  // The hash MUST cover every material field of the allocation (resource id
+  // invoiceId + provider identity + money + outcome + reason) so a replay of the
+  // same Idempotency-Key with a DIFFERENT provider/reason cannot silently return
+  // the first outcome (lesson #750/#795). Built by a shared, unit-tested helper.
+  const requestHash = computeRequestHash(
+    paymentAllocationIdempotencyFields(tenantId, invoiceId, input)
+  );
 
   return runIdempotentBillingMutation(
     tenantId,

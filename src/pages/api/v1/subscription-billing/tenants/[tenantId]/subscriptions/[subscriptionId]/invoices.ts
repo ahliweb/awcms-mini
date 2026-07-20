@@ -88,7 +88,8 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     tenantId,
     subscriptionId,
     includeUsage: input.includeUsage,
-    dueInDays: input.dueInDays
+    dueInDays: input.dueInDays,
+    reason: input.reason
   });
 
   return runIdempotentBillingMutation(

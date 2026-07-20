@@ -86,7 +86,9 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     changeType: input.changeType,
     toOfferPlanKey: input.toOfferPlanKey,
     toOfferVersion: input.toOfferVersion,
-    effectiveAt: input.effectiveAt
+    prorationPolicy: input.prorationPolicy,
+    effectiveAt: input.effectiveAt,
+    reason: input.reason
   });
 
   return runIdempotentBillingMutation(

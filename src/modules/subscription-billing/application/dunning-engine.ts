@@ -6,6 +6,14 @@
  * ERROR or a non-ok result from the port is treated as NOT APPLIED (`refused`/
  * `not_available`) — the attempt is recorded honestly and billing does not
  * assume the transition happened. Runs inside the caller's tenant-scoped `tx`.
+ *
+ * CAVEAT on "recorded honestly": a port that throws an ordinary in-process error
+ * is caught here, so the attempt row IS persisted as `refused`. But if the port
+ * throws a *database* error (e.g. it touched an aborted connection), PostgreSQL
+ * marks the whole transaction as failed and the subsequent `insertDunningAttempt`
+ * cannot commit — the attempt is then NOT persisted. That is still fail-closed:
+ * no lifecycle change was asserted and nothing partial is written; the caller's
+ * `tx` simply rolls back and the dunning pass retries the invoice next run.
  */
 import { recordAuditEvent } from "../../logging/application/audit-log";
 import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";

@@ -31,13 +31,17 @@ import {
   nextPeriodEnd
 } from "../../src/modules/subscription-billing/domain/period";
 import {
+  validateCreateSubscription,
   validateCreditNote,
   validatePaymentAllocation
 } from "../../src/modules/subscription-billing/domain/request-validation";
 import {
+  parseCreateSubscriptionBody,
   parseCreditNoteBody,
-  parsePaymentAllocationBody
+  parsePaymentAllocationBody,
+  paymentAllocationIdempotencyFields
 } from "../../src/modules/subscription-billing/application/request-parsing";
+import { computeRequestHash } from "../../src/modules/_shared/idempotency";
 
 describe("money — EXACT minor units (mutation-critical)", () => {
   test("a float amount is rejected (never a valid minor-unit value)", () => {
@@ -178,5 +182,65 @@ describe("request parser + validator — fail-closed tri-state (mutation: float 
       providerReference: "ref-1"
     });
     expect(validatePaymentAllocation(parsed)).toEqual([]);
+  });
+});
+
+describe("billingContactRef — PII minimisation (doc 04 defense-in-depth)", () => {
+  function make(ref: string | null) {
+    return parseCreateSubscriptionBody({
+      offerPlanKey: "growth",
+      offerVersion: 1,
+      reason: "go live",
+      ...(ref === null ? {} : { billingContactRef: ref })
+    });
+  }
+  const contactError = (ref: string | null) =>
+    validateCreateSubscription(make(ref)).some(
+      (e) => e.field === "billingContactRef"
+    );
+
+  test("a raw email in billingContactRef is rejected", () => {
+    expect(contactError("billing@acme.example")).toBe(true);
+  });
+  test("a raw E.164 phone in billingContactRef is rejected", () => {
+    expect(contactError("+62 812-3456-7890")).toBe(true);
+  });
+  test("a bare local phone number is rejected", () => {
+    expect(contactError("081234567890")).toBe(true);
+  });
+  test("an opaque token/id reference is accepted", () => {
+    expect(contactError("cust_00012345")).toBe(false);
+    expect(contactError("550e8400-e29b-41d4-a716-446655440000")).toBe(false);
+    expect(contactError(null)).toBe(false);
+  });
+});
+
+describe("payment idempotency hash covers material fields (#750/#795)", () => {
+  const base = parsePaymentAllocationBody({
+    amountMinor: 5000,
+    allocationSource: "provider",
+    outcome: "settled",
+    providerKey: "midtrans",
+    providerReference: "ref-1",
+    reason: "manual settle"
+  });
+  const tenantId = "11111111-1111-1111-1111-111111111111";
+  const invoiceId = "22222222-2222-2222-2222-222222222222";
+  const hash = (i: typeof base) =>
+    computeRequestHash(
+      paymentAllocationIdempotencyFields(tenantId, invoiceId, i)
+    );
+
+  test("an identical request hashes identically (legit replay)", () => {
+    expect(hash(base)).toBe(hash({ ...base }));
+  });
+  test("a DIFFERENT providerKey changes the hash (no silent cross-provider replay)", () => {
+    expect(hash(base)).not.toBe(hash({ ...base, providerKey: "xendit" }));
+  });
+  test("a DIFFERENT reason changes the hash", () => {
+    expect(hash(base)).not.toBe(hash({ ...base, reason: "different reason" }));
+  });
+  test("a DIFFERENT amount changes the hash", () => {
+    expect(hash(base)).not.toBe(hash({ ...base, amountMinor: 6000 }));
   });
 });

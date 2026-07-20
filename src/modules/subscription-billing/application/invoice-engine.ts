@@ -123,7 +123,11 @@ export type GenerateResult =
   | {
       ok: false;
       reason:
-        "not_found" | "not_billable" | "offer_not_found" | "currency_mismatch";
+        | "not_found"
+        | "not_billable"
+        | "no_period_anchor"
+        | "offer_not_found"
+        | "currency_mismatch";
       message: string;
     };
 
@@ -152,8 +156,21 @@ export async function generateInvoiceDraft(
     };
   }
 
-  // Stable period anchor (idempotent): reuse the current period, else create it.
-  const periodStart = sub.current_period_start ?? now.toISOString();
+  // Stable period anchor (idempotent): the period MUST be anchored by the
+  // subscription's `current_period_start`. If it is absent we REFUSE cleanly
+  // rather than weaving in `now` — two anchor-less generations would each mint a
+  // distinct `now` period and thus two live invoices (the partial-unique on
+  // (subscription_id, period_id) never collides across DISTINCT periods). A clean
+  // refusal keeps generation deterministic and at-most-one-per-period.
+  if (!sub.current_period_start) {
+    return {
+      ok: false,
+      reason: "no_period_anchor",
+      message:
+        "Subscription has no current_period_start anchor; activate/renew the subscription before generating an invoice (generation must not fabricate a period from the wall clock)."
+    };
+  }
+  const periodStart = sub.current_period_start;
   const periodEnd =
     sub.current_period_end ??
     nextPeriodEnd(

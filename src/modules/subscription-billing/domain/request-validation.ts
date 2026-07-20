@@ -17,6 +17,22 @@ export type BillingValidationError = { field: string; message: string };
 
 const PLAN_KEY_RE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)*$/;
 const CURRENCY_RE = /^[A-Z]{3}$/;
+// Defense-in-depth PII minimisation (doc 04): a billing contact reference must be
+// OPAQUE (an id/token that resolves to a contact elsewhere), never a raw email or
+// phone number embedded in a money-domain row. These reject the obvious raw forms.
+const EMAIL_LIKE_RE = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+const PHONE_LIKE_RE = /^[+(]?[\d][\d\s()+.-]{5,}$/;
+
+/** True if the value obviously carries a raw email or phone number (not opaque). */
+function looksLikeRawContactPii(value: string): boolean {
+  const trimmed = value.trim();
+  if (EMAIL_LIKE_RE.test(trimmed)) return true;
+  const digitCount = (trimmed.match(/\d/g) ?? []).length;
+  // Phone-shaped: the WHOLE value is phone punctuation/digits and carries enough
+  // digits to be a real number (avoids flagging prefixed/tokenised opaque ids,
+  // which contain letters and thus fail PHONE_LIKE_RE).
+  return digitCount >= 7 && PHONE_LIKE_RE.test(trimmed);
+}
 const BILLING_INTERVALS = ["day", "week", "month", "quarter", "year"] as const;
 const PRORATION_POLICIES = ["none", "daily", "full_period"] as const;
 const COLLECTION_MODES = ["manual", "automatic"] as const;
@@ -184,15 +200,22 @@ export function validateCreateSubscription(
       message: "must be an ISO-8601 timestamp or null"
     });
   }
-  if (
-    input.billingContactRef !== null &&
-    (typeof input.billingContactRef !== "string" ||
-      input.billingContactRef.length > 200)
-  ) {
-    errors.push({
-      field: "billingContactRef",
-      message: "must be a string up to 200 chars or null"
-    });
+  if (input.billingContactRef !== null) {
+    if (
+      typeof input.billingContactRef !== "string" ||
+      input.billingContactRef.length > 200
+    ) {
+      errors.push({
+        field: "billingContactRef",
+        message: "must be a string up to 200 chars or null"
+      });
+    } else if (looksLikeRawContactPii(input.billingContactRef)) {
+      errors.push({
+        field: "billingContactRef",
+        message:
+          "must be an OPAQUE reference (an id/token), not a raw email or phone number (doc 04 PII minimisation)"
+      });
+    }
   }
   if (!isSubscriptionSource(input.source)) {
     errors.push({ field: "source", message: "unknown source" });

@@ -42,6 +42,11 @@ float**, all arithmetic via BigInt, every value bounded to
 **single-currency**; the rounding policy is explicit and stored per invoice
 (`half_up`/`half_even`/`floor`/`ceil`) with exact-remainder proration.
 
+> Note: `prorateMinor` / `divideRounded` are implemented and mutation-tested, but
+> are **not yet load-bearing** in #876 — change **APPLY** (which would prorate a
+> mid-period upgrade/downgrade) is out of scope here; only change **SCHEDULING**
+> exists. The helpers are ready for the future apply/proration runner.
+
 ## Concurrency & idempotency
 
 Every write path row-locks (`FOR UPDATE`) then issues a state/version-predicated

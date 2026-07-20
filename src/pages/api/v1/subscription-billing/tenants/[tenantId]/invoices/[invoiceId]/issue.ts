@@ -59,6 +59,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     invoiceId,
     invoiceNumber: input.invoiceNumber,
     dueAt: input.dueAt,
+    reason: input.reason,
     expectedVersion: input.expectedVersion
   });
 

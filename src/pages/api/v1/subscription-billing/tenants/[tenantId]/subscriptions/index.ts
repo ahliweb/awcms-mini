@@ -78,12 +78,23 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   if (auth instanceof Response) return auth;
 
   const correlationId = locals.correlationId;
+  // Full request fidelity: every field that shapes the persisted subscription
+  // (offer binding, interval/anchor, proration/rounding/collection config,
+  // billing contact, reason, source) is material, so a same-key replay with a
+  // DIFFERENT body is rejected rather than silently replaying the first create.
   const requestHash = computeRequestHash({
     tenantId,
     offerPlanKey: input.offerPlanKey,
     offerVersion: input.offerVersion,
     billingInterval: input.billingInterval,
-    trialEndsAt: input.trialEndsAt
+    billingAnchorDay: input.billingAnchorDay,
+    prorationPolicy: input.prorationPolicy,
+    roundingMode: input.roundingMode,
+    collectionMode: input.collectionMode,
+    trialEndsAt: input.trialEndsAt,
+    billingContactRef: input.billingContactRef,
+    reason: input.reason,
+    source: input.source
   });
 
   return runIdempotentBillingMutation(

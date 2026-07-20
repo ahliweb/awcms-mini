@@ -148,6 +148,31 @@ export function parsePaymentAllocationBody(
   };
 }
 
+/**
+ * The MATERIAL fields of a payment-allocation request, in the exact shape hashed
+ * for idempotency (doc 10). Extracted (and exported) so a unit test can PROVE the
+ * hash covers provider identity + money + outcome + reason — a same-key replay
+ * with a DIFFERENT `providerKey`/`reason` must NOT silently return the first
+ * outcome (lesson #750/#795). `invoiceId` is the resource id in the hash.
+ */
+export function paymentAllocationIdempotencyFields(
+  tenantId: string,
+  invoiceId: string,
+  input: PaymentAllocationInput
+): Record<string, unknown> {
+  return {
+    tenantId,
+    invoiceId,
+    allocationSource: input.allocationSource,
+    providerKey: input.providerKey,
+    providerReference: input.providerReference,
+    amountMinor: input.amountMinor,
+    outcome: input.outcome,
+    markPaid: input.markPaid,
+    reason: input.reason
+  };
+}
+
 export function parseSubscriptionChangeBody(
   body: unknown
 ): SubscriptionChangeInput {
