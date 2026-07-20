@@ -16,6 +16,7 @@ import {
   PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE,
   PAYMENT_GATEWAY_RECONCILIATION_RECORDED_EVENT_TYPE
 } from "../../domain-event-runtime/domain/event-type-registry";
+import { isUrlHostAllowed } from "../domain/endpoint-allowlist";
 import {
   intentStatusForNormalized,
   isLegalIntentTransition,
@@ -117,6 +118,29 @@ async function reconcileOne(
   if (!account || !intent.provider_session_ref) return false;
   const adapter = getPaymentProviderAdapter(account.provider_key);
   if (!adapter) return false;
+
+  // SSRF host-equality re-check before the provider status query (uniform with the
+  // outbound dispatch paths — defence in depth). A host that is not allow-listed
+  // records reconciliation evidence and never reaches the provider.
+  const hostCheck = isUrlHostAllowed(
+    `https://${account.endpoint_host}/`,
+    account.endpoint_host
+  );
+  if (!hostCheck.ok) {
+    await withTenant(sql, tenantId, (tx) =>
+      insertReconciliation(tx, {
+        tenantId,
+        intentId: intent.id,
+        providerStatus: null,
+        localStatus: intent.status,
+        outcome: "provider_unavailable",
+        detail: "Endpoint host not allow-listed",
+        correlationId,
+        actor: null
+      })
+    );
+    return false;
+  }
 
   // PROVIDER STATUS QUERY — OUTSIDE ANY DB TRANSACTION.
   const providerResult = await adapter.queryStatus({

@@ -488,6 +488,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS awcms_mini_payment_gateway_refunds_provider_re
   ON awcms_mini_payment_gateway_refunds (intent_id, provider_refund_ref)
   WHERE provider_refund_ref IS NOT NULL;
 
+-- Cumulative over-refund guard (money integrity, ADR-0022 §10): AT MOST ONE LIVE
+-- (requested/pending) refund per intent. Without it, two refund requests for the
+-- same settled intent — each individually within the captured amount — would both
+-- reach `requested` and both dispatch to the provider (double refund / money
+-- loss), because the intent stays `settled` until the FIRST refund RESOLVES and a
+-- `FOR UPDATE` on the intent alone does not serialize distinct refund rows. This
+-- partial UNIQUE makes the second concurrent request a clean `ON CONFLICT DO
+-- NOTHING` no-op (mapped to 409), while the application-layer cumulative SUM guard
+-- (`requestRefund`) rejects an over-amount BEFORE the insert. Legitimate PARTIAL
+-- refunds remain possible sequentially (each earlier one reaches a terminal state
+-- before the next), and the SUM guard bounds their total to the captured amount.
+CREATE UNIQUE INDEX IF NOT EXISTS awcms_mini_payment_gateway_refunds_live_intent_key
+  ON awcms_mini_payment_gateway_refunds (tenant_id, intent_id)
+  WHERE status IN ('requested', 'pending');
+
 CREATE INDEX IF NOT EXISTS awcms_mini_payment_gateway_refunds_tenant_intent_idx
   ON awcms_mini_payment_gateway_refunds (tenant_id, intent_id, created_at DESC);
 

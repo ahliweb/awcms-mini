@@ -322,6 +322,8 @@ export function paymentFailureResponse(reason: string): {
       return { status: 409, code: "PAYMENT_NOT_REFUNDABLE" };
     case "over_refund":
       return { status: 409, code: "PAYMENT_OVER_REFUND" };
+    case "refund_in_progress":
+      return { status: 409, code: "PAYMENT_REFUND_IN_PROGRESS" };
     default:
       return { status: 400, code: "VALIDATION_ERROR" };
   }

@@ -35,6 +35,10 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       "Idempotency-Key header is required."
     );
   }
+  // Authorize BEFORE parsing/validating the body (consistent ordering, smaller
+  // probing surface).
+  const auth = await authorizeOperator(request, cookies, "intents", "cancel");
+  if (auth instanceof Response) return auth;
   let raw: unknown;
   try {
     raw = await request.json();
@@ -50,8 +54,6 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       errors.map((e) => `${e.field}: ${e.message}`).join("; ")
     );
   }
-  const auth = await authorizeOperator(request, cookies, "intents", "cancel");
-  if (auth instanceof Response) return auth;
 
   const correlationId = locals.correlationId;
   const requestHash = computeRequestHash({

@@ -39,8 +39,10 @@ import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize
 import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
 import { withTenant } from "../../src/lib/database/tenant-context";
 import {
+  advanceIntentStatus,
   insertProviderAccount,
-  resolveProviderAccountLookup
+  resolveProviderAccountLookup,
+  upsertProviderHealth
 } from "../../src/modules/payment-gateway/application/payment-directory";
 import {
   cancelSession,
@@ -617,5 +619,260 @@ describe.skipIf(!integrationEnabled)("payment_gateway (integration)", () => {
     );
     expect(res.ok).toBe(true);
     expect(await intentStatus(owner.tenantId, intentId)).toBe("expired");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Review round (#877): cumulative over-refund + circuit-open attempt accounting
+  // ---------------------------------------------------------------------------
+
+  /** Settle an intent (initiate -> dispatch -> signed webhook) and return its id. */
+  async function settledIntent(
+    owner: Owner,
+    accountId: string
+  ): Promise<string> {
+    const intentId = await seedIntent(owner, accountId, crypto.randomUUID());
+    const sql = getTestSql();
+    await runOutboxDispatch(sql, {
+      dryRun: false,
+      correlationId: crypto.randomUUID()
+    });
+    await deliverWebhook(accountId, ACCOUNT_REF, {
+      event_id: `e_pay_${intentId}`,
+      session_ref: `sbx_sess_${intentId}`,
+      status: "settled",
+      sequence: 2,
+      amount_minor: 500000,
+      currency: "IDR"
+    });
+    expect(await intentStatus(owner.tenantId, intentId)).toBe("settled");
+    return intentId;
+  }
+
+  async function refundRowsFor(
+    tenantId: string,
+    intentId: string
+  ): Promise<{ status: string; amount_minor: string }[]> {
+    const sql = getTestSql();
+    return withTenant(sql, tenantId, async (tx) => {
+      return (await tx`
+        SELECT status, amount_minor
+        FROM awcms_mini_payment_gateway_refunds
+        WHERE tenant_id = ${tenantId} AND intent_id = ${intentId}
+        ORDER BY created_at ASC
+      `) as { status: string; amount_minor: string }[];
+    });
+  }
+
+  test("MONEY: two concurrent refunds each <= captured -> exactly one succeeds, total refunded never exceeds captured (no over-refund)", async () => {
+    const owner = await bootstrapOwner();
+    const accountId = await seedAccount(owner.tenantId, "sandbox", ACCOUNT_REF);
+    const intentId = await settledIntent(owner, accountId);
+    const sql = getTestSql();
+
+    // Two requests race — each 200000 is individually <= the 500000 capture, but
+    // together they would double-refund. Distinct withTenant calls => distinct
+    // pooled connections => genuine concurrency (the intent FOR UPDATE serializes
+    // them; the live-refund partial-unique + cumulative SUM guard block the loser).
+    const attempt = () =>
+      withTenant(sql, owner.tenantId, (tx) =>
+        requestRefund(
+          tx,
+          owner.tenantId,
+          intentId,
+          { amountMinor: 200000, reason: "concurrent refund race" },
+          {
+            actorTenantUserId: owner.tenantUserId,
+            correlationId: crypto.randomUUID()
+          }
+        )
+      );
+    const [a, b] = await Promise.all([attempt(), attempt()]);
+
+    const okCount = [a, b].filter((r) => r.ok).length;
+    expect(okCount).toBe(1);
+    const loser = [a, b].find((r) => !r.ok)!;
+    expect(loser.ok).toBe(false);
+    if (!loser.ok) {
+      expect(["refund_in_progress", "over_refund"]).toContain(loser.reason);
+    }
+    // Exactly ONE refund row exists and the total refunded <= captured.
+    const rows = await refundRowsFor(owner.tenantId, intentId);
+    expect(rows).toHaveLength(1);
+    const total = rows.reduce((sum, r) => sum + BigInt(r.amount_minor), 0n);
+    expect(total <= 500000n).toBe(true);
+  });
+
+  test("MONEY: sequential cumulative guard — over-amount is over_refund; a second live refund is refund_in_progress", async () => {
+    const owner = await bootstrapOwner();
+    const accountId = await seedAccount(owner.tenantId, "sandbox", ACCOUNT_REF);
+    const intentId = await settledIntent(owner, accountId);
+    const sql = getTestSql();
+
+    const req = (amountMinor: number) =>
+      withTenant(sql, owner.tenantId, (tx) =>
+        requestRefund(
+          tx,
+          owner.tenantId,
+          intentId,
+          { amountMinor, reason: "partial refund" },
+          {
+            actorTenantUserId: owner.tenantUserId,
+            correlationId: crypto.randomUUID()
+          }
+        )
+      );
+
+    const first = await req(200000); // 0 + 200000 <= 500000 -> ok, stays 'requested' (live)
+    expect(first.ok).toBe(true);
+
+    // A second LIVE refund whose amount alone fits (sum 400000 <= 500000) is still
+    // blocked by the at-most-one-live-refund partial-unique -> refund_in_progress.
+    const second = await req(200000);
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.reason).toBe("refund_in_progress");
+
+    // An over-amount (200000 already live + 400000 = 600000 > 500000) is caught by
+    // the cumulative SUM guard BEFORE any insert -> over_refund.
+    const third = await req(400000);
+    expect(third.ok).toBe(false);
+    if (!third.ok) expect(third.reason).toBe("over_refund");
+
+    // Still exactly one refund row, total <= captured.
+    const rows = await refundRowsFor(owner.tenantId, intentId);
+    expect(rows).toHaveLength(1);
+  });
+
+  test("MONEY: a stale refund dispatch after the intent is already refunded is skipped (provider is NOT called)", async () => {
+    const owner = await bootstrapOwner();
+    const accountId = await seedAccount(owner.tenantId, "sandbox", ACCOUNT_REF);
+    const intentId = await settledIntent(owner, accountId);
+    const sql = getTestSql();
+
+    // Request a refund (creates a 'requested' refund + a request_refund outbox row).
+    const refundId = await withTenant(sql, owner.tenantId, async (tx) => {
+      const res = await requestRefund(
+        tx,
+        owner.tenantId,
+        intentId,
+        { amountMinor: 500000, reason: "full refund" },
+        {
+          actorTenantUserId: owner.tenantUserId,
+          correlationId: crypto.randomUUID()
+        }
+      );
+      if (!res.ok) throw new Error("refund: " + JSON.stringify(res));
+      return res.refund.id;
+    });
+
+    // Simulate a CONCURRENT full refund / reconciliation that already moved the
+    // intent settled -> refunded BEFORE this queued dispatch fires.
+    await withTenant(sql, owner.tenantId, async (tx) => {
+      const rows = (await tx`
+        SELECT version FROM awcms_mini_payment_gateway_payment_intents
+        WHERE tenant_id = ${owner.tenantId} AND id = ${intentId}
+      `) as { version: number }[];
+      const advanced = await advanceIntentStatus(tx, {
+        tenantId: owner.tenantId,
+        intentId,
+        fromStatus: "settled",
+        fromVersion: Number(rows[0]!.version),
+        toStatus: "refunded",
+        actor: null
+      });
+      if (!advanced) throw new Error("could not pre-refund the intent");
+    });
+
+    await runOutboxDispatch(sql, {
+      dryRun: false,
+      correlationId: crypto.randomUUID()
+    });
+
+    // The stale refund outbox is dead-lettered WITHOUT a provider call: the refund
+    // stays 'requested' (a provider success would have made it 'succeeded'), and
+    // the intent is not double-refunded.
+    const refund = await withTenant(
+      sql,
+      owner.tenantId,
+      async (tx) =>
+        (await tx`
+          SELECT status FROM awcms_mini_payment_gateway_refunds
+          WHERE tenant_id = ${owner.tenantId} AND id = ${refundId}
+        `) as { status: string }[]
+    );
+    expect(refund[0]!.status).toBe("requested");
+    const outbox = await withTenant(
+      sql,
+      owner.tenantId,
+      async (tx) =>
+        (await tx`
+          SELECT status FROM awcms_mini_payment_gateway_outbox
+          WHERE tenant_id = ${owner.tenantId} AND refund_id = ${refundId}
+        `) as { status: string }[]
+    );
+    expect(outbox[0]!.status).toBe("dead");
+    expect(await intentStatus(owner.tenantId, intentId)).toBe("refunded");
+  });
+
+  test("a circuit-open dispatch does not consume a retry attempt (no premature DLQ, no attempts>max CHECK violation)", async () => {
+    const owner = await bootstrapOwner();
+    const accountId = await seedAccount(owner.tenantId, "sandbox", ACCOUNT_REF);
+    const intentId = await seedIntent(owner, accountId, crypto.randomUUID());
+    const sql = getTestSql();
+
+    const base = new Date();
+    // Seed the outbox row near its retry ceiling (attempts = max - 1 = 4) and OPEN
+    // the outbound circuit. Without attempt accounting on the circuit-open path,
+    // the 2nd claim would push attempts to max+1 (a CHECK violation) or DLQ the row
+    // that never actually failed.
+    await withTenant(sql, owner.tenantId, async (tx) => {
+      await tx`
+        UPDATE awcms_mini_payment_gateway_outbox
+        SET attempts = 4, status = 'failed'
+        WHERE tenant_id = ${owner.tenantId} AND intent_id = ${intentId}
+      `;
+      await upsertProviderHealth(tx, {
+        tenantId: owner.tenantId,
+        accountId,
+        direction: "outbound",
+        state: "down",
+        consecutiveFailures: 5,
+        consecutiveSuccesses: 0,
+        circuitOpenUntil: new Date(base.getTime() + 3_600_000).toISOString(),
+        success: false
+      });
+    });
+
+    // Drive MORE circuit-open passes than max_attempts (5). Each pass we make the
+    // row due again (its deferral pushed next_attempt_at to circuit-close time),
+    // keeping the circuit open at `base`.
+    for (let i = 0; i < 7; i += 1) {
+      await withTenant(sql, owner.tenantId, async (tx) => {
+        await tx`
+          UPDATE awcms_mini_payment_gateway_outbox
+          SET next_attempt_at = ${new Date(base.getTime() - 60_000).toISOString()},
+              status = 'failed'
+          WHERE tenant_id = ${owner.tenantId} AND intent_id = ${intentId}
+        `;
+      });
+      await runOutboxDispatch(
+        sql,
+        { dryRun: false, correlationId: crypto.randomUUID() },
+        { now: base }
+      );
+    }
+
+    const outbox = await withTenant(
+      sql,
+      owner.tenantId,
+      async (tx) =>
+        (await tx`
+          SELECT status, attempts FROM awcms_mini_payment_gateway_outbox
+          WHERE tenant_id = ${owner.tenantId} AND intent_id = ${intentId}
+        `) as { status: string; attempts: number }[]
+    );
+    // The attempt was handed back on every circuit-open deferral -> not consumed,
+    // and the row is still retryable (never prematurely dead-lettered).
+    expect(outbox[0]!.attempts).toBe(4);
+    expect(outbox[0]!.status).not.toBe("dead");
   });
 });

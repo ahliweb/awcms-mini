@@ -28,6 +28,7 @@ import {
   insertRefund,
   loadIntentForUpdate,
   loadRefundForUpdate,
+  sumCountedRefunds,
   type RefundRow
 } from "./payment-directory";
 
@@ -59,7 +60,11 @@ export type RequestRefundResult =
   | { ok: true; refund: RefundDto }
   | {
       ok: false;
-      reason: "intent_not_found" | "not_refundable" | "over_refund";
+      reason:
+        | "intent_not_found"
+        | "not_refundable"
+        | "over_refund"
+        | "refund_in_progress";
       message: string;
     };
 
@@ -86,11 +91,21 @@ export async function requestRefund(
     };
   }
   const amount = assertSafePositiveMinor(command.amountMinor, "amountMinor");
-  if (amount > Number(intent.amount_minor)) {
+
+  // CUMULATIVE over-refund guard (money integrity). Under the intent's FOR UPDATE
+  // lock, sum every refund that already counts against the captured amount (live
+  // or succeeded) and reject if THIS refund would push the total past it. Exact
+  // BigInt arithmetic — the running total of many bounded `bigint` rows can exceed
+  // Number.MAX_SAFE_INTEGER, so a Number() compare could silently round. Partial
+  // refunds remain legal (6000 then 4000 against 10000 is fine); an over-amount
+  // (6000 then 6000 against 10000) is rejected here BEFORE any insert/dispatch.
+  const priorCounted = BigInt(await sumCountedRefunds(tx, tenantId, intentId));
+  const capturedMinor = BigInt(intent.amount_minor);
+  if (priorCounted + BigInt(amount) > capturedMinor) {
     return {
       ok: false,
       reason: "over_refund",
-      message: `Refund ${amount} exceeds the settled amount ${intent.amount_minor}.`
+      message: `Refund ${amount} plus prior refunds ${priorCounted.toString()} exceeds the captured amount ${intent.amount_minor}.`
     };
   }
 
@@ -104,6 +119,17 @@ export async function requestRefund(
     correlationId: ctx.correlationId,
     actor: ctx.actorTenantUserId
   });
+  if (!refund) {
+    // The partial-unique `(tenant_id, intent_id) WHERE status IN
+    // ('requested','pending')` rejected a concurrent LIVE refund — at most one
+    // live refund per intent. This is the second racer; it is a clean 409 no-op
+    // (no outbox row, no provider call), so the provider is never double-refunded.
+    return {
+      ok: false,
+      reason: "refund_in_progress",
+      message: "A refund for this intent is already in progress."
+    };
+  }
 
   await insertOutbox(tx, {
     tenantId,

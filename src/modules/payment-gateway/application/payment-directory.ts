@@ -586,6 +586,33 @@ export async function finalizeOutbox(
   `;
 }
 
+/**
+ * Defer an outbox row WITHOUT consuming a retry attempt — the circuit-breaker-OPEN
+ * path. `claimNextOutbox` already incremented `attempts` when it claimed the row,
+ * but a circuit-open deferral is NOT the row's own failure, so we hand the attempt
+ * back (`GREATEST(attempts - 1, 0)`). This prevents both a premature DLQ (a run of
+ * circuit-open passes must never dead-letter a row that never actually failed) and
+ * an `attempts > max_attempts` CHECK violation on a later claim.
+ */
+export async function deferOutboxAttempt(
+  tx: Bun.SQL,
+  tenantId: string,
+  outboxId: string,
+  nextAttemptAt: Date,
+  lastErrorClass: string | null
+): Promise<void> {
+  await tx`
+    UPDATE awcms_mini_payment_gateway_outbox
+    SET status = 'failed',
+        next_attempt_at = ${nextAttemptAt.toISOString()},
+        attempts = GREATEST(attempts - 1, 0),
+        last_error_class = ${lastErrorClass},
+        claimed_by = NULL,
+        updated_at = now()
+    WHERE tenant_id = ${tenantId} AND id = ${outboxId}
+  `;
+}
+
 /** Reset a DLQ (dead) outbox row to pending for a manual retry (idempotent — no-op if not dead). Returns true iff a row was reset. */
 export async function retryDeadOutbox(
   tx: Bun.SQL,
@@ -620,6 +647,12 @@ export async function loadRefundForUpdate(
   return rows[0] ?? null;
 }
 
+/**
+ * Insert a new `requested` refund. Returns null on the LIVE-refund partial-unique
+ * conflict (`(tenant_id, intent_id) WHERE status IN ('requested','pending')`) — a
+ * concurrent live refund already exists for this intent, so this request is a
+ * clean no-op the caller maps to 409 (over-refund/double-refund guard, sql/093).
+ */
 export async function insertRefund(
   tx: Bun.SQL,
   input: {
@@ -632,7 +665,7 @@ export async function insertRefund(
     correlationId: string | null;
     actor: string | null;
   }
-): Promise<RefundRow> {
+): Promise<RefundRow | null> {
   const rows = (await tx`
     INSERT INTO awcms_mini_payment_gateway_refunds
       (tenant_id, intent_id, invoice_id, currency, amount_minor, status, reason,
@@ -642,9 +675,32 @@ export async function insertRefund(
       ${input.amountMinor}, 'requested', ${input.reason}, ${input.correlationId},
       ${input.actor}, ${input.actor}, ${input.actor}
     )
+    ON CONFLICT (tenant_id, intent_id) WHERE status IN ('requested', 'pending')
+    DO NOTHING
     RETURNING *
   `) as RefundRow[];
-  return rows[0]!;
+  return rows[0] ?? null;
+}
+
+/**
+ * Sum of refund amounts that COUNT against the intent's captured amount — i.e.
+ * live (`requested`/`pending`) OR already `succeeded` refunds — returned as an
+ * EXACT decimal string. The caller compares it in BigInt (never Number()): the
+ * SUM of many per-row `bigint` amounts can exceed Number.MAX_SAFE_INTEGER even
+ * though each row is individually bounded, so a `Number(...)` compare could round.
+ */
+export async function sumCountedRefunds(
+  tx: Bun.SQL,
+  tenantId: string,
+  intentId: string
+): Promise<string> {
+  const rows = (await tx`
+    SELECT COALESCE(SUM(amount_minor), 0)::text AS total
+    FROM awcms_mini_payment_gateway_refunds
+    WHERE tenant_id = ${tenantId} AND intent_id = ${intentId}
+      AND status IN ('requested', 'pending', 'succeeded')
+  `) as { total: string }[];
+  return rows[0]?.total ?? "0";
 }
 
 export async function advanceRefundStatus(

@@ -38,6 +38,7 @@ import { resolveRefundOutcome } from "./refund-engine";
 import {
   advanceIntentStatus,
   claimNextOutbox,
+  deferOutboxAttempt,
   finalizeOutbox,
   loadIntentForUpdate,
   loadProviderAccount,
@@ -172,7 +173,8 @@ async function dispatchOne(
     return {
       account,
       health: snapshotFromRow(health),
-      intentSessionRef: intent?.provider_session_ref ?? null
+      intentSessionRef: intent?.provider_session_ref ?? null,
+      intentStatus: intent?.status ?? null
     };
   });
   const account = context.account;
@@ -183,17 +185,16 @@ async function dispatchOne(
     return "dead";
   }
 
-  // Circuit breaker OPEN -> defer this row without a provider call.
+  // Circuit breaker OPEN -> defer this row without a provider call AND WITHOUT
+  // consuming a retry attempt. The claim already incremented `attempts`; a
+  // circuit-open deferral is not the row's own failure, so `deferOutboxAttempt`
+  // hands the attempt back. Otherwise a run of circuit-open passes would both
+  // dead-letter the row prematurely and eventually drive `attempts` past
+  // `max_attempts` (a CHECK violation on the next claim).
   if (isCircuitOpen(context.health, now)) {
+    const retryAt = context.health.circuitOpenUntil ?? now;
     await withTenant(sql, tenantId, (tx) =>
-      finalizeOutbox(
-        tx,
-        tenantId,
-        claimed.id,
-        "failed",
-        context.health.circuitOpenUntil,
-        "unavailable"
-      )
+      deferOutboxAttempt(tx, tenantId, claimed.id, retryAt, "unavailable")
     );
     return "retried";
   }
@@ -251,6 +252,36 @@ async function dispatchOne(
   }
 
   if (claimed.kind === "request_refund") {
+    // SSRF host-equality re-check before the provider refund call (uniform with
+    // create_checkout — defence in depth so a third-party adapter cannot drift to
+    // a non-allow-listed host).
+    const refundHostCheck = isUrlHostAllowed(
+      `https://${account.endpoint_host}/`,
+      account.endpoint_host
+    );
+    if (!refundHostCheck.ok) {
+      await withTenant(sql, tenantId, (tx) =>
+        finalizeOutbox(
+          tx,
+          tenantId,
+          claimed.id,
+          "dead",
+          null,
+          "invalid_request"
+        )
+      );
+      return "dead";
+    }
+    // Refundability RE-CHECK before the provider call: a stale queued refund must
+    // NOT fire once the intent has left the refundable (`settled`) state — e.g. a
+    // concurrent full refund / reconciliation already moved it to `refunded`. Firing
+    // it would double-refund (money loss). Dead-letter it WITHOUT a provider call.
+    if (context.intentStatus !== "settled") {
+      await withTenant(sql, tenantId, (tx) =>
+        finalizeOutbox(tx, tenantId, claimed.id, "dead", null, "not_refundable")
+      );
+      return "dead";
+    }
     const providerResult = await adapter.requestRefund({
       intentId: claimed.intent_id!,
       refundId: claimed.refund_id!,

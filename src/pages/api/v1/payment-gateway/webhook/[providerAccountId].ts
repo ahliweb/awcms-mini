@@ -41,7 +41,10 @@ export const POST: APIRoute = async ({ request, params }) => {
     return fail(404, "RESOURCE_NOT_FOUND", "Unknown payment endpoint.");
   }
 
-  const bodyRead = await readTextBody(request, "large");
+  // Stricter `webhook` tier (1 MiB) — aligned with the per-account
+  // `max_webhook_body_bytes` DB hard-cap — caps buffering for this UNAUTHENTICATED
+  // edge before the per-account limit (checked in the intake) rejects it.
+  const bodyRead = await readTextBody(request, "webhook");
   if (bodyRead.tooLarge) {
     return bodyTooLargeResponse(bodyRead.limitBytes);
   }
