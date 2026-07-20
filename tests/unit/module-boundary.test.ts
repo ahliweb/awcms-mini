@@ -582,3 +582,117 @@ describe("module boundary — tenant_provisioning control-plane <-> tenant-plane
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Control-plane <-> tenant-plane boundary for `tenant_lifecycle` (Issue #873,
+ * epic #868, ADR-0022 §4/§6). Same registry-wide enforcement as the blocks
+ * above:
+ *
+ *   1. No OTHER module's application/domain imports `tenant-lifecycle`'s
+ *      application/domain — a consumer reads ONLY the `tenant_restrictions` /
+ *      `lifecycle_transition` capability ports, wired at ITS composition root.
+ *      The base `identity_access` auth chokepoint ENFORCES lifecycle
+ *      restrictions via the NEUTRAL-GROUND `_shared/tenant-lifecycle-policy.ts`
+ *      + `_shared/tenant-lifecycle-restriction-read.ts` (a READ, no import of
+ *      the control-plane module) — the whole reason those two files live in
+ *      `_shared`, not under `tenant-lifecycle/`.
+ *   2. No module or route OUTSIDE `tenant_lifecycle` writes an
+ *      `awcms_mini_tenant_lifecycle_*` table (no-shared-table-write). The
+ *      neutral reader/chokepoint only SELECTs.
+ *   3. The lifecycle port + neutral policy/reader files stay neutral ground.
+ */
+describe("module boundary — tenant_lifecycle control-plane <-> tenant-plane (Issue #873, ADR-0022)", () => {
+  const CONTROL_PLANE_MODULE_DIR = "tenant-lifecycle";
+  const CONTROL_PLANE_TABLE_PREFIX = "awcms_mini_tenant_lifecycle_";
+
+  test("no OTHER module's application/domain imports tenant-lifecycle's application/domain (consume the ports / neutral policy instead)", () => {
+    const offenders: string[] = [];
+
+    for (const moduleName of readdirSync(MODULES_ROOT)) {
+      if (moduleName === CONTROL_PLANE_MODULE_DIR || moduleName === "_shared") {
+        continue;
+      }
+      const stat = statSync(path.join(MODULES_ROOT, moduleName));
+      if (!stat.isDirectory()) {
+        continue;
+      }
+      for (const dir of moduleAppDomainDirs(moduleName)) {
+        offenders.push(
+          ...findForbiddenCrossModuleImports(
+            dir,
+            listTsFiles(dir),
+            CONTROL_PLANE_MODULE_DIR
+          )
+        );
+      }
+    }
+
+    expect(
+      offenders,
+      "A downstream module must consume lifecycle ONLY through the tenant_restrictions / lifecycle_transition ports (`_shared/ports/tenant-lifecycle-port.ts`) or the neutral policy/reader in `_shared` — never by importing tenant_lifecycle's application/domain directly (ADR-0022 §4)."
+    ).toEqual([]);
+  });
+
+  test("no module or route outside tenant_lifecycle writes an awcms_mini_tenant_lifecycle_ table (no-shared-table-write, ADR-0013 §6)", () => {
+    const writePattern = new RegExp(
+      `(INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+${CONTROL_PLANE_TABLE_PREFIX}`,
+      "i"
+    );
+    const offenders: string[] = [];
+
+    function scan(root: string): void {
+      for (const file of listTsFiles(root)) {
+        if (
+          file.includes(`/modules/${CONTROL_PLANE_MODULE_DIR}/`) ||
+          file.includes(`/api/v1/${CONTROL_PLANE_MODULE_DIR}/`)
+        ) {
+          continue;
+        }
+        const content = readFileSync(file, "utf-8");
+        content.split("\n").forEach((line, index) => {
+          if (writePattern.test(line)) {
+            offenders.push(
+              `${path.relative(path.join(import.meta.dir, "../.."), file)}:${index + 1}: ${line.trim()}`
+            );
+          }
+        });
+      }
+    }
+
+    scan(MODULES_ROOT);
+    scan(PAGES_ROOT);
+
+    expect(
+      offenders,
+      "Only the tenant_lifecycle module (and its own routes) may write awcms_mini_tenant_lifecycle_* tables (ADR-0013 §6). The auth chokepoint / neutral reader only SELECTs."
+    ).toEqual([]);
+  });
+
+  test("the lifecycle port + neutral policy/reader files import no module's application/domain (neutral ground)", () => {
+    const neutralFiles = [
+      "_shared/ports/tenant-lifecycle-port.ts",
+      "_shared/tenant-lifecycle-policy.ts",
+      "_shared/tenant-lifecycle-restriction-read.ts"
+    ];
+    const moduleDirNames = readdirSync(MODULES_ROOT).filter((name) => {
+      const full = path.join(MODULES_ROOT, name);
+      return name !== "_shared" && statSync(full).isDirectory();
+    });
+
+    const offenders: string[] = [];
+    for (const relative of neutralFiles) {
+      const file = path.join(MODULES_ROOT, relative);
+      expect(existsSync(file)).toBe(true);
+      const lines = readFileSync(file, "utf-8").split("\n");
+      lines.forEach((line, index) => {
+        for (const moduleDir of moduleDirNames) {
+          if (lineViolatesModuleBoundary(line, moduleDir)) {
+            offenders.push(`${relative}:${index + 1}: ${line.trim()}`);
+          }
+        }
+      });
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});

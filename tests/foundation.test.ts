@@ -60,8 +60,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, service_catalog, tenant_entitlement, tenant_provisioning, and usage_metering are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870, #871, #872, #875", () => {
-    expect(listModules()).toHaveLength(27);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, service_catalog, tenant_entitlement, tenant_provisioning, usage_metering, and tenant_lifecycle are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870, #871, #872, #875, #873", () => {
+    expect(listModules()).toHaveLength(28);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -308,6 +308,23 @@ describe("module registry", () => {
         "identity_access",
         "domain_event_runtime",
         "data_lifecycle",
+        "logging"
+      ]
+    });
+    // Issue #873 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the fourth
+    // control-plane module: precise lifecycle state machine, server-derived
+    // fail-closed restrictions across API/SSR/public/worker, idempotent
+    // scheduled transitions, data-preserving downgrade, reconciled restore.
+    expect(getModuleByKey("tenant_lifecycle")).toMatchObject({
+      key: "tenant_lifecycle",
+      status: "active",
+      type: "domain",
+      defaultTenantState: "disabled",
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
+        "domain_event_runtime",
         "logging"
       ]
     });
@@ -742,7 +759,9 @@ describe("database migration runner helpers", () => {
       "085_awcms_mini_tenant_provisioning_schema.sql",
       "086_awcms_mini_tenant_provisioning_permissions.sql",
       "087_awcms_mini_usage_metering_schema.sql",
-      "088_awcms_mini_usage_metering_permissions.sql"
+      "088_awcms_mini_usage_metering_permissions.sql",
+      "089_awcms_mini_tenant_lifecycle_schema.sql",
+      "090_awcms_mini_tenant_lifecycle_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

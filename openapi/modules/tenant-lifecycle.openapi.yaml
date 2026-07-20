@@ -1,0 +1,593 @@
+# Tenant Lifecycle module OpenAPI fragment (Issue #873, epic #868, ADR-0022).
+# Merged into openapi/awcms-mini-public-api.openapi.yaml by `bun run openapi:bundle`.
+# Edit THIS file, never the generated bundle. The "Tenant Lifecycle" tag lives
+# in the root fragment (openapi/awcms-mini-public-api.src.yaml).
+paths:
+  /api/v1/tenant-lifecycle/tenants/{tenantId}:
+    get:
+      tags:
+        - Tenant Lifecycle
+      summary: Read a tenant's lifecycle state, restrictions, and timeline
+      description: The current lifecycle state, the server-derived fail-closed restriction profile, any pending scheduled transition, and the recent transition timeline for a target tenant. Platform-operator only; read under the target tenant's per-tenant RLS context.
+      operationId: tenantLifecycleGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          description: The target tenant's UUID.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The tenant's current lifecycle, restrictions, and timeline.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required: [lifecycle, restrictions, timeline]
+                        properties:
+                          lifecycle:
+                            $ref: "#/components/schemas/TenantLifecycleState"
+                          restrictions:
+                            $ref: "#/components/schemas/TenantLifecycleRestrictions"
+                          timeline:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/TenantLifecycleHistoryItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-lifecycle/tenants/{tenantId}/initialize:
+    post:
+      tags:
+        - Tenant Lifecycle
+      summary: Initialize a tenant's lifecycle record
+      description: Create the lifecycle record at an initial state (provisioning/trial/active). Idempotent — a repeat returns the existing record (200). Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+      operationId: tenantLifecycleInitialize
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          description: The target tenant's UUID.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantLifecycleInitializeRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TenantLifecycleStateOk"
+        "201":
+          $ref: "#/components/responses/TenantLifecycleStateOk"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-lifecycle/tenants/{tenantId}/transition:
+    post:
+      tags:
+        - Tenant Lifecycle
+      summary: Perform a validated lifecycle transition
+      description: Move the tenant to a target state (activate, suspend, past_due, grace, cancel, block, ...). Forward-legal only; an invalid transition or stale expectedVersion returns a deterministic 409. Suspension propagates to public routing/workers via the projected tenant status in the same commit. Never deletes tenant data. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+      operationId: tenantLifecycleTransition
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          description: The target tenant's UUID.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantLifecycleTransitionRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TenantLifecycleStateOk"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-lifecycle/tenants/{tenantId}/schedule:
+    post:
+      tags:
+        - Tenant Lifecycle
+      summary: Schedule a future lifecycle transition
+      description: Schedule a trial/grace expiry transition applied idempotently by the scheduler worker. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+      operationId: tenantLifecycleScheduleSet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          description: The target tenant's UUID.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantLifecycleScheduleRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TenantLifecycleStateOk"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags:
+        - Tenant Lifecycle
+      summary: Cancel the pending scheduled transition
+      description: Cancel a tenant's pending scheduled transition. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+      operationId: tenantLifecycleScheduleCancel
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          description: The target tenant's UUID.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantLifecycleReasonRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TenantLifecycleStateOk"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-lifecycle/tenants/{tenantId}/downgrade:
+    post:
+      tags:
+        - Tenant Lifecycle
+      summary: Downgrade the tenant effective entitlement
+      description: Downgrade the tenant's effective entitlement to a lower offer via the #871 contract WITHOUT changing lifecycle state and WITHOUT deleting any tenant data. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+      operationId: tenantLifecycleDowngrade
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          description: The target tenant's UUID.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantLifecycleDowngradeRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TenantLifecycleStateOk"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/tenant-lifecycle/tenants/{tenantId}/restore:
+    post:
+      tags:
+        - Tenant Lifecycle
+      summary: Restore/reactivate a suspended or canceled tenant
+      description: Restore a suspended/canceled/blocked tenant with reconciliation against provisioning readiness (#872). An unresolved provisioning/payment state must be explicitly confirmed (confirmUnresolved) or the restore is refused (409). Never deletes data. Platform-operator only; separately authorized (states.restore). Mandatory reason. Requires Idempotency-Key.
+      operationId: tenantLifecycleRestore
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          description: The target tenant's UUID.
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantLifecycleRestoreRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/TenantLifecycleStateOk"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  responses:
+    TenantLifecycleStateOk:
+      description: The tenant's current lifecycle state after the operation.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/ApiSuccess"
+              - type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    additionalProperties: false
+                    required: [lifecycle]
+                    properties:
+                      lifecycle:
+                        $ref: "#/components/schemas/TenantLifecycleState"
+                      created:
+                        type: boolean
+  schemas:
+    TenantLifecycleStateName:
+      type: string
+      enum:
+        - provisioning
+        - trial
+        - active
+        - renewal_due
+        - past_due
+        - grace
+        - suspended
+        - canceled
+        - restoring
+        - blocked
+    TenantLifecycleSource:
+      type: string
+      enum: [system, operator, scheduler, billing, provisioning, restore]
+    TenantLifecycleState:
+      type: object
+      additionalProperties: false
+      required: [tenantId, state, version, source, effectiveAt, enteredAt]
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        state:
+          $ref: "#/components/schemas/TenantLifecycleStateName"
+        previousState:
+          type: string
+          nullable: true
+        version:
+          type: integer
+        reason:
+          type: string
+          nullable: true
+        source:
+          $ref: "#/components/schemas/TenantLifecycleSource"
+        effectiveAt:
+          type: string
+          format: date-time
+        enteredAt:
+          type: string
+          format: date-time
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        graceEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        scheduledToState:
+          type: string
+          nullable: true
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        scheduledReason:
+          type: string
+          nullable: true
+    TenantLifecycleRestrictionProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - adminAccessAllowed
+        - writesAllowed
+        - publicSiteAllowed
+        - backgroundJobsAllowed
+        - providerDispatchAllowed
+        - dataExportAllowed
+        - ownerRecoveryAllowed
+        - entitlementActive
+      properties:
+        adminAccessAllowed:
+          type: boolean
+        writesAllowed:
+          type: boolean
+        publicSiteAllowed:
+          type: boolean
+        backgroundJobsAllowed:
+          type: boolean
+        providerDispatchAllowed:
+          type: boolean
+        dataExportAllowed:
+          type: boolean
+        ownerRecoveryAllowed:
+          type: boolean
+        entitlementActive:
+          type: boolean
+    TenantLifecycleRestrictions:
+      type: object
+      additionalProperties: false
+      required: [governing, state, profile]
+      properties:
+        governing:
+          type: boolean
+        state:
+          type: string
+          nullable: true
+        profile:
+          $ref: "#/components/schemas/TenantLifecycleRestrictionProfile"
+    TenantLifecycleHistoryItem:
+      type: object
+      additionalProperties: false
+      required: [eventKind, toState, version, source, effectiveAt, createdAt]
+      properties:
+        eventKind:
+          type: string
+        fromState:
+          type: string
+          nullable: true
+        toState:
+          type: string
+        version:
+          type: integer
+        reason:
+          type: string
+          nullable: true
+        source:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        effectiveAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    TenantLifecycleInitializeRequest:
+      type: object
+      additionalProperties: false
+      required: [initialState, reason]
+      properties:
+        initialState:
+          type: string
+          enum: [provisioning, trial, active]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        trialEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+        graceEndsAt:
+          type: string
+          format: date-time
+          nullable: true
+    TenantLifecycleTransitionRequest:
+      type: object
+      additionalProperties: false
+      required: [toState, reason]
+      properties:
+        toState:
+          $ref: "#/components/schemas/TenantLifecycleStateName"
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        source:
+          $ref: "#/components/schemas/TenantLifecycleSource"
+        expectedVersion:
+          type: integer
+          minimum: 1
+          nullable: true
+    TenantLifecycleScheduleRequest:
+      type: object
+      additionalProperties: false
+      required: [toState, at, reason]
+      properties:
+        toState:
+          $ref: "#/components/schemas/TenantLifecycleStateName"
+        at:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        source:
+          $ref: "#/components/schemas/TenantLifecycleSource"
+        expectedVersion:
+          type: integer
+          minimum: 1
+          nullable: true
+    TenantLifecycleDowngradeRequest:
+      type: object
+      additionalProperties: false
+      required: [offerPlanKey, offerVersion, reason]
+      properties:
+        offerPlanKey:
+          type: string
+          maxLength: 100
+        offerVersion:
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        expectedVersion:
+          type: integer
+          minimum: 1
+          nullable: true
+    TenantLifecycleRestoreRequest:
+      type: object
+      additionalProperties: false
+      required: [reason, confirmUnresolved]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        confirmUnresolved:
+          type: boolean
+        expectedVersion:
+          type: integer
+          minimum: 1
+          nullable: true
+    TenantLifecycleReasonRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        expectedVersion:
+          type: integer
+          minimum: 1
+          nullable: true

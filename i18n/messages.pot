@@ -3330,6 +3330,11 @@ msgid "admin.layout.nav_tenant_entitlement"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/tenant-lifecycle/module.ts:97
+msgid "admin.layout.nav_tenant_lifecycle"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/tenant-provisioning/module.ts:88
 msgid "admin.layout.nav_tenant_provisioning"
 msgstr ""
@@ -6352,6 +6357,78 @@ msgstr ""
 
 #: src/pages/admin/tenant-entitlement/index.astro:287
 msgid "admin.tenant_entitlement.unlimited"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:67
+msgid "admin.tenant_lifecycle.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:66
+msgid "admin.tenant_lifecycle.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:48
+msgid "admin.tenant_lifecycle.col_change"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:47
+msgid "admin.tenant_lifecycle.col_event"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:49
+msgid "admin.tenant_lifecycle.col_reason"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:46
+msgid "admin.tenant_lifecycle.col_when"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:86
+msgid "admin.tenant_lifecycle.field_target_tenant"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:80
+msgid "admin.tenant_lifecycle.intro"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:90
+msgid "admin.tenant_lifecycle.lookup_button"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:83
+msgid "admin.tenant_lifecycle.lookup_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:42
+msgid "admin.tenant_lifecycle.not_found"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:43
+msgid "admin.tenant_lifecycle.reason_prompt"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:51
+msgid "admin.tenant_lifecycle.restore_button"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:45
+msgid "admin.tenant_lifecycle.restore_success"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:52
+msgid "admin.tenant_lifecycle.restrictions_heading"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:61
+msgid "admin.tenant_lifecycle.title"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:50
+msgid "admin.tenant_lifecycle.transition_button"
+msgstr ""
+
+#: src/pages/admin/tenant-lifecycle/index.astro:44
+msgid "admin.tenant_lifecycle.transition_success"
 msgstr ""
 
 #: src/pages/admin/tenant-provisioning/index.astro:76
