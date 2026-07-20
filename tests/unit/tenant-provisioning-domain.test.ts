@@ -213,6 +213,62 @@ describe("provisioning plan registry", () => {
       })
     ).toThrow();
   });
+
+  test("readiness_check must be the TERMINAL step (review L-3)", () => {
+    // A plan placing a step AFTER readiness is rejected (activation must be
+    // terminal — a later failing step could otherwise leave a tenant active).
+    expect(() =>
+      registerProvisioningPlan({
+        planKey: "readiness_not_last",
+        version: 1,
+        description: "x",
+        steps: [
+          {
+            stepKey: CORE_STEP_KEYS.readinessCheck,
+            kind: "core",
+            compensationClass: "forbidden",
+            optional: false,
+            description: ""
+          },
+          {
+            stepKey: "after",
+            kind: "core",
+            compensationClass: "reversible",
+            optional: false,
+            description: ""
+          }
+        ]
+      })
+    ).toThrow();
+    // readiness as the last step is accepted.
+    expect(() =>
+      registerProvisioningPlan({
+        planKey: "readiness_last",
+        version: 1,
+        description: "x",
+        steps: [
+          {
+            stepKey: "first",
+            kind: "core",
+            compensationClass: "reversible",
+            optional: false,
+            description: ""
+          },
+          {
+            stepKey: CORE_STEP_KEYS.readinessCheck,
+            kind: "core",
+            compensationClass: "forbidden",
+            optional: false,
+            description: ""
+          }
+        ]
+      })
+    ).not.toThrow();
+    // The base plan itself already satisfies this.
+    expect(
+      STANDARD_TENANT_V1.steps[STANDARD_TENANT_V1.steps.length - 1]!.stepKey
+    ).toBe(CORE_STEP_KEYS.readinessCheck);
+  });
 });
 
 describe("compensation classification (ADR-0022 §9)", () => {

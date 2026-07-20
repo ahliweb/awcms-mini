@@ -35,3 +35,16 @@ Adds migrations 085/086 (six tenant-scoped tables with immutability/write-once/
 append-only triggers + least-privilege grants), the `tenant_provisioning`
 module, five REST endpoints (+ OpenAPI), four domain events (+ AsyncAPI), an
 admin control panel, audit, and metrics-safe observability.
+
+Review-round hardening (safety-critical): tenant ACTIVATION happens only in the
+finalize path, fenced on lease ownership + all-steps-done + activation being the
+terminal step — never inside a step handler — so a canceled/expired/undone run
+can never leave a tenant active; the lease is re-asserted + renewed as a fencing
+token at the start of every step transaction. A non-retryable step failure now
+BLOCKS the run (retry/manual state, completed steps intact) instead of
+compensating — compensation runs only on explicit cancel and transitions the
+reversible step to `compensated` (so a resume is refused and reconcile detects
+drift). The bounded attempt budget is enforced before each attempt (no unhandled
+CHECK-violation 500 / lease leak on repeated retries). Idempotency-Key is bound
+to the full request hash in the platform-operator tenant (same key + different
+payload → 409). Cross-tenant operator reads are audited.

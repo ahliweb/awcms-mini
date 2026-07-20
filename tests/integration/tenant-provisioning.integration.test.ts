@@ -333,7 +333,7 @@ suite("tenant_provisioning — orchestration engine", () => {
     }
   });
 
-  test("failure injection at a step boundary -> classified compensation + blocked (tenant stays inactive)", async () => {
+  test("failure injection at a step boundary -> BLOCKED (no compensation on failure; completed steps intact; tenant inactive)", async () => {
     // A subdomain step that always fails (non-retryable validation).
     const failingSubdomain = {
       request: async (): Promise<CapabilitySubdomainResult> => ({
@@ -370,7 +370,9 @@ suite("tenant_provisioning — orchestration engine", () => {
 
     expect(run.ok).toBe(true);
     if (run.ok) {
-      expect(["failed", "blocked"]).toContain(run.request.status);
+      // A non-retryable failure BLOCKS the run (retryable/manual state), it does
+      // NOT roll back committed core state (AC).
+      expect(run.request.status).toBe("blocked");
       expect(run.request.readiness).toBe("blocked");
     }
     // Tenant is NEVER left active on a failed run.
@@ -380,16 +382,179 @@ suite("tenant_provisioning — orchestration engine", () => {
     ).toBe(1);
 
     await withTenant(sql, tenantId, async (tx) => {
+      // NO compensation runs on failure (compensation is a cancel-only action).
       const comps = await listCompensations(tx, requestId);
-      // bootstrap = forbidden (never delete tenant), owner = manual, config = reversible.
-      const byStep = new Map(comps.map((c) => [c.stepKey, c]));
-      expect(byStep.get("tenant_bootstrap")?.status).toBe("skipped_forbidden");
-      expect(byStep.get("owner_identity")?.status).toBe("manual_required");
-      expect(byStep.get("default_configuration")?.status).toBe("completed");
-      // The failing step itself is not "completed" (never compensated).
+      expect(comps.length).toBe(0);
+      const steps = await listSteps(tx, requestId);
+      // Completed steps stay genuinely completed (a later retry resumes them).
+      expect(
+        steps.find((s) => s.stepKey === "default_configuration")!.status
+      ).toBe("completed");
+      // The failing step is `failed` (never falsely completed).
+      expect(steps.find((s) => s.stepKey === "subdomain_request")!.status).toBe(
+        "failed"
+      );
+      // The lease was released so a retry can acquire it.
+      const lease = (await tx`
+        SELECT lease_owner FROM awcms_mini_tenant_provisioning_requests WHERE id = ${requestId}
+      `) as { lease_owner: string | null }[];
+      expect(lease[0]!.lease_owner).toBeNull();
+    });
+  });
+
+  test("Med-A: repeated retry on a persistently-failing step -> clean blocked, never an unhandled throw, lease released", async () => {
+    // A subdomain step that ALWAYS throws (classified transient -> retried within
+    // a run up to max_attempts) so `attempt_count` accumulates ACROSS operator
+    // retries — the exact path that used to hit the DB CHECK
+    // (attempt_count <= max_attempts+1) on the 3rd invocation and throw an
+    // unhandled 500 + leak the lease.
+    const alwaysThrows = {
+      request: async (): Promise<CapabilitySubdomainResult> => {
+        throw new Error("provider permanently down");
+      },
+      deactivate: async () => {}
+    };
+    const { tenantId, requestId } = await request(
+      makeInput({
+        options: {
+          defaultLocale: "id",
+          defaultTheme: null,
+          timezone: null,
+          subdomain: "acme",
+          presetKey: null,
+          offerPlanKey: null,
+          offerVersion: null
+        }
+      }),
+      "kmeda"
+    );
+    const sql = getTestSql();
+    // Invoke the engine repeatedly (operator clicking "retry"); each call MUST
+    // resolve cleanly (never throw) and never leave the lease held. The 3rd
+    // invocation is the one that used to overflow the attempt budget.
+    for (let i = 0; i < 4; i += 1) {
+      const run = await runProvisioning(
+        sql,
+        tenantId,
+        requestId,
+        { actorTenantUserId: OPERATOR, leaseOwner: `w${i}` },
+        engineDeps({ subdomain: alwaysThrows })
+      );
+      expect(run.ok).toBe(true);
+      if (run.ok) expect(run.request.status).toBe("blocked");
+      // Lease is always released (never a 500 that leaks it).
+      const lease = await withTenant(sql, tenantId, async (tx) => {
+        const rows = (await tx`
+          SELECT lease_owner FROM awcms_mini_tenant_provisioning_requests WHERE id = ${requestId}
+        `) as { lease_owner: string | null }[];
+        return rows[0]!.lease_owner;
+      });
+      expect(lease).toBeNull();
+    }
+    // attempt_count never exceeds the CHECK bound (max_attempts + 1).
+    await withTenant(sql, tenantId, async (tx) => {
       const steps = await listSteps(tx, requestId);
       const sub = steps.find((s) => s.stepKey === "subdomain_request")!;
+      expect(sub.attemptCount).toBeLessThanOrEqual(sub.maxAttempts + 1);
       expect(sub.status).toBe("failed");
+    });
+    expect(await tenantStatus(tenantId)).toBe("inactive");
+  });
+
+  test("Med-B: cancel compensates a reversible step (marked compensated), then resume is REFUSED", async () => {
+    const failingSubdomain = {
+      request: async (): Promise<CapabilitySubdomainResult> => ({
+        ok: false as const,
+        reason: "validation" as const
+      }),
+      deactivate: async () => {}
+    };
+    const { tenantId, requestId } = await request(
+      makeInput({
+        options: {
+          defaultLocale: "id",
+          defaultTheme: null,
+          timezone: null,
+          subdomain: "acme",
+          presetKey: null,
+          offerPlanKey: null,
+          offerVersion: null
+        }
+      }),
+      "kmedb"
+    );
+    const sql = getTestSql();
+    // Run -> config completes (reversible), subdomain fails -> blocked.
+    await runProvisioning(
+      sql,
+      tenantId,
+      requestId,
+      { actorTenantUserId: OPERATOR, leaseOwner: "w" },
+      engineDeps({ subdomain: failingSubdomain })
+    );
+    // Cancel -> compensates the completed reversible `default_configuration`.
+    const canceled = await cancelProvisioning(
+      sql,
+      tenantId,
+      requestId,
+      "abandon",
+      { actorTenantUserId: OPERATOR, leaseOwner: "c" },
+      engineDeps({ subdomain: failingSubdomain })
+    );
+    expect(canceled.ok).toBe(true);
+
+    await withTenant(sql, tenantId, async (tx) => {
+      const steps = await listSteps(tx, requestId);
+      // The reversible step is transitioned OUT of `completed` to `compensated`
+      // (never a false `completed` after being undone).
+      expect(
+        steps.find((s) => s.stepKey === "default_configuration")!.status
+      ).toBe("compensated");
+    });
+
+    // A compensated/canceled run cannot be resumed (would skip an undone step).
+    const resume = await runProvisioning(
+      sql,
+      tenantId,
+      requestId,
+      { actorTenantUserId: OPERATOR, leaseOwner: "r" },
+      engineDeps()
+    );
+    expect(resume.ok).toBe(false);
+    if (!resume.ok) expect(resume.reason).toBe("not_resumable");
+    expect(await tenantStatus(tenantId)).toBe("inactive");
+  });
+
+  test("M-1: readiness fail-closed -> setTenantActive MUST NOT fire when controls are not ready", async () => {
+    const { tenantId, requestId } = await request(makeInput(), "kreadiness");
+    const sql = getTestSql();
+    // Force readiness to report NOT ready — the tenant must never become active.
+    let activatedCalls = 0;
+    const run = await runProvisioning(
+      sql,
+      tenantId,
+      requestId,
+      { actorTenantUserId: OPERATOR, leaseOwner: "w" },
+      engineDeps({
+        verifyMandatoryControls: async () => ({
+          ready: false,
+          missing: ["owner_identity_with_credentials"]
+        }),
+        setTenantActive: async () => {
+          activatedCalls += 1;
+        }
+      })
+    );
+    expect(run.ok).toBe(true);
+    if (run.ok) expect(run.request.status).toBe("blocked");
+    // setTenantActive was NEVER called, and the tenant stays inactive.
+    expect(activatedCalls).toBe(0);
+    expect(await tenantStatus(tenantId)).toBe("inactive");
+    await withTenant(sql, tenantId, async (tx) => {
+      const steps = await listSteps(tx, requestId);
+      expect(steps.find((s) => s.stepKey === "readiness_check")!.status).toBe(
+        "failed"
+      );
     });
   });
 

@@ -316,6 +316,11 @@ export function createCoreStepHandlers(
   handlers.set(CORE_STEP_KEYS.readinessCheck, {
     stepKey: CORE_STEP_KEYS.readinessCheck,
     async execute(ctx): Promise<ProvisioningStepExecution> {
+      // Readiness ONLY verifies the mandatory security controls. Activation is
+      // NOT done here (review M-1/L-3): the engine's finalize path activates the
+      // tenant, gated on lease ownership + all steps done + activation being the
+      // terminal step — so a failing step AFTER readiness can never leave a
+      // tenant active on a failed run.
       const check = await deps.verifyMandatoryControls(ctx.tx, ctx.tenantId);
       if (!check.ready) {
         return {
@@ -324,8 +329,6 @@ export function createCoreStepHandlers(
           message: `readiness_blocked:${check.missing.join(",")}`
         };
       }
-      // Mandatory controls present -> the tenant becomes active (same-commit).
-      await deps.setTenantActive(ctx.tx, ctx.tenantId, ctx.actorTenantUserId);
       return {
         outcome: "completed",
         resultKind: "readiness_verified",

@@ -76,11 +76,11 @@ export const tenantProvisioningModule = defineModule({
     {
       command: "bun run tenant-provisioning:reconcile",
       purpose:
-        "Run a non-destructive desired-vs-actual reconciliation pass over provisioned tenants (reports drift + safe operator actions; never auto-fixes).",
-      recommendedSchedule: "daily",
+        "Run a non-destructive desired-vs-actual reconciliation for ONE provisioned tenant (reports drift + safe operator actions; never auto-fixes).",
+      recommendedSchedule: "on-demand",
       safeInOfflineLan: true,
       environmentNotes:
-        "Reference command; documentation-only in the job registry (never executed from the UI). Reconciliation is DB-only and safe offline."
+        "Per-tenant: pass a tenant id (`bun run tenant-provisioning:reconcile <tenantId>` or PROVISIONING_TENANT_ID). Reconciliation is DB-only and safe offline. A FLEET-WIDE batch that scans every provisioned tenant is intentionally DEFERRED to #880 (it needs a purpose-built cross-tenant read-model — a platform operator is not a soft super-tenant, ADR-0022 §6b); until then reconcile on-demand, one tenant at a time (this script or the per-tenant REST endpoint)."
     }
   ],
   navigation: [

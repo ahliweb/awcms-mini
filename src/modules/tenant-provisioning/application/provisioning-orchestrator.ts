@@ -12,14 +12,22 @@
  *   - `start`/`resume`/`retry` acquire an exclusive LEASE (row-lock +
  *     state-predicate → clean 409 on a concurrent run; an expired lease is
  *     reclaimable → worker-restart safe), then run each remaining step in its
- *     OWN transaction so a completed step's checkpoint is durable before the
- *     next step starts (a crash resumes from the last checkpoint). A `provider`
- *     step that dispatches external work returns `waiting` (event out via the
- *     outbox, OUTSIDE any provider call) and the run pauses until resumed.
- *   - A non-retryable step failure runs recorded COMPENSATION (reversible undo /
- *     manual / forbidden — never a tenant-data delete) then blocks/fails; a
- *     failed/canceled run NEVER leaves the tenant active (it stays inactive with
- *     a visible blocked/failed run + readiness=blocked, AC).
+ *     OWN transaction, RE-ASSERTING + renewing the lease as a fencing token at
+ *     the start of each step tx (M-1) so a completed step's checkpoint is durable
+ *     before the next step starts and a zombie worker whose lease expired can
+ *     never complete a step / activate a tenant behind a canceled/expired run. A
+ *     `provider` step that dispatches external work returns `waiting` (event out
+ *     via the outbox, OUTSIDE any provider call) and the run pauses until resumed.
+ *   - A non-retryable step failure BLOCKS the run (visible), leaving completed
+ *     steps intact so a later retry resumes — compensation is NEVER run on
+ *     failure (AC "provider failure yields retry/manual state, not rollback of
+ *     committed core state"). COMPENSATION (reversible undo / manual / forbidden
+ *     — never a tenant-data delete) runs only on explicit CANCEL, which is
+ *     terminal and non-resumable. A failed/canceled run NEVER leaves the tenant
+ *     active (it stays inactive + visible blocked/failed/canceled +
+ *     readiness=blocked, AC). ACTIVATION happens ONLY in the finalize path,
+ *     gated on (lease owned + in_progress + all steps completed/skipped with no
+ *     compensated step + activation being the terminal step).
  *
  * All cross-module work (tenant/owner creation, entitlement, module preset,
  * subdomain, tenant activation) is via INJECTED deps assembled at the
@@ -64,7 +72,9 @@ import { createCoreStepHandlers } from "./core-step-handlers";
 import {
   acquireLease,
   completeStep,
+  countCompensatedSteps,
   failStep,
+  fenceAndRenewLease,
   findRequestByTenant,
   findRequestRowByTenant,
   insertResult,
@@ -74,6 +84,7 @@ import {
   loadRequestForUpdate,
   loadResultsMap,
   loadStepForUpdate,
+  markStepCompensated,
   markStepWaiting,
   planToMaterializeSteps,
   recordAttempt,
@@ -237,8 +248,12 @@ export async function requestProvisioning(
     createdBy: ctx.actorTenantUserId
   });
 
-  // Every provisioning record for the target tenant is RLS-scoped to it.
-  await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
+  // Every provisioning record for the target tenant is RLS-scoped to it. The id
+  // is DB-generated (safe), but wrap with assertUuid for defense-in-depth,
+  // consistent with `inTenantTx` (review L-4).
+  await tx.unsafe(
+    `SET LOCAL app.current_tenant_id = '${assertUuid(tenantId)}'`
+  );
 
   if (!created) {
     // The tenant already exists. If a matching request (same idempotency key +
@@ -406,7 +421,8 @@ async function buildStepContext(
   return { tx, tenantId, actorTenantUserId, inputs, getResult, correlationId };
 }
 
-type StepLoopOutcome = "continue" | "waiting" | "failed" | "blocked";
+type StepLoopOutcome =
+  "continue" | "waiting" | "failed" | "blocked" | "lease_lost";
 
 /**
  * Start, resume, or retry a provisioning run. `inputs` is passed by the route
@@ -440,6 +456,14 @@ export async function runProvisioning(
     ) {
       return { kind: "not_resumable" as const, status: req.status };
     }
+    // Refuse resume of a run that has any COMPENSATED step (review Med-B): those
+    // steps were UNDONE (e.g. an entitlement really canceled), so a resume that
+    // skipped them (they are not `pending`/`failed`/`waiting`) could reach
+    // provisioned+active with an undone side effect. A compensated run is
+    // terminal-for-resume; recovery is a fresh provisioning run (#873 lifecycle).
+    if ((await countCompensatedSteps(tx, requestId)) > 0) {
+      return { kind: "not_resumable" as const, status: "compensated" };
+    }
     const acquired = await acquireLease(
       tx,
       requestId,
@@ -463,6 +487,7 @@ export async function runProvisioning(
 
   // 2. Run pending steps, each in its own transaction (durable checkpoints).
   let loopOutcome: StepLoopOutcome = "continue";
+  const stepCtx = { ...ctx, leaseTtlMs: leaseTtl };
   // Bounded by total steps * (maxAttempts+2) so a stuck retry can never spin.
   for (let guard = 0; guard < 200; guard += 1) {
     const step = await inTenantTx(sql, tenantId, async (tx) => {
@@ -486,29 +511,61 @@ export async function runProvisioning(
         step.id,
         coreHandlers,
         inputs,
-        ctx
+        stepCtx
       )
     );
     if (loopOutcome !== "continue") break;
   }
 
-  // 3. Finalize.
+  // If this worker was fenced out (lost its lease mid-saga), do NOT release the
+  // lease (a new owner may hold it) and NEVER finalize/activate — just report.
+  if (loopOutcome === "lease_lost") {
+    const request = await inTenantTx(sql, tenantId, (tx) =>
+      findRequestByTenant(tx, tenantId)
+    );
+    return request ? { ok: true, request } : { ok: false, reason: "not_found" };
+  }
+
+  // 3. Finalize. Activation happens ONLY here (never inside a step handler),
+  // gated on: this worker still owns a live lease, the run is still
+  // `in_progress`, and every step genuinely completed/skipped (no compensated
+  // step) — one coherent guard against activating a canceled/undone/zombie run.
   return inTenantTx(sql, tenantId, async (tx) => {
-    await releaseLease(tx, requestId, ctx.leaseOwner);
     const steps = await listSteps(tx, requestId);
     const allDone = steps.every(
       (s) => s.status === "completed" || s.status === "skipped"
     );
     const req = await loadRequestForUpdate(tx, tenantId, requestId);
-    if (!req) return { ok: false, reason: "not_found" };
+    if (!req) {
+      await releaseLease(tx, requestId, ctx.leaseOwner);
+      return { ok: false, reason: "not_found" };
+    }
 
     if (allDone && req.status === "in_progress") {
-      await transitionRequest(tx, requestId, "in_progress", "provisioned", {
-        readiness: "ready",
-        currentStepKey: null,
-        setProvisionedAt: true,
-        updatedBy: ctx.actorTenantUserId
-      });
+      // Lease-fenced + status-predicated provisioned transition: if this worker
+      // lost the lease or the run left `in_progress` (e.g. canceled), this
+      // affects 0 rows and the tenant is NEVER activated.
+      const activated = await transitionRequest(
+        tx,
+        requestId,
+        "in_progress",
+        "provisioned",
+        {
+          readiness: "ready",
+          currentStepKey: null,
+          setProvisionedAt: true,
+          updatedBy: ctx.actorTenantUserId,
+          expectedLeaseOwner: ctx.leaseOwner
+        }
+      );
+      if (!activated) {
+        // Lost the fence — do not activate, do not release someone else's lease.
+        const request = await findRequestByTenant(tx, tenantId);
+        return { ok: true, request: request! };
+      }
+      // Tenant becomes active ONLY here, same-commit with the provisioned
+      // transition (reuses tenant_admin `setTenantStatus`).
+      await deps.steps.setTenantActive(tx, tenantId, ctx.actorTenantUserId);
       await appendDomainEvent(tx, tenantId, {
         eventType: TENANT_PROVISIONING_COMPLETED_EVENT_TYPE,
         eventVersion: TENANT_PROVISIONING_EVENT_VERSION,
@@ -531,15 +588,21 @@ export async function runProvisioning(
         correlationId: ctx.correlationId
       });
     }
+    // Release OUR lease for every finalized path (provisioned/blocked/failed/
+    // waiting). `releaseLease` predicates on our ownership → no-op if lost.
+    await releaseLease(tx, requestId, ctx.leaseOwner);
     const request = await findRequestByTenant(tx, tenantId);
     return { ok: true, request: request! };
   });
 }
 
 /**
- * Execute the next runnable step ONCE, in the caller's transaction. Records the
- * attempt, transitions the step + request under state predicates, and — on a
- * non-retryable failure — triggers compensation. Returns the loop directive.
+ * Execute the next runnable step ONCE, in the caller's transaction. Re-asserts
+ * the lease as a fencing token first (M-1), enforces the bounded attempt budget
+ * (Med-A), records the attempt, transitions the step + request under state
+ * predicates, and — on a non-retryable failure — BLOCKS the run (completed steps
+ * stay intact so a later retry resumes; compensation runs only on explicit
+ * cancel, per the "provider failure -> retry/manual state, not rollback" AC).
  */
 async function executeStepOnce(
   tx: Bun.SQL,
@@ -548,8 +611,26 @@ async function executeStepOnce(
   stepId: string,
   coreHandlers: Map<string, ProvisioningStepHandler>,
   inputs: ProvisioningInputs,
-  ctx: { actorTenantUserId: string | null; correlationId?: string }
+  ctx: {
+    actorTenantUserId: string | null;
+    correlationId?: string;
+    leaseOwner: string;
+    leaseTtlMs: number;
+  }
 ): Promise<StepLoopOutcome> {
+  // Fence + renew the lease inside this step's transaction (M-1). If this worker
+  // no longer owns a live lease OR the run left `in_progress` (e.g. canceled
+  // after the lease expired), ABORT before any step work — a zombie worker can
+  // never complete a step / activate a tenant behind a canceled/expired run.
+  const stillLeased = await fenceAndRenewLease(
+    tx,
+    requestId,
+    ctx.leaseOwner,
+    new Date(),
+    ctx.leaseTtlMs
+  );
+  if (!stillLeased) return "lease_lost";
+
   const step = await loadStepForUpdate(tx, tenantId, stepId);
   if (
     !step ||
@@ -562,6 +643,18 @@ async function executeStepOnce(
   const stepKey = step.step_key;
   const maxAttempts = Number(step.max_attempts);
   const attemptStart = new Date();
+
+  // Bounded attempt budget (Med-A): once a step has exhausted its budget
+  // (attempt_count already at max_attempts + 1), never `beginStepRun` again —
+  // that would violate the DB CHECK (attempt_count <= max_attempts + 1), throw
+  // an UNHANDLED error, and leak the lease. Permanently block instead (clean).
+  // The step is already `failed` with its last real attempt recorded; this is a
+  // pure request-state transition (no phantom attempt row that would collide
+  // with the existing (step_id, attempt_number) unique).
+  if (Number(step.attempt_count) >= maxAttempts + 1) {
+    await blockRun(tx, tenantId, requestId, stepKey, "permanent", ctx);
+    return "blocked";
+  }
 
   const attemptNumber = await beginStepRun(tx, stepId);
   if (attemptNumber === null) return "continue"; // lost race
@@ -698,18 +791,13 @@ async function executeStepOnce(
     return "continue";
   }
 
-  // Non-retryable / budget exhausted: compensate completed steps, then block/fail.
-  await compensateAndFinalize(
-    tx,
-    tenantId,
-    requestId,
-    stepKey,
-    exec.errorClass,
-    coreHandlers,
-    inputs,
-    ctx
-  );
-  return "failed";
+  // Non-retryable / budget exhausted: BLOCK the run (visible), leaving completed
+  // steps INTACT so a later operator retry resumes correctly (no compensation on
+  // failure — AC "optional provider failure yields retry/manual-intervention
+  // state rather than transaction rollback of committed core state"). The tenant
+  // stays inactive; compensation runs only on explicit cancel.
+  await blockRun(tx, tenantId, requestId, stepKey, exec.errorClass, ctx);
+  return "blocked";
 }
 
 async function blockRun(
@@ -728,150 +816,6 @@ async function blockRun(
     updatedBy: ctx.actorTenantUserId
   });
   await emitFailedEvent(tx, tenantId, requestId, "blocked", stepKey, ctx);
-}
-
-/**
- * Compensate the completed steps of a failed run (reverse order, by class), then
- * transition the run to `failed` (data-safe) or `blocked` (needs manual
- * intervention). The tenant is never left active and never has its data deleted.
- */
-async function compensateAndFinalize(
-  tx: Bun.SQL,
-  tenantId: string,
-  requestId: string,
-  failedStepKey: string,
-  errorClass: ProvisioningErrorClass,
-  coreHandlers: Map<string, ProvisioningStepHandler>,
-  inputs: ProvisioningInputs,
-  ctx: { actorTenantUserId: string | null; correlationId?: string }
-): Promise<void> {
-  // Move the run into compensating.
-  await transitionRequest(tx, requestId, "in_progress", "compensating", {
-    currentStepKey: failedStepKey,
-    lastErrorClass: errorClass,
-    updatedBy: ctx.actorTenantUserId
-  });
-
-  const steps = await listSteps(tx, requestId);
-  const completed = steps
-    .filter((s) => s.status === "completed")
-    .sort((a, b) => b.stepIndex - a.stepIndex); // reverse order
-
-  const stepCtx = await buildStepContext(
-    tx,
-    tenantId,
-    requestId,
-    ctx.actorTenantUserId,
-    inputs,
-    ctx.correlationId
-  );
-
-  let anyManual = false;
-  let anyFailed = false;
-
-  for (const s of completed) {
-    const action = compensationActionFor(s.compensationClass);
-    if (action === "skip_forbidden") {
-      await recordCompensation(tx, {
-        tenantId,
-        requestId,
-        stepId: s.id,
-        stepKey: s.stepKey,
-        compensationClass: s.compensationClass,
-        status: "skipped_forbidden",
-        action: "skip_forbidden",
-        note: "compensation forbidden (never delete tenant data)",
-        createdBy: ctx.actorTenantUserId
-      });
-      continue;
-    }
-    if (action === "mark_manual") {
-      anyManual = true;
-      await recordCompensation(tx, {
-        tenantId,
-        requestId,
-        stepId: s.id,
-        stepKey: s.stepKey,
-        compensationClass: s.compensationClass,
-        status: "manual_required",
-        action: "mark_manual",
-        note: "manual operator intervention required",
-        createdBy: ctx.actorTenantUserId
-      });
-      continue;
-    }
-    // reversible: run the handler's compensate (idempotent, no data delete).
-    const handler = resolveHandler(coreHandlers, s.stepKey);
-    let status: "completed" | "failed" = "completed";
-    let note: string | null = null;
-    if (handler?.compensate) {
-      try {
-        const outcome = await handler.compensate(stepCtx);
-        if (outcome.outcome === "failed") {
-          status = "failed";
-          anyFailed = true;
-          note = outcome.message.slice(0, 2000);
-        } else if (outcome.outcome === "manual_required") {
-          anyManual = true;
-          await recordCompensation(tx, {
-            tenantId,
-            requestId,
-            stepId: s.id,
-            stepKey: s.stepKey,
-            compensationClass: s.compensationClass,
-            status: "manual_required",
-            action: "run_compensation",
-            note: outcome.note.slice(0, 2000),
-            createdBy: ctx.actorTenantUserId
-          });
-          continue;
-        } else {
-          note = outcome.note ?? null;
-        }
-      } catch (error) {
-        status = "failed";
-        anyFailed = true;
-        note = classifyThrownError(error).message;
-      }
-    }
-    await recordCompensation(tx, {
-      tenantId,
-      requestId,
-      stepId: s.id,
-      stepKey: s.stepKey,
-      compensationClass: s.compensationClass,
-      status,
-      action: "run_compensation",
-      note,
-      createdBy: ctx.actorTenantUserId
-    });
-  }
-
-  const finalStatus = anyManual || anyFailed ? "blocked" : "failed";
-  if (finalStatus === "blocked") {
-    await transitionRequest(tx, requestId, "compensating", "blocked", {
-      readiness: "blocked",
-      lastErrorClass: errorClass,
-      blockedReason: `step ${failedStepKey} failed (${errorClass}); manual compensation required`,
-      updatedBy: ctx.actorTenantUserId
-    });
-  } else {
-    await transitionRequest(tx, requestId, "compensating", "failed", {
-      readiness: "blocked",
-      setFailedAt: true,
-      lastErrorClass: errorClass,
-      blockedReason: `step ${failedStepKey} failed (${errorClass})`,
-      updatedBy: ctx.actorTenantUserId
-    });
-  }
-  await emitFailedEvent(
-    tx,
-    tenantId,
-    requestId,
-    finalStatus,
-    failedStepKey,
-    ctx
-  );
 }
 
 async function emitFailedEvent(
@@ -1095,6 +1039,14 @@ async function runCancelCompensation(
       note,
       createdBy: ctx.actorTenantUserId
     });
+    // Transition the step itself out of `completed` -> `compensated` (review
+    // Med-B) so the timeline records it was UNDONE and a later reconcile/read
+    // never reports a compensated step as a false `completed`. Only on a clean
+    // reversible undo (a failed undo leaves the step completed for operator
+    // review). Forbidden/manual steps are not undone → they stay completed.
+    if (status === "completed") {
+      await markStepCompensated(tx, s.id);
+    }
   }
 }
 

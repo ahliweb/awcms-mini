@@ -170,6 +170,18 @@ function validatePlanShape(plan: ProvisioningPlan): void {
     }
     seen.add(step.stepKey);
   }
+  // The readiness/activation step MUST be TERMINAL (review L-3): the engine only
+  // activates the tenant once ALL steps are done, so a step placed AFTER
+  // readiness that later fails would otherwise be able to leave a tenant active
+  // on a failed run. Enforce it structurally for every (base + derived) plan.
+  const readinessIdx = plan.steps.findIndex(
+    (s) => s.stepKey === CORE_STEP_KEYS.readinessCheck
+  );
+  if (readinessIdx !== -1 && readinessIdx !== plan.steps.length - 1) {
+    throw new Error(
+      `tenant_provisioning: plan "${plan.planKey}" must place "${CORE_STEP_KEYS.readinessCheck}" as the LAST step (activation must be terminal)`
+    );
+  }
 }
 
 validatePlanShape(STANDARD_TENANT_V1);

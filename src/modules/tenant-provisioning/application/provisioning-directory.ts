@@ -565,6 +565,71 @@ export async function releaseLease(
   `;
 }
 
+/**
+ * Re-assert AND renew the lease as a FENCING TOKEN at the start of each step's
+ * transaction (Issue #872 review M-1). Returns false if this worker no longer
+ * owns a live lease OR the run is no longer `in_progress` (e.g. it was canceled
+ * by another actor after this worker's lease expired) — the caller then ABORTS
+ * without completing/activating anything, so a zombie worker can never activate
+ * a tenant behind a canceled/expired run. Locks the request row for the step's
+ * duration (serializing with cancel), and extends the lease so a legitimately
+ * running saga does not lose it mid-step.
+ */
+export async function fenceAndRenewLease(
+  tx: Bun.SQL,
+  requestId: string,
+  leaseOwner: string,
+  now: Date,
+  leaseTtlMs: number
+): Promise<boolean> {
+  const rows = (await tx`
+    UPDATE awcms_mini_tenant_provisioning_requests
+    SET lease_expires_at = ${new Date(now.getTime() + leaseTtlMs)}, updated_at = now()
+    WHERE id = ${requestId}
+      AND lease_owner = ${leaseOwner}
+      AND lease_expires_at > ${now}
+      AND status = 'in_progress'
+    RETURNING id
+  `) as { id: string }[];
+  return rows.length > 0;
+}
+
+/** Count steps that were compensated/undone (any compensation_* status) — used to refuse resume of an already-compensated run (review Med-B). */
+export async function countCompensatedSteps(
+  tx: Bun.SQL,
+  requestId: string
+): Promise<number> {
+  const rows = (await tx`
+    SELECT count(*)::int AS c FROM awcms_mini_tenant_provisioning_steps
+    WHERE request_id = ${requestId}
+      AND status IN ('compensation_pending', 'compensated', 'compensation_failed', 'compensation_manual')
+  `) as { c: number }[];
+  return Number(rows[0]?.c ?? 0);
+}
+
+/**
+ * Transition a COMPLETED reversible step to `compensated` (completed ->
+ * compensation_pending -> compensated) so the timeline records it was undone and
+ * `reconcileProvisioning` treats it as drift, never a false `completed` (review
+ * Med-B). Two state-predicated UPDATEs (the trigger forbids a direct
+ * completed->compensated jump). Best-effort: a lost race is a no-op.
+ */
+export async function markStepCompensated(
+  tx: Bun.SQL,
+  stepId: string
+): Promise<void> {
+  await tx`
+    UPDATE awcms_mini_tenant_provisioning_steps
+    SET status = 'compensation_pending', updated_at = now()
+    WHERE id = ${stepId} AND status = 'completed'
+  `;
+  await tx`
+    UPDATE awcms_mini_tenant_provisioning_steps
+    SET status = 'compensated', updated_at = now()
+    WHERE id = ${stepId} AND status = 'compensation_pending'
+  `;
+}
+
 // ---------------------------------------------------------------------------
 // Step transitions (state-predicated)
 // ---------------------------------------------------------------------------
@@ -703,6 +768,8 @@ export type RequestPatch = {
   cancelReason?: string | null;
   setLastReconciledAt?: boolean;
   updatedBy?: string | null;
+  /** When set, the UPDATE also re-asserts `lease_owner = expectedLeaseOwner AND lease_expires_at > now()` — a fencing token so a zombie worker whose lease was lost can never mark the run provisioned / activate the tenant (review M-1). */
+  expectedLeaseOwner?: string;
 };
 
 /**
@@ -710,6 +777,7 @@ export type RequestPatch = {
  * write when `to === expectedFrom`) under a state predicate. Returns false on a
  * lost race (the caller returns a clean 409). Partial-column writes: only the
  * fields present in `patch` are written; the rest keep their live value.
+ * `expectedLeaseOwner` additionally fences the transition to lease ownership.
  */
 export async function transitionRequest(
   tx: Bun.SQL,
@@ -743,6 +811,9 @@ export async function transitionRequest(
         updated_by = COALESCE(${patch.updatedBy ?? null}, updated_by),
         updated_at = now()
     WHERE id = ${requestId} AND status = ${expectedFrom}
+      AND (${patch.expectedLeaseOwner ?? null}::text IS NULL
+           OR (lease_owner = ${patch.expectedLeaseOwner ?? null}
+               AND lease_expires_at > now()))
     RETURNING id
   `) as { id: string }[];
   return rows.length > 0;
