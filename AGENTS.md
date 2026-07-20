@@ -96,56 +96,57 @@ flowchart LR
 
 AWCMS-Mini menyediakan **skill Claude Code tingkat-proyek** yang meng-encode standar dokumen agar diterapkan konsisten. Model memanggilnya otomatis saat relevan, atau kamu panggil manual via `/<nama-skill>`. Katalog lengkap: [`.claude/skills/README.md`](.claude/skills/README.md).
 
-| Butuh…                                                                                                                                             | Skill                                |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Kerjakan issue/sprint atomic (orkestrator)                                                                                                         | `awcms-mini-implement-issue`         |
-| Scaffold modul baru                                                                                                                                | `awcms-mini-new-module`              |
-| Kelola/konsumsi sistem Module Management (registry, lifecycle, health)                                                                             | `awcms-mini-module-management`       |
-| Migration SQL (tabel/index/RLS)                                                                                                                    | `awcms-mini-new-migration`           |
-| Endpoint REST + OpenAPI                                                                                                                            | `awcms-mini-new-endpoint`            |
-| Domain event + AsyncAPI                                                                                                                            | `awcms-mini-new-event`               |
-| Idempotency mutation high-risk                                                                                                                     | `awcms-mini-idempotency`             |
-| ABAC default-deny + RLS                                                                                                                            | `awcms-mini-abac-guard`              |
-| Audit high-risk + redaction                                                                                                                        | `awcms-mini-audit-log`               |
-| Correlation ID otomatis, retensi/purge log, metrics port                                                                                           | `awcms-mini-observability`           |
-| Masking data sensitif                                                                                                                              | `awcms-mini-sensitive-data`          |
-| Sync HMAC + anti-replay                                                                                                                            | `awcms-mini-sync-hmac`               |
-| Review keamanan modul                                                                                                                              | `awcms-mini-security-review`         |
-| Triase & perbaiki temuan CodeQL code scanning                                                                                                      | `awcms-mini-codeql-triage`           |
-| Review pull request                                                                                                                                | `awcms-mini-pr-review`               |
-| Tulis test berlapis                                                                                                                                | `awcms-mini-testing`                 |
-| E2E browser sungguhan (Playwright + Bun)                                                                                                           | `awcms-mini-browser-test`            |
-| Preflight & go-live                                                                                                                                | `awcms-mini-production-preflight`    |
-| Pilih & jalankan profil deployment (LAN-first vs registry/Coolify)                                                                                 | `awcms-mini-deploy`                  |
-| Layar/komponen UI sesuai design system                                                                                                             | `awcms-mini-ui-screen`               |
-| Form multi-step (reusable wizard pattern)                                                                                                          | `awcms-mini-wizard-form`             |
-| Server-side draft persistence (resume lintas sesi/perangkat)                                                                                       | `awcms-mini-form-drafts`             |
-| Kirim email transaksional (provider-neutral, template, outbox)                                                                                     | `awcms-mini-email`                   |
-| String UI `.po` gettext & konten multi-bahasa                                                                                                      | `awcms-mini-i18n`                    |
-| Rilis versi (Changesets, tag, CHANGELOG)                                                                                                           | `awcms-mini-release`                 |
-| Migrasi data legacy (dry-run, backfill)                                                                                                            | `awcms-mini-legacy-migration`        |
-| Kerjakan bagian mana pun epic blog_content (Issue #537-#543)                                                                                       | `awcms-mini-blog-content`            |
-| Epic online public routing & tenant domain (Issue #556-#567)                                                                                       | `awcms-mini-tenant-domain-routing`   |
-| Epic full-online auth security hardening (Issue #587-#593)                                                                                         | `awcms-mini-auth-online-hardening`   |
-| Epic visitor analytics (Issue #617-#624)                                                                                                           | `awcms-mini-visitor-analytics`       |
-| Epic news_portal full-online R2-only media (Issue #631-#642, #649)                                                                                 | `awcms-mini-news-portal`             |
-| Epic master data wilayah administratif Indonesia (Issue #655-#664)                                                                                 | `awcms-mini-idn-admin-regions`       |
-| Epic social_publishing auto-posting outbox foundation (Issue #643-#647)                                                                            | `awcms-mini-social-publishing`       |
-| Registry retensi/partisi/arsip/legal hold/purge tabel bervolume tinggi (Issue #745)                                                                | `awcms-mini-data-lifecycle`          |
-| Kontrak kesiapan ekstensi ERP (business transaction/posting/period-lock/item/reporting-projection, Issue #755)                                     | `awcms-mini-erp-extension-readiness` |
-| Modul document_infrastructure — registry dokumen generik, versioning, numbering (Issue #751)                                                       | `awcms-mini-document-infrastructure` |
-| Modul integration_hub — inbound webhook, outbound subscription, adapter, SSRF guard (Issue #754)                                                   | `awcms-mini-integration-hub`         |
-| Modul workflow_approval — graph engine, delegation/escalation/quorum (Issue 11.1, evolved #747)                                                    | `awcms-mini-workflow-approval`       |
-| Modul profile_identity — party CRUD, merge workflow, cross-tenant guard (Issue 2.2, dilengkapi #748)                                               | `awcms-mini-profile-identity`        |
-| Modul data_exchange — import/export staged CSV/JSON, formula injection, masking `sensitiveFields` (Issue #752)                                     | `awcms-mini-data-exchange`           |
-| Modul reference_data — value set, tenant override, import tervalidasi, PATCH parsial (Issue #750)                                                  | `awcms-mini-reference-data`          |
-| Modul service_catalog — plan/offer SaaS berversi, control-plane default-disabled, offer immutable (Issue #870)                                     | `awcms-mini-service-catalog`         |
-| Modul tenant_entitlement — entitlement efektif fitur/modul/kuota, kontrak fail-closed effective_entitlement, tenant-scoped RLS FORCE (Issue #871)  | `awcms-mini-tenant-entitlement`      |
-| Registry kontrak SaaS build-time (feature/quota/meter/commercial-event) single source of truth, gate konformans, versioning (Issue #874)           | `awcms-mini-saas-contracts`          |
-| Modul usage_metering — event append-only numeric-only, aggregation deterministik, koreksi bertanda, quota fail-closed, reconciliation (Issue #875) | `awcms-mini-usage-metering`          |
-| Modul domain_event_runtime — outbox transaksional, consumer registry, ordering, replay (Issue #742)                                                | `awcms-mini-domain-event-runtime`    |
-| Modul organization_structure — legal entity, hierarki unit effective-dated, business scope port (Issue #749)                                       | `awcms-mini-organization-structure`  |
-| Modul reporting — lima view live + projections/freshness/rebuild/scheduled export (Issue 9.1, #753)                                                | `awcms-mini-reporting`               |
+| Butuh…                                                                                                                                                                   | Skill                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
+| Kerjakan issue/sprint atomic (orkestrator)                                                                                                                               | `awcms-mini-implement-issue`         |
+| Scaffold modul baru                                                                                                                                                      | `awcms-mini-new-module`              |
+| Kelola/konsumsi sistem Module Management (registry, lifecycle, health)                                                                                                   | `awcms-mini-module-management`       |
+| Migration SQL (tabel/index/RLS)                                                                                                                                          | `awcms-mini-new-migration`           |
+| Endpoint REST + OpenAPI                                                                                                                                                  | `awcms-mini-new-endpoint`            |
+| Domain event + AsyncAPI                                                                                                                                                  | `awcms-mini-new-event`               |
+| Idempotency mutation high-risk                                                                                                                                           | `awcms-mini-idempotency`             |
+| ABAC default-deny + RLS                                                                                                                                                  | `awcms-mini-abac-guard`              |
+| Audit high-risk + redaction                                                                                                                                              | `awcms-mini-audit-log`               |
+| Correlation ID otomatis, retensi/purge log, metrics port                                                                                                                 | `awcms-mini-observability`           |
+| Masking data sensitif                                                                                                                                                    | `awcms-mini-sensitive-data`          |
+| Sync HMAC + anti-replay                                                                                                                                                  | `awcms-mini-sync-hmac`               |
+| Review keamanan modul                                                                                                                                                    | `awcms-mini-security-review`         |
+| Triase & perbaiki temuan CodeQL code scanning                                                                                                                            | `awcms-mini-codeql-triage`           |
+| Review pull request                                                                                                                                                      | `awcms-mini-pr-review`               |
+| Tulis test berlapis                                                                                                                                                      | `awcms-mini-testing`                 |
+| E2E browser sungguhan (Playwright + Bun)                                                                                                                                 | `awcms-mini-browser-test`            |
+| Preflight & go-live                                                                                                                                                      | `awcms-mini-production-preflight`    |
+| Pilih & jalankan profil deployment (LAN-first vs registry/Coolify)                                                                                                       | `awcms-mini-deploy`                  |
+| Layar/komponen UI sesuai design system                                                                                                                                   | `awcms-mini-ui-screen`               |
+| Form multi-step (reusable wizard pattern)                                                                                                                                | `awcms-mini-wizard-form`             |
+| Server-side draft persistence (resume lintas sesi/perangkat)                                                                                                             | `awcms-mini-form-drafts`             |
+| Kirim email transaksional (provider-neutral, template, outbox)                                                                                                           | `awcms-mini-email`                   |
+| String UI `.po` gettext & konten multi-bahasa                                                                                                                            | `awcms-mini-i18n`                    |
+| Rilis versi (Changesets, tag, CHANGELOG)                                                                                                                                 | `awcms-mini-release`                 |
+| Migrasi data legacy (dry-run, backfill)                                                                                                                                  | `awcms-mini-legacy-migration`        |
+| Kerjakan bagian mana pun epic blog_content (Issue #537-#543)                                                                                                             | `awcms-mini-blog-content`            |
+| Epic online public routing & tenant domain (Issue #556-#567)                                                                                                             | `awcms-mini-tenant-domain-routing`   |
+| Epic full-online auth security hardening (Issue #587-#593)                                                                                                               | `awcms-mini-auth-online-hardening`   |
+| Epic visitor analytics (Issue #617-#624)                                                                                                                                 | `awcms-mini-visitor-analytics`       |
+| Epic news_portal full-online R2-only media (Issue #631-#642, #649)                                                                                                       | `awcms-mini-news-portal`             |
+| Epic master data wilayah administratif Indonesia (Issue #655-#664)                                                                                                       | `awcms-mini-idn-admin-regions`       |
+| Epic social_publishing auto-posting outbox foundation (Issue #643-#647)                                                                                                  | `awcms-mini-social-publishing`       |
+| Registry retensi/partisi/arsip/legal hold/purge tabel bervolume tinggi (Issue #745)                                                                                      | `awcms-mini-data-lifecycle`          |
+| Kontrak kesiapan ekstensi ERP (business transaction/posting/period-lock/item/reporting-projection, Issue #755)                                                           | `awcms-mini-erp-extension-readiness` |
+| Modul document_infrastructure — registry dokumen generik, versioning, numbering (Issue #751)                                                                             | `awcms-mini-document-infrastructure` |
+| Modul integration_hub — inbound webhook, outbound subscription, adapter, SSRF guard (Issue #754)                                                                         | `awcms-mini-integration-hub`         |
+| Modul workflow_approval — graph engine, delegation/escalation/quorum (Issue 11.1, evolved #747)                                                                          | `awcms-mini-workflow-approval`       |
+| Modul profile_identity — party CRUD, merge workflow, cross-tenant guard (Issue 2.2, dilengkapi #748)                                                                     | `awcms-mini-profile-identity`        |
+| Modul data_exchange — import/export staged CSV/JSON, formula injection, masking `sensitiveFields` (Issue #752)                                                           | `awcms-mini-data-exchange`           |
+| Modul reference_data — value set, tenant override, import tervalidasi, PATCH parsial (Issue #750)                                                                        | `awcms-mini-reference-data`          |
+| Modul service_catalog — plan/offer SaaS berversi, control-plane default-disabled, offer immutable (Issue #870)                                                           | `awcms-mini-service-catalog`         |
+| Modul tenant_entitlement — entitlement efektif fitur/modul/kuota, kontrak fail-closed effective_entitlement, tenant-scoped RLS FORCE (Issue #871)                        | `awcms-mini-tenant-entitlement`      |
+| Modul tenant_provisioning — provisioning tenant idempoten/resumable, plan/step registry, kompensasi diklasifikasi, reconciliation non-destruktif, readiness (Issue #872) | `awcms-mini-tenant-provisioning`     |
+| Registry kontrak SaaS build-time (feature/quota/meter/commercial-event) single source of truth, gate konformans, versioning (Issue #874)                                 | `awcms-mini-saas-contracts`          |
+| Modul usage_metering — event append-only numeric-only, aggregation deterministik, koreksi bertanda, quota fail-closed, reconciliation (Issue #875)                       | `awcms-mini-usage-metering`          |
+| Modul domain_event_runtime — outbox transaksional, consumer registry, ordering, replay (Issue #742)                                                                      | `awcms-mini-domain-event-runtime`    |
+| Modul organization_structure — legal entity, hierarki unit effective-dated, business scope port (Issue #749)                                                             | `awcms-mini-organization-structure`  |
+| Modul reporting — lima view live + projections/freshness/rebuild/scheduled export (Issue 9.1, #753)                                                                      | `awcms-mini-reporting`               |
 
 **Peningkatan (audit & hardening artefak yang sudah ada):**
 

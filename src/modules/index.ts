@@ -24,6 +24,7 @@ import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
 import { tenantDomainModule } from "./tenant-domain/module";
 import { tenantEntitlementModule } from "./tenant-entitlement/module";
+import { tenantProvisioningModule } from "./tenant-provisioning/module";
 import { usageMeteringModule } from "./usage-metering/module";
 import { visitorAnalyticsModule } from "./visitor-analytics/module";
 import { workflowApprovalModule } from "./workflow-approval/module";
@@ -85,6 +86,12 @@ const baseModules: ModuleDescriptor[] = [
   // providing the fail-closed `effective_entitlement` contract. Also
   // default-disabled (opt-in per tenant).
   tenantEntitlementModule,
+  // Issue #872 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the third
+  // control-plane module: idempotent/resumable tenant provisioning orchestration
+  // with compensation, reconciliation, and readiness. Consumes the
+  // effective_entitlement contract; provides provisioning_status. Also
+  // default-disabled (opt-in per tenant).
+  tenantProvisioningModule,
   // Issue #875 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the metering
   // foundation: a tenant-scoped control-plane module providing the
   // transaction-safe `usage_append` and read-only `usage_aggregate` contracts,

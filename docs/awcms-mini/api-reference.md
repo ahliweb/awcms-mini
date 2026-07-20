@@ -11221,6 +11221,151 @@ Revoke an override (one-way; stops applying immediately without restart). Requir
 | 409    | The override is already revoked, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                           | [`ApiError`](#standard-error-envelope)                   |
 
+## Tenant Provisioning
+
+Provider-neutral SaaS control-plane tenant provisioning (epic #868 SaaS control plane Wave 1, Issue #872, ADR-0022) — the third control-plane module. Orchestrates an IDEMPOTENT, RESUMABLE provisioning run from a versioned plan/step registry: tenant record/bootstrap, owner identity, default configuration/locale, optional entitlement assignment (via the tenant_entitlement path), optional module preset, optional subdomain, mandatory readiness, and derived-application contributed steps (via the provisioning_step capability port). Durable checkpoints, bounded retries, lease/lock ownership, idempotency-key replay, explicit compensation classification (reversible/manual/forbidden), and NON-DESTRUCTIVE reconciliation. REUSES existing tenant/owner/office/config creation rather than duplicating it; runs provider/async work OUTSIDE the source transaction; NEVER deletes tenant data as compensation. A failed/canceled run leaves the tenant inactive with a visible blocked/failed status. Platform-operator only + default-deny + default-disabled per tenant; provisioning is restricted to the platform tenant (no soft super-tenant). Every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id. LAN/offline safe: provisions with all online/provider steps absent or disabled.
+
+### `POST /api/v1/tenant-provisioning/requests` — Request an idempotent tenant provisioning run
+
+- **operationId**: `tenantProvisioningRequestCreate`
+- **Security**: bearerAuth + tenantHeader
+
+Create the target tenant (ACID anti-duplicate on tenant_code), owner, office, settings, and the run + steps in one transaction. Platform-operator only. Requires Idempotency-Key. A same-key replay returns 200; a different request for a taken tenant code returns 409. The tenant is created inactive until readiness activates it.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantProvisioningCreateRequest`](#schema-tenantprovisioningcreaterequest)
+
+**Responses**
+
+| Status | Description                                                              | Schema                                                   |
+| ------ | ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | An idempotent replay of an existing run (same Idempotency-Key + inputs). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 201    | The created provisioning run.                                            | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                             | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                      | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                           | [`ApiError`](#standard-error-envelope)                   |
+| 409    | The tenant code is already taken by a different provisioning request.    | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                               | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/tenant-provisioning/tenants/{tenantId}` — Read a tenant's provisioning timeline
+
+- **operationId**: `tenantProvisioningTimelineGet`
+- **Security**: bearerAuth + tenantHeader
+
+The full run, steps, attempts, results, compensations, and reconciliations for a target tenant. Platform-operator only; read under the target tenant's per-tenant RLS context.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                                                                                               |
+| ------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 200    | The provisioning timeline.                          | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantProvisioningTimeline`](#schema-tenantprovisioningtimeline)&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                                                                               |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                                                                               |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                                                                               |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                                                                               |
+
+### `POST /api/v1/tenant-provisioning/tenants/{tenantId}/cancel` — Cancel a provisioning run when safe
+
+- **operationId**: `tenantProvisioningCancel`
+- **Security**: bearerAuth + tenantHeader
+
+Refuses if a worker holds a live lease (409); runs classified compensation over completed steps (reversible undo / manual / forbidden — never a tenant-data delete); leaves the tenant inactive. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): [`TenantProvisioningCancelRequest`](#schema-tenantprovisioningcancelrequest)
+
+**Responses**
+
+| Status | Description                                         | Schema                                                   |
+| ------ | --------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The canceled run.                                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A worker is mid-step, or the run is not cancelable. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/tenant-provisioning/tenants/{tenantId}/reconcile` — Non-destructive reconcile of a provisioned run
+
+- **operationId**: `tenantProvisioningReconcile`
+- **Security**: bearerAuth + tenantHeader
+
+Compare desired-vs-actual state, report drift and safe operator actions — never an auto-fix. Provisioned runs only. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                            | Schema                                                                                                                                         |
+| ------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 200    | The reconciliation result (drift + safe actions), no auto-fix applied. | [`ApiSuccess`](#standard-success-envelope)&lt;[`TenantProvisioningReconcileResponseData`](#schema-tenantprovisioningreconcileresponsedata)&gt; |
+| 400    | Validation or request error.                                           | [`ApiError`](#standard-error-envelope)                                                                                                         |
+| 401    | Authentication required or expired.                                    | [`ApiError`](#standard-error-envelope)                                                                                                         |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                         | [`ApiError`](#standard-error-envelope)                                                                                                         |
+| 404    | Resource not found or hidden by soft-delete policy.                    | [`ApiError`](#standard-error-envelope)                                                                                                         |
+| 409    | The run is not in a reconcilable (provisioned) state.                  | [`ApiError`](#standard-error-envelope)                                                                                                         |
+| 500    | Internal server error without stack trace.                             | [`ApiError`](#standard-error-envelope)                                                                                                         |
+
+### `POST /api/v1/tenant-provisioning/tenants/{tenantId}/start` — Start, resume, or retry a provisioning run
+
+- **operationId**: `tenantProvisioningStart`
+- **Security**: bearerAuth + tenantHeader
+
+Acquire an exclusive lease (concurrent start → 409) and run each remaining step in its own transaction from the durable checkpoint, retrying a failed step within its bounded attempt budget. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                  | Schema                                                   |
+| ------ | ------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | The run after this start/resume pass.                        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                 | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                          | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.               | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.          | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Another worker holds the lease, or the run is not resumable. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                   | [`ApiError`](#standard-error-envelope)                   |
+
 ## Usage Metering
 
 Provider-neutral SaaS control-plane usage metering (epic #868 SaaS control plane Wave 1, Issue #875, ADR-0022) — the third control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id). Owning modules emit reviewed, NUMERIC-ONLY meter events in their own commit through the transaction-safe usage_append port (the events table is the transactional outbox); identity binds (tenant, producer, meter, sourceEventId, sourceVersion) so a duplicate producer event is counted once. An async, resumable worker deterministically materializes usage WINDOWS from the immutable events + signed CORRECTIONS (recompute-from-source: a rebuild reproduces stored aggregates, a replay never double-counts); late/out-of-order events recompute their window deterministically. Corrections link to the original event and NEVER mutate it (append-only, DB-trigger enforced). Reconciliation independently recomputes windows and flags drift/missing. The read-only usage_aggregate port exposes effective usage + a FAIL-CLOSED quota decision (the #871 entitlement limit + authoritative live usage — a hard quota denies when usage is unavailable). Meter keys/aggregation/bounds resolve against the #874 single source; an unknown meter fails closed. NO PII / no raw payloads. Operator-only + default-deny + default-disabled per tenant. correct/reconcile/rebuild require Idempotency-Key + audit. Not subscription/invoice pricing and not application telemetry.
@@ -18029,6 +18174,250 @@ Never includes verification_token_hash (an internal bearer-token hash) or any DN
 }
 ```
 
+### Schema: TenantProvisioningCancelRequest
+
+| Field    | Type   | Required | Nullable | Description |
+| -------- | ------ | -------- | -------- | ----------- |
+| `reason` | string | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "reason": "string"
+}
+```
+
+### Schema: TenantProvisioningCreateRequest
+
+| Field         | Type    | Required | Nullable | Description |
+| ------------- | ------- | -------- | -------- | ----------- |
+| `planKey`     | string  | yes      | no       |             |
+| `planVersion` | integer | yes      | no       |             |
+| `tenantCode`  | string  | yes      | no       |             |
+| `tenantName`  | string  | yes      | no       |             |
+| `legalName`   | string  | no       | yes      |             |
+| `owner`       | object  | yes      | no       |             |
+| `officeCode`  | string  | yes      | no       |             |
+| `officeName`  | string  | yes      | no       |             |
+| `options`     | object  | no       | no       |             |
+
+**Example**
+
+```json
+{
+  "planKey": "string",
+  "planVersion": 1,
+  "tenantCode": "string",
+  "tenantName": "string",
+  "legalName": "string",
+  "owner": {
+    "displayName": "string",
+    "loginIdentifier": "string",
+    "password": "string"
+  },
+  "officeCode": "string",
+  "officeName": "string",
+  "options": {
+    "defaultLocale": "string",
+    "defaultTheme": "string",
+    "timezone": "string",
+    "subdomain": "tenant.example.com",
+    "presetKey": "string",
+    "offerPlanKey": "string",
+    "offerVersion": 0
+  }
+}
+```
+
+### Schema: TenantProvisioningReconcileResponseData
+
+| Field     | Type                                                             | Required | Nullable | Description |
+| --------- | ---------------------------------------------------------------- | -------- | -------- | ----------- |
+| `status`  | enum(`consistent`, `drift_detected`, `error`)                    | yes      | no       |             |
+| `drift`   | array of object                                                  | yes      | no       |             |
+| `request` | [`TenantProvisioningRequest`](#schema-tenantprovisioningrequest) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "status": "consistent",
+  "drift": ["(operation-specific payload)"],
+  "request": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "tenantId": "00000000-0000-0000-0000-000000000000",
+    "planKey": "string",
+    "planVersion": 0,
+    "targetKey": "string",
+    "status": "requested",
+    "readiness": "pending",
+    "totalSteps": 0,
+    "completedSteps": 0,
+    "currentStepKey": "string",
+    "lastErrorClass": "string",
+    "blockedReason": "string",
+    "requestedAt": "2026-01-01T00:00:00.000Z",
+    "startedAt": "2026-01-01T00:00:00.000Z",
+    "provisionedAt": "2026-01-01T00:00:00.000Z",
+    "failedAt": "2026-01-01T00:00:00.000Z",
+    "canceledAt": "2026-01-01T00:00:00.000Z",
+    "cancelReason": "string",
+    "lastReconciledAt": "2026-01-01T00:00:00.000Z"
+  }
+}
+```
+
+### Schema: TenantProvisioningRequest
+
+A tenant provisioning run (Issue
+
+| Field              | Type                                                                                                            | Required | Nullable | Description |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `id`               | string (uuid)                                                                                                   | yes      | no       |             |
+| `tenantId`         | string (uuid)                                                                                                   | yes      | no       |             |
+| `planKey`          | string                                                                                                          | yes      | no       |             |
+| `planVersion`      | integer                                                                                                         | yes      | no       |             |
+| `targetKey`        | string                                                                                                          | yes      | no       |             |
+| `status`           | enum(`requested`, `in_progress`, `provisioned`, `compensating`, `failed`, `blocked`, `canceled`, `reconciling`) | yes      | no       |             |
+| `readiness`        | enum(`pending`, `ready`, `blocked`)                                                                             | yes      | no       |             |
+| `totalSteps`       | integer                                                                                                         | yes      | no       |             |
+| `completedSteps`   | integer                                                                                                         | yes      | no       |             |
+| `currentStepKey`   | string                                                                                                          | no       | yes      |             |
+| `lastErrorClass`   | string                                                                                                          | no       | yes      |             |
+| `blockedReason`    | string                                                                                                          | no       | yes      |             |
+| `requestedAt`      | string (date-time)                                                                                              | yes      | no       |             |
+| `startedAt`        | string (date-time)                                                                                              | no       | yes      |             |
+| `provisionedAt`    | string (date-time)                                                                                              | no       | yes      |             |
+| `failedAt`         | string (date-time)                                                                                              | no       | yes      |             |
+| `canceledAt`       | string (date-time)                                                                                              | no       | yes      |             |
+| `cancelReason`     | string                                                                                                          | no       | yes      |             |
+| `lastReconciledAt` | string (date-time)                                                                                              | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "planKey": "string",
+  "planVersion": 0,
+  "targetKey": "string",
+  "status": "requested",
+  "readiness": "pending",
+  "totalSteps": 0,
+  "completedSteps": 0,
+  "currentStepKey": "string",
+  "lastErrorClass": "string",
+  "blockedReason": "string",
+  "requestedAt": "2026-01-01T00:00:00.000Z",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "provisionedAt": "2026-01-01T00:00:00.000Z",
+  "failedAt": "2026-01-01T00:00:00.000Z",
+  "canceledAt": "2026-01-01T00:00:00.000Z",
+  "cancelReason": "string",
+  "lastReconciledAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: TenantProvisioningStep
+
+| Field               | Type                                      | Required | Nullable | Description |
+| ------------------- | ----------------------------------------- | -------- | -------- | ----------- |
+| `id`                | string (uuid)                             | yes      | no       |             |
+| `stepKey`           | string                                    | yes      | no       |             |
+| `stepIndex`         | integer                                   | yes      | no       |             |
+| `stepKind`          | enum(`core`, `provider`, `derived`)       | yes      | no       |             |
+| `compensationClass` | enum(`reversible`, `manual`, `forbidden`) | yes      | no       |             |
+| `optional`          | boolean                                   | yes      | no       |             |
+| `status`            | string                                    | yes      | no       |             |
+| `attemptCount`      | integer                                   | yes      | no       |             |
+| `maxAttempts`       | integer                                   | yes      | no       |             |
+| `lastErrorClass`    | string                                    | no       | yes      |             |
+| `lastErrorMessage`  | string                                    | no       | yes      |             |
+| `startedAt`         | string (date-time)                        | no       | yes      |             |
+| `completedAt`       | string (date-time)                        | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "stepKey": "string",
+  "stepIndex": 0,
+  "stepKind": "core",
+  "compensationClass": "reversible",
+  "optional": false,
+  "status": "string",
+  "attemptCount": 0,
+  "maxAttempts": 0,
+  "lastErrorClass": "string",
+  "lastErrorMessage": "string",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "completedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: TenantProvisioningTimeline
+
+| Field             | Type                                                                | Required | Nullable | Description |
+| ----------------- | ------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `request`         | [`TenantProvisioningRequest`](#schema-tenantprovisioningrequest)    | yes      | no       |             |
+| `steps`           | array of [`TenantProvisioningStep`](#schema-tenantprovisioningstep) | yes      | no       |             |
+| `attempts`        | array of object                                                     | yes      | no       |             |
+| `results`         | array of object                                                     | yes      | no       |             |
+| `compensations`   | array of object                                                     | yes      | no       |             |
+| `reconciliations` | array of object                                                     | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "request": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "tenantId": "00000000-0000-0000-0000-000000000000",
+    "planKey": "string",
+    "planVersion": 0,
+    "targetKey": "string",
+    "status": "requested",
+    "readiness": "pending",
+    "totalSteps": 0,
+    "completedSteps": 0,
+    "currentStepKey": "string",
+    "lastErrorClass": "string",
+    "blockedReason": "string",
+    "requestedAt": "2026-01-01T00:00:00.000Z",
+    "startedAt": "2026-01-01T00:00:00.000Z",
+    "provisionedAt": "2026-01-01T00:00:00.000Z",
+    "failedAt": "2026-01-01T00:00:00.000Z",
+    "canceledAt": "2026-01-01T00:00:00.000Z",
+    "cancelReason": "string",
+    "lastReconciledAt": "2026-01-01T00:00:00.000Z"
+  },
+  "steps": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "stepKey": "string",
+      "stepIndex": 0,
+      "stepKind": "core",
+      "compensationClass": "reversible",
+      "optional": false,
+      "status": "string",
+      "attemptCount": 0,
+      "maxAttempts": 0,
+      "lastErrorClass": "string",
+      "lastErrorMessage": "string",
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "completedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "attempts": ["(operation-specific payload)"],
+  "results": ["(operation-specific payload)"],
+  "compensations": ["(operation-specific payload)"],
+  "reconciliations": ["(operation-specific payload)"]
+}
+```
+
 ### Schema: TenantSettingsResponse
 
 | Field           | Type                            | Required | Nullable | Description |
@@ -19157,7 +19546,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (102)
+### Channels (106)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -19251,6 +19640,10 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.sync.push.requested` — Baseline sync push event envelope for future sync-storage implementation.
 - `awcms-mini.tenant-entitlement.assignment.changed` — A tenant entitlement assignment was assigned/suspended/resumed/canceled (Issue #871, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `assignmentId`, `planKey`, `offerVersion`, `changeType`, resulting `status`, and the resolved `snapshotHash` for deterministic cache invalidation — never an operator reason or internal price. Producer: `tenant-entitlement/application/entitlement-directory.ts`, via `appendDomainEvent` in the same transaction as the append-only evaluation snapshot.
 - `awcms-mini.tenant-entitlement.override.changed` — A tenant entitlement override was created or revoked (Issue #871). Payload: `overrideId`, `targetKind`, `targetKey`, `effect`, `changeType`, and the resolved `snapshotHash` — never the operator's free-text reason. Producer: `tenant-entitlement/application/entitlement-directory.ts`'s `createOverride`/`revokeOverride`.
+- `awcms-mini.tenant-provisioning.completed` — A tenant provisioning run reached `provisioned` and the tenant became active (Issue #872). Payload: `requestId`, `tenantId`, `status`. Producer: `tenant-provisioning/application/provisioning-orchestrator.ts`'s `runProvisioning` finalization.
+- `awcms-mini.tenant-provisioning.failed` — A tenant provisioning run was compensated to failed/blocked/canceled; the tenant was left inactive with its data preserved (Issue #872). Payload: `requestId`, `tenantId`, `status`, `failedStepKey` (when applicable). Producer: `provisioning-orchestrator.ts`'s compensation/cancel paths.
+- `awcms-mini.tenant-provisioning.reconciled` — A non-destructive desired-vs-actual reconciliation of a provisioned run completed (Issue #872). Payload: `requestId`, `tenantId`, `status`, `driftCount` — no auto-fix is ever applied. Producer: `provisioning-orchestrator.ts`'s `reconcileProvisioning`.
+- `awcms-mini.tenant-provisioning.requested` — A tenant provisioning run was requested and the target tenant record was bootstrapped (Issue #872, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `requestId`, `tenantId`, `planKey`, `planVersion`, `targetKey`, `totalSteps` — never a secret or owner password. Producer: `tenant-provisioning/application/provisioning-orchestrator.ts`'s `requestProvisioning`, same-commit with the tenant/owner creation.
 - `awcms-mini.usage-metering.usage.corrected` — A signed usage correction/reversal was applied to a billable meter (Issue #875, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `correctionId`, `originalEventId`, `meterKey`, `correctionType`, and the signed `deltaQuantity` — numeric-only, never the operator's free-text reason. Producer: `usage-metering/application/correction-directory.ts`'s `applyCorrection`, via `appendDomainEvent` in the same transaction as the append-only correction row.
 - `awcms-mini.usage-metering.usage.reconciled` — A usage reconciliation run compared recomputed windows to stored aggregates (Issue #875). Payload: `runId`, `meterKey`, `windowType`, `status`, and `windowsChecked` / `driftCount` / `missingCount` — numeric-only evidence. Producer: `usage-metering/application/reconciliation.ts`'s `runReconciliation`.
 - `awcms-mini.workflow.delegation.created` — A workflow delegation/substitute assignment was created (Issue #747). Producer: `workflow-approval/application/ workflow-delegation-directory.ts`'s `createWorkflowDelegation`.

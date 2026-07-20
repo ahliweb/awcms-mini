@@ -1,6 +1,10 @@
-import { assertUuid } from "../../../lib/database/tenant-context";
-import { hashPassword } from "../../../lib/auth/password";
 import type { SetupInitializeInput } from "../domain/setup-validation";
+import {
+  createHeadOffice,
+  createTenantOwner,
+  createTenantRecord,
+  initializeTenantSettings
+} from "./tenant-onboarding";
 
 /**
  * Composition root for the one-time platform setup wizard (Issue #680,
@@ -53,64 +57,30 @@ export async function bootstrapPlatformTenant(
     return { outcome: "already_initialized" };
   }
 
-  const tenantRows = await tx`
-    INSERT INTO awcms_mini_tenants (tenant_code, tenant_name)
-    VALUES (${input.tenantCode}, ${input.tenantName})
-    RETURNING id
-  `;
-  const tenantId = assertUuid(tenantRows[0]!.id as string);
+  // Reuses the shared tenant-onboarding building blocks (Issue #872) — the
+  // exact same tenant/settings/office/owner creation, in the same order, in the
+  // same transaction. The SaaS `tenant_provisioning` orchestrator composes the
+  // same helpers, so there is one implementation of "create a tenant + owner",
+  // not two (issue #872: reuse, do not duplicate).
+  const { tenantId } = await createTenantRecord(tx, {
+    tenantCode: input.tenantCode,
+    tenantName: input.tenantName
+  });
 
   await tx.unsafe(`SET LOCAL app.current_tenant_id = '${tenantId}'`);
 
-  await tx`
-    INSERT INTO awcms_mini_tenant_settings (tenant_id) VALUES (${tenantId})
-  `;
+  await initializeTenantSettings(tx, tenantId);
 
-  const officeRows = await tx`
-    INSERT INTO awcms_mini_offices (tenant_id, office_code, office_name, office_type)
-    VALUES (${tenantId}, ${input.officeCode}, ${input.officeName}, 'head_office')
-    RETURNING id
-  `;
-  const officeId = officeRows[0]!.id as string;
+  const { officeId } = await createHeadOffice(tx, tenantId, {
+    officeCode: input.officeCode,
+    officeName: input.officeName
+  });
 
-  const profileRows = await tx`
-    INSERT INTO awcms_mini_profiles (tenant_id, profile_type, display_name)
-    VALUES (${tenantId}, 'person', ${input.ownerDisplayName})
-    RETURNING id
-  `;
-  const profileId = profileRows[0]!.id as string;
-
-  const passwordHash = await hashPassword(input.ownerPassword);
-  const identityRows = await tx`
-    INSERT INTO awcms_mini_identities (tenant_id, profile_id, login_identifier, password_hash)
-    VALUES (${tenantId}, ${profileId}, ${input.ownerLoginIdentifier}, ${passwordHash})
-    RETURNING id
-  `;
-  const identityId = identityRows[0]!.id as string;
-
-  const tenantUserRows = await tx`
-    INSERT INTO awcms_mini_tenant_users (tenant_id, identity_id)
-    VALUES (${tenantId}, ${identityId})
-    RETURNING id
-  `;
-  const tenantUserId = tenantUserRows[0]!.id as string;
-
-  const roleRows = await tx`
-    INSERT INTO awcms_mini_roles (tenant_id, role_code, role_name, is_system)
-    VALUES (${tenantId}, 'owner', 'Owner', true)
-    RETURNING id
-  `;
-  const roleId = roleRows[0]!.id as string;
-
-  await tx`
-    INSERT INTO awcms_mini_role_permissions (tenant_id, role_id, permission_id)
-    SELECT ${tenantId}, ${roleId}, id FROM awcms_mini_permissions
-  `;
-
-  await tx`
-    INSERT INTO awcms_mini_access_assignments (tenant_id, tenant_user_id, role_id, assigned_by)
-    VALUES (${tenantId}, ${tenantUserId}, ${roleId}, ${tenantUserId})
-  `;
+  const owner = await createTenantOwner(tx, tenantId, {
+    ownerDisplayName: input.ownerDisplayName,
+    ownerLoginIdentifier: input.ownerLoginIdentifier,
+    ownerPassword: input.ownerPassword
+  });
 
   await tx`
     UPDATE awcms_mini_setup_state SET tenant_id = ${tenantId} WHERE id = true
@@ -120,9 +90,9 @@ export async function bootstrapPlatformTenant(
     outcome: "initialized",
     tenantId,
     officeId,
-    ownerProfileId: profileId,
-    ownerIdentityId: identityId,
-    ownerTenantUserId: tenantUserId,
-    ownerRoleId: roleId
+    ownerProfileId: owner.ownerProfileId,
+    ownerIdentityId: owner.ownerIdentityId,
+    ownerTenantUserId: owner.ownerTenantUserId,
+    ownerRoleId: owner.ownerRoleId
   };
 }

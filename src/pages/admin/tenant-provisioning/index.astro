@@ -1,0 +1,472 @@
+---
+/**
+ * Tenant provisioning admin control panel (Issue #872, epic #868 SaaS control
+ * plane, ADR-0022). Platform-operator only — the SSR permission gate
+ * (`ssr-session.ts`) strips `tenant_provisioning.*` for any tenant that has not
+ * enabled the module (`defaultTenantState: "disabled"`), and the API further
+ * restricts every command to the platform (setup singleton) tenant (no soft
+ * super-tenant, ADR-0022 §6).
+ *
+ * Because a provisioning run belongs to a TARGET tenant (not the operator's own
+ * tenant context), the run timeline is loaded CLIENT-SIDE by target tenant id
+ * after a run is created or looked up — the SSR page renders the create form,
+ * the lookup form, and an empty timeline the island fills.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/tenant-provisioning/index.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("tenant_provisioning", "requests", "read")
+);
+const CAN_CREATE = context.permissions.has(
+  permissionKey("tenant_provisioning", "requests", "create")
+);
+const CAN_RETRY = context.permissions.has(
+  permissionKey("tenant_provisioning", "requests", "retry")
+);
+const CAN_CANCEL = context.permissions.has(
+  permissionKey("tenant_provisioning", "requests", "cancel")
+);
+const CAN_RECONCILE = context.permissions.has(
+  permissionKey("tenant_provisioning", "reconciliation", "check")
+);
+
+const clientStrings = {
+  createSuccess: t("admin.tenant_provisioning.create_success"),
+  startSuccess: t("admin.tenant_provisioning.start_success"),
+  cancelSuccess: t("admin.tenant_provisioning.cancel_success"),
+  reconcileSuccess: t("admin.tenant_provisioning.reconcile_success"),
+  reasonPrompt: t("admin.tenant_provisioning.reason_prompt"),
+  notFound: t("admin.tenant_provisioning.not_found"),
+  colStep: t("admin.tenant_provisioning.col_step"),
+  colStatus: t("admin.tenant_provisioning.col_status"),
+  colKind: t("admin.tenant_provisioning.col_kind"),
+  colAttempts: t("admin.tenant_provisioning.col_attempts"),
+  canRetry: CAN_RETRY,
+  canCancel: CAN_CANCEL,
+  canReconcile: CAN_RECONCILE,
+  startLabel: t("admin.tenant_provisioning.start_button"),
+  cancelLabel: t("admin.tenant_provisioning.cancel_button"),
+  reconcileLabel: t("admin.tenant_provisioning.reconcile_button"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+---
+
+<AdminLayout title={t("admin.tenant_provisioning.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.tenant_provisioning.access_denied_title")}
+        body={t("admin.tenant_provisioning.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && (
+      <div class="provisioning-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        <p class="intro">{t("admin.tenant_provisioning.intro")}</p>
+
+        {CAN_CREATE && (
+          <section class="panel">
+            <h2>{t("admin.tenant_provisioning.create_heading")}</h2>
+            <form id="create-form" class="grid-form">
+              <label>
+                {t("admin.tenant_provisioning.field_plan_key")}
+                <input name="planKey" value="standard_tenant" required />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_plan_version")}
+                <input
+                  name="planVersion"
+                  type="number"
+                  min="1"
+                  value="1"
+                  required
+                />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_tenant_code")}
+                <input
+                  name="tenantCode"
+                  required
+                  pattern="[a-z0-9][a-z0-9_\-]*"
+                />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_tenant_name")}
+                <input name="tenantName" required />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_owner_name")}
+                <input name="ownerDisplayName" required />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_owner_login")}
+                <input name="ownerLoginIdentifier" required />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_owner_password")}
+                <input
+                  name="ownerPassword"
+                  type="password"
+                  minlength="8"
+                  required
+                />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_office_code")}
+                <input name="officeCode" value="ho" required />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_office_name")}
+                <input name="officeName" value="Head Office" required />
+              </label>
+              <label>
+                {t("admin.tenant_provisioning.field_locale")}
+                <input name="defaultLocale" placeholder="id" />
+              </label>
+              <button type="submit">
+                {t("admin.tenant_provisioning.create_button")}
+              </button>
+            </form>
+          </section>
+        )}
+
+        <section class="panel">
+          <h2>{t("admin.tenant_provisioning.lookup_heading")}</h2>
+          <form id="lookup-form" class="inline-form">
+            <label>
+              {t("admin.tenant_provisioning.field_target_tenant")}
+              <input name="tenantId" required size="40" />
+            </label>
+            <button type="submit">
+              {t("admin.tenant_provisioning.lookup_button")}
+            </button>
+          </form>
+          <div id="timeline" class="timeline" hidden />
+        </section>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .provisioning-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6, 1.5rem);
+  }
+  .panel {
+    border: 1px solid var(--color-border, #d4d4d8);
+    border-radius: var(--radius-md, 0.5rem);
+    padding: var(--space-4, 1rem);
+  }
+  .action-banner {
+    padding: var(--space-3, 0.75rem);
+    border-radius: var(--radius-md, 0.5rem);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-subtle, #dcfce7);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-subtle, #fee2e2);
+  }
+  .intro {
+    color: var(--color-text-muted, #71717a);
+  }
+  .grid-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: var(--space-3, 0.75rem);
+    align-items: end;
+  }
+  .inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3, 0.75rem);
+    align-items: end;
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-2, 0.5rem);
+  }
+  th,
+  td {
+    text-align: left;
+    padding: var(--space-2, 0.5rem);
+    border-bottom: 1px solid var(--color-border, #e4e4e7);
+    vertical-align: top;
+  }
+  .timeline {
+    margin-top: var(--space-3, 0.75rem);
+    overflow-x: auto;
+  }
+  .commands {
+    display: flex;
+    gap: var(--space-2, 0.5rem);
+    margin-top: var(--space-3, 0.75rem);
+  }
+  button.danger {
+    color: var(--color-danger, #b91c1c);
+  }
+  input:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    createSuccess: string;
+    startSuccess: string;
+    cancelSuccess: string;
+    reconcileSuccess: string;
+    reasonPrompt: string;
+    notFound: string;
+    colStep: string;
+    colStatus: string;
+    colKind: string;
+    colAttempts: string;
+    canRetry: boolean;
+    canCancel: boolean;
+    canReconcile: boolean;
+    startLabel: string;
+    cancelLabel: string;
+    reconcileLabel: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const BASE = "/api/v1/tenant-provisioning";
+
+  function esc(value: unknown): string {
+    return String(value ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        })[c] ?? c
+    );
+  }
+
+  let currentTenantId = "";
+
+  async function loadTimeline(tenantId: string): Promise<void> {
+    const container = document.getElementById("timeline");
+    if (!container) return;
+    currentTenantId = tenantId;
+    const response = await fetch(
+      `${BASE}/tenants/${encodeURIComponent(tenantId)}`,
+      {
+        headers: { Accept: "application/json" }
+      }
+    );
+    if (response.status === 404) {
+      container.hidden = false;
+      container.textContent = strings.notFound;
+      return;
+    }
+    if (!response.ok) {
+      container.hidden = false;
+      container.textContent = strings.networkError;
+      return;
+    }
+    const body = await response.json();
+    const data = body.data;
+    const req = data.request;
+    const steps: Array<Record<string, unknown>> = data.steps ?? [];
+    const rows = steps
+      .map(
+        (s) =>
+          `<tr><td><code>${esc(s.stepKey)}</code></td><td>${esc(s.status)}</td><td>${esc(
+            s.stepKind
+          )} / ${esc(s.compensationClass)}</td><td>${esc(s.attemptCount)}/${esc(
+            s.maxAttempts
+          )}</td></tr>`
+      )
+      .join("");
+    const commands: string[] = [];
+    if (strings.canRetry) {
+      commands.push(
+        `<button type="button" data-cmd="start">${esc(strings.startLabel)}</button>`
+      );
+    }
+    if (strings.canReconcile) {
+      commands.push(
+        `<button type="button" data-cmd="reconcile">${esc(strings.reconcileLabel)}</button>`
+      );
+    }
+    if (strings.canCancel) {
+      commands.push(
+        `<button type="button" class="danger" data-cmd="cancel">${esc(strings.cancelLabel)}</button>`
+      );
+    }
+    container.hidden = false;
+    container.innerHTML = `
+      <p><strong>${esc(req.targetKey)}</strong> · status <strong>${esc(
+        req.status
+      )}</strong> · readiness <strong>${esc(req.readiness)}</strong> · steps ${esc(
+        req.completedSteps
+      )}/${esc(req.totalSteps)}${
+        req.blockedReason ? ` · ${esc(req.blockedReason)}` : ""
+      }</p>
+      <table><thead><tr><th>${esc(strings.colStep)}</th><th>${esc(
+        strings.colStatus
+      )}</th><th>${esc(strings.colKind)}</th><th>${esc(
+        strings.colAttempts
+      )}</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="commands">${commands.join("")}</div>`;
+
+    container
+      .querySelectorAll<HTMLButtonElement>("[data-cmd]")
+      .forEach((button) => {
+        button.addEventListener("click", () => runCommand(button));
+      });
+  }
+
+  async function runCommand(button: HTMLButtonElement): Promise<void> {
+    const cmd = button.dataset.cmd ?? "";
+    let payload: Record<string, unknown> | undefined;
+    let successMsg = strings.startSuccess;
+    if (cmd === "cancel") {
+      const reason = window.prompt(strings.reasonPrompt) ?? null;
+      if (reason === null) return;
+      payload = { reason };
+      successMsg = strings.cancelSuccess;
+    } else if (cmd === "reconcile") {
+      successMsg = strings.reconcileSuccess;
+      payload = {};
+    } else {
+      payload = {};
+    }
+    const unlock = lockElement(button, strings.pleaseWait);
+    try {
+      const result = await submitJson(
+        `${BASE}/tenants/${encodeURIComponent(currentTenantId)}/${cmd}`,
+        "POST",
+        payload,
+        strings,
+        { "Idempotency-Key": newIdempotencyKey() }
+      );
+      if (result.ok) {
+        showBanner("action-banner", successMsg, "success");
+        await loadTimeline(currentTenantId);
+      } else {
+        showBanner("action-banner", result.message, "error");
+      }
+    } finally {
+      unlock();
+    }
+  }
+
+  // ---- create ----
+  document
+    .getElementById("create-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const data = new FormData(form);
+      const locale =
+        typeof data.get("defaultLocale") === "string"
+          ? (data.get("defaultLocale") as string).trim()
+          : "";
+      const unlock = lockElement(button, strings.pleaseWait);
+      try {
+        const result = await submitJson(
+          `${BASE}/requests`,
+          "POST",
+          {
+            planKey: data.get("planKey"),
+            planVersion: Number(data.get("planVersion")),
+            tenantCode: data.get("tenantCode"),
+            tenantName: data.get("tenantName"),
+            owner: {
+              displayName: data.get("ownerDisplayName"),
+              loginIdentifier: data.get("ownerLoginIdentifier"),
+              password: data.get("ownerPassword")
+            },
+            officeCode: data.get("officeCode"),
+            officeName: data.get("officeName"),
+            options: locale ? { defaultLocale: locale } : {}
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        if (result.ok) {
+          showBanner("action-banner", strings.createSuccess, "success");
+          const tenantId = (result.data as { request?: { tenantId?: string } })
+            ?.request?.tenantId;
+          if (tenantId) {
+            const lookupInput = document.querySelector<HTMLInputElement>(
+              '#lookup-form [name="tenantId"]'
+            );
+            if (lookupInput) lookupInput.value = tenantId;
+            await loadTimeline(tenantId);
+          }
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  // ---- lookup ----
+  document
+    .getElementById("lookup-form")
+    ?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const tenantId = String(new FormData(form).get("tenantId") ?? "").trim();
+      if (tenantId) void loadTimeline(tenantId);
+    });
+</script>

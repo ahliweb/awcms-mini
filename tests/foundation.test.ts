@@ -60,8 +60,8 @@ describe("soft delete helper", () => {
 });
 
 describe("module registry", () => {
-  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, service_catalog, and tenant_entitlement are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870, #871", () => {
-    expect(listModules()).toHaveLength(26);
+  test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, service_catalog, tenant_entitlement, tenant_provisioning, and usage_metering are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870, #871, #872, #875", () => {
+    expect(listModules()).toHaveLength(27);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -276,6 +276,38 @@ describe("module registry", () => {
         "identity_access",
         "module_management",
         "domain_event_runtime",
+        "logging"
+      ]
+    });
+    // Issue #872 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the third
+    // control-plane module: idempotent/resumable provisioning orchestration,
+    // tenant-scoped, default-disabled, provides provisioning_status.
+    expect(getModuleByKey("tenant_provisioning")).toMatchObject({
+      key: "tenant_provisioning",
+      status: "active",
+      type: "domain",
+      defaultTenantState: "disabled",
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "module_management",
+        "domain_event_runtime",
+        "logging"
+      ]
+    });
+    // Issue #875 (epic #868 SaaS control plane, Wave 1, ADR-0022) — tenant-scoped
+    // usage metering: append-only meter events, deterministic aggregation windows,
+    // signed corrections, fail-closed quota decision, default-disabled.
+    expect(getModuleByKey("usage_metering")).toMatchObject({
+      key: "usage_metering",
+      status: "active",
+      type: "domain",
+      defaultTenantState: "disabled",
+      dependencies: [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime",
+        "data_lifecycle",
         "logging"
       ]
     });
@@ -707,6 +739,8 @@ describe("database migration runner helpers", () => {
       "082_awcms_mini_tenant_entitlement_permissions.sql",
       "083_awcms_mini_abac_policy_dsl_schema.sql",
       "084_awcms_mini_abac_policy_admin_permissions.sql",
+      "085_awcms_mini_tenant_provisioning_schema.sql",
+      "086_awcms_mini_tenant_provisioning_permissions.sql",
       "087_awcms_mini_usage_metering_schema.sql",
       "088_awcms_mini_usage_metering_permissions.sql"
     ]);

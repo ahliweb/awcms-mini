@@ -254,9 +254,9 @@ eksplisit sesuai permintaan Issue #696):
    semacam ini **ditolak di tahap pohon keputusan §3** (node Q5), tanpa
    pengecualian implementasi apa pun.
 
-## 8. Peta 26 modul saat ini → kategori
+## 8. Peta 27 modul saat ini → kategori
 
-Sumber kebenaran: `src/modules/index.ts` (25 entri) dan setiap `module.ts`-
+Sumber kebenaran: `src/modules/index.ts` (26 entri) dan setiap `module.ts`-
 nya. Kolom **Owner** mengikuti `.github/CODEOWNERS` (satu maintainer,
 `@ahliweb`, untuk seluruh repo hari ini) karena field opsional
 `ModuleDescriptor.maintainers` belum diisi di modul manapun — lihat
@@ -285,13 +285,14 @@ remediasi R3 di bawah.
 | `reference_data`          | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `service_catalog`         | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `tenant_entitlement`      | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `tenant_provisioning`     | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `usage_metering`          | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `integration_hub`         | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `idn_admin_regions`       | System                   | `base`                  | _(tidak diset)_  | `experimental`   | @ahliweb |
 
-Total: 3 Core + 13 System + 7 Official Optional Module = **23 dari 23 modul
+Total: 3 Core + 13 System + 11 Official Optional Module = **27 dari 27 modul
 terdaftar** diklasifikasikan di tabel ini, cocok dengan `src/modules/
 index.ts` (`data_lifecycle`/`domain_event_runtime`, Issue #745/#742 epic
 #738 Wave 1, ditambahkan ke tabel ini sebagai bagian PR Issue #750 — baris

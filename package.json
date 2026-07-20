@@ -51,6 +51,7 @@
     "db:work-class:generate": "bun scripts/work-class-registry-generate.ts",
     "db:work-class:check": "bun scripts/work-class-registry-check.ts",
     "sync:objects:dispatch": "bun scripts/object-sync-dispatch.ts",
+    "tenant-provisioning:reconcile": "bun scripts/tenant-provisioning-reconcile.ts",
     "logs:audit:purge": "bun scripts/audit-log-purge.ts",
     "analytics:rollup": "bun scripts/visitor-analytics-rollup.ts",
     "analytics:purge": "bun scripts/visitor-analytics-purge.ts",
