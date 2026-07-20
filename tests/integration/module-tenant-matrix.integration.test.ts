@@ -217,7 +217,8 @@ suite(
         "service_catalog",
         "tenant_entitlement",
         "tenant_provisioning",
-        "usage_metering"
+        "usage_metering",
+        "tenant_lifecycle"
       ]);
       expect(
         rows

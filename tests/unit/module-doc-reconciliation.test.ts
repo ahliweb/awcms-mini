@@ -237,7 +237,7 @@ describe("planning docs <-> module registry reconciliation (Issue #828)", () => 
   });
 
   describe("doc 21 §8 — module classification", () => {
-    const heading = "## 8. Peta 27 modul saat ini → kategori";
+    const heading = "## 8. Peta 28 modul saat ini → kategori";
 
     test("classifies exactly the registered base modules, as table rows", () => {
       const documented = keysFromTable(DOC_21, heading);
@@ -260,6 +260,6 @@ describe("planning docs <-> module registry reconciliation (Issue #828)", () => 
     // HERE, next to the registry, so it fails in CI rather than in the next
     // audit. If this number legitimately changes, the failures above will
     // list every table that still needs a row.
-    expect(baseModuleKeys.length).toBe(27);
+    expect(baseModuleKeys.length).toBe(28);
   });
 });

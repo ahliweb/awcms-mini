@@ -11366,6 +11366,216 @@ Acquire an exclusive lease (concurrent start → 409) and run each remaining ste
 | 409    | Another worker holds the lease, or the run is not resumable. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                   | [`ApiError`](#standard-error-envelope)                   |
 
+## Tenant Lifecycle
+
+Provider-neutral SaaS control-plane tenant lifecycle (epic #868 SaaS control plane Wave 1, Issue #873, ADR-0022) — the fourth control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Records the precise SaaS lifecycle state of a tenant (provisioning/trial/active/renewal_due/past_due/grace/suspended/canceled/restoring/blocked), validates forward-legal transitions with an optimistic-concurrency version guard (invalid transition -> deterministic 409), keeps an append-only transition history, schedules trial/grace expiry transitions applied idempotently under concurrent workers, and derives — never stores as truth — the server-derived, fail-closed access restrictions a state implies. Suspension/cancel/block restrict admin/public/writes/jobs/provider access consistently across API, SSR, public host routing, and background workers; past_due is read-only; owner recovery/data export stay separately authorized. Downgrade changes the effective entitlement (via the #871 contract) and NEVER deletes tenant data; restore/reactivate runs reconciliation against provisioning readiness (#872). Emits versioned lifecycle events same-commit. Provides the tenant_restrictions and lifecycle_transition capabilities (#876 consumes the latter). Platform-operator only + default-deny + default-disabled per tenant; restricted to the platform tenant. LAN/offline safe: runs with no online payment provider.
+
+### `GET /api/v1/tenant-lifecycle/tenants/{tenantId}` — Read a tenant's lifecycle state, restrictions, and timeline
+
+- **operationId**: `tenantLifecycleGet`
+- **Security**: bearerAuth + tenantHeader
+
+The current lifecycle state, the server-derived fail-closed restriction profile, any pending scheduled transition, and the recent transition timeline for a target tenant. Platform-operator only; read under the target tenant's per-tenant RLS context.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) | The target tenant's UUID.                   |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                 | Schema                                                   |
+| ------ | ----------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The tenant's current lifecycle, restrictions, and timeline. | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                         | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.              | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.         | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                  | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/tenant-lifecycle/tenants/{tenantId}/downgrade` — Downgrade the tenant effective entitlement
+
+- **operationId**: `tenantLifecycleDowngrade`
+- **Security**: bearerAuth + tenantHeader
+
+Downgrade the tenant's effective entitlement to a lower offer via the
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) | The target tenant's UUID.                   |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantLifecycleDowngradeRequest`](#schema-tenantlifecycledowngraderequest)
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                               |
+| ------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 200    |                                                                                                      | [`TenantLifecycleStateOk`](#standard-error-envelope) |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)               |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                  | [`ApiError`](#standard-error-envelope)               |
+| 409    | An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict. | [`ApiError`](#standard-error-envelope)               |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)               |
+
+### `POST /api/v1/tenant-lifecycle/tenants/{tenantId}/initialize` — Initialize a tenant's lifecycle record
+
+- **operationId**: `tenantLifecycleInitialize`
+- **Security**: bearerAuth + tenantHeader
+
+Create the lifecycle record at an initial state (provisioning/trial/active). Idempotent — a repeat returns the existing record (200). Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) | The target tenant's UUID.                   |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantLifecycleInitializeRequest`](#schema-tenantlifecycleinitializerequest)
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                               |
+| ------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 200    |                                                                                                      | [`TenantLifecycleStateOk`](#standard-error-envelope) |
+| 201    |                                                                                                      | [`TenantLifecycleStateOk`](#standard-error-envelope) |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)               |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)               |
+| 409    | An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict. | [`ApiError`](#standard-error-envelope)               |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)               |
+
+### `POST /api/v1/tenant-lifecycle/tenants/{tenantId}/restore` — Restore/reactivate a suspended or canceled tenant
+
+- **operationId**: `tenantLifecycleRestore`
+- **Security**: bearerAuth + tenantHeader
+
+Restore a suspended/canceled/blocked tenant with reconciliation against provisioning readiness (#872). An unresolved provisioning/payment state must be explicitly confirmed (confirmUnresolved) or the restore is refused (409). Never deletes data. Platform-operator only; separately authorized (states.restore). Mandatory reason. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) | The target tenant's UUID.                   |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantLifecycleRestoreRequest`](#schema-tenantlifecyclerestorerequest)
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                               |
+| ------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 200    |                                                                                                      | [`TenantLifecycleStateOk`](#standard-error-envelope) |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)               |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                  | [`ApiError`](#standard-error-envelope)               |
+| 409    | An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict. | [`ApiError`](#standard-error-envelope)               |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)               |
+
+### `POST /api/v1/tenant-lifecycle/tenants/{tenantId}/schedule` — Schedule a future lifecycle transition
+
+- **operationId**: `tenantLifecycleScheduleSet`
+- **Security**: bearerAuth + tenantHeader
+
+Schedule a trial/grace expiry transition applied idempotently by the scheduler worker. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) | The target tenant's UUID.                   |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantLifecycleScheduleRequest`](#schema-tenantlifecycleschedulerequest)
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                               |
+| ------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 200    |                                                                                                      | [`TenantLifecycleStateOk`](#standard-error-envelope) |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)               |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                  | [`ApiError`](#standard-error-envelope)               |
+| 409    | An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict. | [`ApiError`](#standard-error-envelope)               |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)               |
+
+### `DELETE /api/v1/tenant-lifecycle/tenants/{tenantId}/schedule` — Cancel the pending scheduled transition
+
+- **operationId**: `tenantLifecycleScheduleCancel`
+- **Security**: bearerAuth + tenantHeader
+
+Cancel a tenant's pending scheduled transition. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) | The target tenant's UUID.                   |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantLifecycleReasonRequest`](#schema-tenantlifecyclereasonrequest)
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                               |
+| ------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 200    |                                                                                                      | [`TenantLifecycleStateOk`](#standard-error-envelope) |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)               |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                  | [`ApiError`](#standard-error-envelope)               |
+| 409    | An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict. | [`ApiError`](#standard-error-envelope)               |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)               |
+
+### `POST /api/v1/tenant-lifecycle/tenants/{tenantId}/transition` — Perform a validated lifecycle transition
+
+- **operationId**: `tenantLifecycleTransition`
+- **Security**: bearerAuth + tenantHeader
+
+Move the tenant to a target state (activate, suspend, past_due, grace, cancel, block, ...). Forward-legal only; an invalid transition or stale expectedVersion returns a deterministic 409. Suspension propagates to public routing/workers via the projected tenant status in the same commit. Never deletes tenant data. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) | The target tenant's UUID.                   |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`TenantLifecycleTransitionRequest`](#schema-tenantlifecycletransitionrequest)
+
+**Responses**
+
+| Status | Description                                                                                          | Schema                                               |
+| ------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 200    |                                                                                                      | [`TenantLifecycleStateOk`](#standard-error-envelope) |
+| 400    | Validation or request error.                                                                         | [`ApiError`](#standard-error-envelope)               |
+| 401    | Authentication required or expired.                                                                  | [`ApiError`](#standard-error-envelope)               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                       | [`ApiError`](#standard-error-envelope)               |
+| 404    | Resource not found or hidden by soft-delete policy.                                                  | [`ApiError`](#standard-error-envelope)               |
+| 409    | An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict. | [`ApiError`](#standard-error-envelope)               |
+| 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)               |
+
 ## Usage Metering
 
 Provider-neutral SaaS control-plane usage metering (epic #868 SaaS control plane Wave 1, Issue #875, ADR-0022) — the third control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id). Owning modules emit reviewed, NUMERIC-ONLY meter events in their own commit through the transaction-safe usage_append port (the events table is the transactional outbox); identity binds (tenant, producer, meter, sourceEventId, sourceVersion) so a duplicate producer event is counted once. An async, resumable worker deterministically materializes usage WINDOWS from the immutable events + signed CORRECTIONS (recompute-from-source: a rebuild reproduces stored aggregates, a replay never double-counts); late/out-of-order events recompute their window deterministically. Corrections link to the original event and NEVER mutate it (append-only, DB-trigger enforced). Reconciliation independently recomputes windows and flags drift/missing. The read-only usage_aggregate port exposes effective usage + a FAIL-CLOSED quota decision (the #871 entitlement limit + authoritative live usage — a hard quota denies when usage is unavailable). Meter keys/aggregation/bounds resolve against the #874 single source; an unknown meter fails closed. NO PII / no raw payloads. Operator-only + default-deny + default-disabled per tenant. correct/reconcile/rebuild require Idempotency-Key + audit. Not subscription/invoice pricing and not application telemetry.
@@ -18105,6 +18315,142 @@ Never includes verification_token_hash (an internal bearer-token hash) or any DN
 }
 ```
 
+### Schema: TenantLifecycleDowngradeRequest
+
+| Field             | Type    | Required | Nullable | Description |
+| ----------------- | ------- | -------- | -------- | ----------- |
+| `offerPlanKey`    | string  | yes      | no       |             |
+| `offerVersion`    | integer | yes      | no       |             |
+| `reason`          | string  | yes      | no       |             |
+| `expectedVersion` | integer | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "offerPlanKey": "string",
+  "offerVersion": 1,
+  "reason": "string",
+  "expectedVersion": 1
+}
+```
+
+### Schema: TenantLifecycleInitializeRequest
+
+| Field          | Type                                    | Required | Nullable | Description |
+| -------------- | --------------------------------------- | -------- | -------- | ----------- |
+| `initialState` | enum(`provisioning`, `trial`, `active`) | yes      | no       |             |
+| `reason`       | string                                  | yes      | no       |             |
+| `trialEndsAt`  | string (date-time)                      | no       | yes      |             |
+| `graceEndsAt`  | string (date-time)                      | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "initialState": "provisioning",
+  "reason": "string",
+  "trialEndsAt": "2026-01-01T00:00:00.000Z",
+  "graceEndsAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: TenantLifecycleReasonRequest
+
+| Field             | Type    | Required | Nullable | Description |
+| ----------------- | ------- | -------- | -------- | ----------- |
+| `reason`          | string  | yes      | no       |             |
+| `expectedVersion` | integer | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "reason": "string",
+  "expectedVersion": 1
+}
+```
+
+### Schema: TenantLifecycleRestoreRequest
+
+| Field               | Type    | Required | Nullable | Description |
+| ------------------- | ------- | -------- | -------- | ----------- |
+| `reason`            | string  | yes      | no       |             |
+| `confirmUnresolved` | boolean | yes      | no       |             |
+| `expectedVersion`   | integer | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "reason": "string",
+  "confirmUnresolved": false,
+  "expectedVersion": 1
+}
+```
+
+### Schema: TenantLifecycleScheduleRequest
+
+| Field             | Type                                                           | Required | Nullable | Description |
+| ----------------- | -------------------------------------------------------------- | -------- | -------- | ----------- |
+| `toState`         | [`TenantLifecycleStateName`](#schema-tenantlifecyclestatename) | yes      | no       |             |
+| `at`              | string (date-time)                                             | yes      | no       |             |
+| `reason`          | string                                                         | yes      | no       |             |
+| `source`          | [`TenantLifecycleSource`](#schema-tenantlifecyclesource)       | no       | no       |             |
+| `expectedVersion` | integer                                                        | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "toState": "provisioning",
+  "at": "2026-01-01T00:00:00.000Z",
+  "reason": "string",
+  "source": "system",
+  "expectedVersion": 1
+}
+```
+
+### Schema: TenantLifecycleSource
+
+Enum values: `system`, `operator`, `scheduler`, `billing`, `provisioning`, `restore`.
+
+**Example**
+
+```json
+"system"
+```
+
+### Schema: TenantLifecycleStateName
+
+Enum values: `provisioning`, `trial`, `active`, `renewal_due`, `past_due`, `grace`, `suspended`, `canceled`, `restoring`, `blocked`.
+
+**Example**
+
+```json
+"provisioning"
+```
+
+### Schema: TenantLifecycleTransitionRequest
+
+| Field             | Type                                                           | Required | Nullable | Description |
+| ----------------- | -------------------------------------------------------------- | -------- | -------- | ----------- |
+| `toState`         | [`TenantLifecycleStateName`](#schema-tenantlifecyclestatename) | yes      | no       |             |
+| `reason`          | string                                                         | yes      | no       |             |
+| `source`          | [`TenantLifecycleSource`](#schema-tenantlifecyclesource)       | no       | no       |             |
+| `expectedVersion` | integer                                                        | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "toState": "provisioning",
+  "reason": "string",
+  "source": "system",
+  "expectedVersion": 1
+}
+```
+
 ### Schema: TenantModuleEntry
 
 | Field           | Type               | Required | Nullable | Description |
@@ -19546,7 +19892,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (106)
+### Channels (110)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -19640,6 +19986,10 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.sync.push.requested` — Baseline sync push event envelope for future sync-storage implementation.
 - `awcms-mini.tenant-entitlement.assignment.changed` — A tenant entitlement assignment was assigned/suspended/resumed/canceled (Issue #871, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `assignmentId`, `planKey`, `offerVersion`, `changeType`, resulting `status`, and the resolved `snapshotHash` for deterministic cache invalidation — never an operator reason or internal price. Producer: `tenant-entitlement/application/entitlement-directory.ts`, via `appendDomainEvent` in the same transaction as the append-only evaluation snapshot.
 - `awcms-mini.tenant-entitlement.override.changed` — A tenant entitlement override was created or revoked (Issue #871). Payload: `overrideId`, `targetKind`, `targetKey`, `effect`, `changeType`, and the resolved `snapshotHash` — never the operator's free-text reason. Producer: `tenant-entitlement/application/entitlement-directory.ts`'s `createOverride`/`revokeOverride`.
+- `awcms-mini.tenant-lifecycle.downgraded` — A tenant's effective entitlement was downgraded through the lifecycle contract; all tenant data is preserved (Issue #873). Payload: `tenantId`, `state`, `version`, `beforeOffer`, `afterOfferPlanKey`, `afterOfferVersion` — no free-text reason. Producer: `tenant-lifecycle/application/lifecycle-transition.ts`'s `downgrade`.
+- `awcms-mini.tenant-lifecycle.restored` — A suspended/canceled tenant was reconciled and restored toward active (Issue #873). Payload: `tenantId`, `fromState`, `toState`, `version`, `confirmedUnresolved`, `reconciled`, `provisioningStatus`. Producer: `tenant-lifecycle/application/lifecycle-transition.ts`'s `restore`.
+- `awcms-mini.tenant-lifecycle.scheduled` — A future tenant lifecycle transition (trial/grace expiry) was scheduled or canceled (Issue #873). Payload: `tenantId`, `toState`, `scheduledAt` (null on cancel), `version` — numeric/enumerated evidence only. Producer: `tenant-lifecycle/application/lifecycle-transition.ts`'s `scheduleTransition`/ `cancelSchedule`.
+- `awcms-mini.tenant-lifecycle.transitioned` — A tenant lifecycle state transition was validated and applied (Issue #873, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `tenantId`, `fromState`, `toState`, `version`, `source` — never the operator's raw reason free-text or any secret. Producer: `tenant-lifecycle/application/lifecycle-transition.ts`, same-commit with the state change + append-only history row.
 - `awcms-mini.tenant-provisioning.completed` — A tenant provisioning run reached `provisioned` and the tenant became active (Issue #872). Payload: `requestId`, `tenantId`, `status`. Producer: `tenant-provisioning/application/provisioning-orchestrator.ts`'s `runProvisioning` finalization.
 - `awcms-mini.tenant-provisioning.failed` — A tenant provisioning run was compensated to failed/blocked/canceled; the tenant was left inactive with its data preserved (Issue #872). Payload: `requestId`, `tenantId`, `status`, `failedStepKey` (when applicable). Producer: `provisioning-orchestrator.ts`'s compensation/cancel paths.
 - `awcms-mini.tenant-provisioning.reconciled` — A non-destructive desired-vs-actual reconciliation of a provisioned run completed (Issue #872). Payload: `requestId`, `tenantId`, `status`, `driftCount` — no auto-fix is ever applied. Producer: `provisioning-orchestrator.ts`'s `reconcileProvisioning`.

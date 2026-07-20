@@ -5142,6 +5142,63 @@ msgstr "Override dicabut."
 msgid "admin.tenant_entitlement.reason_prompt"
 msgstr "Masukkan alasan (wajib untuk audit):"
 
+msgid "admin.layout.nav_tenant_lifecycle"
+msgstr "Siklus Hidup Tenant"
+
+msgid "admin.tenant_lifecycle.title"
+msgstr "Siklus Hidup Tenant"
+
+msgid "admin.tenant_lifecycle.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.tenant_lifecycle.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk melihat siklus hidup tenant."
+
+msgid "admin.tenant_lifecycle.intro"
+msgstr "Periksa dan ubah status siklus hidup SaaS sebuah tenant. Setiap tindakan memerlukan alasan dan diaudit."
+
+msgid "admin.tenant_lifecycle.lookup_heading"
+msgstr "Cari tenant"
+
+msgid "admin.tenant_lifecycle.lookup_button"
+msgstr "Cari"
+
+msgid "admin.tenant_lifecycle.field_target_tenant"
+msgstr "ID tenant target"
+
+msgid "admin.tenant_lifecycle.not_found"
+msgstr "Tenant ini tidak memiliki catatan siklus hidup."
+
+msgid "admin.tenant_lifecycle.reason_prompt"
+msgstr "Masukkan alasan (wajib untuk audit):"
+
+msgid "admin.tenant_lifecycle.transition_button"
+msgstr "Ubah status"
+
+msgid "admin.tenant_lifecycle.transition_success"
+msgstr "Transisi siklus hidup diterapkan."
+
+msgid "admin.tenant_lifecycle.restore_button"
+msgstr "Pulihkan"
+
+msgid "admin.tenant_lifecycle.restore_success"
+msgstr "Tenant dipulihkan."
+
+msgid "admin.tenant_lifecycle.restrictions_heading"
+msgstr "Pembatasan efektif"
+
+msgid "admin.tenant_lifecycle.col_when"
+msgstr "Waktu"
+
+msgid "admin.tenant_lifecycle.col_event"
+msgstr "Peristiwa"
+
+msgid "admin.tenant_lifecycle.col_change"
+msgstr "Perubahan"
+
+msgid "admin.tenant_lifecycle.col_reason"
+msgstr "Alasan"
+
 msgid "admin.layout.nav_tenant_provisioning"
 msgstr "Provisioning Tenant"
 

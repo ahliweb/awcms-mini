@@ -276,6 +276,28 @@ export const USAGE_METERING_USAGE_CORRECTED_EVENT_TYPE =
 export const USAGE_METERING_USAGE_RECONCILED_EVENT_TYPE =
   "awcms-mini.usage-metering.usage.reconciled";
 
+/**
+ * `tenant_lifecycle` (Issue #873, epic #868 SaaS control plane Wave 1,
+ * ADR-0022). A REAL producer via `appendDomainEvent`, emitting these inside the
+ * SAME transaction as the lifecycle state change they describe (same-commit,
+ * memory `deferring-work-must-split-by-dependency`): `.transitioned` on every
+ * validated state transition, `.downgraded` when the effective entitlement is
+ * reduced without deleting data, `.restored` when a suspended/canceled tenant is
+ * reconciled back to active, `.scheduled` when a future transition is scheduled
+ * or canceled. Payloads carry only bounded, non-sensitive fields (tenant id,
+ * from/to state, version, source, scheduled time) — NEVER the operator's raw
+ * reason free-text or any secret (ADR-0022 §8, tenant-facing shape only).
+ */
+export const TENANT_LIFECYCLE_EVENT_VERSION = "1.0";
+export const TENANT_LIFECYCLE_TRANSITIONED_EVENT_TYPE =
+  "awcms-mini.tenant-lifecycle.transitioned";
+export const TENANT_LIFECYCLE_DOWNGRADED_EVENT_TYPE =
+  "awcms-mini.tenant-lifecycle.downgraded";
+export const TENANT_LIFECYCLE_RESTORED_EVENT_TYPE =
+  "awcms-mini.tenant-lifecycle.restored";
+export const TENANT_LIFECYCLE_SCHEDULED_EVENT_TYPE =
+  "awcms-mini.tenant-lifecycle.scheduled";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -596,6 +618,30 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: USAGE_METERING_EVENT_VERSION,
       description:
         "A usage reconciliation run compared recomputed windows to stored aggregates (Issue #875). Payload carries the run id, meter key, window type, status, and windows-checked / drift / missing counts — numeric-only evidence."
+    },
+    {
+      eventType: TENANT_LIFECYCLE_TRANSITIONED_EVENT_TYPE,
+      eventVersion: TENANT_LIFECYCLE_EVENT_VERSION,
+      description:
+        "A tenant lifecycle state transition was validated and applied (Issue #873). Payload carries the tenant id, from/to state, new version, and source — never the operator's raw reason free-text or any secret."
+    },
+    {
+      eventType: TENANT_LIFECYCLE_DOWNGRADED_EVENT_TYPE,
+      eventVersion: TENANT_LIFECYCLE_EVENT_VERSION,
+      description:
+        "A tenant's effective entitlement was downgraded through the lifecycle contract (Issue #873); all tenant data is preserved. Payload carries the tenant id, before/after offer plan key and version, and the lifecycle version — no free-text reason."
+    },
+    {
+      eventType: TENANT_LIFECYCLE_RESTORED_EVENT_TYPE,
+      eventVersion: TENANT_LIFECYCLE_EVENT_VERSION,
+      description:
+        "A suspended/canceled tenant was reconciled and restored toward active (Issue #873). Payload carries the tenant id, from/to state, new version, and whether unresolved provisioning/payment issues were explicitly confirmed."
+    },
+    {
+      eventType: TENANT_LIFECYCLE_SCHEDULED_EVENT_TYPE,
+      eventVersion: TENANT_LIFECYCLE_EVENT_VERSION,
+      description:
+        "A future tenant lifecycle transition (trial/grace expiry) was scheduled or canceled (Issue #873). Payload carries the tenant id, target state, scheduled time (null on cancel), and lifecycle version — numeric/enumerated evidence only."
     }
   ];
 

@@ -1127,6 +1127,50 @@ channels:
       `status`, and `windowsChecked` / `driftCount` / `missingCount` —
       numeric-only evidence. Producer:
       `usage-metering/application/reconciliation.ts`'s `runReconciliation`.
+  awcms-mini.tenant-lifecycle.transitioned:
+    address: awcms-mini.tenant-lifecycle.transitioned
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A tenant lifecycle state transition was validated and applied (Issue #873,
+      epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `tenantId`,
+      `fromState`, `toState`, `version`, `source` — never the operator's raw
+      reason free-text or any secret. Producer:
+      `tenant-lifecycle/application/lifecycle-transition.ts`, same-commit with
+      the state change + append-only history row.
+  awcms-mini.tenant-lifecycle.downgraded:
+    address: awcms-mini.tenant-lifecycle.downgraded
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A tenant's effective entitlement was downgraded through the lifecycle
+      contract; all tenant data is preserved (Issue #873). Payload: `tenantId`,
+      `state`, `version`, `beforeOffer`, `afterOfferPlanKey`,
+      `afterOfferVersion` — no free-text reason. Producer:
+      `tenant-lifecycle/application/lifecycle-transition.ts`'s `downgrade`.
+  awcms-mini.tenant-lifecycle.restored:
+    address: awcms-mini.tenant-lifecycle.restored
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A suspended/canceled tenant was reconciled and restored toward active
+      (Issue #873). Payload: `tenantId`, `fromState`, `toState`, `version`,
+      `confirmedUnresolved`, `reconciled`, `provisioningStatus`. Producer:
+      `tenant-lifecycle/application/lifecycle-transition.ts`'s `restore`.
+  awcms-mini.tenant-lifecycle.scheduled:
+    address: awcms-mini.tenant-lifecycle.scheduled
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A future tenant lifecycle transition (trial/grace expiry) was scheduled or
+      canceled (Issue #873). Payload: `tenantId`, `toState`, `scheduledAt` (null
+      on cancel), `version` — numeric/enumerated evidence only. Producer:
+      `tenant-lifecycle/application/lifecycle-transition.ts`'s `scheduleTransition`/
+      `cancelSchedule`.
 operations:
   publishSyncPushRequested:
     action: send
@@ -1776,6 +1820,30 @@ operations:
       $ref: "#/channels/awcms-mini.usage-metering.usage.reconciled"
     messages:
       - $ref: "#/channels/awcms-mini.usage-metering.usage.reconciled/messages/DomainEvent"
+  publishTenantLifecycleTransitioned:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.tenant-lifecycle.transitioned"
+    messages:
+      - $ref: "#/channels/awcms-mini.tenant-lifecycle.transitioned/messages/DomainEvent"
+  publishTenantLifecycleDowngraded:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.tenant-lifecycle.downgraded"
+    messages:
+      - $ref: "#/channels/awcms-mini.tenant-lifecycle.downgraded/messages/DomainEvent"
+  publishTenantLifecycleRestored:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.tenant-lifecycle.restored"
+    messages:
+      - $ref: "#/channels/awcms-mini.tenant-lifecycle.restored/messages/DomainEvent"
+  publishTenantLifecycleScheduled:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.tenant-lifecycle.scheduled"
+    messages:
+      - $ref: "#/channels/awcms-mini.tenant-lifecycle.scheduled/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

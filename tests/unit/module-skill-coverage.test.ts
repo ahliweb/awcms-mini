@@ -114,6 +114,8 @@ const MODULE_SKILL_MAP: Readonly<Record<string, string>> = {
   tenant_entitlement: "awcms-mini-tenant-entitlement",
   // Issue #872 (epic #868 SaaS control plane) — the third control-plane module.
   tenant_provisioning: "awcms-mini-tenant-provisioning",
+  // Issue #873 (epic #868 SaaS control plane) — the fourth control-plane module.
+  tenant_lifecycle: "awcms-mini-tenant-lifecycle",
   // Issue #875 (epic #868 SaaS control plane) — the fifth control-plane module.
   usage_metering: "awcms-mini-usage-metering",
   visitor_analytics: "awcms-mini-visitor-analytics",

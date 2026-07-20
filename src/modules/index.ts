@@ -24,6 +24,7 @@ import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
 import { tenantDomainModule } from "./tenant-domain/module";
 import { tenantEntitlementModule } from "./tenant-entitlement/module";
+import { tenantLifecycleModule } from "./tenant-lifecycle/module";
 import { tenantProvisioningModule } from "./tenant-provisioning/module";
 import { usageMeteringModule } from "./usage-metering/module";
 import { visitorAnalyticsModule } from "./visitor-analytics/module";
@@ -98,7 +99,15 @@ const baseModules: ModuleDescriptor[] = [
   // consuming #871's `effective_entitlement` for its fail-closed quota decision.
   // Also default-disabled (opt-in per tenant). Appended at the end, same
   // convention as the Wave-1 entries above.
-  usageMeteringModule
+  usageMeteringModule,
+  // Issue #873 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the fourth
+  // control-plane module: precise SaaS lifecycle state machine with versioned
+  // transitions, server-derived fail-closed restrictions enforced across API/
+  // SSR/public/worker, idempotent scheduled transitions, downgrade (data-
+  // preserving), and reconciled restore. Provides tenant_restrictions +
+  // lifecycle_transition; consumes effective_entitlement (#871) and
+  // provisioning_status (#872). Also default-disabled (opt-in per tenant).
+  tenantLifecycleModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

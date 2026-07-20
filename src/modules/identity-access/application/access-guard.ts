@@ -3,6 +3,11 @@ import type { AstroCookies } from "astro";
 import { fail } from "../../_shared/api-response";
 import type { BusinessScopeHierarchyPort } from "../../_shared/ports/business-scope-hierarchy-port";
 import {
+  isWriteAction,
+  lifecycleAccessDecision
+} from "../../_shared/tenant-lifecycle-policy";
+import { readTenantRestrictionSnapshot } from "../../_shared/tenant-lifecycle-restriction-read";
+import {
   SESSION_COOKIE_NAME,
   TENANT_COOKIE_NAME
 } from "../../../lib/auth/ssr-session";
@@ -172,6 +177,56 @@ export async function authorizeInTransaction(
         allowed: false,
         denied: fail(403, "SOD_CONFLICT", sodCheck.reason)
       };
+    }
+  }
+
+  // Issue #873 (tenant_lifecycle, ADR-0022 §6 High-2) — server-derived,
+  // fail-closed LIFECYCLE restriction, enforced here at the SINGLE API + SSR
+  // chokepoint (never per-route — memory `ssr-admin-pages-skip-module-enabled`)
+  // via the NEUTRAL-GROUND reader/policy in `_shared` (this base module never
+  // imports the control-plane module — module-boundary). A tenant NOT governed
+  // by lifecycle (no record — every LAN/offline tenant that never opted in)
+  // resolves `governing: false` -> ALLOW_ALL, so behavior is UNCHANGED for
+  // every existing tenant/test. A suspended/canceled/blocked/restoring/
+  // provisioning tenant (adminAccessAllowed=false) is denied all access; a
+  // past_due tenant (writesAllowed=false) is denied WRITES only. The
+  // `tenant_lifecycle` module's OWN endpoints are exempt so an operator/owner
+  // can still read status, restore, and run owner recovery/export while the
+  // tenant is restricted (those endpoints self-govern via their own separately-
+  // authorized permissions). Public host routing + background workers enforce
+  // the SAME suspension through the projected `awcms_mini_tenants.status`
+  // (`tenant_lifecycle` sets it in the same commit) — the four-surface parity.
+  if (guard.moduleKey !== "tenant_lifecycle") {
+    const restriction = await readTenantRestrictionSnapshot(tx, tenantId, now);
+    if (restriction.governing) {
+      const lifecycle = lifecycleAccessDecision(
+        restriction.profile,
+        isWriteAction(guard.action)
+      );
+      if (!lifecycle.allowed) {
+        const reason =
+          lifecycle.reason === "suspended"
+            ? `Tenant lifecycle state "${restriction.state}" suspends access.`
+            : `Tenant lifecycle state "${restriction.state}" is read-only.`;
+        await recordDecisionLog(tx, tenantId, context.tenantUserId, guard, {
+          allowed: false,
+          reason,
+          matchedPolicy:
+            lifecycle.reason === "suspended"
+              ? "lifecycle_suspended"
+              : "lifecycle_read_only"
+        });
+        return {
+          allowed: false,
+          denied: fail(
+            403,
+            lifecycle.reason === "suspended"
+              ? "TENANT_SUSPENDED"
+              : "TENANT_READ_ONLY",
+            reason
+          )
+        };
+      }
     }
   }
 

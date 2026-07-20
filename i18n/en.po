@@ -5143,6 +5143,63 @@ msgstr "Override revoked."
 msgid "admin.tenant_entitlement.reason_prompt"
 msgstr "Enter a reason (required for audit):"
 
+msgid "admin.layout.nav_tenant_lifecycle"
+msgstr "Tenant Lifecycle"
+
+msgid "admin.tenant_lifecycle.title"
+msgstr "Tenant Lifecycle"
+
+msgid "admin.tenant_lifecycle.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.tenant_lifecycle.access_denied_body"
+msgstr "You do not have permission to view tenant lifecycle."
+
+msgid "admin.tenant_lifecycle.intro"
+msgstr "Inspect and transition a tenant's SaaS lifecycle state. Every action requires a reason and is audited."
+
+msgid "admin.tenant_lifecycle.lookup_heading"
+msgstr "Look up a tenant"
+
+msgid "admin.tenant_lifecycle.lookup_button"
+msgstr "Look up"
+
+msgid "admin.tenant_lifecycle.field_target_tenant"
+msgstr "Target tenant id"
+
+msgid "admin.tenant_lifecycle.not_found"
+msgstr "This tenant has no lifecycle record."
+
+msgid "admin.tenant_lifecycle.reason_prompt"
+msgstr "Enter a reason (required for audit):"
+
+msgid "admin.tenant_lifecycle.transition_button"
+msgstr "Transition"
+
+msgid "admin.tenant_lifecycle.transition_success"
+msgstr "Lifecycle transition applied."
+
+msgid "admin.tenant_lifecycle.restore_button"
+msgstr "Restore"
+
+msgid "admin.tenant_lifecycle.restore_success"
+msgstr "Tenant restored."
+
+msgid "admin.tenant_lifecycle.restrictions_heading"
+msgstr "Effective restrictions"
+
+msgid "admin.tenant_lifecycle.col_when"
+msgstr "When"
+
+msgid "admin.tenant_lifecycle.col_event"
+msgstr "Event"
+
+msgid "admin.tenant_lifecycle.col_change"
+msgstr "Change"
+
+msgid "admin.tenant_lifecycle.col_reason"
+msgstr "Reason"
+
 msgid "admin.layout.nav_tenant_provisioning"
 msgstr "Tenant Provisioning"
 
