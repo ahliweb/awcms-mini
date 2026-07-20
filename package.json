@@ -56,6 +56,8 @@
     "analytics:purge": "bun scripts/visitor-analytics-purge.ts",
     "form-drafts:purge": "bun scripts/form-draft-purge.ts",
     "data-lifecycle:archive-purge": "bun scripts/data-lifecycle-archive-purge.ts",
+    "usage-metering:aggregate": "bun scripts/usage-metering-aggregate.ts",
+    "usage-metering:purge": "bun scripts/usage-metering-purge.ts",
     "data-lifecycle:registry:check": "bun scripts/data-lifecycle-registry-check.ts",
     "reporting:projections:refresh": "bun scripts/reporting-projections-refresh.ts",
     "reporting:projections:registry:check": "bun scripts/reporting-projection-registry-check.ts",

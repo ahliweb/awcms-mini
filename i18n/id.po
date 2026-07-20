@@ -5141,3 +5141,120 @@ msgstr "Override dicabut."
 
 msgid "admin.tenant_entitlement.reason_prompt"
 msgstr "Masukkan alasan (wajib untuk audit):"
+
+msgid "admin.layout.nav_usage_metering"
+msgstr "Metering Penggunaan"
+
+msgid "admin.usage_metering.title"
+msgstr "Metering Penggunaan"
+
+msgid "admin.usage_metering.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.usage_metering.access_denied_body"
+msgstr "Anda tidak memiliki izin melihat metering penggunaan, atau modul tidak diaktifkan untuk tenant ini."
+
+msgid "admin.usage_metering.status_heading"
+msgstr "Status agregasi"
+
+msgid "admin.usage_metering.no_cursor"
+msgstr "Belum ada agregasi yang berjalan."
+
+msgid "admin.usage_metering.checkpoint_label"
+msgstr "Checkpoint"
+
+msgid "admin.usage_metering.processed_label"
+msgstr "Event diproses"
+
+msgid "admin.usage_metering.rebuild_button"
+msgstr "Minta rebuild"
+
+msgid "admin.usage_metering.aggregates_heading"
+msgstr "Window penggunaan"
+
+msgid "admin.usage_metering.events_heading"
+msgstr "Linimasa penggunaan"
+
+msgid "admin.usage_metering.corrections_heading"
+msgstr "Koreksi"
+
+msgid "admin.usage_metering.reconciliation_heading"
+msgstr "Rekonsiliasi"
+
+msgid "admin.usage_metering.none"
+msgstr "Tidak ada."
+
+msgid "admin.usage_metering.correct_button"
+msgstr "Terapkan koreksi"
+
+msgid "admin.usage_metering.reconcile_button"
+msgstr "Jalankan rekonsiliasi"
+
+msgid "admin.usage_metering.col_meter"
+msgstr "Meter"
+
+msgid "admin.usage_metering.col_window"
+msgstr "Window"
+
+msgid "admin.usage_metering.col_value"
+msgstr "Nilai"
+
+msgid "admin.usage_metering.col_freshness"
+msgstr "Kesegaran"
+
+msgid "admin.usage_metering.col_producer"
+msgstr "Produsen"
+
+msgid "admin.usage_metering.col_quantity"
+msgstr "Kuantitas"
+
+msgid "admin.usage_metering.col_event_time"
+msgstr "Waktu event"
+
+msgid "admin.usage_metering.col_type"
+msgstr "Tipe"
+
+msgid "admin.usage_metering.col_delta"
+msgstr "Delta"
+
+msgid "admin.usage_metering.col_status"
+msgstr "Status"
+
+msgid "admin.usage_metering.col_drift"
+msgstr "Drift / hilang"
+
+msgid "admin.usage_metering.col_started"
+msgstr "Dimulai"
+
+msgid "admin.usage_metering.field_original_event_id"
+msgstr "ID event asli"
+
+msgid "admin.usage_metering.field_correction_type"
+msgstr "Tipe koreksi"
+
+msgid "admin.usage_metering.field_delta_quantity"
+msgstr "Kuantitas delta"
+
+msgid "admin.usage_metering.field_reason"
+msgstr "Alasan"
+
+msgid "admin.usage_metering.field_meter_key"
+msgstr "Kunci meter"
+
+msgid "admin.usage_metering.field_window_type"
+msgstr "Tipe window"
+
+msgid "admin.usage_metering.field_range_from"
+msgstr "Rentang dari"
+
+msgid "admin.usage_metering.field_range_to"
+msgstr "Rentang sampai"
+
+msgid "admin.usage_metering.correct_success"
+msgstr "Koreksi diterapkan."
+
+msgid "admin.usage_metering.reconcile_success"
+msgstr "Rekonsiliasi selesai."
+
+msgid "admin.usage_metering.rebuild_success"
+msgstr "Rebuild diminta."

@@ -114,6 +114,16 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       'Scheduled expiry sweep for business-scope assignments/SoD conflict exceptions (identity-access:business-scope:expiry, Issue #746) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; every withTenant call inside business-scope-expiry-job.ts already passes workClass: "maintenance" explicitly.'
   },
+  "scripts/usage-metering-aggregate.ts": {
+    workClass: "background_sync",
+    rationale:
+      'Recurring outbox-draining aggregation worker (usage-metering:aggregate, Issue #875), recommended every 30-60 seconds — same recurring dispatcher profile as domain-events/social-publish/object-sync dispatch (drains the usage events/corrections outbox and materializes windows tenants/billing read), not a tolerant-of-delay maintenance sweep; every withTenant call inside aggregation-job.ts already passes workClass: "maintenance" for the lease-holding transaction only, but the JOB-level connection profile is background_sync.'
+  },
+  "scripts/usage-metering-purge.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Scheduled bounded retention purge (usage-metering:purge, Issue #875) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; the withTenant call inside retention-purge.ts already passes workClass: "maintenance" explicitly.'
+  },
   "scripts/workflow-escalations-dispatch.ts": {
     workClass: "background_sync",
     rationale:

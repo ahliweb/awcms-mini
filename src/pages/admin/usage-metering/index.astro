@@ -1,0 +1,579 @@
+---
+/**
+ * Usage metering operator screen (Issue #875, epic #868 SaaS control plane,
+ * ADR-0022). Operates ONLY on the CURRENT tenant's RLS context (no cross-tenant
+ * path param — ADR-0022 §6 no soft super-tenant). Read sections: aggregation
+ * status + rebuild, usage-event timeline, materialized windows, corrections, and
+ * reconciliation runs; write actions: apply a signed correction, run a
+ * reconciliation, request a rebuild.
+ *
+ * `usage_metering` is `defaultTenantState: "disabled"`, so the SSR permission
+ * gate strips `usage_metering.*` keys for any tenant that has not explicitly
+ * enabled the module — the denied notice renders for them. Numeric-only DTOs; no
+ * raw payloads, no operator free-text reason in any tenant-facing projection.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import StatusBadge from "../../../components/ui/StatusBadge.astro";
+import type { StatusBadgeVariant } from "../../../components/ui/StatusBadge.astro";
+import { getDatabaseClient } from "../../../lib/database/client";
+import { withTenant } from "../../../lib/database/tenant-context";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import {
+  listAggregates,
+  listUsageEvents,
+  type UsageAggregateDto,
+  type UsageEventDto
+} from "../../../modules/usage-metering/application/usage-read-query";
+import {
+  listCorrections,
+  type UsageCorrectionDto
+} from "../../../modules/usage-metering/application/correction-directory";
+import {
+  listReconciliationRuns,
+  type ReconciliationRunDto
+} from "../../../modules/usage-metering/application/reconciliation";
+import {
+  getAggregationStatus,
+  type AggregationStatusDto
+} from "../../../modules/usage-metering/application/rebuild-directory";
+import { createTranslator } from "../../../lib/i18n/translate";
+import { logAdminPageError } from "../../../lib/logging/error-log";
+import { buildClientErrorMessages } from "../../../lib/i18n/error-messages";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/usage-metering/index.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("usage_metering", "usage", "read")
+);
+const CAN_READ_CORRECTIONS = context.permissions.has(
+  permissionKey("usage_metering", "corrections", "read")
+);
+const CAN_CORRECT = context.permissions.has(
+  permissionKey("usage_metering", "corrections", "correct")
+);
+const CAN_READ_RECON = context.permissions.has(
+  permissionKey("usage_metering", "reconciliation", "read")
+);
+const CAN_RECONCILE = context.permissions.has(
+  permissionKey("usage_metering", "reconciliation", "reconcile")
+);
+const CAN_REBUILD = context.permissions.has(
+  permissionKey("usage_metering", "aggregation", "rebuild")
+);
+
+const clientStrings = {
+  correctSuccess: t("admin.usage_metering.correct_success"),
+  reconcileSuccess: t("admin.usage_metering.reconcile_success"),
+  rebuildSuccess: t("admin.usage_metering.rebuild_success"),
+  networkError: t("common.network_error"),
+  pleaseWait: t("common.please_wait"),
+  errorMessages: buildClientErrorMessages(t)
+};
+
+let events: UsageEventDto[] = [];
+let aggregates: UsageAggregateDto[] = [];
+let corrections: UsageCorrectionDto[] = [];
+let runs: ReconciliationRunDto[] = [];
+let status: AggregationStatusDto | null = null;
+let loadError = false;
+
+if (CAN_READ) {
+  try {
+    await withTenant(getDatabaseClient(), context.tenantId, async (tx) => {
+      status = await getAggregationStatus(tx, context.tenantId);
+      events = await listUsageEvents(tx, context.tenantId, null, 50);
+      aggregates = await listAggregates(
+        tx,
+        context.tenantId,
+        null,
+        null,
+        new Date(),
+        50
+      );
+      if (CAN_READ_CORRECTIONS) {
+        corrections = await listCorrections(tx, context.tenantId, null);
+      }
+      if (CAN_READ_RECON) {
+        runs = await listReconciliationRuns(tx, context.tenantId);
+      }
+    });
+  } catch (error) {
+    logAdminPageError(
+      "admin/usage-metering/index.astro: failed to load usage metering",
+      error,
+      { correlationId: Astro.locals.correlationId }
+    );
+    loadError = true;
+  }
+}
+
+function freshnessVariant(freshness: string): StatusBadgeVariant {
+  if (freshness === "current") return "success";
+  if (freshness === "delayed") return "warning";
+  return "danger";
+}
+
+function reconStatusVariant(s: string): StatusBadgeVariant {
+  if (s === "consistent") return "success";
+  if (s === "drift_detected") return "warning";
+  return "danger";
+}
+---
+
+<AdminLayout title={t("admin.usage_metering.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.usage_metering.access_denied_title")}
+        body={t("admin.usage_metering.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && loadError && (
+      <StateNotice
+        kind="error"
+        title={t("common.error_title")}
+        body={t("common.error_body")}
+        retryLabel={t("common.retry")}
+        retryHref={Astro.url.pathname}
+      />
+    )
+  }
+  {
+    CAN_READ && !loadError && (
+      <div class="usage-manager">
+        <div id="action-banner" class="action-banner" role="alert" hidden />
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+
+        {/* ---------- AGGREGATION STATUS ---------- */}
+        <section class="panel">
+          <h2>{t("admin.usage_metering.status_heading")}</h2>
+          {status === null ? (
+            <p class="empty">{t("admin.usage_metering.no_cursor")}</p>
+          ) : (
+            <p class="meta">
+              {t("admin.usage_metering.checkpoint_label")}:{" "}
+              <code>{status.checkpointSeq}</code>
+              {" · "}
+              <StatusBadge
+                label={status.status}
+                variant={status.status === "error" ? "danger" : "neutral"}
+              />
+              {" · "}
+              {t("admin.usage_metering.processed_label")}:{" "}
+              <code>{status.processedEventTotal}</code>
+            </p>
+          )}
+          {CAN_REBUILD && (
+            <button id="rebuild-button" type="button">
+              {t("admin.usage_metering.rebuild_button")}
+            </button>
+          )}
+        </section>
+
+        {/* ---------- AGGREGATE WINDOWS ---------- */}
+        <section class="panel">
+          <h2>{t("admin.usage_metering.aggregates_heading")}</h2>
+          {aggregates.length === 0 ? (
+            <p class="empty">{t("admin.usage_metering.none")}</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("admin.usage_metering.col_meter")}</th>
+                  <th>{t("admin.usage_metering.col_window")}</th>
+                  <th>{t("admin.usage_metering.col_value")}</th>
+                  <th>{t("admin.usage_metering.col_freshness")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {aggregates.map((row) => (
+                  <tr>
+                    <td>
+                      <code>{row.meterKey}</code>
+                    </td>
+                    <td>
+                      {row.windowType} · {row.windowStart}
+                    </td>
+                    <td>{row.value}</td>
+                    <td>
+                      <StatusBadge
+                        label={row.freshness}
+                        variant={freshnessVariant(row.freshness)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        {/* ---------- USAGE TIMELINE ---------- */}
+        <section class="panel">
+          <h2>{t("admin.usage_metering.events_heading")}</h2>
+          {events.length === 0 ? (
+            <p class="empty">{t("admin.usage_metering.none")}</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>{t("admin.usage_metering.col_meter")}</th>
+                  <th>{t("admin.usage_metering.col_producer")}</th>
+                  <th>{t("admin.usage_metering.col_quantity")}</th>
+                  <th>{t("admin.usage_metering.col_event_time")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((row) => (
+                  <tr>
+                    <td>
+                      <code>{row.meterKey}</code>
+                    </td>
+                    <td>{row.producer}</td>
+                    <td>{row.quantity}</td>
+                    <td>{row.eventTime}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        {/* ---------- CORRECTIONS ---------- */}
+        {CAN_READ_CORRECTIONS && (
+          <section class="panel">
+            <h2>{t("admin.usage_metering.corrections_heading")}</h2>
+            {CAN_CORRECT && (
+              <form id="correct-form" class="inline-form">
+                <label>
+                  {t("admin.usage_metering.field_original_event_id")}
+                  <input name="originalEventId" required />
+                </label>
+                <label>
+                  {t("admin.usage_metering.field_correction_type")}
+                  <select name="correctionType">
+                    <option value="reversal">reversal</option>
+                    <option value="adjustment">adjustment</option>
+                  </select>
+                </label>
+                <label>
+                  {t("admin.usage_metering.field_delta_quantity")}
+                  <input name="deltaQuantity" type="number" />
+                </label>
+                <label>
+                  {t("admin.usage_metering.field_reason")}
+                  <input name="reason" required maxlength="500" />
+                </label>
+                <button type="submit">
+                  {t("admin.usage_metering.correct_button")}
+                </button>
+              </form>
+            )}
+            {corrections.length === 0 ? (
+              <p class="empty">{t("admin.usage_metering.none")}</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("admin.usage_metering.col_meter")}</th>
+                    <th>{t("admin.usage_metering.col_type")}</th>
+                    <th>{t("admin.usage_metering.col_delta")}</th>
+                    <th>{t("admin.usage_metering.col_event_time")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {corrections.map((row) => (
+                    <tr>
+                      <td>
+                        <code>{row.meterKey}</code>
+                      </td>
+                      <td>{row.correctionType}</td>
+                      <td>{row.deltaQuantity}</td>
+                      <td>{row.eventTime}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )}
+
+        {/* ---------- RECONCILIATION ---------- */}
+        {CAN_READ_RECON && (
+          <section class="panel">
+            <h2>{t("admin.usage_metering.reconciliation_heading")}</h2>
+            {CAN_RECONCILE && (
+              <form id="reconcile-form" class="inline-form">
+                <label>
+                  {t("admin.usage_metering.field_meter_key")}
+                  <input name="meterKey" placeholder="(all)" />
+                </label>
+                <label>
+                  {t("admin.usage_metering.field_window_type")}
+                  <select name="windowType">
+                    <option value="hour">hour</option>
+                    <option value="day">day</option>
+                    <option value="month">month</option>
+                  </select>
+                </label>
+                <label>
+                  {t("admin.usage_metering.field_range_from")}
+                  <input name="rangeFrom" type="datetime-local" required />
+                </label>
+                <label>
+                  {t("admin.usage_metering.field_range_to")}
+                  <input name="rangeTo" type="datetime-local" required />
+                </label>
+                <button type="submit">
+                  {t("admin.usage_metering.reconcile_button")}
+                </button>
+              </form>
+            )}
+            {runs.length === 0 ? (
+              <p class="empty">{t("admin.usage_metering.none")}</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t("admin.usage_metering.col_window")}</th>
+                    <th>{t("admin.usage_metering.col_status")}</th>
+                    <th>{t("admin.usage_metering.col_drift")}</th>
+                    <th>{t("admin.usage_metering.col_started")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((row) => (
+                    <tr>
+                      <td>{row.windowType}</td>
+                      <td>
+                        <StatusBadge
+                          label={row.status}
+                          variant={reconStatusVariant(row.status)}
+                        />
+                      </td>
+                      <td>
+                        {row.driftCount} / {row.missingCount}
+                      </td>
+                      <td>{row.startedAt}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        )}
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .usage-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6, 1.5rem);
+  }
+  .panel {
+    border: 1px solid var(--color-border, #d4d4d8);
+    border-radius: var(--radius-md, 0.5rem);
+    padding: var(--space-4, 1rem);
+  }
+  .action-banner {
+    padding: var(--space-3, 0.75rem);
+    border-radius: var(--radius-md, 0.5rem);
+  }
+  .action-banner[data-variant="success"] {
+    background: var(--color-success-subtle, #dcfce7);
+  }
+  .action-banner[data-variant="error"] {
+    background: var(--color-danger-subtle, #fee2e2);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-2, 0.5rem);
+  }
+  th,
+  td {
+    text-align: left;
+    padding: var(--space-2, 0.5rem);
+    border-bottom: 1px solid var(--color-border, #e4e4e7);
+    vertical-align: top;
+  }
+  .inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3, 0.75rem);
+    align-items: end;
+    margin-bottom: var(--space-3, 0.75rem);
+  }
+  .inline-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+  }
+  .empty {
+    color: var(--color-text-muted, #71717a);
+    font-style: italic;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  import {
+    lockElement,
+    newIdempotencyKey,
+    readClientStrings,
+    reloadAfterDelay,
+    showBanner,
+    submitJson
+  } from "../../../lib/ui/admin-form-client";
+
+  interface Strings {
+    correctSuccess: string;
+    reconcileSuccess: string;
+    rebuildSuccess: string;
+    networkError: string;
+    pleaseWait: string;
+    errorMessages?: Record<string, string>;
+  }
+
+  const strings = readClientStrings<Strings>();
+  const BASE = "/api/v1/usage-metering";
+
+  function toIso(value: FormDataEntryValue | null): string | null {
+    const s = typeof value === "string" ? value.trim() : "";
+    if (!s) return null;
+    const date = new Date(s);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+
+  // ---- apply correction ----
+  document
+    .getElementById("correct-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+      try {
+        const data = new FormData(form);
+        const deltaRaw = data.get("deltaQuantity");
+        const deltaStr = typeof deltaRaw === "string" ? deltaRaw.trim() : "";
+        const result = await submitJson(
+          `${BASE}/corrections`,
+          "POST",
+          {
+            originalEventId: data.get("originalEventId"),
+            correctionType: data.get("correctionType"),
+            deltaQuantity: deltaStr === "" ? null : Number(deltaStr),
+            reason: data.get("reason")
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        if (result.ok) {
+          showBanner("action-banner", strings.correctSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  // ---- run reconciliation ----
+  document
+    .getElementById("reconcile-form")
+    ?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const button = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+      try {
+        const data = new FormData(form);
+        const meterKeyRaw = data.get("meterKey");
+        const meterKey =
+          typeof meterKeyRaw === "string" && meterKeyRaw.trim() !== ""
+            ? meterKeyRaw.trim()
+            : null;
+        const result = await submitJson(
+          `${BASE}/reconciliation`,
+          "POST",
+          {
+            meterKey,
+            windowType: data.get("windowType"),
+            rangeFrom: toIso(data.get("rangeFrom")),
+            rangeTo: toIso(data.get("rangeTo"))
+          },
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        if (result.ok) {
+          showBanner("action-banner", strings.reconcileSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+
+  // ---- request rebuild ----
+  document
+    .getElementById("rebuild-button")
+    ?.addEventListener("click", async () => {
+      const button = document.getElementById(
+        "rebuild-button"
+      ) as HTMLButtonElement | null;
+      if (!button || button.disabled) return;
+      const unlock = lockElement(button, strings.pleaseWait);
+      try {
+        const result = await submitJson(
+          `${BASE}/aggregation/rebuild`,
+          "POST",
+          {},
+          strings,
+          { "Idempotency-Key": newIdempotencyKey() }
+        );
+        if (result.ok) {
+          showBanner("action-banner", strings.rebuildSuccess, "success");
+          reloadAfterDelay();
+        } else {
+          showBanner("action-banner", result.message, "error");
+        }
+      } finally {
+        unlock();
+      }
+    });
+</script>

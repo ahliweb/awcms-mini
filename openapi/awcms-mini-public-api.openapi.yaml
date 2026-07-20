@@ -95,6 +95,8 @@ tags:
     description: "Provider-neutral SaaS control-plane service catalog (epic #868 SaaS control plane Wave 1, Issue #870, ADR-0022) — the first control-plane module, admitted Official Optional and default-disabled per tenant. Versioned commercial PLANS with an immutable-once-published OFFER lifecycle (draft -> validate -> publish -> retire), feature/whole-module entitlement grants, usage quotas (unit + reset policy), EXACT minor-unit prices (no floating point), and trial/availability/market/currency metadata. All catalog data is GLOBAL control-plane data (reviewed RLS-exempt, ADR-0022 §3): operator authoring tables are platform-operator-only + default-deny, and a separate tenant-readable published projection carries only published versions + public prices. Published offer versions are IMMUTABLE (corrections create a new version). Feature/module/meter keys resolve through a reviewed static registry; unknown keys fail closed. Not an ERP item/product master."
   - name: Tenant Entitlement
     description: "Provider-neutral SaaS control-plane tenant entitlement (epic #868 SaaS control plane Wave 1, Issue #871, ADR-0022) — the second control-plane module and the epic's HEART, the first tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Resolves a tenant's DETERMINISTIC, EXPLAINABLE effective feature/module/quota access from published service catalog offers (read via the service_catalog_read capability port), trial/grace effective-dating, operator overrides (grant/deny, reason-bound, optionally time-bound, revocable without restart), suspension/lifecycle restriction, and module-dependency safe-downgrade. Exposes ONE read-only fail-closed contract (effective_entitlement): unknown/absent/indeterminate/disabled = DENY, on a DIFFERENT axis from RBAC/ABAC/RLS — a positive entitlement NEVER grants a permission the actor lacks. Operator-only + default-deny + default-disabled per tenant. assign/override/revoke require Idempotency-Key + audit + versioned events; entitlement loss changes state + gates, NEVER deletes tenant data."
+  - name: Usage Metering
+    description: "Provider-neutral SaaS control-plane usage metering (epic #868 SaaS control plane Wave 1, Issue #875, ADR-0022) — the third control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id). Owning modules emit reviewed, NUMERIC-ONLY meter events in their own commit through the transaction-safe usage_append port (the events table is the transactional outbox); identity binds (tenant, producer, meter, sourceEventId, sourceVersion) so a duplicate producer event is counted once. An async, resumable worker deterministically materializes usage WINDOWS from the immutable events + signed CORRECTIONS (recompute-from-source: a rebuild reproduces stored aggregates, a replay never double-counts); late/out-of-order events recompute their window deterministically. Corrections link to the original event and NEVER mutate it (append-only, DB-trigger enforced). Reconciliation independently recomputes windows and flags drift/missing. The read-only usage_aggregate port exposes effective usage + a FAIL-CLOSED quota decision (the #871 entitlement limit + authoritative live usage — a hard quota denies when usage is unavailable). Meter keys/aggregation/bounds resolve against the #874 single source; an unknown meter fails closed. NO PII / no raw payloads. Operator-only + default-deny + default-disabled per tenant. correct/reconcile/rebuild require Idempotency-Key + audit. Not subscription/invoice pricing and not application telemetry."
 paths:
   /api/v1/access/assignments:
     post:
@@ -20717,6 +20719,453 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/usage-metering/aggregates:
+    get:
+      tags:
+        - Usage Metering
+      summary: List the current tenant's materialized usage windows
+      description: Deterministic usage aggregate windows with freshness metadata, optionally filtered by meterKey and windowType. Operator-only, current-tenant context.
+      operationId: usageMeteringAggregatesList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: meterKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: windowType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - hour
+              - day
+              - month
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The current tenant's usage aggregate windows.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - aggregates
+                        properties:
+                          aggregates:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/UsageAggregate"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/usage-metering/aggregation/rebuild:
+    post:
+      tags:
+        - Usage Metering
+      summary: Request a full deterministic rebuild of usage aggregates
+      description: Flag the aggregation cursor so the worker recomputes every window from the immutable events on its next run (a rebuild reproduces stored aggregates). Never mutates the checkpoint or any usage record. Requires Idempotency-Key.
+      operationId: usageMeteringAggregationRebuild
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The rebuild request was recorded.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - rebuild
+                        properties:
+                          rebuild:
+                            type: object
+                            additionalProperties: false
+                            required:
+                              - requestedAt
+                            properties:
+                              requestedAt:
+                                type: string
+                                format: date-time
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/usage-metering/aggregation/status:
+    get:
+      tags:
+        - Usage Metering
+      summary: Get the current tenant's aggregation checkpoint/lease status
+      description: The aggregation cursor's checkpoint, lease, and any pending rebuild request. Null when no cursor exists yet. Operator-only, current-tenant context.
+      operationId: usageMeteringAggregationStatus
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The aggregation status (or null when no cursor exists yet).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - status
+                        properties:
+                          status:
+                            oneOf:
+                              - $ref: "#/components/schemas/UsageAggregationStatus"
+                              - type: object
+                                nullable: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/usage-metering/corrections:
+    get:
+      tags:
+        - Usage Metering
+      summary: List the current tenant's usage corrections
+      operationId: usageMeteringCorrectionsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: meterKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The current tenant's usage corrections.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - corrections
+                        properties:
+                          corrections:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/UsageCorrection"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Usage Metering
+      summary: Apply a signed usage correction/reversal
+      description: Apply a signed correction/reversal linked to an original immutable event (never mutates the source event). Only a signed_delta sum meter can be corrected (fail-closed). Requires Idempotency-Key.
+      operationId: usageMeteringCorrectionsApply
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsageCorrectionRequest"
+      responses:
+        "200":
+          description: The applied correction.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - correction
+                        properties:
+                          correction:
+                            $ref: "#/components/schemas/UsageCorrection"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: A correction with this producer identity already exists, or Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/usage-metering/events:
+    get:
+      tags:
+        - Usage Metering
+      summary: List the current tenant's immutable usage-event timeline
+      description: Numeric-only usage events (most recent first), optionally filtered by meterKey. Operator-only, current-tenant context.
+      operationId: usageMeteringEventsList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: meterKey
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The current tenant's usage events.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - events
+                        properties:
+                          events:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/UsageEvent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/usage-metering/quota:
+    get:
+      tags:
+        - Usage Metering
+      summary: Get the fail-closed effective quota decision for a meter
+      description: Combines the
+      operationId: usageMeteringQuotaGet
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: meterKey
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The effective quota decision.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - decision
+                        properties:
+                          decision:
+                            $ref: "#/components/schemas/UsageQuotaDecision"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/usage-metering/reconciliation:
+    get:
+      tags:
+        - Usage Metering
+      summary: List the current tenant's usage reconciliation runs
+      operationId: usageMeteringReconciliationList
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: The current tenant's reconciliation runs.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - runs
+                        properties:
+                          runs:
+                            type: array
+                            items:
+                              $ref: "#/components/schemas/UsageReconciliationRun"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Usage Metering
+      summary: Run a usage reconciliation
+      description: Recompute each window in a bounded range from the immutable events + corrections and flag any stored aggregate that drifts or is missing. Never repairs in place; records immutable evidence. Requires Idempotency-Key.
+      operationId: usageMeteringReconciliationRun
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsageReconciliationRequest"
+      responses:
+        "200":
+          description: The reconciliation run result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties: false
+                        required:
+                          - run
+                        properties:
+                          run:
+                            $ref: "#/components/schemas/UsageReconciliationRun"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Idempotency-Key reused with a different request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/users:
     get:
       tags:
@@ -33174,6 +33623,406 @@ components:
           enum:
             - active
             - inactive
+    UsageAggregate:
+      type: object
+      additionalProperties: false
+      description: A deterministic materialized usage window with freshness metadata (Issue
+      required:
+        - meterKey
+        - windowType
+        - windowStart
+        - windowEnd
+        - valueType
+        - aggregation
+        - value
+        - eventCount
+        - correctionCount
+        - distinctCount
+        - lastEventTime
+        - lateEventCount
+        - contentHash
+        - windowClosed
+        - computedAt
+        - freshness
+      properties:
+        meterKey:
+          type: string
+        windowType:
+          type: string
+          enum:
+            - hour
+            - day
+            - month
+        windowStart:
+          type: string
+          format: date-time
+        windowEnd:
+          type: string
+          format: date-time
+        valueType:
+          type: string
+        aggregation:
+          type: string
+        value:
+          type: integer
+        eventCount:
+          type: integer
+        correctionCount:
+          type: integer
+        distinctCount:
+          type: integer
+          nullable: true
+        lastEventTime:
+          type: string
+          format: date-time
+          nullable: true
+        lateEventCount:
+          type: integer
+        contentHash:
+          type: string
+        windowClosed:
+          type: boolean
+        computedAt:
+          type: string
+          format: date-time
+        freshness:
+          type: string
+          enum:
+            - current
+            - delayed
+            - stale
+            - unavailable
+    UsageAggregationStatus:
+      type: object
+      additionalProperties: false
+      description: The aggregation cursor's checkpoint, lease, and pending rebuild request (Issue
+      required:
+        - checkpointSeq
+        - status
+        - lastRunAt
+        - processedEventTotal
+        - rebuildRequestedAt
+        - rebuildCount
+        - consecutiveFailures
+        - leaseHolder
+        - leaseExpiresAt
+      properties:
+        checkpointSeq:
+          type: integer
+        status:
+          type: string
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        processedEventTotal:
+          type: integer
+        rebuildRequestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        rebuildCount:
+          type: integer
+        consecutiveFailures:
+          type: integer
+        leaseHolder:
+          type: string
+          nullable: true
+        leaseExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+    UsageCorrection:
+      type: object
+      additionalProperties: false
+      description: A signed correction/reversal linked to an original immutable event (Issue
+      required:
+        - id
+        - originalEventId
+        - meterKey
+        - correctionType
+        - deltaQuantity
+        - reason
+        - producer
+        - sourceEventId
+        - sourceVersion
+        - eventTime
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        originalEventId:
+          type: string
+          format: uuid
+        meterKey:
+          type: string
+        correctionType:
+          type: string
+          enum:
+            - reversal
+            - adjustment
+        deltaQuantity:
+          type: integer
+        reason:
+          type: string
+        producer:
+          type: string
+        sourceEventId:
+          type: string
+        sourceVersion:
+          type: integer
+        eventTime:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    UsageCorrectionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - originalEventId
+        - correctionType
+        - reason
+      properties:
+        originalEventId:
+          type: string
+          format: uuid
+        correctionType:
+          type: string
+          enum:
+            - reversal
+            - adjustment
+        deltaQuantity:
+          type: integer
+          nullable: true
+          description: Required for an adjustment; ignored for a reversal (computed from the original event).
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+        producer:
+          type: string
+          description: Defaults to "operator".
+        sourceEventId:
+          type: string
+        sourceVersion:
+          type: integer
+    UsageEvent:
+      type: object
+      additionalProperties: false
+      description: An immutable, numeric-only usage event (Issue
+      required:
+        - id
+        - meterKey
+        - producer
+        - sourceEventId
+        - sourceVersion
+        - valueType
+        - aggregation
+        - quantity
+        - uniqueDimension
+        - dimensions
+        - eventTime
+        - receivedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        meterKey:
+          type: string
+        producer:
+          type: string
+        sourceEventId:
+          type: string
+        sourceVersion:
+          type: integer
+        valueType:
+          type: string
+        aggregation:
+          type: string
+        quantity:
+          type: integer
+        uniqueDimension:
+          type: string
+          nullable: true
+        dimensions:
+          type: object
+          additionalProperties: true
+        eventTime:
+          type: string
+          format: date-time
+        receivedAt:
+          type: string
+          format: date-time
+    UsageQuotaDecision:
+      type: object
+      additionalProperties: false
+      description: A fail-closed effective quota decision combining the
+      required:
+        - meterKey
+        - allowed
+        - isUnlimited
+        - limit
+        - used
+        - remaining
+        - unit
+        - enforcement
+        - status
+        - freshness
+      properties:
+        meterKey:
+          type: string
+        allowed:
+          type: boolean
+        isUnlimited:
+          type: boolean
+        limit:
+          type: integer
+          nullable: true
+        used:
+          type: integer
+        remaining:
+          type: integer
+          nullable: true
+        unit:
+          type: string
+          nullable: true
+        enforcement:
+          type: string
+          enum:
+            - hard
+            - soft
+            - advisory
+        status:
+          type: string
+          enum:
+            - within
+            - exceeded
+            - not_entitled
+            - usage_unavailable
+        freshness:
+          type: string
+          enum:
+            - current
+            - delayed
+            - stale
+            - unavailable
+    UsageReconciliationDriftEntry:
+      type: object
+      additionalProperties: false
+      required:
+        - meterKey
+        - windowStart
+        - kind
+        - expectedValue
+        - storedValue
+        - expectedHash
+        - storedHash
+      properties:
+        meterKey:
+          type: string
+        windowStart:
+          type: string
+          format: date-time
+        kind:
+          type: string
+          enum:
+            - drift
+            - missing
+        expectedValue:
+          type: integer
+        storedValue:
+          type: integer
+          nullable: true
+        expectedHash:
+          type: string
+        storedHash:
+          type: string
+          nullable: true
+    UsageReconciliationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - windowType
+        - rangeFrom
+        - rangeTo
+      properties:
+        meterKey:
+          type: string
+          nullable: true
+          description: Null reconciles all meters in the range.
+        windowType:
+          type: string
+          enum:
+            - hour
+            - day
+            - month
+        rangeFrom:
+          type: string
+          format: date-time
+        rangeTo:
+          type: string
+          format: date-time
+    UsageReconciliationRun:
+      type: object
+      additionalProperties: false
+      description: Immutable evidence of a recompute-vs-stored reconciliation run (Issue
+      required:
+        - id
+        - meterKey
+        - windowType
+        - rangeFrom
+        - rangeTo
+        - status
+        - windowsChecked
+        - driftCount
+        - missingCount
+        - report
+        - startedAt
+        - finishedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        meterKey:
+          type: string
+          nullable: true
+        windowType:
+          type: string
+          enum:
+            - hour
+            - day
+            - month
+        rangeFrom:
+          type: string
+          format: date-time
+        rangeTo:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+            - consistent
+            - drift_detected
+            - failed
+        windowsChecked:
+          type: integer
+        driftCount:
+          type: integer
+        missingCount:
+          type: integer
+        report:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageReconciliationDriftEntry"
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
     UserListResponse:
       type: object
       required:

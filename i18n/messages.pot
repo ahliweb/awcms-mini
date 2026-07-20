@@ -3334,6 +3334,11 @@ msgid "admin.layout.nav_toggle_aria_label"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/usage-metering/module.ts:168
+msgid "admin.layout.nav_usage_metering"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/visitor-analytics/module.ts:48
 msgid "admin.layout.nav_visitor_analytics"
 msgstr ""
@@ -6342,6 +6347,158 @@ msgstr ""
 
 #: src/pages/admin/tenant-entitlement/index.astro:287
 msgid "admin.tenant_entitlement.unlimited"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:138
+msgid "admin.usage_metering.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:137
+msgid "admin.usage_metering.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:191
+msgid "admin.usage_metering.aggregates_heading"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:170
+msgid "admin.usage_metering.checkpoint_label"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:296
+msgid "admin.usage_metering.col_delta"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:356
+msgid "admin.usage_metering.col_drift"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:239
+msgid "admin.usage_metering.col_event_time"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:201
+msgid "admin.usage_metering.col_freshness"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:198
+msgid "admin.usage_metering.col_meter"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:237
+msgid "admin.usage_metering.col_producer"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:238
+msgid "admin.usage_metering.col_quantity"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:357
+msgid "admin.usage_metering.col_started"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:355
+msgid "admin.usage_metering.col_status"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:295
+msgid "admin.usage_metering.col_type"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:200
+msgid "admin.usage_metering.col_value"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:199
+msgid "admin.usage_metering.col_window"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:284
+msgid "admin.usage_metering.correct_button"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:74
+msgid "admin.usage_metering.correct_success"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:261
+msgid "admin.usage_metering.corrections_heading"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:229
+msgid "admin.usage_metering.events_heading"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:269
+msgid "admin.usage_metering.field_correction_type"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:276
+msgid "admin.usage_metering.field_delta_quantity"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:324
+msgid "admin.usage_metering.field_meter_key"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:265
+msgid "admin.usage_metering.field_original_event_id"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:336
+msgid "admin.usage_metering.field_range_from"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:340
+msgid "admin.usage_metering.field_range_to"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:280
+msgid "admin.usage_metering.field_reason"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:328
+msgid "admin.usage_metering.field_window_type"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:167
+msgid "admin.usage_metering.no_cursor"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:193
+msgid "admin.usage_metering.none"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:178
+msgid "admin.usage_metering.processed_label"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:184
+msgid "admin.usage_metering.rebuild_button"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:76
+msgid "admin.usage_metering.rebuild_success"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:344
+msgid "admin.usage_metering.reconcile_button"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:75
+msgid "admin.usage_metering.reconcile_success"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:320
+msgid "admin.usage_metering.reconciliation_heading"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:165
+msgid "admin.usage_metering.status_heading"
+msgstr ""
+
+#: src/pages/admin/usage-metering/index.astro:132
+msgid "admin.usage_metering.title"
 msgstr ""
 
 #: src/pages/admin/workflows/index.astro:103

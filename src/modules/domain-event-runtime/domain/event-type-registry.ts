@@ -235,6 +235,25 @@ export const TENANT_ENTITLEMENT_ASSIGNMENT_CHANGED_EVENT_TYPE =
 export const TENANT_ENTITLEMENT_OVERRIDE_CHANGED_EVENT_TYPE =
   "awcms-mini.tenant-entitlement.override.changed";
 
+/**
+ * `usage_metering` (Issue #875, epic #868 SaaS control plane Wave 1, ADR-0022).
+ * A REAL producer via `appendDomainEvent`, emitting these inside the SAME
+ * transaction as the state change they describe: `.usage.corrected` when a
+ * signed correction/reversal is applied to a billable meter,
+ * `.usage.reconciled` when a reconciliation run compares recomputed windows to
+ * stored aggregates. Both payloads are NUMERIC-ONLY (meter key, ids, counts,
+ * signed delta / drift counts) — NEVER the operator's free-text correction
+ * reason or any raw sample payload (ADR-0022 §8, tenant-facing shape only).
+ * NOT the usage EVENTS themselves: producing modules append those through the
+ * transaction-safe `usage_append` port (the usage_events table is the outbox),
+ * not the domain-event stream.
+ */
+export const USAGE_METERING_EVENT_VERSION = "1.0";
+export const USAGE_METERING_USAGE_CORRECTED_EVENT_TYPE =
+  "awcms-mini.usage-metering.usage.corrected";
+export const USAGE_METERING_USAGE_RECONCILED_EVENT_TYPE =
+  "awcms-mini.usage-metering.usage.reconciled";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -519,6 +538,18 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: TENANT_ENTITLEMENT_EVENT_VERSION,
       description:
         "A tenant entitlement override was created or revoked (Issue #871). Payload carries the override id, target kind/key, effect, change type, and the resolved snapshotHash — never the operator's free-text reason."
+    },
+    {
+      eventType: USAGE_METERING_USAGE_CORRECTED_EVENT_TYPE,
+      eventVersion: USAGE_METERING_EVENT_VERSION,
+      description:
+        "A signed usage correction/reversal was applied to a billable meter (Issue #875). Payload carries the correction id, original event id, meter key, correction type, and signed delta quantity — never the operator's free-text reason."
+    },
+    {
+      eventType: USAGE_METERING_USAGE_RECONCILED_EVENT_TYPE,
+      eventVersion: USAGE_METERING_EVENT_VERSION,
+      description:
+        "A usage reconciliation run compared recomputed windows to stored aggregates (Issue #875). Payload carries the run id, meter key, window type, status, and windows-checked / drift / missing counts — numeric-only evidence."
     }
   ];
 

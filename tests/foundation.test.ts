@@ -61,7 +61,7 @@ describe("soft delete helper", () => {
 
 describe("module registry", () => {
   test("tenant_admin, profile_identity, identity_access, sync_storage, reporting, logging, workflow, form_drafts, email, module_management, blog_content, tenant_domain, visitor_analytics, news_portal, idn_admin_regions, social_publishing, data_lifecycle, domain_event_runtime, organization_structure, document_infrastructure, data_exchange, integration_hub, reference_data, service_catalog, and tenant_entitlement are registered after Issue 2.1-2.4, 12.1, 6.1-6.3, 9.1, 10.1, 11.1, #484, #493-#498, #511-#513, #537, #558, #617, #632, #655, #643, #745, #742, #749, #750, #751, #752, #754, #870, #871", () => {
-    expect(listModules()).toHaveLength(25);
+    expect(listModules()).toHaveLength(26);
     expect(getModuleByKey("tenant_admin")).toMatchObject({
       key: "tenant_admin",
       status: "active"
@@ -706,7 +706,9 @@ describe("database migration runner helpers", () => {
       "081_awcms_mini_tenant_entitlement_schema.sql",
       "082_awcms_mini_tenant_entitlement_permissions.sql",
       "083_awcms_mini_abac_policy_dsl_schema.sql",
-      "084_awcms_mini_abac_policy_admin_permissions.sql"
+      "084_awcms_mini_abac_policy_admin_permissions.sql",
+      "087_awcms_mini_usage_metering_schema.sql",
+      "088_awcms_mini_usage_metering_permissions.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

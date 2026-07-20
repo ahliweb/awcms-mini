@@ -11221,6 +11221,238 @@ Revoke an override (one-way; stops applying immediately without restart). Requir
 | 409    | The override is already revoked, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                           | [`ApiError`](#standard-error-envelope)                   |
 
+## Usage Metering
+
+Provider-neutral SaaS control-plane usage metering (epic #868 SaaS control plane Wave 1, Issue #875, ADR-0022) — the third control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id). Owning modules emit reviewed, NUMERIC-ONLY meter events in their own commit through the transaction-safe usage_append port (the events table is the transactional outbox); identity binds (tenant, producer, meter, sourceEventId, sourceVersion) so a duplicate producer event is counted once. An async, resumable worker deterministically materializes usage WINDOWS from the immutable events + signed CORRECTIONS (recompute-from-source: a rebuild reproduces stored aggregates, a replay never double-counts); late/out-of-order events recompute their window deterministically. Corrections link to the original event and NEVER mutate it (append-only, DB-trigger enforced). Reconciliation independently recomputes windows and flags drift/missing. The read-only usage_aggregate port exposes effective usage + a FAIL-CLOSED quota decision (the #871 entitlement limit + authoritative live usage — a hard quota denies when usage is unavailable). Meter keys/aggregation/bounds resolve against the #874 single source; an unknown meter fails closed. NO PII / no raw payloads. Operator-only + default-deny + default-disabled per tenant. correct/reconcile/rebuild require Idempotency-Key + audit. Not subscription/invoice pricing and not application telemetry.
+
+### `GET /api/v1/usage-metering/aggregates` — List the current tenant's materialized usage windows
+
+- **operationId**: `usageMeteringAggregatesList`
+- **Security**: bearerAuth + tenantHeader
+
+Deterministic usage aggregate windows with freshness metadata, optionally filtered by meterKey and windowType. Operator-only, current-tenant context.
+
+**Parameters**
+
+| Name               | In     | Required | Type                         | Description                                 |
+| ------------------ | ------ | -------- | ---------------------------- | ------------------------------------------- |
+| `meterKey`         | query  | no       | string                       |                                             |
+| `windowType`       | query  | no       | enum(`hour`, `day`, `month`) |                                             |
+| `X-Correlation-ID` | header | no       | string                       | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string                       | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | The current tenant's usage aggregate windows.  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/usage-metering/aggregation/rebuild` — Request a full deterministic rebuild of usage aggregates
+
+- **operationId**: `usageMeteringAggregationRebuild`
+- **Security**: bearerAuth + tenantHeader
+
+Flag the aggregation cursor so the worker recomputes every window from the immutable events on its next run (a rebuild reproduces stored aggregates). Never mutates the checkpoint or any usage record. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                      | Schema                                                   |
+| ------ | ------------------------------------------------ | -------------------------------------------------------- |
+| 200    | The rebuild request was recorded.                | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/usage-metering/aggregation/status` — Get the current tenant's aggregation checkpoint/lease status
+
+- **operationId**: `usageMeteringAggregationStatus`
+- **Security**: bearerAuth + tenantHeader
+
+The aggregation cursor's checkpoint, lease, and any pending rebuild request. Null when no cursor exists yet. Operator-only, current-tenant context.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                 | Schema                                                   |
+| ------ | ----------------------------------------------------------- | -------------------------------------------------------- |
+| 200    | The aggregation status (or null when no cursor exists yet). | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                         | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.              | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                  | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/usage-metering/corrections` — List the current tenant's usage corrections
+
+- **operationId**: `usageMeteringCorrectionsList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `meterKey`         | query  | no       | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | The current tenant's usage corrections.        | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/usage-metering/corrections` — Apply a signed usage correction/reversal
+
+- **operationId**: `usageMeteringCorrectionsApply`
+- **Security**: bearerAuth + tenantHeader
+
+Apply a signed correction/reversal linked to an original immutable event (never mutates the source event). Only a signed_delta sum meter can be corrected (fail-closed). Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`UsageCorrectionRequest`](#schema-usagecorrectionrequest)
+
+**Responses**
+
+| Status | Description                                                                                                  | Schema                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| 200    | The applied correction.                                                                                      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                                                                                 | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.                                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                               | [`ApiError`](#standard-error-envelope)                   |
+| 404    | Resource not found or hidden by soft-delete policy.                                                          | [`ApiError`](#standard-error-envelope)                   |
+| 409    | A correction with this producer identity already exists, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.                                                                   | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/usage-metering/events` — List the current tenant's immutable usage-event timeline
+
+- **operationId**: `usageMeteringEventsList`
+- **Security**: bearerAuth + tenantHeader
+
+Numeric-only usage events (most recent first), optionally filtered by meterKey. Operator-only, current-tenant context.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `meterKey`         | query  | no       | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | The current tenant's usage events.             | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/usage-metering/quota` — Get the fail-closed effective quota decision for a meter
+
+- **operationId**: `usageMeteringQuotaGet`
+- **Security**: bearerAuth + tenantHeader
+
+Combines the
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `meterKey`         | query  | yes      | string |                                             |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | The effective quota decision.                  | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `GET /api/v1/usage-metering/reconciliation` — List the current tenant's usage reconciliation runs
+
+- **operationId**: `usageMeteringReconciliationList`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                                   |
+| ------ | ---------------------------------------------- | -------------------------------------------------------- |
+| 200    | The current tenant's reconciliation runs.      | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)                   |
+
+### `POST /api/v1/usage-metering/reconciliation` — Run a usage reconciliation
+
+- **operationId**: `usageMeteringReconciliationRun`
+- **Security**: bearerAuth + tenantHeader
+
+Recompute each window in a bounded range from the immutable events + corrections and flag any stored aggregate that drifts or is missing. Never repairs in place; records immutable evidence. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `Idempotency-Key`  | header | yes      | string | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Request body** (required): [`UsageReconciliationRequest`](#schema-usagereconciliationrequest)
+
+**Responses**
+
+| Status | Description                                      | Schema                                                   |
+| ------ | ------------------------------------------------ | -------------------------------------------------------- |
+| 200    | The reconciliation run result.                   | [`ApiSuccess`](#standard-success-envelope)&lt;object&gt; |
+| 400    | Validation or request error.                     | [`ApiError`](#standard-error-envelope)                   |
+| 401    | Authentication required or expired.              | [`ApiError`](#standard-error-envelope)                   |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                   |
+| 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
+| 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                   |
+
 ## Schema appendix
 
 Every schema referenced by at least one operation above (excluding the standard envelope schemas, covered in §Standard success/error envelope).
@@ -18228,6 +18460,52 @@ At least one of displayName or status is required.
 }
 ```
 
+### Schema: UsageCorrectionRequest
+
+| Field             | Type                           | Required | Nullable | Description                                                                            |
+| ----------------- | ------------------------------ | -------- | -------- | -------------------------------------------------------------------------------------- |
+| `originalEventId` | string (uuid)                  | yes      | no       |                                                                                        |
+| `correctionType`  | enum(`reversal`, `adjustment`) | yes      | no       |                                                                                        |
+| `deltaQuantity`   | integer                        | no       | yes      | Required for an adjustment; ignored for a reversal (computed from the original event). |
+| `reason`          | string                         | yes      | no       |                                                                                        |
+| `producer`        | string                         | no       | no       | Defaults to "operator".                                                                |
+| `sourceEventId`   | string                         | no       | no       |                                                                                        |
+| `sourceVersion`   | integer                        | no       | no       |                                                                                        |
+
+**Example**
+
+```json
+{
+  "originalEventId": "00000000-0000-0000-0000-000000000000",
+  "correctionType": "reversal",
+  "deltaQuantity": 0,
+  "reason": "string",
+  "producer": "string",
+  "sourceEventId": "string",
+  "sourceVersion": 0
+}
+```
+
+### Schema: UsageReconciliationRequest
+
+| Field        | Type                         | Required | Nullable | Description                              |
+| ------------ | ---------------------------- | -------- | -------- | ---------------------------------------- |
+| `meterKey`   | string                       | no       | yes      | Null reconciles all meters in the range. |
+| `windowType` | enum(`hour`, `day`, `month`) | yes      | no       |                                          |
+| `rangeFrom`  | string (date-time)           | yes      | no       |                                          |
+| `rangeTo`    | string (date-time)           | yes      | no       |                                          |
+
+**Example**
+
+```json
+{
+  "meterKey": "string",
+  "windowType": "hour",
+  "rangeFrom": "2026-01-01T00:00:00.000Z",
+  "rangeTo": "2026-01-01T00:00:00.000Z"
+}
+```
+
 ### Schema: UserListResponse
 
 | Field   | Type                                                  | Required | Nullable | Description |
@@ -18879,7 +19157,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (100)
+### Channels (102)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -18973,6 +19251,8 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.sync.push.requested` — Baseline sync push event envelope for future sync-storage implementation.
 - `awcms-mini.tenant-entitlement.assignment.changed` — A tenant entitlement assignment was assigned/suspended/resumed/canceled (Issue #871, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `assignmentId`, `planKey`, `offerVersion`, `changeType`, resulting `status`, and the resolved `snapshotHash` for deterministic cache invalidation — never an operator reason or internal price. Producer: `tenant-entitlement/application/entitlement-directory.ts`, via `appendDomainEvent` in the same transaction as the append-only evaluation snapshot.
 - `awcms-mini.tenant-entitlement.override.changed` — A tenant entitlement override was created or revoked (Issue #871). Payload: `overrideId`, `targetKind`, `targetKey`, `effect`, `changeType`, and the resolved `snapshotHash` — never the operator's free-text reason. Producer: `tenant-entitlement/application/entitlement-directory.ts`'s `createOverride`/`revokeOverride`.
+- `awcms-mini.usage-metering.usage.corrected` — A signed usage correction/reversal was applied to a billable meter (Issue #875, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `correctionId`, `originalEventId`, `meterKey`, `correctionType`, and the signed `deltaQuantity` — numeric-only, never the operator's free-text reason. Producer: `usage-metering/application/correction-directory.ts`'s `applyCorrection`, via `appendDomainEvent` in the same transaction as the append-only correction row.
+- `awcms-mini.usage-metering.usage.reconciled` — A usage reconciliation run compared recomputed windows to stored aggregates (Issue #875). Payload: `runId`, `meterKey`, `windowType`, `status`, and `windowsChecked` / `driftCount` / `missingCount` — numeric-only evidence. Producer: `usage-metering/application/reconciliation.ts`'s `runReconciliation`.
 - `awcms-mini.workflow.delegation.created` — A workflow delegation/substitute assignment was created (Issue #747). Producer: `workflow-approval/application/ workflow-delegation-directory.ts`'s `createWorkflowDelegation`.
 - `awcms-mini.workflow.delegation.revoked` — A workflow delegation/substitute assignment was revoked (Issue #747). Producer: `workflow-approval/application/ workflow-delegation-directory.ts`'s `revokeWorkflowDelegation`.
 - `awcms-mini.workflow.instance.advanced` — A workflow instance's active task was decided (or force-decided) and the instance advanced to its next node(s), without yet reaching a terminal outcome (Issue #747). Producer: `workflow-approval/application/workflow-instance-decision.ts`'s `completeApprovalTaskAndAdvance`.

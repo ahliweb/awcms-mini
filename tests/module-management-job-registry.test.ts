@@ -110,6 +110,8 @@ describe("fetchModuleJobs", () => {
         "bun run security:readiness",
         "bun run social-publishing:dispatch",
         "bun run sync:objects:dispatch",
+        "bun run usage-metering:aggregate",
+        "bun run usage-metering:purge",
         "bun run workflow:escalations:dispatch"
       ].sort()
     );
