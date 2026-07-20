@@ -12127,6 +12127,300 @@ Forward-legal subscription transition (active/past_due/cancel/expire). Invalid t
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
 
+## Payment Gateway
+
+Provider-neutral SaaS control-plane payment gateway (epic #868 SaaS control plane Wave 1, Issue #877, ADR-0022) — the SIXTH and LAST control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Provider-neutral hosted checkout/payment sessions, SIGNED inbound webhooks (fail-closed HMAC + freshness <=300s + provider/account binding + payload-size + DURABLE per-event-id anti-replay + ordering), normalized payment events, refunds where supported, retry/DLQ, provider health + circuit breaker, and reconciliation. Payment status is NEVER trusted from a browser redirect — only a verified signed webhook or a reconciliation outcome updates payment (exactly once). The provider call ALWAYS happens OUTSIDE any DB transaction (ADR-0006): the local intent + outbox row commit first; a worker dispatches asynchronously. Provider adapters are OPTIONAL configuration wired by a derived application; the base ships only a fake/sandbox adapter for tests + docs. Provider secrets live in process.env only (an env: pointer on the account row), never in a table/event/log; stored webhook envelopes are doc-04 masked before persist. Money is EXACT minor units (bigint, never float). NOT a general ledger / AR-AP / double-entry accounting / merchant settlement / tax engine, and never stores raw card credentials/PAN (ADR-0022 §11). CONSUMES billing_document_state (#876); PROVIDES payment_outcome (consumed by subscription_billing). Platform-operator writes are separate from tenant admin and restricted to the platform tenant; the webhook receiver is authenticated by the opaque account id + provider signature. LAN/offline/manual-payment mode runs with no provider configured at all.
+
+### `GET /api/v1/payment-gateway/tenants/{tenantId}/health` — Provider adapter health/readiness
+
+- **operationId**: `paymentGatewayProviderHealth`
+- **Security**: bearerAuth + tenantHeader
+
+Provider adapter health/readiness + circuit-breaker state per account/direction. Platform operator or self-read. Read-only.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                     |
+| ------ | --------------------------------------------------- | ------------------------------------------ |
+| 200    | Provider health returned.                           | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/payment-gateway/tenants/{tenantId}/intents` — List payment intents
+
+- **operationId**: `paymentGatewayListIntents`
+- **Security**: bearerAuth + tenantHeader
+
+List a tenant's payment intents/sessions. Platform operator or self-read. Read-only.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                     |
+| ------ | --------------------------------------------------- | ------------------------------------------ |
+| 200    | Intents listed.                                     | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/payment-gateway/tenants/{tenantId}/intents` — Initiate a hosted checkout session
+
+- **operationId**: `paymentGatewayInitiateCheckout`
+- **Security**: bearerAuth + tenantHeader
+
+Initiate a payment session for a payable invoice. Commits a local intent + outbox row FIRST; the provider call is dispatched OUTSIDE any transaction (ADR-0006). Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`PaymentGatewayInitiateCheckoutRequest`](#schema-paymentgatewayinitiatecheckoutrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 201    | Payment intent created (outbox dispatch enqueued).                                                                                                                                                               | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | A live intent for the invoice already exists, the invoice is not payable, or a same-key replay differs.                                                                                                          | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/payment-gateway/tenants/{tenantId}/intents/{intentId}/cancel` — Cancel/expire a payment session
+
+- **operationId**: `paymentGatewayCancelSession`
+- **Security**: bearerAuth + tenantHeader
+
+Cancel a live (initiated/pending) payment session where the provider supports it — moves the intent to expired. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `intentId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`PaymentGatewayCancelSessionRequest`](#schema-paymentgatewaycancelsessionrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Session canceled.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Illegal transition or a version conflict.                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/payment-gateway/tenants/{tenantId}/intents/{intentId}/refunds` — List refunds for an intent
+
+- **operationId**: `paymentGatewayListRefunds`
+- **Security**: bearerAuth + tenantHeader
+
+List refund requests + write-once results for a payment intent. Platform operator or self-read. Read-only.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `intentId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                     |
+| ------ | --------------------------------------------------- | ------------------------------------------ |
+| 200    | Refunds listed.                                     | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/payment-gateway/tenants/{tenantId}/intents/{intentId}/refunds` — Request a refund
+
+- **operationId**: `paymentGatewayRequestRefund`
+- **Security**: bearerAuth + tenantHeader
+
+Request a refund against a settled intent where the provider supports it. Commits a local refund + outbox row FIRST; the provider call is dispatched OUTSIDE any transaction. Mandatory reason. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `intentId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`PaymentGatewayRequestRefundRequest`](#schema-paymentgatewayrequestrefundrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 201    | Refund requested (outbox dispatch enqueued).                                                                                                                                                                     | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Intent is not refundable, an over-refund, or a same-key replay differs.                                                                                                                                          | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/payment-gateway/tenants/{tenantId}/outbox/{outboxId}/retry` — Retry a dead-lettered provider dispatch
+
+- **operationId**: `paymentGatewayRetryDeadLetter`
+- **Security**: bearerAuth + tenantHeader
+
+Manually re-queue a dead-lettered (DLQ) provider dispatch. Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `outboxId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`PaymentGatewayReasonRequest`](#schema-paymentgatewayreasonrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Dispatch re-queued.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Outbox row is not dead-lettered, or a same-key replay differs.                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/payment-gateway/tenants/{tenantId}/provider-accounts` — List provider account bindings
+
+- **operationId**: `paymentGatewayListProviderAccounts`
+- **Security**: bearerAuth + tenantHeader
+
+List a tenant's provider account bindings (never the signing secret). Platform operator or self-read. Read-only.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                     |
+| ------ | --------------------------------------------------- | ------------------------------------------ |
+| 200    | Provider accounts listed.                           | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/payment-gateway/tenants/{tenantId}/provider-accounts` — Configure a provider account binding
+
+- **operationId**: `paymentGatewayConfigureProviderAccount`
+- **Security**: bearerAuth + tenantHeader
+
+Create/update a (provider, account) binding. The signing secret is an env: POINTER only, never a literal (ADR-0022 §6). Endpoint/callback hosts are allow-listed (host-equality). Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`PaymentGatewayConfigureProviderAccountRequest`](#schema-paymentgatewayconfigureprovideraccountrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Provider account updated.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope) |
+| 201    | Provider account created.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict (a same-key replay differs, or a concurrent change).                                                                                                                                                    | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/payment-gateway/webhook/{providerAccountId}` — Signed inbound payment webhook receiver
+
+- **operationId**: `paymentGatewayInboundWebhook`
+- **Security**: none (public endpoint)
+
+The ONE public-facing signed payment webhook receiver. NOT tenant-JWT authenticated (a payment provider calls it) — authenticated by the opaque providerAccountId (which binds to exactly one tenant) plus the adapter's own signature + freshness (<=300s) + provider/account binding + payload-size + DURABLE per-event-id anti-replay verification. A valid delivery updates payment EXACTLY ONCE; payment status is NEVER trusted from a browser redirect. Every failure returns a generic safe error.
+
+**Parameters**
+
+| Name                | In   | Required | Type          | Description |
+| ------------------- | ---- | -------- | ------------- | ----------- |
+| `providerAccountId` | path | yes      | string (uuid) |             |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Delivery accepted (new or an idempotent duplicate).                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope) |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
 ## Usage Metering
 
 Provider-neutral SaaS control-plane usage metering (epic #868 SaaS control plane Wave 1, Issue #875, ADR-0022) — the third control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id). Owning modules emit reviewed, NUMERIC-ONLY meter events in their own commit through the transaction-safe usage_append port (the events table is the transactional outbox); identity binds (tenant, producer, meter, sourceEventId, sourceVersion) so a duplicate producer event is counted once. An async, resumable worker deterministically materializes usage WINDOWS from the immutable events + signed CORRECTIONS (recompute-from-source: a rebuild reproduces stored aggregates, a replay never double-counts); late/out-of-order events recompute their window deterministically. Corrections link to the original event and NEVER mutate it (append-only, DB-trigger enforced). Reconciliation independently recomputes windows and flags drift/missing. The read-only usage_aggregate port exposes effective usage + a FAIL-CLOSED quota decision (the #871 entitlement limit + authoritative live usage — a hard quota denies when usage is unavailable). Meter keys/aggregation/bounds resolve against the #874 single source; an unknown meter fails closed. NO PII / no raw payloads. Operator-only + default-deny + default-disabled per tenant. correct/reconcile/rebuild require Idempotency-Key + audit. Not subscription/invoice pricing and not application telemetry.
@@ -16850,6 +17144,110 @@ At least one field must be provided.
 }
 ```
 
+### Schema: PaymentGatewayCancelSessionRequest
+
+| Field             | Type    | Required | Nullable | Description                                          |
+| ----------------- | ------- | -------- | -------- | ---------------------------------------------------- |
+| `reason`          | string  | yes      | no       |                                                      |
+| `expectedVersion` | integer | no       | yes      | Optimistic-concurrency guard; a mismatch yields 409. |
+
+**Example**
+
+```json
+{
+  "reason": "string",
+  "expectedVersion": 0
+}
+```
+
+### Schema: PaymentGatewayConfigureProviderAccountRequest
+
+| Field                     | Type                       | Required | Nullable | Description                                                                                                         |
+| ------------------------- | -------------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `providerKey`             | string                     | yes      | no       | Snake_case provider key (an adapter must be registered for it).                                                     |
+| `providerAccountRef`      | string                     | yes      | no       | Opaque merchant/account id from the provider (NOT a secret) — binds this account to exactly one tenant.             |
+| `displayName`             | string                     | no       | yes      |                                                                                                                     |
+| `signingSecretRef`        | string                     | yes      | no       | An env:VAR_NAME POINTER only — NEVER a literal secret (ADR-0022 §6). The signing secret VALUE lives in process.env. |
+| `endpointHost`            | string                     | yes      | no       | Allow-listed provider API host (bare lower-case hostname, SSRF host-equality).                                      |
+| `callbackHost`            | string                     | no       | yes      | Allow-listed return/callback host (open-redirect host-equality).                                                    |
+| `webhookToleranceSeconds` | integer                    | no       | no       | Inbound freshness window in seconds (ADR-0022 §9 window <= 300s).                                                   |
+| `maxWebhookBodyBytes`     | integer                    | no       | no       |                                                                                                                     |
+| `status`                  | enum(`active`, `disabled`) | no       | no       |                                                                                                                     |
+| `reason`                  | string                     | no       | yes      |                                                                                                                     |
+
+**Example**
+
+```json
+{
+  "providerKey": "string",
+  "providerAccountRef": "string",
+  "displayName": "string",
+  "signingSecretRef": "string",
+  "endpointHost": "string",
+  "callbackHost": "string",
+  "webhookToleranceSeconds": 1,
+  "maxWebhookBodyBytes": 256,
+  "status": "active",
+  "reason": "string"
+}
+```
+
+### Schema: PaymentGatewayInitiateCheckoutRequest
+
+| Field               | Type          | Required | Nullable | Description                                                                               |
+| ------------------- | ------------- | -------- | -------- | ----------------------------------------------------------------------------------------- |
+| `providerAccountId` | string (uuid) | yes      | no       |                                                                                           |
+| `invoiceId`         | string (uuid) | yes      | no       | The billing invoice this payment settles (validated via the billing_document_state port). |
+| `subscriptionId`    | string (uuid) | no       | yes      |                                                                                           |
+| `amountMinor`       | integer       | yes      | no       | EXACT positive minor units (never a float).                                               |
+| `currency`          | string        | yes      | no       |                                                                                           |
+| `expiresInMinutes`  | integer       | no       | yes      |                                                                                           |
+| `reason`            | string        | yes      | no       |                                                                                           |
+
+**Example**
+
+```json
+{
+  "providerAccountId": "00000000-0000-0000-0000-000000000000",
+  "invoiceId": "00000000-0000-0000-0000-000000000000",
+  "subscriptionId": "00000000-0000-0000-0000-000000000000",
+  "amountMinor": 1,
+  "currency": "string",
+  "expiresInMinutes": 1,
+  "reason": "string"
+}
+```
+
+### Schema: PaymentGatewayReasonRequest
+
+| Field    | Type   | Required | Nullable | Description |
+| -------- | ------ | -------- | -------- | ----------- |
+| `reason` | string | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "reason": "string"
+}
+```
+
+### Schema: PaymentGatewayRequestRefundRequest
+
+| Field         | Type    | Required | Nullable | Description                                               |
+| ------------- | ------- | -------- | -------- | --------------------------------------------------------- |
+| `amountMinor` | integer | yes      | no       | EXACT positive minor units to refund (<= settled amount). |
+| `reason`      | string  | yes      | no       | Mandatory refund reason (ADR-0022 §8).                    |
+
+**Example**
+
+```json
+{
+  "amountMinor": 1,
+  "reason": "string"
+}
+```
+
 ### Schema: PermissionEntry
 
 | Field          | Type          | Required | Nullable | Description                   |
@@ -20635,7 +21033,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (118)
+### Channels (126)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -20696,6 +21094,14 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.organization-structure.unit.created` — An organization unit was created (Issue #749). Producer: `organization-structure/application/organization-unit-directory.ts`'s `createOrganizationUnit`.
 - `awcms-mini.organization-structure.unit.deactivated` — An organization unit was deactivated (soft-deleted, Issue #749). Producer: `organization-structure/application/organization-unit- directory.ts`'s `deactivateOrganizationUnit`.
 - `awcms-mini.organization-structure.unit.updated` — An organization unit was updated (Issue #749). Producer: `organization-structure/application/organization-unit-directory.ts`'s `updateOrganizationUnit`.
+- `awcms-mini.payment-gateway.intent.expired` — A payment intent expired without a settling outcome inside its window (Issue #877) — deterministic safe state from the expire sweep (or an operator cancel). Payload: `intentId`, `providerKey`, `reason`. Producer: `payment-gateway/application` (payment-engine / reconciliation-engine), same-commit with the expiry.
+- `awcms-mini.payment-gateway.intent.failed` — A payment intent failed (provider decline or a verified failure event) (Issue #877). Payload: `intentId`, `providerKey`, `status`, a SAFE error class — never a raw provider message. Producer: `payment-gateway/application` (webhook-intake), same-commit with the failure.
+- `awcms-mini.payment-gateway.intent.initiated` — A payment intent was initiated for a payable invoice and a provider checkout dispatch was enqueued to the outbox (Issue #877) — the provider call happens OUTSIDE this transaction. Payload: `intentId`, `invoiceId`, `providerKey`, `currency`, EXACT minor-unit `amountMinor` — never a provider secret or a browser-trusted status. Producer: `payment-gateway/application` (payment-engine), same-commit with the intent creation.
+- `awcms-mini.payment-gateway.intent.pending` — A hosted checkout session was created by the provider and the intent moved to pending (Issue #877). Payload: `intentId`, `providerKey`, MASKED `providerSessionRef` — never the checkout URL secret nor a settled status. Producer: `payment-gateway/application` (outbox-dispatch), same-commit with the status advance.
+- `awcms-mini.payment-gateway.intent.settled` — A payment intent settled from a VERIFIED signed webhook or a reconciliation outcome (Issue #877) — exactly once, never from a browser redirect. Payload: `intentId`, `invoiceId`, `providerKey`, `currency`, EXACT minor-unit `amountMinor` — never a provider secret or raw PII. Producer: `payment-gateway/application` (webhook-intake / reconciliation-engine), same-commit with the settlement.
+- `awcms-mini.payment-gateway.reconciliation.recorded` — A reconciliation compared provider vs local intent state and recorded evidence (Issue #877) — the source of truth beyond a single webhook. Payload: `intentId`, `providerStatus`, `localStatus`, `status`. Producer: `payment-gateway/application` (reconciliation-engine), same-commit with the reconciliation.
+- `awcms-mini.payment-gateway.refund.requested` — A refund was requested against a settled intent and a provider refund dispatch was enqueued to the outbox (Issue #877). Payload: `refundId`, `intentId`, `currency`, EXACT minor-unit `amountMinor` — never the operator's raw reason or a provider secret. Producer: `payment-gateway/application` (refund-engine), same-commit with the refund creation.
+- `awcms-mini.payment-gateway.refund.resolved` — A refund result was written once from the provider outcome (Issue #877). Payload: `refundId`, `intentId`, `status`, MASKED `providerRefundRef` — never a provider secret. Producer: `payment-gateway/application` (refund-engine / outbox-dispatch), same-commit with the write-once result.
 - `awcms-mini.profile-identity.profile.merged` — Published when a profile merge request is executed (Issue #748, epic `platform-evolution` #738 Wave 2): the loser profile is soft-deleted (`merged_into_profile_id` set) and its `awcms_mini_profile_entity_links` rows are repointed to the survivor. Payload: `mergeRequestId`, `survivorProfileId`, `loserProfileId`, `entityLinksRepointedCount`. Lets domain modules react to the merge mapping through the outbox instead of importing `profile_identity` tables directly (see `src/modules/_shared/ports/party-directory-port.ts` for the pull-based equivalent). Producer: `profile-identity/application/merge-workflow.ts`'s `executeMergeRequest`.
 - `awcms-mini.reference-data.code.created` — A reference code was created within a value set (Issue #750). Producer: `reference-data/application/code-directory.ts`'s `createReferenceCode`.
 - `awcms-mini.reference-data.code.deprecated` — A reference code was deprecated (soft-deleted, Issue #750). Producer: `reference-data/application/code-directory.ts`'s `deprecateReferenceCode`.

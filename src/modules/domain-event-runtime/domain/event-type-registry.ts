@@ -332,6 +332,31 @@ export const SUBSCRIPTION_BILLING_PAYMENT_RECORDED_EVENT_TYPE =
 export const SUBSCRIPTION_BILLING_DUNNING_ATTEMPTED_EVENT_TYPE =
   "awcms-mini.subscription-billing.dunning.attempted";
 
+/**
+ * `payment_gateway` (Issue #877, epic #868 SaaS control plane Wave 1, ADR-0022)
+ * — the SIXTH and LAST control-plane module. Versioned, provider-neutral payment
+ * events. Payloads carry MASKED provider references + EXACT minor-unit amounts +
+ * safe error classes only — NEVER a provider secret, raw PII, or a raw provider
+ * message. Emitted same-commit as the state change.
+ */
+export const PAYMENT_GATEWAY_EVENT_VERSION = "1.0";
+export const PAYMENT_GATEWAY_INTENT_INITIATED_EVENT_TYPE =
+  "awcms-mini.payment-gateway.intent.initiated";
+export const PAYMENT_GATEWAY_INTENT_PENDING_EVENT_TYPE =
+  "awcms-mini.payment-gateway.intent.pending";
+export const PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE =
+  "awcms-mini.payment-gateway.intent.settled";
+export const PAYMENT_GATEWAY_INTENT_FAILED_EVENT_TYPE =
+  "awcms-mini.payment-gateway.intent.failed";
+export const PAYMENT_GATEWAY_INTENT_EXPIRED_EVENT_TYPE =
+  "awcms-mini.payment-gateway.intent.expired";
+export const PAYMENT_GATEWAY_REFUND_REQUESTED_EVENT_TYPE =
+  "awcms-mini.payment-gateway.refund.requested";
+export const PAYMENT_GATEWAY_REFUND_RESOLVED_EVENT_TYPE =
+  "awcms-mini.payment-gateway.refund.resolved";
+export const PAYMENT_GATEWAY_RECONCILIATION_RECORDED_EVENT_TYPE =
+  "awcms-mini.payment-gateway.reconciliation.recorded";
+
 export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
   [
     {
@@ -724,6 +749,54 @@ export const DOMAIN_EVENT_TYPE_REGISTRY: readonly RegisteredDomainEventType[] =
       eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
       description:
         "A dunning attempt requested a lifecycle transition through the #873 contract for a past-due invoice (Issue #876) — billing never mutates lifecycle state directly. Payload carries the attempt id, invoice id, subscription id, attempt number, requested lifecycle state, and outcome."
+    },
+    {
+      eventType: PAYMENT_GATEWAY_INTENT_INITIATED_EVENT_TYPE,
+      eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
+      description:
+        "A payment intent was initiated for a payable invoice and a provider checkout dispatch was enqueued to the outbox (Issue #877) — the provider call happens OUTSIDE this transaction. Payload carries the intent id, invoice id, provider key, currency, and EXACT minor-unit amount — never a provider secret or a browser-trusted status."
+    },
+    {
+      eventType: PAYMENT_GATEWAY_INTENT_PENDING_EVENT_TYPE,
+      eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
+      description:
+        "A hosted checkout session was created by the provider and the intent moved to pending (Issue #877). Payload carries the intent id, provider key, and a MASKED provider session reference — never the checkout URL secret nor a settled status (settlement comes only from a signed webhook/reconciliation)."
+    },
+    {
+      eventType: PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE,
+      eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
+      description:
+        "A payment intent settled from a VERIFIED signed webhook or a reconciliation outcome (Issue #877) — exactly once, never from a browser redirect. Payload carries the intent id, invoice id, provider key, currency, and EXACT minor-unit amount — never a provider secret or raw PII."
+    },
+    {
+      eventType: PAYMENT_GATEWAY_INTENT_FAILED_EVENT_TYPE,
+      eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
+      description:
+        "A payment intent failed (provider decline or a verified failure event) (Issue #877). Payload carries the intent id, provider key, and a SAFE error class — never a raw provider message."
+    },
+    {
+      eventType: PAYMENT_GATEWAY_INTENT_EXPIRED_EVENT_TYPE,
+      eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
+      description:
+        "A payment intent expired without a settling outcome inside its window (Issue #877) — deterministic safe state from the expire sweep. Payload carries the intent id and provider key."
+    },
+    {
+      eventType: PAYMENT_GATEWAY_REFUND_REQUESTED_EVENT_TYPE,
+      eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
+      description:
+        "A refund was requested against a settled intent and a provider refund dispatch was enqueued to the outbox (Issue #877). Payload carries the refund id, intent id, currency, and EXACT minor-unit amount — never the operator's raw reason or a provider secret."
+    },
+    {
+      eventType: PAYMENT_GATEWAY_REFUND_RESOLVED_EVENT_TYPE,
+      eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
+      description:
+        "A refund result was written once from the provider outcome (Issue #877). Payload carries the refund id, intent id, final status, and a MASKED provider refund reference — never a provider secret."
+    },
+    {
+      eventType: PAYMENT_GATEWAY_RECONCILIATION_RECORDED_EVENT_TYPE,
+      eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
+      description:
+        "A reconciliation compared provider vs local intent state and recorded evidence (Issue #877) — the source of truth beyond a single webhook. Payload carries the intent id, provider status, local status, and outcome (match/mismatch_resolved/mismatch_flagged/provider_unavailable)."
     }
   ];
 

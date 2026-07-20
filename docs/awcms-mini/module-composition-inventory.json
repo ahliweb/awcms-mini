@@ -1,8 +1,8 @@
 {
-  "baseModuleCount": 29,
+  "baseModuleCount": 30,
   "applicationModuleCount": 0,
   "applicationRegistryId": null,
-  "totalModuleCount": 29,
+  "totalModuleCount": 30,
   "valid": true,
   "issueCount": 0,
   "migrationNamespaces": [
@@ -302,6 +302,34 @@
       "jobCount": 1,
       "hasHealthCheck": false,
       "hasReadinessCheck": false,
+      "deploymentProfiles": null
+    },
+    {
+      "key": "payment_gateway",
+      "name": "Payment Gateway",
+      "version": "0.1.0",
+      "status": "active",
+      "type": "domain",
+      "source": "base",
+      "dependencies": [
+        "tenant_admin",
+        "identity_access",
+        "domain_event_runtime",
+        "logging"
+      ],
+      "capabilitiesProvided": ["payment_outcome"],
+      "capabilitiesConsumed": [
+        {
+          "capability": "billing_document_state",
+          "providedBy": "subscription_billing",
+          "optional": true
+        }
+      ],
+      "permissionCount": 12,
+      "navigationCount": 1,
+      "jobCount": 3,
+      "hasHealthCheck": true,
+      "hasReadinessCheck": true,
       "deploymentProfiles": null
     },
     {

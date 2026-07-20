@@ -5415,6 +5415,9 @@ msgstr "Rekonsiliasi selesai."
 msgid "admin.usage_metering.rebuild_success"
 msgstr "Rebuild diminta."
 
+msgid "admin.layout.nav_payment_gateway"
+msgstr "Gerbang Pembayaran"
+
 msgid "admin.layout.nav_subscription_billing"
 msgstr "Penagihan Langganan"
 

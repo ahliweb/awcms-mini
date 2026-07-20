@@ -1,0 +1,601 @@
+# Payment Gateway module OpenAPI fragment (Issue #877, epic #868, ADR-0022).
+# Merged into openapi/awcms-mini-public-api.openapi.yaml by `bun run openapi:bundle`.
+# Edit THIS file, never the generated bundle. The "Payment Gateway" tag lives in
+# the root fragment (openapi/awcms-mini-public-api.src.yaml).
+paths:
+  /api/v1/payment-gateway/webhook/{providerAccountId}:
+    post:
+      tags:
+        - Payment Gateway
+      summary: "Signed inbound payment webhook receiver"
+      description: "The ONE public-facing signed payment webhook receiver. NOT tenant-JWT authenticated (a payment provider calls it) — authenticated by the opaque providerAccountId (which binds to exactly one tenant) plus the adapter's own signature + freshness (<=300s) + provider/account binding + payload-size + DURABLE per-event-id anti-replay verification. A valid delivery updates payment EXACTLY ONCE; payment status is NEVER trusted from a browser redirect. Every failure returns a generic safe error."
+      operationId: paymentGatewayInboundWebhook
+      security: []
+      parameters:
+        - name: providerAccountId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Opaque provider event payload (adapter-specific). Verified by signature; only a doc-04-masked snippet is ever persisted."
+              additionalProperties: true
+      responses:
+        "200":
+          description: "Delivery accepted (new or an idempotent duplicate)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/payment-gateway/tenants/{tenantId}/provider-accounts:
+    get:
+      tags:
+        - Payment Gateway
+      summary: "List provider account bindings"
+      description: "List a tenant's provider account bindings (never the signing secret). Platform operator or self-read. Read-only."
+      operationId: paymentGatewayListProviderAccounts
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Provider accounts listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Payment Gateway
+      summary: "Configure a provider account binding"
+      description: "Create/update a (provider, account) binding. The signing secret is an env: POINTER only, never a literal (ADR-0022 §6). Endpoint/callback hosts are allow-listed (host-equality). Platform-operator only. Requires Idempotency-Key."
+      operationId: paymentGatewayConfigureProviderAccount
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentGatewayConfigureProviderAccountRequest"
+      responses:
+        "201":
+          description: "Provider account created."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "200":
+          description: "Provider account updated."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Conflict (a same-key replay differs, or a concurrent change)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/payment-gateway/tenants/{tenantId}/intents:
+    get:
+      tags:
+        - Payment Gateway
+      summary: "List payment intents"
+      description: "List a tenant's payment intents/sessions. Platform operator or self-read. Read-only."
+      operationId: paymentGatewayListIntents
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Intents listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Payment Gateway
+      summary: "Initiate a hosted checkout session"
+      description: "Initiate a payment session for a payable invoice. Commits a local intent + outbox row FIRST; the provider call is dispatched OUTSIDE any transaction (ADR-0006). Platform-operator only. Requires Idempotency-Key."
+      operationId: paymentGatewayInitiateCheckout
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentGatewayInitiateCheckoutRequest"
+      responses:
+        "201":
+          description: "Payment intent created (outbox dispatch enqueued)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "A live intent for the invoice already exists, the invoice is not payable, or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/payment-gateway/tenants/{tenantId}/intents/{intentId}/cancel:
+    post:
+      tags:
+        - Payment Gateway
+      summary: "Cancel/expire a payment session"
+      description: "Cancel a live (initiated/pending) payment session where the provider supports it — moves the intent to expired. Platform-operator only. Mandatory reason. Requires Idempotency-Key."
+      operationId: paymentGatewayCancelSession
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: intentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentGatewayCancelSessionRequest"
+      responses:
+        "200":
+          description: "Session canceled."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Illegal transition or a version conflict."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/payment-gateway/tenants/{tenantId}/intents/{intentId}/refunds:
+    get:
+      tags:
+        - Payment Gateway
+      summary: "List refunds for an intent"
+      description: "List refund requests + write-once results for a payment intent. Platform operator or self-read. Read-only."
+      operationId: paymentGatewayListRefunds
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: intentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Refunds listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Payment Gateway
+      summary: "Request a refund"
+      description: "Request a refund against a settled intent where the provider supports it. Commits a local refund + outbox row FIRST; the provider call is dispatched OUTSIDE any transaction. Mandatory reason. Platform-operator only. Requires Idempotency-Key."
+      operationId: paymentGatewayRequestRefund
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: intentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentGatewayRequestRefundRequest"
+      responses:
+        "201":
+          description: "Refund requested (outbox dispatch enqueued)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Intent is not refundable, an over-refund, or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/payment-gateway/tenants/{tenantId}/outbox/{outboxId}/retry:
+    post:
+      tags:
+        - Payment Gateway
+      summary: "Retry a dead-lettered provider dispatch"
+      description: "Manually re-queue a dead-lettered (DLQ) provider dispatch. Platform-operator only. Mandatory reason. Requires Idempotency-Key."
+      operationId: paymentGatewayRetryDeadLetter
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: outboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentGatewayReasonRequest"
+      responses:
+        "200":
+          description: "Dispatch re-queued."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Outbox row is not dead-lettered, or a same-key replay differs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/payment-gateway/tenants/{tenantId}/health:
+    get:
+      tags:
+        - Payment Gateway
+      summary: "Provider adapter health/readiness"
+      description: "Provider adapter health/readiness + circuit-breaker state per account/direction. Platform operator or self-read. Read-only."
+      operationId: paymentGatewayProviderHealth
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Provider health returned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  schemas:
+    PaymentGatewayConfigureProviderAccountRequest:
+      type: object
+      required:
+        - providerKey
+        - providerAccountRef
+        - signingSecretRef
+        - endpointHost
+      properties:
+        providerKey:
+          type: string
+          description: Snake_case provider key (an adapter must be registered for it).
+          pattern: "^[a-z][a-z0-9_]*$"
+          maxLength: 60
+        providerAccountRef:
+          type: string
+          description: Opaque merchant/account id from the provider (NOT a secret) — binds this account to exactly one tenant.
+          minLength: 1
+          maxLength: 200
+        displayName:
+          type: string
+          nullable: true
+          maxLength: 200
+        signingSecretRef:
+          type: string
+          description: "An env:VAR_NAME POINTER only — NEVER a literal secret (ADR-0022 §6). The signing secret VALUE lives in process.env."
+          pattern: "^env:[A-Z][A-Z0-9_]*$"
+          maxLength: 200
+        endpointHost:
+          type: string
+          description: Allow-listed provider API host (bare lower-case hostname, SSRF host-equality).
+          maxLength: 255
+        callbackHost:
+          type: string
+          nullable: true
+          description: Allow-listed return/callback host (open-redirect host-equality).
+          maxLength: 255
+        webhookToleranceSeconds:
+          type: integer
+          description: Inbound freshness window in seconds (ADR-0022 §9 window <= 300s).
+          minimum: 1
+          maximum: 300
+          default: 300
+        maxWebhookBodyBytes:
+          type: integer
+          minimum: 256
+          maximum: 1048576
+          default: 65536
+        status:
+          type: string
+          enum: [active, disabled]
+          default: active
+        reason:
+          type: string
+          nullable: true
+          maxLength: 2000
+    PaymentGatewayInitiateCheckoutRequest:
+      type: object
+      required:
+        - providerAccountId
+        - invoiceId
+        - amountMinor
+        - currency
+        - reason
+      properties:
+        providerAccountId:
+          type: string
+          format: uuid
+        invoiceId:
+          type: string
+          format: uuid
+          description: The billing invoice this payment settles (validated via the billing_document_state port).
+        subscriptionId:
+          type: string
+          format: uuid
+          nullable: true
+        amountMinor:
+          type: integer
+          description: EXACT positive minor units (never a float).
+          minimum: 1
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        expiresInMinutes:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 43200
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    PaymentGatewayCancelSessionRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        expectedVersion:
+          type: integer
+          nullable: true
+          description: Optimistic-concurrency guard; a mismatch yields 409.
+    PaymentGatewayRequestRefundRequest:
+      type: object
+      required:
+        - amountMinor
+        - reason
+      properties:
+        amountMinor:
+          type: integer
+          description: EXACT positive minor units to refund (<= settled amount).
+          minimum: 1
+        reason:
+          type: string
+          description: Mandatory refund reason (ADR-0022 §8).
+          minLength: 1
+          maxLength: 2000
+    PaymentGatewayReasonRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000

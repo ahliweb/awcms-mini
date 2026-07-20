@@ -3257,6 +3257,11 @@ msgid "admin.layout.nav_organization_structure_units"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/payment-gateway/module.ts:113
+msgid "admin.layout.nav_payment_gateway"
+msgstr ""
+
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
 #: src/modules/profile-identity/module.ts:34
 msgid "admin.layout.nav_profile_identity_merge_requests"
 msgstr ""
