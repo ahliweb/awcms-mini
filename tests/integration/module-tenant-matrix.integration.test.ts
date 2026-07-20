@@ -208,13 +208,14 @@ suite(
       const rows = await withTenant(sql, owner.tenantId, (tx) =>
         fetchModuleMatrix(tx, owner.tenantId, { includeHealth: false })
       );
-      // Issue #870/#871 (ADR-0022 §7): the SaaS control-plane modules
-      // (`service_catalog`, `tenant_entitlement`) are `defaultTenantState:
-      // "disabled"`, so with no explicit tenant_modules row they resolve
-      // DISABLED here — every OTHER module is enabled by default.
+      // Issue #870/#871/#875 (ADR-0022 §7): the SaaS control-plane modules
+      // (`service_catalog`, `tenant_entitlement`, `usage_metering`) are
+      // `defaultTenantState: "disabled"`, so with no explicit tenant_modules
+      // row they resolve DISABLED here — every OTHER module is enabled by default.
       const defaultDisabled = new Set([
         "service_catalog",
-        "tenant_entitlement"
+        "tenant_entitlement",
+        "usage_metering"
       ]);
       expect(
         rows

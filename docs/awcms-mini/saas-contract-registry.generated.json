@@ -56,6 +56,58 @@
       "privacyClassification": "non_personal",
       "minValue": 0,
       "maxValue": 9007199254740991
+    },
+    {
+      "key": "usage_metering.sample_actions",
+      "ownerModule": "usage_metering",
+      "eventVersion": "1.0",
+      "valueType": "count",
+      "aggregation": "sum",
+      "correction": "signed_delta",
+      "classification": "billable",
+      "billable": true,
+      "privacyClassification": "non_personal",
+      "minValue": 0,
+      "maxValue": 9007199254740991
+    },
+    {
+      "key": "usage_metering.sample_actors",
+      "ownerModule": "usage_metering",
+      "eventVersion": "1.0",
+      "valueType": "count",
+      "aggregation": "unique_count",
+      "correction": "none",
+      "classification": "informational",
+      "billable": false,
+      "privacyClassification": "pseudonymous",
+      "minValue": 0,
+      "maxValue": 9007199254740991
+    },
+    {
+      "key": "usage_metering.sample_level",
+      "ownerModule": "usage_metering",
+      "eventVersion": "1.0",
+      "valueType": "gauge",
+      "aggregation": "last",
+      "correction": "none",
+      "classification": "informational",
+      "billable": false,
+      "privacyClassification": "non_personal",
+      "minValue": 0,
+      "maxValue": 9007199254740991
+    },
+    {
+      "key": "usage_metering.sample_peak",
+      "ownerModule": "usage_metering",
+      "eventVersion": "1.0",
+      "valueType": "gauge",
+      "aggregation": "max",
+      "correction": "none",
+      "classification": "informational",
+      "billable": false,
+      "privacyClassification": "non_personal",
+      "minValue": 0,
+      "maxValue": 9007199254740991
     }
   ],
   "quotas": [
@@ -82,6 +134,14 @@
       "unit": "byte",
       "resetPeriod": "none",
       "enforcement": "hard"
+    },
+    {
+      "key": "usage_metering.sample_action_quota",
+      "ownerModule": "usage_metering",
+      "meterKey": "usage_metering.sample_actions",
+      "unit": "action",
+      "resetPeriod": "monthly",
+      "enforcement": "hard"
     }
   ],
   "commercialEvents": [
@@ -94,6 +154,18 @@
     {
       "eventType": "awcms-mini.service-catalog.offer.retired",
       "ownerModule": "service_catalog",
+      "eventVersion": "1.0",
+      "kind": "lifecycle"
+    },
+    {
+      "eventType": "awcms-mini.usage-metering.usage.corrected",
+      "ownerModule": "usage_metering",
+      "eventVersion": "1.0",
+      "kind": "commercial"
+    },
+    {
+      "eventType": "awcms-mini.usage-metering.usage.reconciled",
+      "ownerModule": "usage_metering",
       "eventVersion": "1.0",
       "kind": "lifecycle"
     }

@@ -24,6 +24,7 @@ import { syncStorageModule } from "./sync-storage/module";
 import { tenantAdminModule } from "./tenant-admin/module";
 import { tenantDomainModule } from "./tenant-domain/module";
 import { tenantEntitlementModule } from "./tenant-entitlement/module";
+import { usageMeteringModule } from "./usage-metering/module";
 import { visitorAnalyticsModule } from "./visitor-analytics/module";
 import { workflowApprovalModule } from "./workflow-approval/module";
 
@@ -83,7 +84,14 @@ const baseModules: ModuleDescriptor[] = [
   // control-plane module and the epic's HEART: the first tenant-scoped one,
   // providing the fail-closed `effective_entitlement` contract. Also
   // default-disabled (opt-in per tenant).
-  tenantEntitlementModule
+  tenantEntitlementModule,
+  // Issue #875 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the metering
+  // foundation: a tenant-scoped control-plane module providing the
+  // transaction-safe `usage_append` and read-only `usage_aggregate` contracts,
+  // consuming #871's `effective_entitlement` for its fail-closed quota decision.
+  // Also default-disabled (opt-in per tenant). Appended at the end, same
+  // convention as the Wave-1 entries above.
+  usageMeteringModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */

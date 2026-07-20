@@ -254,7 +254,7 @@ eksplisit sesuai permintaan Issue #696):
    semacam ini **ditolak di tahap pohon keputusan §3** (node Q5), tanpa
    pengecualian implementasi apa pun.
 
-## 8. Peta 25 modul saat ini → kategori
+## 8. Peta 26 modul saat ini → kategori
 
 Sumber kebenaran: `src/modules/index.ts` (25 entri) dan setiap `module.ts`-
 nya. Kolom **Owner** mengikuti `.github/CODEOWNERS` (satu maintainer,
@@ -285,6 +285,7 @@ remediasi R3 di bawah.
 | `reference_data`          | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `service_catalog`         | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `tenant_entitlement`      | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `usage_metering`          | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `integration_hub`         | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
@@ -368,15 +369,15 @@ Mengikuti preseden `docs/adr/0013-extension-layers-and-boundary-model.md`
 di sini — itu reklasifikasi yang butuh admission decision tersendiri (§9)
 — hanya mencatat tumpang tindih konseptual ini secara eksplisit.
 
-**Tujuh modul SaaS Control Plane sudah diadmisi (ADR-0022) tapi belum ada di
-tabel di atas.** `service_catalog`, `tenant_entitlement`,
-`tenant_provisioning`, `tenant_lifecycle`, `usage_metering`,
+**Empat modul SaaS Control Plane sudah diadmisi (ADR-0022) tapi belum ada di
+tabel di atas.** `tenant_provisioning`, `tenant_lifecycle`,
 `subscription_billing`, dan `payment_gateway` diadmisi sebagai **Official
 Optional Business Foundation _in-repo, default-disabled_** lewat admission
 decision `docs/adr/0022-saas-control-plane-admission-boundary-and-lifecycle-contracts.md`
 (Issue #869, epic #868) — meng-amend klasifikasi placement ADR-0013 §1 yang
-sebelumnya menempatkan SaaS Control Plane "di luar repo base". Ketujuhnya
-**sengaja belum dimasukkan** ke tabel "Peta 23 modul" di atas karena sumber
+sebelumnya menempatkan SaaS Control Plane "di luar repo base". `service_catalog`
+(#870), `tenant_entitlement` (#871), dan `usage_metering` (#875) sudah landed dan
+masuk tabel di atas. Sisanya **sengaja belum dimasukkan** ke tabel di atas karena sumber
 kebenaran tabel ini adalah `src/modules/index.ts`, dan `module.ts` masing-
 masing baru ditambahkan di Wave-1/2/3 epic #868 (#870–#877) — bukan di
 Issue #869 yang docs-only. Setiap modul tetap wajib melalui migration/RLS/
