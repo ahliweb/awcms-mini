@@ -106,6 +106,27 @@ async function windowValue(
   });
 }
 
+/**
+ * Discriminative audit lookup (memory audit-count-assertion-vacuous): match on
+ * BOTH `action` AND `resource_type` (the diskriminator) so a generic `action`
+ * name alone can never make the assertion vacuous, and return each row's
+ * `resource_id` so a test can tie it to the exact entity.
+ */
+async function auditResourceIds(
+  tenantId: string,
+  action: string,
+  resourceType: string
+): Promise<string[]> {
+  return withTenant(getTestSql(), tenantId, async (tx) => {
+    const rows = (await tx`
+      SELECT resource_id FROM awcms_mini_audit_events
+      WHERE tenant_id = ${tenantId} AND module_key = 'usage_metering'
+        AND action = ${action} AND resource_type = ${resourceType}
+    `) as { resource_id: string | null }[];
+    return rows.map((r) => r.resource_id ?? "");
+  });
+}
+
 const suite = integrationEnabled ? describe : describe.skip;
 
 suite("usage_metering — integration", () => {
@@ -205,6 +226,20 @@ suite("usage_metering — integration", () => {
     );
     expect(clean.ok).toBe(true);
     if (clean.ok) expect(clean.run.status).toBe("consistent");
+
+    // Discriminative audit assertion: each runReconciliation writes a
+    // `reconcile` / `usage_reconciliation_run` audit row tied to the run id.
+    const reconcileAuditIds = await auditResourceIds(
+      tenantId,
+      "reconcile",
+      "usage_reconciliation_run"
+    );
+    expect(reconcileAuditIds.length).toBe(2); // the drift run + the clean run
+    if (clean.ok) expect(reconcileAuditIds).toContain(clean.run.id);
+    // The diskriminator matters: no reconcile row is misfiled under a correction.
+    expect(
+      await auditResourceIds(tenantId, "correct", "usage_reconciliation_run")
+    ).toEqual([]);
   });
 
   test("a reversal correction negates the original's contribution after re-aggregation; original evidence is preserved", async () => {
@@ -227,7 +262,22 @@ suite("usage_metering — integration", () => {
       })
     );
     expect(result.ok).toBe(true);
+    const correctionId = result.ok ? result.correction.id : "";
     if (result.ok) expect(result.correction.deltaQuantity).toBe(-10);
+
+    // Discriminative audit assertion: applyCorrection writes a `correct` /
+    // `usage_correction` audit row tied to the correction id (not vacuous:
+    // both action AND resource_type must match, and the id ties to the entity).
+    const correctAuditIds = await auditResourceIds(
+      tenantId,
+      "correct",
+      "usage_correction"
+    );
+    expect(correctAuditIds).toEqual([correctionId]);
+    // The diskriminator matters: no correction row is misfiled under a run type.
+    expect(
+      await auditResourceIds(tenantId, "reconcile", "usage_correction")
+    ).toEqual([]);
 
     await aggregate(tenantId);
     expect(await windowValue(tenantId, "hour")).toBe(0);

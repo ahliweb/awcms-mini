@@ -1,12 +1,12 @@
 ---
 name: awcms-mini-usage-metering
-description: Kerjakan bagian mana pun dari modul usage_metering AWCMS-Mini (Issue #875, epic #868 SaaS control plane Wave 1, ADR-0022) — modul control-plane KELIMA, fondasi metering provider-neutral tenant-scoped. Gunakan saat menambah/mengubah endpoint di src/modules/usage-metering, saat modul bisnis mengemit meter event lewat port usage_append, saat billing (#876) membaca usage/quota lewat port usage_aggregate, saat menyentuh aggregation worker (lease/checkpoint/bounded-batch/replay/rebuild), late/out-of-order events, koreksi bertanda, atau reconciliation. Merangkum event append-only numeric-only, idempotency identity (dihitung sekali), determinisme aggregation (rebuild = reproduksi), quota fail-closed authoritative, dan resolusi meter fail-closed terhadap single source #874.
+description: Kerjakan bagian mana pun dari modul usage_metering AWCMS-Mini (Issue #875, epic #868 SaaS control plane Wave 1, ADR-0022) — modul control-plane KETIGA, fondasi metering provider-neutral tenant-scoped. Gunakan saat menambah/mengubah endpoint di src/modules/usage-metering, saat modul bisnis mengemit meter event lewat port usage_append, saat billing (#876) membaca usage/quota lewat port usage_aggregate, saat menyentuh aggregation worker (lease/checkpoint/bounded-batch/replay/rebuild), late/out-of-order events, koreksi bertanda, atau reconciliation. Merangkum event append-only numeric-only, idempotency identity (dihitung sekali), determinisme aggregation (rebuild = reproduksi), quota fail-closed authoritative, dan resolusi meter fail-closed terhadap single source #874.
 ---
 
 # AWCMS-Mini — Usage Metering Module
 
 `usage_metering` (`src/modules/usage-metering`, Issue #875, epic #868 SaaS
-control plane Wave 1, **ADR-0022**) adalah **modul control-plane KELIMA** —
+control plane Wave 1, **ADR-0022**) adalah **modul control-plane KETIGA** —
 Official Optional Business Foundation, **opt-in per tenant, default-disabled**,
 dan **tenant-scoped**. Ia adalah **fondasi metering provider-neutral**: modul
 pemilik mengemit meter EVENT numeric-only (idempotent, privacy-minimized) di

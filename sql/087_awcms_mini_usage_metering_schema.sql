@@ -58,14 +58,37 @@
 --
 -- No secret/provider credential is ever stored here (ADR-0022 §3/§6).
 
--- A SHARED monotonic ingest sequence drawn by BOTH the events and corrections
--- tables, so the aggregation worker can cursor the merged event+correction
--- stream with a SINGLE checkpoint (`checkpoint_seq`). A per-table IDENTITY would
--- give two independent sequences a single cursor could not order. `nextval`
--- inside the caller's INSERT keeps the value monotonic in commit order enough
--- for a resumable cursor (a skipped id from a rolled-back insert only means a
--- gap, never an out-of-order replay). Least-privilege: only the app role (which
--- INSERTs events/corrections) needs USAGE.
+-- A SHARED ingest sequence drawn by BOTH the events and corrections tables, so
+-- the aggregation worker can cursor the merged event+correction stream with a
+-- SINGLE checkpoint (`checkpoint_seq`). A per-table IDENTITY would give two
+-- independent sequences a single cursor could not order.
+--
+-- IMPORTANT — ingest_seq is NOT commit-ordered. `nextval` is drawn at INSERT
+-- time, not at COMMIT: a transaction that draws a LOWER ingest_seq can COMMIT
+-- AFTER a transaction that drew a HIGHER one, so a strictly ascending cursor
+-- (`checkpoint_seq`) CAN advance past a lower-seq row that commits late. This is
+-- a real COMMIT-REORDER hazard, NOT merely a gap from a rolled-back insert:
+-- absent any backstop, a late-committing lower-seq event landing in a window
+-- that has NO later event to re-touch it (and is NEVER reconciled) would be
+-- permanently UNDER-counted by cursor-driven aggregation. The cursor gives
+-- forward progress + resumability, NOT exactly-once completeness.
+--
+-- Two MANDATORY backstops make this safe (see application/aggregation-engine.ts
+-- + reconciliation.ts, and the README "reconciliation as a required operational
+-- backstop" section):
+--   (a) RECOMPUTE-FROM-SOURCE: a window is never incrementally accumulated —
+--       `recomputeWindow` re-reads the ENTIRE window by `event_time` (not by
+--       ingest order), so ANY later event/correction touching that same window
+--       pulls the late-committed lower-seq row back in and corrects the value.
+--   (b) SCHEDULED RECONCILIATION: `runReconciliation` independently recomputes
+--       each window from the immutable source and flags `missing`/`drift` — the
+--       authoritative safety net for a window the cursor advanced past that no
+--       later event re-touched. It is REQUIRED, not optional; operations MUST
+--       alarm on `missing_count > 0` / `drift_count > 0`.
+-- (A true safe-watermark cursor that never advances past an uncommitted lower
+-- seq is a deliberate follow-up; this migration's guarantee is (a)+(b).)
+--
+-- Least-privilege: only the app role (which INSERTs events/corrections) needs USAGE.
 CREATE SEQUENCE IF NOT EXISTS awcms_mini_usage_ingest_seq AS bigint;
 
 -- =====================================================================

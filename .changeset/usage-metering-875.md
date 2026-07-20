@@ -4,7 +4,7 @@
 
 feat(usage-metering): add idempotent usage events, aggregation, quotas, corrections, and reconciliation (#875)
 
-The fifth SaaS control-plane module (epic #868 Wave 1, ADR-0022) — a tenant-scoped,
+The third SaaS control-plane module (epic #868 Wave 1, ADR-0022) — a tenant-scoped,
 default-disabled provider-neutral metering foundation. Owning modules emit reviewed,
 numeric-only meter events in their own commit through a transaction-safe append port;
 an async, resumable worker deterministically materializes usage windows from the

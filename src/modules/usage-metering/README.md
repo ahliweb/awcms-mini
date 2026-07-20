@@ -1,6 +1,6 @@
 # usage_metering
 
-The **fifth SaaS control-plane module** (Issue #875, epic #868 Wave 1,
+The **third SaaS control-plane module** (Issue #875, epic #868 Wave 1,
 **ADR-0022**) — the provider-neutral **metering foundation**. Owning modules emit
 reviewed, **numeric-only** meter EVENTS (idempotent, privacy-minimized) in their
 OWN commit through the transaction-safe **`usage_append`** port; an async,
@@ -63,6 +63,36 @@ in the window — never ingest/received order — so late/out-of-order events ju
 recompute their (possibly already closed) window deterministically and bump a
 late counter, a rebuild reproduces stored aggregates byte-for-byte, and
 reconciliation flags any stored aggregate that drifts.
+
+## Reconciliation is a REQUIRED operational backstop (not optional)
+
+`ingest_seq` is **not commit-ordered** — `nextval` is drawn at INSERT time, not
+at COMMIT — so a transaction that drew a lower `ingest_seq` can commit _after_
+the aggregation cursor (`checkpoint_seq`, which advances strictly forward) has
+already passed it. The cursor guarantees forward progress and resumability, **not
+exactly-once completeness**. Absent a backstop, a late-committing lower-seq event
+that lands in a window with no later event to re-touch it could be permanently
+under-counted by cursor-driven aggregation.
+
+Two backstops make this safe, and the second is a hard operational requirement:
+
+1. **Recompute-from-source** — a window is never incrementally accumulated;
+   `recomputeWindow` re-reads the _entire_ window by `event_time`, so any later
+   event/correction touching the same window pulls the late-committed row back in
+   and corrects the value.
+2. **Scheduled reconciliation (REQUIRED)** — `runReconciliation`
+   (`POST /api/v1/usage-metering/reconciliation`, or an operator schedule)
+   independently recomputes each window from the immutable source and records
+   `missing_count` / `drift_count` on `awcms_mini_usage_reconciliation_runs`.
+   This is the authoritative safety net for a window the cursor advanced past
+   that no later event re-touched. **Deployments MUST run reconciliation on a
+   schedule (e.g. hourly for `hour`/`day` windows, daily for `month`) and MUST
+   alarm on `missing_count > 0` or `drift_count > 0`** — a persistent non-zero
+   count means a window is under-counted and needs a rebuild
+   (`POST /api/v1/usage-metering/aggregation/rebuild`). Billing must not be
+   finalized (#876) from windows a recent reconciliation has not confirmed
+   consistent. (A true safe-watermark cursor is a tracked follow-up; today's
+   completeness guarantee is recompute-from-source + this reconciliation alarm.)
 
 ## Fail-closed quota decision (ADR-0022 §4)
 
