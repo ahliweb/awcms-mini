@@ -10,6 +10,7 @@
 import { withTenant } from "../../../lib/database/tenant-context";
 import { fetchActiveTenants } from "../../../lib/jobs/batching";
 import type { PaymentOutcomePort } from "../../_shared/ports/payment-outcome-port";
+import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";
 import { PAYMENT_GATEWAY_INTENT_PENDING_EVENT_TYPE } from "../../domain-event-runtime/domain/event-type-registry";
 import { isUrlHostAllowed } from "../domain/endpoint-allowlist";
 import {
@@ -29,7 +30,7 @@ import { getPaymentProviderAdapter } from "../infrastructure/adapter-registry";
 import { claimLease, releaseLease } from "./payment-lease";
 import {
   auditPayment,
-  emitPaymentEvent,
+  buildPaymentEventInput,
   PAYMENT_INTENT_AGGREGATE,
   type EventCtx
 } from "./payment-events";
@@ -308,20 +309,24 @@ async function finalizeCheckout(
           actor: null
         });
         if (updated) {
-          await emitPaymentEvent(tx, tenantId, {
-            eventType: PAYMENT_GATEWAY_INTENT_PENDING_EVENT_TYPE,
-            aggregateType: PAYMENT_INTENT_AGGREGATE,
-            aggregateId: intent.id,
-            aggregateVersion: Number(updated.version),
-            payload: {
-              intentId: intent.id,
-              providerKey: updated.provider_key,
-              providerSessionRef: maskProviderReference(
-                updated.provider_session_ref
-              )
-            },
-            ctx
-          });
+          await appendDomainEvent(
+            tx,
+            tenantId,
+            buildPaymentEventInput({
+              eventType: PAYMENT_GATEWAY_INTENT_PENDING_EVENT_TYPE,
+              aggregateType: PAYMENT_INTENT_AGGREGATE,
+              aggregateId: intent.id,
+              aggregateVersion: Number(updated.version),
+              payload: {
+                intentId: intent.id,
+                providerKey: updated.provider_key,
+                providerSessionRef: maskProviderReference(
+                  updated.provider_session_ref
+                )
+              },
+              ctx
+            })
+          );
         }
       }
       await applyHealthAndFinalizeSuccess(tx, tenantId, account.id, claimed.id);

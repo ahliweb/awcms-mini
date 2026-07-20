@@ -7,7 +7,7 @@
  * classes only — never a provider secret / raw PII / raw provider message.
  */
 import { recordAuditEvent } from "../../logging/application/audit-log";
-import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";
+import type { AppendDomainEventInput } from "../../domain-event-runtime/application/append-domain-event";
 import { PAYMENT_GATEWAY_EVENT_VERSION } from "../../domain-event-runtime/domain/event-type-registry";
 
 export const PAYMENT_GATEWAY_MODULE_KEY = "payment_gateway";
@@ -19,19 +19,24 @@ export type EventCtx = {
   correlationId: string | null;
 };
 
-export async function emitPaymentEvent(
-  tx: Bun.SQL,
-  tenantId: string,
-  input: {
-    eventType: string;
-    aggregateType: string;
-    aggregateId: string;
-    aggregateVersion?: number;
-    payload: Record<string, unknown>;
-    ctx: EventCtx;
-  }
-): Promise<void> {
-  await appendDomainEvent(tx, tenantId, {
+/**
+ * Build the `appendDomainEvent` input for a payment event (PURE — no I/O). The
+ * `appendDomainEvent` CALL itself stays in each engine so the `#848` publish-root
+ * derivation (`tests/unit/domain-event-consumer-registration-wiring.test.ts`)
+ * can resolve every `eventType:` operand to its imported constant — a wrapper
+ * that owned the `appendDomainEvent` call would be a "blind spot" (the operand
+ * would be a parameter, not a resolvable constant). Callers pass the constant
+ * imported DIRECTLY from `event-type-registry.ts` (same-commit snapshot).
+ */
+export function buildPaymentEventInput(input: {
+  eventType: string;
+  aggregateType: string;
+  aggregateId: string;
+  aggregateVersion?: number;
+  payload: Record<string, unknown>;
+  ctx: EventCtx;
+}): AppendDomainEventInput {
+  return {
     eventType: input.eventType,
     eventVersion: PAYMENT_GATEWAY_EVENT_VERSION,
     aggregateType: input.aggregateType,
@@ -41,7 +46,7 @@ export async function emitPaymentEvent(
     correlationId: input.ctx.correlationId,
     actorTenantUserId: input.ctx.actorTenantUserId,
     payload: input.payload
-  });
+  };
 }
 
 export async function auditPayment(

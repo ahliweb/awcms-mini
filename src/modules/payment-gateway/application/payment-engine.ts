@@ -11,10 +11,11 @@ import type { BillingDocumentStatePort } from "../../_shared/ports/billing-docum
 import { assertSafePositiveMinor } from "../domain/money";
 import {
   auditPayment,
-  emitPaymentEvent,
+  buildPaymentEventInput,
   PAYMENT_INTENT_AGGREGATE,
   type EventCtx
 } from "./payment-events";
+import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";
 import {
   PAYMENT_GATEWAY_INTENT_EXPIRED_EVENT_TYPE,
   PAYMENT_GATEWAY_INTENT_INITIATED_EVENT_TYPE
@@ -191,20 +192,24 @@ export async function initiateCheckout(
     correlationId: ctx.correlationId
   });
 
-  await emitPaymentEvent(tx, tenantId, {
-    eventType: PAYMENT_GATEWAY_INTENT_INITIATED_EVENT_TYPE,
-    aggregateType: PAYMENT_INTENT_AGGREGATE,
-    aggregateId: intent.id,
-    aggregateVersion: Number(intent.version),
-    payload: {
-      intentId: intent.id,
-      invoiceId: command.invoiceId,
-      providerKey: account.provider_key,
-      currency: command.currency,
-      amountMinor: amount
-    },
-    ctx
-  });
+  await appendDomainEvent(
+    tx,
+    tenantId,
+    buildPaymentEventInput({
+      eventType: PAYMENT_GATEWAY_INTENT_INITIATED_EVENT_TYPE,
+      aggregateType: PAYMENT_INTENT_AGGREGATE,
+      aggregateId: intent.id,
+      aggregateVersion: Number(intent.version),
+      payload: {
+        intentId: intent.id,
+        invoiceId: command.invoiceId,
+        providerKey: account.provider_key,
+        currency: command.currency,
+        amountMinor: amount
+      },
+      ctx
+    })
+  );
   await auditPayment(tx, tenantId, {
     action: "create",
     resourceType: "payment_gateway_intent",
@@ -286,19 +291,23 @@ export async function cancelSession(
     };
   }
 
-  await emitPaymentEvent(tx, tenantId, {
-    eventType: PAYMENT_GATEWAY_INTENT_EXPIRED_EVENT_TYPE,
-    aggregateType: PAYMENT_INTENT_AGGREGATE,
-    aggregateId: intentId,
-    aggregateVersion: Number(updated.version),
-    payload: {
-      intentId,
-      providerKey: updated.provider_key,
-      priorStatus: row.status,
-      reason: "canceled"
-    },
-    ctx
-  });
+  await appendDomainEvent(
+    tx,
+    tenantId,
+    buildPaymentEventInput({
+      eventType: PAYMENT_GATEWAY_INTENT_EXPIRED_EVENT_TYPE,
+      aggregateType: PAYMENT_INTENT_AGGREGATE,
+      aggregateId: intentId,
+      aggregateVersion: Number(updated.version),
+      payload: {
+        intentId,
+        providerKey: updated.provider_key,
+        priorStatus: row.status,
+        reason: "canceled"
+      },
+      ctx
+    })
+  );
   await auditPayment(tx, tenantId, {
     action: "cancel",
     resourceType: "payment_gateway_intent",

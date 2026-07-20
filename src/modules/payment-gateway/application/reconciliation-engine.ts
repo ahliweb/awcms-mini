@@ -10,6 +10,7 @@
 import { withTenant } from "../../../lib/database/tenant-context";
 import { fetchActiveTenants } from "../../../lib/jobs/batching";
 import type { PaymentOutcomePort } from "../../_shared/ports/payment-outcome-port";
+import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";
 import {
   PAYMENT_GATEWAY_INTENT_EXPIRED_EVENT_TYPE,
   PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE,
@@ -25,7 +26,7 @@ import { getPaymentProviderAdapter } from "../infrastructure/adapter-registry";
 import { claimLease, releaseLease } from "./payment-lease";
 import {
   auditPayment,
-  emitPaymentEvent,
+  buildPaymentEventInput,
   PAYMENT_INTENT_AGGREGATE,
   type EventCtx
 } from "./payment-events";
@@ -189,24 +190,28 @@ async function reconcileOne(
         correlationId,
         actor: null
       });
-      await emitPaymentEvent(tx, tenantId, {
-        eventType:
-          target === "settled"
-            ? PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE
-            : PAYMENT_GATEWAY_RECONCILIATION_RECORDED_EVENT_TYPE,
-        aggregateType: PAYMENT_INTENT_AGGREGATE,
-        aggregateId: fresh.id,
-        aggregateVersion: Number(updated.version),
-        payload: {
-          intentId: fresh.id,
-          invoiceId: updated.invoice_id,
-          providerKey: updated.provider_key,
-          currency: updated.currency,
-          amountMinor: Number(updated.amount_minor),
-          status: target
-        },
-        ctx
-      });
+      await appendDomainEvent(
+        tx,
+        tenantId,
+        buildPaymentEventInput({
+          eventType:
+            target === "settled"
+              ? PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE
+              : PAYMENT_GATEWAY_RECONCILIATION_RECORDED_EVENT_TYPE,
+          aggregateType: PAYMENT_INTENT_AGGREGATE,
+          aggregateId: fresh.id,
+          aggregateVersion: Number(updated.version),
+          payload: {
+            intentId: fresh.id,
+            invoiceId: updated.invoice_id,
+            providerKey: updated.provider_key,
+            currency: updated.currency,
+            amountMinor: Number(updated.amount_minor),
+            status: target
+          },
+          ctx
+        })
+      );
       await auditPayment(tx, tenantId, {
         action: "update",
         resourceType: "payment_gateway_intent",
@@ -304,18 +309,22 @@ export async function runExpireSweep(
             correlationId: ctx.correlationId,
             actor: null
           });
-          await emitPaymentEvent(tx, tenantId, {
-            eventType: PAYMENT_GATEWAY_INTENT_EXPIRED_EVENT_TYPE,
-            aggregateType: PAYMENT_INTENT_AGGREGATE,
-            aggregateId: intent.id,
-            aggregateVersion: Number(updated.version),
-            payload: {
-              intentId: intent.id,
-              providerKey: updated.provider_key,
-              reason: "window_elapsed"
-            },
-            ctx: { actorTenantUserId: null, correlationId: ctx.correlationId }
-          });
+          await appendDomainEvent(
+            tx,
+            tenantId,
+            buildPaymentEventInput({
+              eventType: PAYMENT_GATEWAY_INTENT_EXPIRED_EVENT_TYPE,
+              aggregateType: PAYMENT_INTENT_AGGREGATE,
+              aggregateId: intent.id,
+              aggregateVersion: Number(updated.version),
+              payload: {
+                intentId: intent.id,
+                providerKey: updated.provider_key,
+                reason: "window_elapsed"
+              },
+              ctx: { actorTenantUserId: null, correlationId: ctx.correlationId }
+            })
+          );
         }
       });
     } finally {

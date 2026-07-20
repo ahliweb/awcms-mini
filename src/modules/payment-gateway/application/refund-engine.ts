@@ -8,6 +8,7 @@
  * units. Idempotent by (intent, provider_refund_ref).
  */
 import type { PaymentOutcomePort } from "../../_shared/ports/payment-outcome-port";
+import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";
 import {
   PAYMENT_GATEWAY_REFUND_REQUESTED_EVENT_TYPE,
   PAYMENT_GATEWAY_REFUND_RESOLVED_EVENT_TYPE
@@ -16,7 +17,7 @@ import { assertSafePositiveMinor } from "../domain/money";
 import { maskProviderReference } from "../domain/masking";
 import {
   auditPayment,
-  emitPaymentEvent,
+  buildPaymentEventInput,
   PAYMENT_REFUND_AGGREGATE,
   type EventCtx
 } from "./payment-events";
@@ -119,19 +120,23 @@ export async function requestRefund(
     correlationId: ctx.correlationId
   });
 
-  await emitPaymentEvent(tx, tenantId, {
-    eventType: PAYMENT_GATEWAY_REFUND_REQUESTED_EVENT_TYPE,
-    aggregateType: PAYMENT_REFUND_AGGREGATE,
-    aggregateId: refund.id,
-    aggregateVersion: Number(refund.version),
-    payload: {
-      refundId: refund.id,
-      intentId,
-      currency: intent.currency,
-      amountMinor: amount
-    },
-    ctx
-  });
+  await appendDomainEvent(
+    tx,
+    tenantId,
+    buildPaymentEventInput({
+      eventType: PAYMENT_GATEWAY_REFUND_REQUESTED_EVENT_TYPE,
+      aggregateType: PAYMENT_REFUND_AGGREGATE,
+      aggregateId: refund.id,
+      aggregateVersion: Number(refund.version),
+      payload: {
+        refundId: refund.id,
+        intentId,
+        currency: intent.currency,
+        amountMinor: amount
+      },
+      ctx
+    })
+  );
   await auditPayment(tx, tenantId, {
     action: "create",
     resourceType: "payment_gateway_refund",
@@ -197,19 +202,23 @@ export async function resolveRefundOutcome(
   });
   if (!resolved) return toRefundDto(current);
 
-  await emitPaymentEvent(tx, tenantId, {
-    eventType: PAYMENT_GATEWAY_REFUND_RESOLVED_EVENT_TYPE,
-    aggregateType: PAYMENT_REFUND_AGGREGATE,
-    aggregateId: refundId,
-    aggregateVersion: Number(resolved.version),
-    payload: {
-      refundId,
-      intentId: resolved.intent_id,
-      status: terminal,
-      providerRefundRef: maskProviderReference(resolved.provider_refund_ref)
-    },
-    ctx
-  });
+  await appendDomainEvent(
+    tx,
+    tenantId,
+    buildPaymentEventInput({
+      eventType: PAYMENT_GATEWAY_REFUND_RESOLVED_EVENT_TYPE,
+      aggregateType: PAYMENT_REFUND_AGGREGATE,
+      aggregateId: refundId,
+      aggregateVersion: Number(resolved.version),
+      payload: {
+        refundId,
+        intentId: resolved.intent_id,
+        status: terminal,
+        providerRefundRef: maskProviderReference(resolved.provider_refund_ref)
+      },
+      ctx
+    })
+  );
   await auditPayment(tx, tenantId, {
     action: "update",
     resourceType: "payment_gateway_refund",

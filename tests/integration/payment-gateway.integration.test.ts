@@ -223,7 +223,7 @@ async function countAppliedAttempts(
 
 const ACCOUNT_REF = "acct_sandbox_merchant";
 
-describe.if(integrationEnabled)("payment_gateway (integration)", () => {
+describe.skipIf(!integrationEnabled)("payment_gateway (integration)", () => {
   beforeAll(async () => {
     process.env[SECRET_ENV] = SECRET;
     await applyMigrations();

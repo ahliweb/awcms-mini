@@ -17,6 +17,7 @@
  */
 import { createHash } from "node:crypto";
 import type { PaymentOutcomePort } from "../../_shared/ports/payment-outcome-port";
+import { appendDomainEvent } from "../../domain-event-runtime/application/append-domain-event";
 import {
   PAYMENT_GATEWAY_INTENT_FAILED_EVENT_TYPE,
   PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE
@@ -33,7 +34,7 @@ import { resolveSecretRef } from "../domain/secret-ref";
 import { getPaymentProviderAdapter } from "../infrastructure/adapter-registry";
 import {
   auditPayment,
-  emitPaymentEvent,
+  buildPaymentEventInput,
   PAYMENT_INTENT_AGGREGATE,
   type EventCtx
 } from "./payment-events";
@@ -347,24 +348,28 @@ async function applyNormalizedEventToIntent(
     correlationId: ctx.correlationId
   });
 
-  await emitPaymentEvent(tx, tenantId, {
-    eventType:
-      targetStatus === "settled"
-        ? PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE
-        : PAYMENT_GATEWAY_INTENT_FAILED_EVENT_TYPE,
-    aggregateType: PAYMENT_INTENT_AGGREGATE,
-    aggregateId: intent.id,
-    aggregateVersion: Number(updated.version),
-    payload: {
-      intentId: intent.id,
-      invoiceId: updated.invoice_id,
-      providerKey: updated.provider_key,
-      currency: updated.currency,
-      amountMinor: Number(updated.amount_minor),
-      status: targetStatus
-    },
-    ctx
-  });
+  await appendDomainEvent(
+    tx,
+    tenantId,
+    buildPaymentEventInput({
+      eventType:
+        targetStatus === "settled"
+          ? PAYMENT_GATEWAY_INTENT_SETTLED_EVENT_TYPE
+          : PAYMENT_GATEWAY_INTENT_FAILED_EVENT_TYPE,
+      aggregateType: PAYMENT_INTENT_AGGREGATE,
+      aggregateId: intent.id,
+      aggregateVersion: Number(updated.version),
+      payload: {
+        intentId: intent.id,
+        invoiceId: updated.invoice_id,
+        providerKey: updated.provider_key,
+        currency: updated.currency,
+        amountMinor: Number(updated.amount_minor),
+        status: targetStatus
+      },
+      ctx
+    })
+  );
   await auditPayment(tx, tenantId, {
     action: "update",
     resourceType: "payment_gateway_intent",
