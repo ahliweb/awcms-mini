@@ -220,7 +220,8 @@ suite(
         "tenant_provisioning",
         "usage_metering",
         "tenant_lifecycle",
-        "subscription_billing"
+        "subscription_billing",
+        "payment_gateway"
       ]);
       expect(
         rows

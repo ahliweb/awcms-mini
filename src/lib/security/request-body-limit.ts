@@ -39,7 +39,7 @@
  */
 import { fail } from "../../modules/_shared/api-response";
 
-export type BodySizeTier = "default" | "large";
+export type BodySizeTier = "default" | "large" | "webhook";
 
 /**
  * `default` (128 KiB) covers ordinary CRUD/settings/auth JSON bodies —
@@ -56,7 +56,16 @@ export type BodySizeTier = "default" | "large";
  */
 export const BODY_SIZE_TIER_BYTES: Record<BodySizeTier, number> = {
   default: 128 * 1024,
-  large: 5 * 1024 * 1024
+  large: 5 * 1024 * 1024,
+  // `webhook` (1 MiB) is the tier for signed inbound PROVIDER webhook receivers
+  // (e.g. `payment-gateway/webhook/{providerAccountId}`), which are
+  // UNAUTHENTICATED at the transport edge (no tenant JWT). It is aligned with the
+  // per-account `max_webhook_body_bytes` DB hard-cap (<= 1 MiB, sql/093): a much
+  // stricter buffering ceiling than `large` so a hostile caller cannot make the
+  // receiver buffer a multi-MiB body before the per-account limit rejects it
+  // (DoS/storage-surface reduction). 1 MiB == the DB cap, so no legitimate,
+  // per-account-permitted body is ever wrongly rejected here.
+  webhook: 1024 * 1024
 };
 
 /**

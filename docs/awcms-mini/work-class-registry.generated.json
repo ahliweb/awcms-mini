@@ -946,6 +946,16 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/payment-gateway/_support.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/payment-gateway/webhook/[providerAccountId].ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/permissions/index.ts",
       "workClass": "interactive",
       "source": "default"

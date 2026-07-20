@@ -254,7 +254,7 @@ eksplisit sesuai permintaan Issue #696):
    semacam ini **ditolak di tahap pohon keputusan §3** (node Q5), tanpa
    pengecualian implementasi apa pun.
 
-## 8. Peta 29 modul saat ini → kategori
+## 8. Peta 30 modul saat ini → kategori
 
 Sumber kebenaran: `src/modules/index.ts` (27 entri) dan setiap `module.ts`-
 nya. Kolom **Owner** mengikuti `.github/CODEOWNERS` (satu maintainer,
@@ -289,12 +289,13 @@ remediasi R3 di bawah.
 | `usage_metering`          | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `tenant_lifecycle`        | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `subscription_billing`    | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
+| `payment_gateway`         | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `document_infrastructure` | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `data_exchange`           | Official Optional Module | `domain`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `integration_hub`         | System                   | `system`                | _(tidak diset)_  | `active`         | @ahliweb |
 | `idn_admin_regions`       | System                   | `base`                  | _(tidak diset)_  | `experimental`   | @ahliweb |
 
-Total: 3 Core + 13 System + 13 Official Optional Module = **29 dari 29 modul
+Total: 3 Core + 13 System + 14 Official Optional Module = **30 dari 30 modul
 terdaftar** diklasifikasikan di tabel ini, cocok dengan `src/modules/
 index.ts` (`data_lifecycle`/`domain_event_runtime`, Issue #745/#742 epic
 #738 Wave 1, ditambahkan ke tabel ini sebagai bagian PR Issue #750 — baris

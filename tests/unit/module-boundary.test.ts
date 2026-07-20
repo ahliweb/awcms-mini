@@ -793,3 +793,122 @@ describe("module boundary — subscription_billing control-plane <-> tenant-plan
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Control-plane <-> tenant-plane boundary for `payment_gateway` (Issue #877,
+ * epic #868, ADR-0022 §4/§6) — the SIXTH and LAST control-plane module. Same
+ * registry-wide enforcement as the blocks above:
+ *
+ *   1. No OTHER module's application/domain imports `payment-gateway`'s
+ *      application/domain. In particular `payment_gateway` itself, as an "OTHER"
+ *      module, must NOT import `subscription-billing`'s application/domain — it
+ *      reads billing via the `billing_document_state` port and writes settlement
+ *      back via the `payment_outcome` seam, both wired ONLY at its ROUTE/JOB
+ *      composition roots (route `_support.ts` files and `scripts/`), which
+ *      these gates deliberately do not scan.
+ *   2. No module or route OUTSIDE `payment_gateway` writes an
+ *      `awcms_mini_payment_gateway_` table (no-shared-table-write).
+ *   3. The `payment_outcome` port file stays neutral ground (imports no module
+ *      app/domain).
+ */
+describe("module boundary — payment_gateway control-plane <-> tenant-plane (Issue #877, ADR-0022)", () => {
+  const CONTROL_PLANE_MODULE_DIR = "payment-gateway";
+  const CONTROL_PLANE_TABLE_PREFIX = "awcms_mini_payment_gateway_";
+
+  test("no OTHER module's application/domain imports payment-gateway's application/domain (consume the payment_outcome port instead)", () => {
+    const offenders: string[] = [];
+    for (const moduleName of readdirSync(MODULES_ROOT)) {
+      if (moduleName === CONTROL_PLANE_MODULE_DIR || moduleName === "_shared") {
+        continue;
+      }
+      const stat = statSync(path.join(MODULES_ROOT, moduleName));
+      if (!stat.isDirectory()) {
+        continue;
+      }
+      for (const dir of moduleAppDomainDirs(moduleName)) {
+        offenders.push(
+          ...findForbiddenCrossModuleImports(
+            dir,
+            listTsFiles(dir),
+            CONTROL_PLANE_MODULE_DIR
+          )
+        );
+      }
+    }
+    expect(
+      offenders,
+      "A downstream module must consume payment outcomes ONLY through the payment_outcome port (`_shared/ports/payment-outcome-port.ts`) — never by importing payment_gateway's application/domain directly (ADR-0022 §4)."
+    ).toEqual([]);
+  });
+
+  test("payment_gateway's own application/domain does NOT import subscription-billing's application/domain (cross-module wiring lives at the composition root)", () => {
+    const offenders: string[] = [];
+    for (const dir of moduleAppDomainDirs(CONTROL_PLANE_MODULE_DIR)) {
+      offenders.push(
+        ...findForbiddenCrossModuleImports(
+          dir,
+          listTsFiles(dir),
+          "subscription-billing"
+        )
+      );
+    }
+    expect(
+      offenders,
+      "payment_gateway reads billing via the billing_document_state port and writes settlement via the payment_outcome seam — both wired ONLY at its route/job composition roots, never imported inside its own application/domain."
+    ).toEqual([]);
+  });
+
+  test("no module or route outside payment_gateway writes an awcms_mini_payment_gateway_ table (no-shared-table-write, ADR-0013 §6)", () => {
+    const writePattern = new RegExp(
+      `(INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+${CONTROL_PLANE_TABLE_PREFIX}`,
+      "i"
+    );
+    const offenders: string[] = [];
+    function scan(root: string): void {
+      for (const file of listTsFiles(root)) {
+        if (
+          file.includes(`/modules/${CONTROL_PLANE_MODULE_DIR}/`) ||
+          file.includes(`/api/v1/${CONTROL_PLANE_MODULE_DIR}/`)
+        ) {
+          continue;
+        }
+        const content = readFileSync(file, "utf-8");
+        content.split("\n").forEach((line, index) => {
+          if (writePattern.test(line)) {
+            offenders.push(
+              `${path.relative(path.join(import.meta.dir, "../.."), file)}:${index + 1}: ${line.trim()}`
+            );
+          }
+        });
+      }
+    }
+    scan(MODULES_ROOT);
+    scan(PAGES_ROOT);
+    expect(
+      offenders,
+      "Only the payment_gateway module (and its own routes) may write awcms_mini_payment_gateway_* tables (ADR-0013 §6)."
+    ).toEqual([]);
+  });
+
+  test("the payment_outcome port file imports no module's application/domain (neutral ground)", () => {
+    const neutralFiles = ["_shared/ports/payment-outcome-port.ts"];
+    const moduleDirNames = readdirSync(MODULES_ROOT).filter((name) => {
+      const full = path.join(MODULES_ROOT, name);
+      return name !== "_shared" && statSync(full).isDirectory();
+    });
+    const offenders: string[] = [];
+    for (const relative of neutralFiles) {
+      const file = path.join(MODULES_ROOT, relative);
+      expect(existsSync(file)).toBe(true);
+      const lines = readFileSync(file, "utf-8").split("\n");
+      lines.forEach((line, index) => {
+        for (const moduleDir of moduleDirNames) {
+          if (lineViolatesModuleBoundary(line, moduleDir)) {
+            offenders.push(`${relative}:${index + 1}: ${line.trim()}`);
+          }
+        }
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+});

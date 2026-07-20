@@ -5416,6 +5416,9 @@ msgstr "Reconciliation complete."
 msgid "admin.usage_metering.rebuild_success"
 msgstr "Rebuild requested."
 
+msgid "admin.layout.nav_payment_gateway"
+msgstr "Payment Gateway"
+
 msgid "admin.layout.nav_subscription_billing"
 msgstr "Subscription Billing"
 

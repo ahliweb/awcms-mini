@@ -1251,6 +1251,70 @@ channels:
       `subscription-billing/application` (invoice-engine / subscription-engine /
       subscription-change-engine / dunning-engine), same-commit with the
       commercial state change.
+  awcms-mini.payment-gateway.intent.initiated:
+    address: awcms-mini.payment-gateway.intent.initiated
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A payment intent was initiated for a payable invoice and a provider checkout dispatch was enqueued to the outbox (Issue #877) — the provider call happens OUTSIDE this transaction. Payload: `intentId`, `invoiceId`, `providerKey`, `currency`, EXACT minor-unit `amountMinor` — never a provider secret or a browser-trusted status. Producer:
+      `payment-gateway/application` (payment-engine), same-commit with the intent creation.
+  awcms-mini.payment-gateway.intent.pending:
+    address: awcms-mini.payment-gateway.intent.pending
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A hosted checkout session was created by the provider and the intent moved to pending (Issue #877). Payload: `intentId`, `providerKey`, MASKED `providerSessionRef` — never the checkout URL secret nor a settled status. Producer:
+      `payment-gateway/application` (outbox-dispatch), same-commit with the status advance.
+  awcms-mini.payment-gateway.intent.settled:
+    address: awcms-mini.payment-gateway.intent.settled
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A payment intent settled from a VERIFIED signed webhook or a reconciliation outcome (Issue #877) — exactly once, never from a browser redirect. Payload: `intentId`, `invoiceId`, `providerKey`, `currency`, EXACT minor-unit `amountMinor` — never a provider secret or raw PII. Producer:
+      `payment-gateway/application` (webhook-intake / reconciliation-engine), same-commit with the settlement.
+  awcms-mini.payment-gateway.intent.failed:
+    address: awcms-mini.payment-gateway.intent.failed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A payment intent failed (provider decline or a verified failure event) (Issue #877). Payload: `intentId`, `providerKey`, `status`, a SAFE error class — never a raw provider message. Producer:
+      `payment-gateway/application` (webhook-intake), same-commit with the failure.
+  awcms-mini.payment-gateway.intent.expired:
+    address: awcms-mini.payment-gateway.intent.expired
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A payment intent expired without a settling outcome inside its window (Issue #877) — deterministic safe state from the expire sweep (or an operator cancel). Payload: `intentId`, `providerKey`, `reason`. Producer:
+      `payment-gateway/application` (payment-engine / reconciliation-engine), same-commit with the expiry.
+  awcms-mini.payment-gateway.refund.requested:
+    address: awcms-mini.payment-gateway.refund.requested
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A refund was requested against a settled intent and a provider refund dispatch was enqueued to the outbox (Issue #877). Payload: `refundId`, `intentId`, `currency`, EXACT minor-unit `amountMinor` — never the operator's raw reason or a provider secret. Producer:
+      `payment-gateway/application` (refund-engine), same-commit with the refund creation.
+  awcms-mini.payment-gateway.refund.resolved:
+    address: awcms-mini.payment-gateway.refund.resolved
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A refund result was written once from the provider outcome (Issue #877). Payload: `refundId`, `intentId`, `status`, MASKED `providerRefundRef` — never a provider secret. Producer:
+      `payment-gateway/application` (refund-engine / outbox-dispatch), same-commit with the write-once result.
+  awcms-mini.payment-gateway.reconciliation.recorded:
+    address: awcms-mini.payment-gateway.reconciliation.recorded
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A reconciliation compared provider vs local intent state and recorded evidence (Issue #877) — the source of truth beyond a single webhook. Payload: `intentId`, `providerStatus`, `localStatus`, `status`. Producer:
+      `payment-gateway/application` (reconciliation-engine), same-commit with the reconciliation.
 operations:
   publishSyncPushRequested:
     action: send

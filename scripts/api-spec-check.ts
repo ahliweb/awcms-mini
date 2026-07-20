@@ -42,7 +42,15 @@ export const ALLOWED_PUBLIC_OPERATIONS: readonly `${string} ${string}`[] = [
   // segment plus the registered adapter's own signature scheme. See
   // `src/pages/api/v1/integration-hub/inbound/[endpointToken].ts`'s own
   // doc comment.
-  "POST /api/v1/integration-hub/inbound/{endpointToken}"
+  "POST /api/v1/integration-hub/inbound/{endpointToken}",
+  // Issue #877 (payment_gateway): the signed inbound payment webhook receiver
+  // has no AWCMS-Mini tenant session (a payment provider calls it) —
+  // authenticated instead by the opaque providerAccountId (which binds to
+  // exactly one tenant) plus the registered adapter's own signature/freshness/
+  // account-binding verification. Payment status is never trusted from a
+  // browser redirect. See
+  // `src/pages/api/v1/payment-gateway/webhook/[providerAccountId].ts`.
+  "POST /api/v1/payment-gateway/webhook/{providerAccountId}"
 ];
 
 // Issue #695 (epic #679): a reviewed, explicit list of route files under

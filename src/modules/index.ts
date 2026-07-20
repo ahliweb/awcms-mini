@@ -15,6 +15,7 @@ import { loggingModule } from "./logging/module";
 import { moduleManagementModule } from "./module-management/module";
 import { newsPortalModule } from "./news-portal/module";
 import { organizationStructureModule } from "./organization-structure/module";
+import { paymentGatewayModule } from "./payment-gateway/module";
 import { profileIdentityModule } from "./profile-identity/module";
 import { referenceDataModule } from "./reference-data/module";
 import { reportingModule } from "./reporting/module";
@@ -119,7 +120,18 @@ const baseModules: ModuleDescriptor[] = [
   // (consumed by payment_gateway #877); consumes service_catalog_read (#870),
   // usage_aggregate (#875), and lifecycle_transition (#873). NOT a general
   // ledger / AR-AP / tax engine (ADR-0022 §11). Also default-disabled.
-  subscriptionBillingModule
+  subscriptionBillingModule,
+  // Issue #877 (epic #868 SaaS control plane, Wave 1, ADR-0022) — the sixth and
+  // LAST control-plane module: provider-neutral payment gateway (hosted checkout/
+  // session, signed fail-closed webhook inbox with durable per-event-id
+  // anti-replay, normalized events, refunds, retry/DLQ, provider health + circuit
+  // breaker, reconciliation). The provider call always runs OUTSIDE any DB
+  // transaction (ADR-0006); payment status is never trusted from a browser
+  // redirect — only a verified signed webhook or reconciliation. Provider secrets
+  // live in process.env only; adapters are optional config (fake/sandbox in base).
+  // Consumes billing_document_state (#876); provides payment_outcome. NOT a GL /
+  // AR-AP / merchant settlement / tax engine (ADR-0022 §11). Also default-disabled.
+  paymentGatewayModule
 ];
 
 /** Base-only registry, regardless of any application registry — Issue #740's composition API. */
