@@ -29,7 +29,6 @@ import { maskProviderReference } from "../domain/masking";
 import { getPaymentProviderAdapter } from "../infrastructure/adapter-registry";
 import { claimLease, releaseLease } from "./payment-lease";
 import {
-  auditPayment,
   buildPaymentEventInput,
   PAYMENT_INTENT_AGGREGATE,
   type EventCtx
