@@ -54,8 +54,10 @@ export type LifecycleActionContext = {
 
 /**
  * Cross-module effects injected at the composition root (a route/page under
- * `src/pages/api/**`). All optional so the engine + a LAN/offline deployment
- * that wires none stays fully functional (payment/provider-independent, AC).
+ * `src/pages/api/**`). `projectTenantStatus` is MANDATORY (every state-changing
+ * caller MUST wire it — see below); the entitlement/provisioning deps are
+ * optional so the engine + a LAN/offline deployment that wires none stays fully
+ * functional (payment/provider-independent, AC).
  */
 export type LifecycleEngineDeps = {
   /**
@@ -64,8 +66,16 @@ export type LifecycleEngineDeps = {
    * background workers — which gate on `awcms_mini_tenants.status = 'active'` —
    * enforce the same suspension the API/SSR gate enforces (the four-surface
    * parity, AC). `active` iff the derived profile keeps the public site up.
+   *
+   * MANDATORY (non-optional) so TypeScript forces EVERY composition root (the
+   * operator routes, the scheduler CLI/worker, and the future #876 billing port)
+   * to inject it — omitting it would let a transition change lifecycle state
+   * WITHOUT propagating the suspension to public routing + workers, silently
+   * breaking four-surface parity. A defensive runtime guard additionally
+   * fails LOUD (never silent) if a JS caller bypasses the type and a
+   * state-changing command reaches the engine without a projector.
    */
-  projectTenantStatus?: (
+  projectTenantStatus: (
     tx: Bun.SQL,
     tenantId: string,
     active: boolean,
@@ -128,6 +138,28 @@ function activeFromState(state: LifecycleState): boolean {
   return deriveRestrictions(state).publicSiteAllowed;
 }
 
+/**
+ * Fail-LOUD guard: a command that CHANGES lifecycle state MUST have a status
+ * projector wired (four-surface parity). `projectTenantStatus` is mandatory in
+ * the type, but a JS caller (or a mis-assembled composition root) could bypass
+ * the type — a silent skip would leave public routing + workers serving a
+ * suspended tenant. Returns the projector so callers invoke it unconditionally.
+ */
+function requireProjector(
+  deps: LifecycleEngineDeps
+): LifecycleEngineDeps["projectTenantStatus"] {
+  const project = deps.projectTenantStatus as
+    LifecycleEngineDeps["projectTenantStatus"] | undefined;
+  if (typeof project !== "function") {
+    throw new Error(
+      "tenant_lifecycle: a state-changing transition requires the `projectTenantStatus` dependency " +
+        "(four-surface parity — public routing + background workers gate on the projected " +
+        "`awcms_mini_tenants.status`). The composition root MUST inject it."
+    );
+  }
+  return project;
+}
+
 /** Common guard shared by every state-changing command (row already locked). */
 function guardTransition(
   row: LifecycleStateRow,
@@ -180,6 +212,9 @@ async function commitTransition(
   deps: LifecycleEngineDeps,
   ctx: LifecycleActionContext
 ): Promise<LifecycleStateRow | null> {
+  // Fail LOUD before mutating: a state change without a projector would break
+  // four-surface parity (public routing + workers serve a suspended tenant).
+  const projectTenantStatus = requireProjector(deps);
   const updated = await applyTransition(tx, {
     tenantId,
     fromState: row.state,
@@ -251,14 +286,12 @@ async function commitTransition(
   });
 
   // Project public/worker availability onto the Core tenant status (same tx).
-  if (deps.projectTenantStatus) {
-    await deps.projectTenantStatus(
-      tx,
-      tenantId,
-      activeFromState(command.toState),
-      ctx.actorTenantUserId
-    );
-  }
+  await projectTenantStatus(
+    tx,
+    tenantId,
+    activeFromState(command.toState),
+    ctx.actorTenantUserId
+  );
 
   return updated;
 }
@@ -288,6 +321,10 @@ export async function initializeLifecycle(
   if (!created) {
     return { ok: true, created: false, state: toLifecycleDto(row) };
   }
+
+  // Genesis creates the state row (a state change) -> the projector is required
+  // to seed the initial public/worker availability (four-surface parity).
+  const projectTenantStatus = requireProjector(deps);
 
   await appendHistory(tx, {
     tenantId,
@@ -333,14 +370,12 @@ export async function initializeLifecycle(
     attributes: { initialState: command.initialState, source: command.source },
     correlationId: ctx.correlationId
   });
-  if (deps.projectTenantStatus) {
-    await deps.projectTenantStatus(
-      tx,
-      tenantId,
-      activeFromState(command.initialState),
-      ctx.actorTenantUserId
-    );
-  }
+  await projectTenantStatus(
+    tx,
+    tenantId,
+    activeFromState(command.initialState),
+    ctx.actorTenantUserId
+  );
   return { ok: true, created: true, state: toLifecycleDto(row) };
 }
 

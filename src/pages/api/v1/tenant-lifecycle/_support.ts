@@ -35,7 +35,10 @@ import { hashSessionToken } from "../../../../lib/auth/session-token";
 import { listModules } from "../../../../modules";
 import { setTenantStatus } from "../../../../modules/tenant-admin/application/tenant-onboarding";
 import { createServiceCatalogReadPort } from "../../../../modules/service-catalog/application/service-catalog-read-port-adapter";
-import { assignEntitlement } from "../../../../modules/tenant-entitlement/application/entitlement-directory";
+import {
+  assignEntitlement,
+  listAssignments
+} from "../../../../modules/tenant-entitlement/application/entitlement-directory";
 import { createProvisioningStatusPort } from "../../../../modules/tenant-provisioning/application/provisioning-status-port-adapter";
 import type { LifecycleEngineDeps } from "../../../../modules/tenant-lifecycle/application/lifecycle-transition";
 
@@ -68,6 +71,19 @@ export function buildEngineDeps(correlationId?: string): LifecycleEngineDeps {
         catalogPort: createServiceCatalogReadPort(tx),
         moduleDescriptors: listModules()
       };
+      // Capture the PRIOR effective offer BEFORE assigning the lower one, so the
+      // `.downgraded` history/event records an explainable from->to (AC
+      // "explainable entitlement changes"), not a null origin. Prefer the
+      // current assignment for the SAME plan the downgrade supersedes; otherwise
+      // fall back to any current assignment.
+      const current = (await listAssignments(tx, tenantId)).filter(
+        (a) => a.isCurrent
+      );
+      const prior =
+        current.find((a) => a.planKey === offer.offerPlanKey) ??
+        current[0] ??
+        null;
+      const before = prior ? `${prior.planKey}@v${prior.offerVersion}` : null;
       const result = await assignEntitlement(
         tx,
         tenantId,
@@ -86,7 +102,7 @@ export function buildEngineDeps(correlationId?: string): LifecycleEngineDeps {
         correlationId
       );
       if (result.ok) {
-        return { ok: true, before: null, assignmentId: result.assignment.id };
+        return { ok: true, before, assignmentId: result.assignment.id };
       }
       if (result.reason === "offer_not_found") {
         return { ok: false, reason: "offer_not_found" };

@@ -66,6 +66,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
     tenantId: targetTenantId,
     offerPlanKey: input.offerPlanKey,
     offerVersion: input.offerVersion,
+    reason: input.reason,
     expectedVersion: input.expectedVersion
   });
   const deps = buildEngineDeps(correlationId);

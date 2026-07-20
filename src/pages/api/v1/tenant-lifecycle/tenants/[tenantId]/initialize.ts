@@ -83,9 +83,13 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   );
   if (auth instanceof Response) return auth;
 
+  // `reason` is part of the hash on EVERY lifecycle mutation (consistent
+  // idempotency provenance): a same-key retry with a different reason is a
+  // deterministic 409, never a silent replay.
   const requestHash = computeRequestHash({
     tenantId: targetTenantId,
     initialState,
+    reason,
     trialEndsAt,
     graceEndsAt
   });

@@ -68,6 +68,7 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
   const requestHash = computeRequestHash({
     tenantId: targetTenantId,
     action: "restore",
+    reason: input.reason,
     confirmUnresolved: input.confirmUnresolved,
     expectedVersion: input.expectedVersion
   });

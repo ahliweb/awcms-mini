@@ -57,6 +57,16 @@ import {
   loadState
 } from "../../src/modules/tenant-lifecycle/application/lifecycle-directory";
 import { readTenantRestrictionSnapshot } from "../../src/modules/_shared/tenant-lifecycle-restriction-read";
+import { buildEngineDeps } from "../../src/pages/api/v1/tenant-lifecycle/_support";
+import { listModules } from "../../src/modules";
+import { resolveServiceCatalogKeyRegistry } from "../../src/modules/service-catalog/domain/key-registry";
+import {
+  createPlan,
+  publishVersion
+} from "../../src/modules/service-catalog/application/plan-directory";
+import type { VersionContentInput } from "../../src/modules/service-catalog/domain/plan";
+import { createServiceCatalogReadPort } from "../../src/modules/service-catalog/application/service-catalog-read-port-adapter";
+import { assignEntitlement } from "../../src/modules/tenant-entitlement/application/entitlement-directory";
 
 const OWNER_PASSWORD = "integration-test-lifecycle-owner-password";
 const projectionDeps: LifecycleEngineDeps = {
@@ -64,6 +74,84 @@ const projectionDeps: LifecycleEngineDeps = {
     await setTenantStatus(tx, tenantId, active ? "active" : "inactive", actor);
   }
 };
+const scRegistry = resolveServiceCatalogKeyRegistry(listModules());
+const CATALOG_ACTOR = "00000000-0000-0000-0000-0000000000ab";
+
+/** A minimal, registry-valid offer content (mirrors the #871 test fixtures). */
+function offerContent(): VersionContentInput {
+  return {
+    currency: "IDR",
+    market: null,
+    trialEnabled: false,
+    trialDays: null,
+    availableFrom: null,
+    availableTo: null,
+    notes: null,
+    features: [
+      {
+        featureKind: "feature",
+        featureKey: "platform.api_access",
+        enabled: true,
+        metadata: {}
+      }
+    ],
+    quotas: [
+      {
+        meterKey: "platform.api_calls",
+        isUnlimited: false,
+        limitValue: 1000,
+        unit: "requests",
+        resetPolicy: "monthly",
+        metadata: {}
+      }
+    ],
+    prices: [
+      {
+        componentKey: "base",
+        amountMinor: 9900000,
+        currency: "IDR",
+        interval: "monthly",
+        visibility: "public",
+        metadata: {}
+      }
+    ]
+  };
+}
+
+/** Create + publish a plan's version 1 so a real offer exists for the tenant. */
+async function seedOffer(
+  sql: Bun.SQL,
+  tenantId: string,
+  planKey: string
+): Promise<void> {
+  await withTenant(sql, tenantId, async (tx) => {
+    const created = await createPlan(
+      tx,
+      tenantId,
+      CATALOG_ACTOR,
+      {
+        planKey,
+        name: planKey,
+        description: null,
+        planType: "subscription",
+        content: offerContent()
+      },
+      scRegistry
+    );
+    if (!created.ok)
+      throw new Error("seedOffer createPlan: " + JSON.stringify(created));
+    const pub = await publishVersion(
+      tx,
+      tenantId,
+      CATALOG_ACTOR,
+      planKey,
+      1,
+      scRegistry
+    );
+    if (!pub.ok)
+      throw new Error("seedOffer publishVersion: " + JSON.stringify(pub));
+  });
+}
 
 type Owner = { tenantId: string; token: string; tenantUserId: string };
 
@@ -209,6 +297,59 @@ suite("tenant_lifecycle — engine + enforcement", () => {
       WHERE tenant_id = ${owner.tenantId} AND module_key = 'tenant_lifecycle'
     `) as { c: number }[];
     expect(audit[0]!.c).toBeGreaterThanOrEqual(2);
+  });
+
+  test("a state-changing transition WITHOUT a projector fails LOUD and rolls back (Fix 1)", async () => {
+    const owner = await bootstrapOwner();
+    const sql = getTestSql();
+    await withTenant(sql, owner.tenantId, (tx) =>
+      initializeLifecycle(
+        tx,
+        owner.tenantId,
+        {
+          initialState: "active",
+          reason: "init",
+          source: "operator",
+          trialEndsAt: null,
+          graceEndsAt: null
+        },
+        projectionDeps,
+        { actorTenantUserId: owner.tenantUserId }
+      )
+    );
+
+    // A mis-assembled composition root (JS bypass of the now-mandatory type)
+    // must NOT silently change lifecycle state without projecting tenant status
+    // — the engine throws, aborting the transaction (four-surface parity).
+    let threw: Error | null = null;
+    try {
+      await withTenant(sql, owner.tenantId, (tx) =>
+        transition(
+          tx,
+          owner.tenantId,
+          {
+            toState: "suspended",
+            reason: "x",
+            source: "operator",
+            expectedVersion: 1
+          },
+          {} as LifecycleEngineDeps,
+          { actorTenantUserId: owner.tenantUserId }
+        )
+      );
+    } catch (e) {
+      threw = e as Error;
+    }
+    expect(threw).not.toBeNull();
+    expect(threw!.message).toContain("projectTenantStatus");
+
+    // The throw rolled the tx back: state + tenant status unchanged.
+    await withTenant(sql, owner.tenantId, async (tx) => {
+      const state = await loadState(tx, owner.tenantId);
+      expect(state!.state).toBe("active");
+      expect(state!.version).toBe(1);
+    });
+    expect(await tenantStatus(owner.tenantId)).toBe("active");
   });
 
   test("concurrency: two transitions from the same version -> one wins, one version_conflict (409)", async () => {
@@ -358,6 +499,10 @@ suite("tenant_lifecycle — engine + enforcement", () => {
       const state = await loadState(tx, owner.tenantId);
       expect(state!.state).toBe("suspended");
     });
+    // The scheduler path (the SAME engine `tenant-lifecycle:run-scheduled` wires)
+    // MUST project tenant status too — proving the CLI/worker composition root
+    // propagates suspension to public routing + workers (four-surface parity).
+    expect(await tenantStatus(owner.tenantId)).toBe("inactive");
     // Exactly one transition history row for the scheduled apply.
     const admin = getAdminSql();
     const hist = (await admin`
@@ -482,8 +627,67 @@ suite("tenant_lifecycle — engine + enforcement", () => {
       expect(state!.state).toBe("active");
       expect(state!.version).toBe(1);
       const history = await listHistory(tx, owner.tenantId, 10);
-      expect(history.some((h) => h.eventKind === "downgrade")).toBe(true);
+      const dg = history.find((h) => h.eventKind === "downgrade");
+      expect(dg).toBeDefined();
+      // Explainable: BOTH the origin offer and the target are recorded.
+      const meta = dg!.metadata as Record<string, unknown>;
+      expect(meta.beforeOffer).toBe("pro");
+      expect(meta.afterOfferPlanKey).toBe("basic");
+      expect(meta.afterOfferVersion).toBe(1);
     });
+    // The `.downgraded` event also carries the origin offer (non-null before).
+    const admin = getAdminSql();
+    const evt = (await admin`
+      SELECT payload FROM awcms_mini_domain_events
+      WHERE tenant_id = ${owner.tenantId}
+        AND event_type = 'awcms-mini.tenant-lifecycle.downgraded'
+    `) as { payload: Record<string, unknown> }[];
+    expect(evt).toHaveLength(1);
+    expect(evt[0]!.payload.beforeOffer).toBe("pro");
+    expect(evt[0]!.payload.afterOfferPlanKey).toBe("basic");
+  });
+
+  test("buildEngineDeps.downgradeEntitlement reads the PRIOR offer as an explainable before (Fix 3)", async () => {
+    const owner = await bootstrapOwner();
+    const sql = getTestSql();
+    // A real published prior offer + a target offer to downgrade toward.
+    await seedOffer(sql, owner.tenantId, "pro");
+    await seedOffer(sql, owner.tenantId, "basic");
+    // Assign the prior "pro@v1" so it is the CURRENT entitlement.
+    await withTenant(sql, owner.tenantId, async (tx) => {
+      const assigned = await assignEntitlement(
+        tx,
+        owner.tenantId,
+        owner.tenantUserId,
+        {
+          planKey: "pro",
+          offerVersion: 1,
+          source: "subscription",
+          reason: "initial",
+          effectiveFrom: null,
+          effectiveTo: null,
+          trialEndsAt: null,
+          graceEndsAt: null
+        },
+        {
+          catalogPort: createServiceCatalogReadPort(tx),
+          moduleDescriptors: listModules()
+        }
+      );
+      expect(assigned.ok).toBe(true);
+    });
+
+    // The route composition-root adapter must capture "pro@v1" as `before`
+    // BEFORE assigning the lower offer (not a hardcoded null).
+    const deps = buildEngineDeps();
+    const out = await withTenant(sql, owner.tenantId, (tx) =>
+      deps.downgradeEntitlement!(tx, owner.tenantId, owner.tenantUserId, {
+        offerPlanKey: "basic",
+        offerVersion: 1
+      })
+    );
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.before).toBe("pro@v1");
   });
 
   test("tenant-scoped RLS: tenant A never sees tenant B's lifecycle", async () => {

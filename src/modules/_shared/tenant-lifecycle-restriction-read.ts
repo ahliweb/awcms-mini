@@ -19,6 +19,13 @@
  *     never opted in; baseline behavior preserved, AC).
  *   - a lifecycle row   -> `governing: true`, profile derived from `state`.
  *   - an UNKNOWN state (should be impossible — CHECK-constrained) -> `DENY_ALL`.
+ *   - a READ ERROR (dropped connection, missing table, RLS/permission failure)
+ *     -> `governing: true`, `DENY_ALL`, NEVER throws. The port JSDoc promises
+ *     "a governing tenant whose state cannot be read returns DENY_ALL, never
+ *     throws", so a downstream consumer (#876) that trusts the contract cannot
+ *     be tricked into a fail-OPEN `catch { unrestricted }`. Erring toward DENY
+ *     is the safe default: a transient read error must not let a suspended
+ *     tenant operate.
  */
 import {
   ALLOW_ALL,
@@ -43,11 +50,26 @@ export async function readTenantRestrictionSnapshot(
   tenantId: string,
   now: Date = new Date()
 ): Promise<TenantRestrictionSnapshot> {
-  const rows = (await tx`
-    SELECT state, version
-    FROM awcms_mini_tenant_lifecycle_states
-    WHERE tenant_id = ${tenantId}
-  `) as { state: string; version: number }[];
+  let rows: { state: string; version: number }[];
+  try {
+    rows = (await tx`
+      SELECT state, version
+      FROM awcms_mini_tenant_lifecycle_states
+      WHERE tenant_id = ${tenantId}
+    `) as { state: string; version: number }[];
+  } catch {
+    // Fail-CLOSED, per the port contract: a read error on a potentially
+    // governing tenant denies rather than throws, so no consumer can fall
+    // back to an unrestricted (fail-OPEN) profile on a transient DB fault.
+    return {
+      tenantId,
+      governing: true,
+      state: null,
+      version: null,
+      profile: DENY_ALL,
+      resolvedAt: now.toISOString()
+    };
+  }
 
   const row = rows[0];
   if (!row) {
