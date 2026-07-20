@@ -46,6 +46,7 @@
     "memory:docs:restore": "bun scripts/sync-agent-memory.ts --restore",
     "memory:docs:check": "bun scripts/sync-agent-memory.ts --check",
     "db:pool:health": "bun scripts/db-pool-health.ts",
+    "redis:health": "bun scripts/redis-health.ts",
     "database:capacity:check": "bun scripts/database-capacity-check.ts",
     "db:work-class:generate": "bun scripts/work-class-registry-generate.ts",
     "db:work-class:check": "bun scripts/work-class-registry-check.ts",
