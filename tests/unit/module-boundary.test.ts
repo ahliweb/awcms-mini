@@ -696,3 +696,100 @@ describe("module boundary — tenant_lifecycle control-plane <-> tenant-plane (I
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * Control-plane <-> tenant-plane boundary for `subscription_billing` (Issue
+ * #876, epic #868, ADR-0022 §4/§6). Same registry-wide enforcement as the
+ * blocks above:
+ *
+ *   1. No OTHER module's application/domain imports `subscription-billing`'s
+ *      application/domain — a consumer (payment_gateway #877) reads ONLY the
+ *      `billing_document_state` capability port, wired at ITS composition root.
+ *   2. No module or route OUTSIDE `subscription_billing` writes an
+ *      `awcms_mini_subscription_billing_*` table (no-shared-table-write).
+ *   3. The billing port file stays neutral ground (imports no module app/domain).
+ */
+describe("module boundary — subscription_billing control-plane <-> tenant-plane (Issue #876, ADR-0022)", () => {
+  const CONTROL_PLANE_MODULE_DIR = "subscription-billing";
+  const CONTROL_PLANE_TABLE_PREFIX = "awcms_mini_subscription_billing_";
+
+  test("no OTHER module's application/domain imports subscription-billing's application/domain (consume the billing_document_state port instead)", () => {
+    const offenders: string[] = [];
+    for (const moduleName of readdirSync(MODULES_ROOT)) {
+      if (moduleName === CONTROL_PLANE_MODULE_DIR || moduleName === "_shared") {
+        continue;
+      }
+      const stat = statSync(path.join(MODULES_ROOT, moduleName));
+      if (!stat.isDirectory()) {
+        continue;
+      }
+      for (const dir of moduleAppDomainDirs(moduleName)) {
+        offenders.push(
+          ...findForbiddenCrossModuleImports(
+            dir,
+            listTsFiles(dir),
+            CONTROL_PLANE_MODULE_DIR
+          )
+        );
+      }
+    }
+    expect(
+      offenders,
+      "A downstream module must consume subscription billing ONLY through the billing_document_state port (`_shared/ports/billing-document-port.ts`) — never by importing subscription_billing's application/domain directly (ADR-0022 §4)."
+    ).toEqual([]);
+  });
+
+  test("no module or route outside subscription_billing writes an awcms_mini_subscription_billing_ table (no-shared-table-write, ADR-0013 §6)", () => {
+    const writePattern = new RegExp(
+      `(INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\s+${CONTROL_PLANE_TABLE_PREFIX}`,
+      "i"
+    );
+    const offenders: string[] = [];
+    function scan(root: string): void {
+      for (const file of listTsFiles(root)) {
+        if (
+          file.includes(`/modules/${CONTROL_PLANE_MODULE_DIR}/`) ||
+          file.includes(`/api/v1/${CONTROL_PLANE_MODULE_DIR}/`)
+        ) {
+          continue;
+        }
+        const content = readFileSync(file, "utf-8");
+        content.split("\n").forEach((line, index) => {
+          if (writePattern.test(line)) {
+            offenders.push(
+              `${path.relative(path.join(import.meta.dir, "../.."), file)}:${index + 1}: ${line.trim()}`
+            );
+          }
+        });
+      }
+    }
+    scan(MODULES_ROOT);
+    scan(PAGES_ROOT);
+    expect(
+      offenders,
+      "Only the subscription_billing module (and its own routes) may write awcms_mini_subscription_billing_* tables (ADR-0013 §6)."
+    ).toEqual([]);
+  });
+
+  test("the billing_document_state port file imports no module's application/domain (neutral ground)", () => {
+    const neutralFiles = ["_shared/ports/billing-document-port.ts"];
+    const moduleDirNames = readdirSync(MODULES_ROOT).filter((name) => {
+      const full = path.join(MODULES_ROOT, name);
+      return name !== "_shared" && statSync(full).isDirectory();
+    });
+    const offenders: string[] = [];
+    for (const relative of neutralFiles) {
+      const file = path.join(MODULES_ROOT, relative);
+      expect(existsSync(file)).toBe(true);
+      const lines = readFileSync(file, "utf-8").split("\n");
+      lines.forEach((line, index) => {
+        for (const moduleDir of moduleDirNames) {
+          if (lineViolatesModuleBoundary(line, moduleDir)) {
+            offenders.push(`${relative}:${index + 1}: ${line.trim()}`);
+          }
+        }
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+});

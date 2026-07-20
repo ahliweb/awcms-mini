@@ -6,7 +6,7 @@
 
 ## Modules
 
-28 modules registered in `src/modules/index.ts` `listModules()`.
+29 modules registered in `src/modules/index.ts` `listModules()`.
 
 | Key                       | Version | Status         | Type     | Dependencies                                                                              |
 | ------------------------- | ------- | -------------- | -------- | ----------------------------------------------------------------------------------------- |
@@ -29,6 +29,7 @@
 | `reporting`               | `1.2.0` | `active`       | `-`      | `tenant_admin`, `identity_access`, `sync_storage`, `email`, `domain_event_runtime`        |
 | `service_catalog`         | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`, `logging`                      |
 | `social_publishing`       | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `blog_content`, `logging`                              |
+| `subscription_billing`    | `0.1.0` | `active`       | `domain` | `tenant_admin`, `identity_access`, `domain_event_runtime`, `logging`                      |
 | `sync_storage`            | `1.0.0` | `active`       | `-`      | `tenant_admin`                                                                            |
 | `tenant_admin`            | `1.0.0` | `active`       | `-`      | -                                                                                         |
 | `tenant_domain`           | `0.1.0` | `active`       | `system` | `tenant_admin`, `identity_access`                                                         |
@@ -41,7 +42,7 @@
 
 ## Migrations
 
-90 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `090_awcms_mini_tenant_lifecycle_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
+92 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `092_awcms_mini_subscription_billing_permissions.sql`). Reserved base migration namespace (Issue #740, ADR-0014): `1-899` — a derived repository's own migrations start numbering at `900` or above.
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -135,10 +136,12 @@
 | 088 | `088_awcms_mini_usage_metering_permissions.sql`                          |
 | 089 | `089_awcms_mini_tenant_lifecycle_schema.sql`                             |
 | 090 | `090_awcms_mini_tenant_lifecycle_permissions.sql`                        |
+| 091 | `091_awcms_mini_subscription_billing_schema.sql`                         |
+| 092 | `092_awcms_mini_subscription_billing_permissions.sql`                    |
 
 ## Tables & Row-Level Security
 
-166 tables created across all migrations; 146 carry a `tenant_id` column; 145 have an `ENABLE ROW LEVEL SECURITY` statement; 15 are on the reviewed RLS-exempt allow-list.
+176 tables created across all migrations; 156 carry a `tenant_id` column; 155 have an `ENABLE ROW LEVEL SECURITY` statement; 15 are on the reviewed RLS-exempt allow-list.
 
 No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` statement, or is on the reviewed exempt allow-list below.
 
@@ -164,19 +167,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-376 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+378 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 49         |
 | `e2e`         | 10         |
-| `integration` | 112        |
+| `integration` | 113        |
 | `modules`     | 5          |
-| `unit`        | 200        |
+| `unit`        | 201        |
 
 ## Routes / Operations (summary)
 
-323 OpenAPI paths, 439 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+335 OpenAPI paths, 457 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 

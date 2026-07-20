@@ -1,0 +1,221 @@
+---
+/**
+ * Subscription billing admin panel (Issue #876, epic #868 SaaS control plane,
+ * ADR-0022). Platform-operator read surface — the SSR permission gate strips
+ * `subscription_billing.*` for any tenant that has not enabled the module
+ * (`defaultTenantState: "disabled"`), and the API further restricts writes to
+ * the platform (setup singleton) tenant (no soft super-tenant, ADR-0022 §6).
+ *
+ * A subscription/invoice belongs to a TARGET tenant, so the data is loaded
+ * CLIENT-SIDE by target tenant id — the SSR page renders the lookup form the
+ * island fills (read-only listing; mutations run through the API with a
+ * mandatory reason + Idempotency-Key).
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { createTranslator } from "../../../lib/i18n/translate";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/subscription-billing/index.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ = context.permissions.has(
+  permissionKey("subscription_billing", "invoices", "read")
+);
+
+const clientStrings = {
+  notFound: t("admin.subscription_billing.not_found"),
+  networkError: t("common.network_error"),
+  subscriptionsHeading: t("admin.subscription_billing.subscriptions_heading"),
+  invoicesHeading: t("admin.subscription_billing.invoices_heading"),
+  colState: t("admin.subscription_billing.col_state"),
+  colPlan: t("admin.subscription_billing.col_plan"),
+  colStatus: t("admin.subscription_billing.col_status"),
+  colTotal: t("admin.subscription_billing.col_total"),
+  colOutstanding: t("admin.subscription_billing.col_outstanding")
+};
+---
+
+<AdminLayout title={t("admin.subscription_billing.title")}>
+  {
+    !CAN_READ && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.subscription_billing.access_denied_title")}
+        body={t("admin.subscription_billing.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ && (
+      <div class="billing-manager">
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+        <p class="intro">{t("admin.subscription_billing.intro")}</p>
+        <section class="panel">
+          <h2>{t("admin.subscription_billing.lookup_heading")}</h2>
+          <form id="lookup-form" class="inline-form">
+            <label>
+              {t("admin.subscription_billing.field_target_tenant")}
+              <input name="tenantId" required size="40" />
+            </label>
+            <button type="submit">
+              {t("admin.subscription_billing.lookup_button")}
+            </button>
+          </form>
+          <div id="subscriptions" class="result" hidden />
+          <div id="invoices" class="result" hidden />
+        </section>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .billing-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6, 1.5rem);
+  }
+  .panel {
+    border: 1px solid var(--color-border, #d4d4d8);
+    border-radius: var(--radius-md, 0.5rem);
+    padding: var(--space-4, 1rem);
+  }
+  .intro {
+    color: var(--color-text-muted, #71717a);
+  }
+  .inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3, 0.75rem);
+    align-items: end;
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--space-2, 0.5rem);
+  }
+  th,
+  td {
+    text-align: left;
+    padding: var(--space-2, 0.5rem);
+    border-bottom: 1px solid var(--color-border, #e4e4e7);
+    vertical-align: top;
+  }
+  .result {
+    margin-top: var(--space-3, 0.75rem);
+    overflow-x: auto;
+  }
+  input:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  interface Strings {
+    notFound: string;
+    networkError: string;
+    subscriptionsHeading: string;
+    invoicesHeading: string;
+    colState: string;
+    colPlan: string;
+    colStatus: string;
+    colTotal: string;
+    colOutstanding: string;
+  }
+
+  const el = document.getElementById("i18n-strings");
+  const strings: Strings = el
+    ? JSON.parse(el.textContent ?? "{}")
+    : ({} as Strings);
+  const BASE = "/api/v1/subscription-billing";
+
+  function esc(value: unknown): string {
+    return String(value ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        })[c] ?? c
+    );
+  }
+
+  async function load(tenantId: string): Promise<void> {
+    const subsBox = document.getElementById("subscriptions");
+    const invBox = document.getElementById("invoices");
+    if (!subsBox || !invBox) return;
+
+    const subsRes = await fetch(
+      `${BASE}/tenants/${encodeURIComponent(tenantId)}/subscriptions`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!subsRes.ok) {
+      subsBox.hidden = false;
+      subsBox.textContent =
+        subsRes.status === 404 ? strings.notFound : strings.networkError;
+      return;
+    }
+    const subs = (await subsRes.json()).data.subscriptions ?? [];
+    subsBox.hidden = false;
+    subsBox.innerHTML =
+      `<h3>${esc(strings.subscriptionsHeading)}</h3>` +
+      `<table><thead><tr><th>${esc(strings.colPlan)}</th><th>${esc(strings.colState)}</th></tr></thead><tbody>` +
+      subs
+        .map(
+          (s: Record<string, unknown>) =>
+            `<tr><td>${esc(s.offerPlanKey)}@v${esc(s.offerVersion)}</td><td>${esc(s.state)}</td></tr>`
+        )
+        .join("") +
+      `</tbody></table>`;
+
+    const invRes = await fetch(
+      `${BASE}/tenants/${encodeURIComponent(tenantId)}/invoices`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!invRes.ok) return;
+    const invoices = (await invRes.json()).data.invoices ?? [];
+    invBox.hidden = false;
+    invBox.innerHTML =
+      `<h3>${esc(strings.invoicesHeading)}</h3>` +
+      `<table><thead><tr><th>${esc(strings.colStatus)}</th><th>${esc(strings.colTotal)}</th><th>${esc(strings.colOutstanding)}</th></tr></thead><tbody>` +
+      invoices
+        .map(
+          (i: Record<string, unknown>) =>
+            `<tr><td>${esc(i.status)}</td><td>${esc(i.currency)} ${esc(i.totalMinor)}</td><td>${esc(i.outstandingMinor)}</td></tr>`
+        )
+        .join("") +
+      `</tbody></table>`;
+  }
+
+  document
+    .getElementById("lookup-form")
+    ?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const tenantId = String(new FormData(form).get("tenantId") ?? "").trim();
+      if (tenantId) void load(tenantId);
+    });
+</script>

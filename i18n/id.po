@@ -5414,3 +5414,51 @@ msgstr "Rekonsiliasi selesai."
 
 msgid "admin.usage_metering.rebuild_success"
 msgstr "Rebuild diminta."
+
+msgid "admin.layout.nav_subscription_billing"
+msgstr "Penagihan Langganan"
+
+msgid "admin.subscription_billing.title"
+msgstr "Penagihan Langganan"
+
+msgid "admin.subscription_billing.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.subscription_billing.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk membaca catatan penagihan langganan."
+
+msgid "admin.subscription_billing.intro"
+msgstr "Cari langganan dan invoice sebuah tenant. Penagihan hanya mencatat state komersial SaaS — bukan buku besar akuntansi."
+
+msgid "admin.subscription_billing.lookup_heading"
+msgstr "Cari tenant"
+
+msgid "admin.subscription_billing.field_target_tenant"
+msgstr "ID tenant target"
+
+msgid "admin.subscription_billing.lookup_button"
+msgstr "Cari"
+
+msgid "admin.subscription_billing.not_found"
+msgstr "Tidak ada catatan penagihan untuk tenant ini."
+
+msgid "admin.subscription_billing.subscriptions_heading"
+msgstr "Langganan"
+
+msgid "admin.subscription_billing.invoices_heading"
+msgstr "Invoice"
+
+msgid "admin.subscription_billing.col_state"
+msgstr "State"
+
+msgid "admin.subscription_billing.col_plan"
+msgstr "Paket"
+
+msgid "admin.subscription_billing.col_status"
+msgstr "Status"
+
+msgid "admin.subscription_billing.col_total"
+msgstr "Total"
+
+msgid "admin.subscription_billing.col_outstanding"
+msgstr "Sisa"

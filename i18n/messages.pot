@@ -3315,6 +3315,11 @@ msgstr ""
 msgid "admin.layout.nav_social_publishing_rules"
 msgstr ""
 
+#. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
+#: src/modules/subscription-billing/module.ts:111
+msgid "admin.layout.nav_subscription_billing"
+msgstr ""
+
 #: src/layouts/AdminLayout.astro:285
 msgid "admin.layout.nav_sync"
 msgstr ""
@@ -5801,6 +5806,66 @@ msgstr ""
 
 #: src/pages/admin/social-publishing/rules.astro:42
 msgid "admin.social_publishing.rules.update_success"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:52
+msgid "admin.subscription_billing.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:51
+msgid "admin.subscription_billing.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:42
+msgid "admin.subscription_billing.col_outstanding"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:39
+msgid "admin.subscription_billing.col_plan"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:38
+msgid "admin.subscription_billing.col_state"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:40
+msgid "admin.subscription_billing.col_status"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:41
+msgid "admin.subscription_billing.col_total"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:69
+msgid "admin.subscription_billing.field_target_tenant"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:64
+msgid "admin.subscription_billing.intro"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:37
+msgid "admin.subscription_billing.invoices_heading"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:73
+msgid "admin.subscription_billing.lookup_button"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:66
+msgid "admin.subscription_billing.lookup_heading"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:34
+msgid "admin.subscription_billing.not_found"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:36
+msgid "admin.subscription_billing.subscriptions_heading"
+msgstr ""
+
+#: src/pages/admin/subscription-billing/index.astro:46
+msgid "admin.subscription_billing.title"
 msgstr ""
 
 #: src/pages/admin/sync.astro:143

@@ -1171,6 +1171,86 @@ channels:
       on cancel), `version` — numeric/enumerated evidence only. Producer:
       `tenant-lifecycle/application/lifecycle-transition.ts`'s `scheduleTransition`/
       `cancelSchedule`.
+  awcms-mini.subscription-billing.subscription.transitioned:
+    address: awcms-mini.subscription-billing.subscription.transitioned
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A subscription state transition was validated and applied (Issue #876). Payload: `subscriptionId`, `fromState`, `toState`, `version`, `offerPlanKey`, `offerVersion`, `source` — never the operator's raw reason or any secret. Producer:
+      `subscription-billing/application` (invoice-engine / subscription-engine /
+      subscription-change-engine / dunning-engine), same-commit with the
+      commercial state change.
+  awcms-mini.subscription-billing.subscription.changed:
+    address: awcms-mini.subscription-billing.subscription.changed
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A subscription upgrade/downgrade/cancel was scheduled or applied (Issue #876); historical terms preserved. Payload: `changeId`, `subscriptionId`, `changeType`, `fromOfferPlanKey/Version`, `toOfferPlanKey/Version`, `effectiveAt`, `status`. Producer:
+      `subscription-billing/application` (invoice-engine / subscription-engine /
+      subscription-change-engine / dunning-engine), same-commit with the
+      commercial state change.
+  awcms-mini.subscription-billing.invoice.issued:
+    address: awcms-mini.subscription-billing.invoice.issued
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A draft invoice was issued into an immutable document (Issue #876). Payload: `invoiceId`, `subscriptionId`, `periodId`, `currency`, EXACT minor-unit `subtotalMinor`/`totalMinor`, `offerVersion`, `dueAt` — never a raw billing contact. Producer:
+      `subscription-billing/application` (invoice-engine / subscription-engine /
+      subscription-change-engine / dunning-engine), same-commit with the
+      commercial state change.
+  awcms-mini.subscription-billing.invoice.paid:
+    address: awcms-mini.subscription-billing.invoice.paid
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An issued invoice was marked paid from a validated payment/reconciliation outcome (Issue #876). Payload: `invoiceId`, `currency`, EXACT minor-unit `allocatedMinor`, `source`. Producer:
+      `subscription-billing/application` (invoice-engine / subscription-engine /
+      subscription-change-engine / dunning-engine), same-commit with the
+      commercial state change.
+  awcms-mini.subscription-billing.invoice.voided:
+    address: awcms-mini.subscription-billing.invoice.voided
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      An invoice was voided (correction, never edit/delete) (Issue #876). Payload: `invoiceId`, `priorStatus`, `currency`, EXACT minor-unit `totalMinor` — never the operator's raw reason. Producer:
+      `subscription-billing/application` (invoice-engine / subscription-engine /
+      subscription-change-engine / dunning-engine), same-commit with the
+      commercial state change.
+  awcms-mini.subscription-billing.invoice.credited:
+    address: awcms-mini.subscription-billing.invoice.credited
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A credit note was issued against an original invoice/line (Issue #876). Payload: `creditNoteId`, `invoiceId`, `invoiceLineId`, `currency`, EXACT minor-unit `amountMinor` — never the operator's raw reason. Producer:
+      `subscription-billing/application` (invoice-engine / subscription-engine /
+      subscription-change-engine / dunning-engine), same-commit with the
+      commercial state change.
+  awcms-mini.subscription-billing.payment.recorded:
+    address: awcms-mini.subscription-billing.payment.recorded
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A validated payment allocation reference (manual or provider outcome) was recorded against an invoice (Issue #876) — a reference only, never an accounting entry. Payload: `allocationId`, `invoiceId`, `allocationSource`, `currency`, EXACT minor-unit `amountMinor`, `outcome` — never a provider secret. Producer:
+      `subscription-billing/application` (invoice-engine / subscription-engine /
+      subscription-change-engine / dunning-engine), same-commit with the
+      commercial state change.
+  awcms-mini.subscription-billing.dunning.attempted:
+    address: awcms-mini.subscription-billing.dunning.attempted
+    messages:
+      DomainEvent:
+        $ref: "#/components/messages/DomainEvent"
+    description: >-
+      A dunning attempt requested a lifecycle transition through the #873 contract for a past-due invoice (Issue #876) — billing never mutates lifecycle state directly. Payload: `attemptId`, `invoiceId`, `subscriptionId`, `attemptNo`, `requestedLifecycleState`, `lifecycleOutcome`. Producer:
+      `subscription-billing/application` (invoice-engine / subscription-engine /
+      subscription-change-engine / dunning-engine), same-commit with the
+      commercial state change.
 operations:
   publishSyncPushRequested:
     action: send
@@ -1844,6 +1924,54 @@ operations:
       $ref: "#/channels/awcms-mini.tenant-lifecycle.scheduled"
     messages:
       - $ref: "#/channels/awcms-mini.tenant-lifecycle.scheduled/messages/DomainEvent"
+  publishSubscriptionBillingSubscriptionTransitioned:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.subscription-billing.subscription.transitioned"
+    messages:
+      - $ref: "#/channels/awcms-mini.subscription-billing.subscription.transitioned/messages/DomainEvent"
+  publishSubscriptionBillingSubscriptionChanged:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.subscription-billing.subscription.changed"
+    messages:
+      - $ref: "#/channels/awcms-mini.subscription-billing.subscription.changed/messages/DomainEvent"
+  publishSubscriptionBillingInvoiceIssued:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.subscription-billing.invoice.issued"
+    messages:
+      - $ref: "#/channels/awcms-mini.subscription-billing.invoice.issued/messages/DomainEvent"
+  publishSubscriptionBillingInvoicePaid:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.subscription-billing.invoice.paid"
+    messages:
+      - $ref: "#/channels/awcms-mini.subscription-billing.invoice.paid/messages/DomainEvent"
+  publishSubscriptionBillingInvoiceVoided:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.subscription-billing.invoice.voided"
+    messages:
+      - $ref: "#/channels/awcms-mini.subscription-billing.invoice.voided/messages/DomainEvent"
+  publishSubscriptionBillingInvoiceCredited:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.subscription-billing.invoice.credited"
+    messages:
+      - $ref: "#/channels/awcms-mini.subscription-billing.invoice.credited/messages/DomainEvent"
+  publishSubscriptionBillingPaymentRecorded:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.subscription-billing.payment.recorded"
+    messages:
+      - $ref: "#/channels/awcms-mini.subscription-billing.payment.recorded/messages/DomainEvent"
+  publishSubscriptionBillingDunningAttempted:
+    action: send
+    channel:
+      $ref: "#/channels/awcms-mini.subscription-billing.dunning.attempted"
+    messages:
+      - $ref: "#/channels/awcms-mini.subscription-billing.dunning.attempted/messages/DomainEvent"
 components:
   securitySchemes:
     syncHmac:

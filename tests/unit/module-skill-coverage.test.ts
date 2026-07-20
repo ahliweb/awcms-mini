@@ -118,6 +118,9 @@ const MODULE_SKILL_MAP: Readonly<Record<string, string>> = {
   tenant_lifecycle: "awcms-mini-tenant-lifecycle",
   // Issue #875 (epic #868 SaaS control plane) — the fifth control-plane module.
   usage_metering: "awcms-mini-usage-metering",
+  // Issue #876 (epic #868 SaaS control plane) — the fifth control-plane module
+  // to land (subscription billing STATE; not a general ledger).
+  subscription_billing: "awcms-mini-subscription-billing",
   visitor_analytics: "awcms-mini-visitor-analytics",
   // Non-mechanical, and NOT a typo: the registered key really is `workflow`,
   // even though the directory is `src/modules/workflow-approval` and every

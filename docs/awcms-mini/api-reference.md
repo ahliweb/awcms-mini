@@ -11576,6 +11576,557 @@ Move the tenant to a target state (activate, suspend, past_due, grace, cancel, b
 | 409    | An invalid transition, stale optimistic version, unresolved reconciliation, or entitlement conflict. | [`ApiError`](#standard-error-envelope)               |
 | 500    | Internal server error without stack trace.                                                           | [`ApiError`](#standard-error-envelope)               |
 
+## Subscription Billing
+
+Provider-neutral SaaS control-plane subscription billing (epic #868 SaaS control plane Wave 1, Issue #876, ADR-0022) — the fifth control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Records the commercial SaaS STATE of a tenant's subscription: a subscription bound to an IMMUTABLE published offer version (#870), billing periods, invoice drafts/issued documents + line items, credit notes, payment allocation REFERENCES, dunning attempts, and scheduled upgrade/downgrade/cancel changes. NOT a general ledger / AR-AP subledger / double-entry accounting / tax engine / e-invoicing / cash-bank reconciliation / tenant business invoice (ADR-0013 §3 / ADR-0022 §11) — payment allocation is a reference only, never an accounting entry. Money is EXACT minor units (bigint, never float), single-currency per invoice, explicit rounding policy. Issued invoices are IMMUTABLE (correction via credit-note/void, never edit/delete); invoice generation is idempotent per (subscription, period, offer version) under concurrent workers with a per-tenant lease. Usage-based lines reconcile to #875 aggregates and record their source window/version. Dunning REQUESTS lifecycle transitions through the #873 contract (fail-closed) and never mutates lifecycle state directly. Provides the billing_document_state capability (consumed by payment_gateway #877). Platform-operator writes are separate from tenant admin and restricted to the platform tenant; tenant users may read only their own authorized records and can never mutate an issued invoice. LAN/offline/manual-payment mode works without an online gateway.
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/invoices` — List a tenant's invoices
+
+- **operationId**: `subscriptionBillingListInvoices`
+- **Security**: bearerAuth + tenantHeader
+
+List a tenant's invoices, optionally filtered by status. Platform operator or self-read.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Invoices listed.                                                                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}` — Get an invoice with lines, history, credits, payments
+
+- **operationId**: `subscriptionBillingGetInvoice`
+- **Security**: bearerAuth + tenantHeader
+
+Tenant-facing invoice read: line items, status history, credit notes, payment allocation references, and a download metadata block. Platform operator or the tenant's own user; a tenant user sees only its own record and can never mutate an issued invoice.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Invoice returned.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/credits` — List credit notes for an invoice
+
+- **operationId**: `subscriptionBillingListCredits`
+- **Security**: bearerAuth + tenantHeader
+
+List credit notes issued against an invoice. Platform operator or self-read.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Credit notes listed.                                                                                                                                                                                             | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/credits` — Issue a credit note
+
+- **operationId**: `subscriptionBillingCreditInvoice`
+- **Security**: bearerAuth + tenantHeader
+
+Issue a credit note against an original issued/paid invoice (and optionally a line). Never edits the invoice. Exact minor-unit amount. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingCreditNoteRequest`](#schema-subscriptionbillingcreditnoterequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 201    | Credit note issued.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Invalid state, over-credit, or a same-key replay differs.                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/dunning` — List dunning attempts for an invoice
+
+- **operationId**: `subscriptionBillingListDunning`
+- **Security**: bearerAuth + tenantHeader
+
+List dunning attempts for an invoice. Platform operator or self-read.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Dunning attempts listed.                                                                                                                                                                                         | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/dunning` — Run a dunning attempt
+
+- **operationId**: `subscriptionBillingRunDunning`
+- **Security**: bearerAuth + tenantHeader
+
+Run a dunning attempt that REQUESTS a lifecycle transition through the #873 contract (fail-closed) — billing never mutates lifecycle state directly. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingDunningRequest`](#schema-subscriptionbillingdunningrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Dunning attempt recorded.                                                                                                                                                                                        | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Invalid state or a same-key replay differs.                                                                                                                                                                      | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/issue` — Issue a draft invoice (immutable)
+
+- **operationId**: `subscriptionBillingIssueInvoice`
+- **Security**: bearerAuth + tenantHeader
+
+Finalize a draft into an issued, immutable document (amounts frozen; correction via credit-note/void). Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingIssueInvoiceRequest`](#schema-subscriptionbillingissueinvoicerequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Invoice issued.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Illegal status transition or stale optimistic version.                                                                                                                                                           | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/payments` — List payment allocation references
+
+- **operationId**: `subscriptionBillingListPayments`
+- **Security**: bearerAuth + tenantHeader
+
+List payment allocation references for an invoice (reference only, not an accounting ledger). Platform operator or self-read.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Allocations listed.                                                                                                                                                                                              | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/payments` — Record a validated payment allocation reference
+
+- **operationId**: `subscriptionBillingRecordPayment`
+- **Security**: bearerAuth + tenantHeader
+
+Record a validated manual/provider payment allocation reference and optionally mark the invoice paid. The ONLY path that updates payment state — never a provider call in this transaction. Idempotent by (invoice, providerReference). Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingPaymentRequest`](#schema-subscriptionbillingpaymentrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Payment allocation recorded.                                                                                                                                                                                     | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Invalid state or a same-key replay differs.                                                                                                                                                                      | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/void` — Void an invoice
+
+- **operationId**: `subscriptionBillingVoidInvoice`
+- **Security**: bearerAuth + tenantHeader
+
+Void a draft/issued invoice with a mandatory reason (correction, never edit/delete). Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `invoiceId`        | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingVoidInvoiceRequest`](#schema-subscriptionbillingvoidinvoicerequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Invoice voided.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Illegal status transition or stale optimistic version.                                                                                                                                                           | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/subscriptions` — List subscriptions
+
+- **operationId**: `subscriptionBillingListSubscriptions`
+- **Security**: bearerAuth + tenantHeader
+
+List a tenant's subscriptions. Platform operator or the tenant's own user (self-read). Read-only.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Subscriptions listed.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/subscriptions` — Create a subscription bound to an immutable published offer
+
+- **operationId**: `subscriptionBillingCreateSubscription`
+- **Security**: bearerAuth + tenantHeader
+
+Bind a subscription to a published offer version (immutable). Platform-operator only. Mandatory reason. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingCreateSubscriptionRequest`](#schema-subscriptionbillingcreatesubscriptionrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 201    | Subscription created.                                                                                                                                                                                            | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | A live subscription for the plan already exists, or a same-key replay differs.                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}` — Get a subscription and its periods
+
+- **operationId**: `subscriptionBillingGetSubscription`
+- **Security**: bearerAuth + tenantHeader
+
+Fetch one subscription plus its billing periods. Platform operator or self-read.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `subscriptionId`   | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Subscription returned.                                                                                                                                                                                           | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}/changes` — List scheduled subscription changes
+
+- **operationId**: `subscriptionBillingListChanges`
+- **Security**: bearerAuth + tenantHeader
+
+List scheduled/applied upgrade/downgrade/cancel changes. Platform operator or self-read.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `subscriptionId`   | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Changes listed.                                                                                                                                                                                                  | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}/changes` — Schedule an upgrade/downgrade/cancel
+
+- **operationId**: `subscriptionBillingScheduleChange`
+- **Security**: bearerAuth + tenantHeader
+
+Schedule a deterministic subscription change preserving historical terms. A prior pending change is superseded. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `subscriptionId`   | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingChangeRequest`](#schema-subscriptionbillingchangerequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 201    | Change scheduled.                                                                                                                                                                                                | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Invalid state, offer not found, or a same-key replay differs.                                                                                                                                                    | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `GET /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}/invoices` — List invoices for a subscription
+
+- **operationId**: `subscriptionBillingListSubscriptionInvoices`
+- **Security**: bearerAuth + tenantHeader
+
+List invoices belonging to a subscription. Platform operator or self-read.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `subscriptionId`   | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Invoices listed.                                                                                                                                                                                                 | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Conflict.                                                                                                                                                                                                        | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}/invoices` — Generate an idempotent invoice draft
+
+- **operationId**: `subscriptionBillingGenerateInvoice`
+- **Security**: bearerAuth + tenantHeader
+
+Generate a draft invoice for the subscription's current period from catalog prices and usage aggregates. Idempotent per (subscription, period): a concurrent worker never double-creates. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `subscriptionId`   | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingGenerateInvoiceRequest`](#schema-subscriptionbillinggenerateinvoicerequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Existing draft returned (idempotent no-op).                                                                                                                                                                      | [`ApiSuccess`](#standard-success-envelope) |
+| 201    | Invoice draft generated.                                                                                                                                                                                         | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Subscription not billable, currency mismatch, or a same-key replay differs.                                                                                                                                      | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/subscriptions/{subscriptionId}/transition` — Transition a subscription state
+
+- **operationId**: `subscriptionBillingTransitionSubscription`
+- **Security**: bearerAuth + tenantHeader
+
+Forward-legal subscription transition (active/past_due/cancel/expire). Invalid transition or stale expectedVersion returns a deterministic 409. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `subscriptionId`   | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): [`SubscriptionBillingTransitionRequest`](#schema-subscriptionbillingtransitionrequest)
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                      | Schema                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Subscription transitioned.                                                                                                                                                                                       | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                   | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                                                                                                                                                              | [`ApiError`](#standard-error-envelope)     |
+| 409    | Illegal transition or stale optimistic version.                                                                                                                                                                  | [`ApiError`](#standard-error-envelope)     |
+| 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
 ## Usage Metering
 
 Provider-neutral SaaS control-plane usage metering (epic #868 SaaS control plane Wave 1, Issue #875, ADR-0022) — the third control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id). Owning modules emit reviewed, NUMERIC-ONLY meter events in their own commit through the transaction-safe usage_append port (the events table is the transactional outbox); identity binds (tenant, producer, meter, sourceEventId, sourceVersion) so a duplicate producer event is counted once. An async, resumable worker deterministically materializes usage WINDOWS from the immutable events + signed CORRECTIONS (recompute-from-source: a rebuild reproduces stored aggregates, a replay never double-counts); late/out-of-order events recompute their window deterministically. Corrections link to the original event and NEVER mutate it (append-only, DB-trigger enforced). Reconciliation independently recomputes windows and flags drift/missing. The read-only usage_aggregate port exposes effective usage + a FAIL-CLOSED quota decision (the #871 entitlement limit + authoritative live usage — a hard quota denies when usage is unavailable). Meter keys/aggregation/bounds resolve against the #874 single source; an unknown meter fails closed. NO PII / no raw payloads. Operator-only + default-deny + default-disabled per tenant. correct/reconcile/rebuild require Idempotency-Key + audit. Not subscription/invoice pricing and not application telemetry.
@@ -17666,6 +18217,198 @@ Issue
 }
 ```
 
+### Schema: SubscriptionBillingChangeRequest
+
+| Field             | Type                                   | Required | Nullable | Description                                              |
+| ----------------- | -------------------------------------- | -------- | -------- | -------------------------------------------------------- |
+| `changeType`      | enum(`upgrade`, `downgrade`, `cancel`) | yes      | no       |                                                          |
+| `toOfferPlanKey`  | string                                 | no       | yes      | Required for upgrade/downgrade; must be null for cancel. |
+| `toOfferVersion`  | integer                                | no       | yes      |                                                          |
+| `prorationPolicy` | enum(`none`, `daily`, `full_period`)   | no       | no       |                                                          |
+| `effectiveAt`     | string (date-time)                     | yes      | no       |                                                          |
+| `reason`          | string                                 | yes      | no       |                                                          |
+
+**Example**
+
+```json
+{
+  "changeType": "upgrade",
+  "toOfferPlanKey": "string",
+  "toOfferVersion": 1,
+  "prorationPolicy": "none",
+  "effectiveAt": "2026-01-01T00:00:00.000Z",
+  "reason": "string"
+}
+```
+
+### Schema: SubscriptionBillingCreateSubscriptionRequest
+
+| Field               | Type                                                                 | Required | Nullable | Description                                                     |
+| ------------------- | -------------------------------------------------------------------- | -------- | -------- | --------------------------------------------------------------- |
+| `offerPlanKey`      | string                                                               | yes      | no       | The published offer plan key to bind (immutable).               |
+| `offerVersion`      | integer                                                              | yes      | no       |                                                                 |
+| `billingInterval`   | enum(`day`, `week`, `month`, `quarter`, `year`)                      | no       | no       |                                                                 |
+| `billingAnchorDay`  | integer                                                              | no       | yes      |                                                                 |
+| `prorationPolicy`   | enum(`none`, `daily`, `full_period`)                                 | no       | no       |                                                                 |
+| `roundingMode`      | enum(`half_up`, `half_even`, `floor`, `ceil`)                        | no       | no       |                                                                 |
+| `collectionMode`    | enum(`manual`, `automatic`)                                          | no       | no       |                                                                 |
+| `trialEndsAt`       | string (date-time)                                                   | no       | yes      |                                                                 |
+| `billingContactRef` | string                                                               | no       | yes      | Minimized/masked billing contact reference (never a raw email). |
+| `reason`            | string                                                               | yes      | no       |                                                                 |
+| `source`            | enum(`operator`, `system`, `scheduler`, `provisioning`, `lifecycle`) | no       | no       |                                                                 |
+
+**Example**
+
+```json
+{
+  "offerPlanKey": "string",
+  "offerVersion": 1,
+  "billingInterval": "day",
+  "billingAnchorDay": 1,
+  "prorationPolicy": "none",
+  "roundingMode": "half_up",
+  "collectionMode": "manual",
+  "trialEndsAt": "2026-01-01T00:00:00.000Z",
+  "billingContactRef": "string",
+  "reason": "string",
+  "source": "operator"
+}
+```
+
+### Schema: SubscriptionBillingCreditNoteRequest
+
+| Field           | Type          | Required | Nullable | Description                                 |
+| --------------- | ------------- | -------- | -------- | ------------------------------------------- |
+| `invoiceLineId` | string (uuid) | no       | yes      |                                             |
+| `amountMinor`   | integer       | yes      | no       | EXACT minor units (integer, never a float). |
+| `reason`        | string        | yes      | no       |                                             |
+
+**Example**
+
+```json
+{
+  "invoiceLineId": "00000000-0000-0000-0000-000000000000",
+  "amountMinor": 1,
+  "reason": "string"
+}
+```
+
+### Schema: SubscriptionBillingDunningRequest
+
+| Field                     | Type                                   | Required | Nullable | Description |
+| ------------------------- | -------------------------------------- | -------- | -------- | ----------- |
+| `requestedLifecycleState` | enum(`past_due`, `grace`, `suspended`) | no       | no       |             |
+| `reason`                  | string                                 | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "requestedLifecycleState": "past_due",
+  "reason": "string"
+}
+```
+
+### Schema: SubscriptionBillingGenerateInvoiceRequest
+
+| Field          | Type    | Required | Nullable | Description |
+| -------------- | ------- | -------- | -------- | ----------- |
+| `includeUsage` | boolean | no       | no       |             |
+| `dueInDays`    | integer | no       | yes      |             |
+| `reason`       | string  | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "includeUsage": false,
+  "dueInDays": 0,
+  "reason": "string"
+}
+```
+
+### Schema: SubscriptionBillingIssueInvoiceRequest
+
+| Field             | Type               | Required | Nullable | Description |
+| ----------------- | ------------------ | -------- | -------- | ----------- |
+| `invoiceNumber`   | string             | no       | yes      |             |
+| `dueAt`           | string (date-time) | no       | yes      |             |
+| `reason`          | string             | yes      | no       |             |
+| `expectedVersion` | integer            | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "invoiceNumber": "string",
+  "dueAt": "2026-01-01T00:00:00.000Z",
+  "reason": "string",
+  "expectedVersion": 1
+}
+```
+
+### Schema: SubscriptionBillingPaymentRequest
+
+| Field               | Type                                   | Required | Nullable | Description                                                                    |
+| ------------------- | -------------------------------------- | -------- | -------- | ------------------------------------------------------------------------------ |
+| `allocationSource`  | enum(`manual`, `provider`)             | no       | no       |                                                                                |
+| `providerKey`       | string                                 | no       | yes      |                                                                                |
+| `providerReference` | string                                 | no       | yes      | Opaque provider reference (no secret); idempotency key for a provider outcome. |
+| `amountMinor`       | integer                                | yes      | no       | EXACT minor units (signed for a reversal; never a float).                      |
+| `outcome`           | enum(`settled`, `partial`, `reversed`) | no       | no       |                                                                                |
+| `markPaid`          | boolean                                | no       | no       |                                                                                |
+| `reason`            | string                                 | no       | yes      |                                                                                |
+
+**Example**
+
+```json
+{
+  "allocationSource": "manual",
+  "providerKey": "string",
+  "providerReference": "string",
+  "amountMinor": -9007199254740991,
+  "outcome": "settled",
+  "markPaid": false,
+  "reason": "string"
+}
+```
+
+### Schema: SubscriptionBillingTransitionRequest
+
+| Field             | Type                                                                     | Required | Nullable | Description |
+| ----------------- | ------------------------------------------------------------------------ | -------- | -------- | ----------- |
+| `toState`         | enum(`pending`, `trialing`, `active`, `past_due`, `canceled`, `expired`) | yes      | no       |             |
+| `reason`          | string                                                                   | yes      | no       |             |
+| `source`          | enum(`operator`, `system`, `scheduler`, `provisioning`, `lifecycle`)     | no       | no       |             |
+| `expectedVersion` | integer                                                                  | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "toState": "pending",
+  "reason": "string",
+  "source": "operator",
+  "expectedVersion": 1
+}
+```
+
+### Schema: SubscriptionBillingVoidInvoiceRequest
+
+| Field             | Type    | Required | Nullable | Description |
+| ----------------- | ------- | -------- | -------- | ----------- |
+| `reason`          | string  | yes      | no       |             |
+| `expectedVersion` | integer | no       | yes      |             |
+
+**Example**
+
+```json
+{
+  "reason": "string",
+  "expectedVersion": 1
+}
+```
+
 ### Schema: SuppressionCreateRequest
 
 | Field       | Type                                                    | Required | Nullable | Description |
@@ -19892,7 +20635,7 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 }
 ```
 
-### Channels (110)
+### Channels (118)
 
 - `awcms-mini.blog-content.ad.created` — An advertisement was created (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/index.ts`'s `POST` handler (`blog-content.ad.created` log line).
 - `awcms-mini.blog-content.ad.deleted` — An advertisement was soft-deleted (Issue #542). Documented contract only; producer is the structured JSON logger, invoked from `pages/api/v1/blog/ads/[id].ts`'s `DELETE` handler (`blog-content.ad.deleted` log line).
@@ -19983,6 +20726,14 @@ HMAC signature paired with X-AWCMS-Mini-Node-ID and X-AWCMS-Mini-Timestamp.):
 - `awcms-mini.social-publishing.rule.created` — A social publish rule was created (Issue #643). Producer: `social-publish-rule-directory.ts`'s `createSocialPublishRule`.
 - `awcms-mini.social-publishing.rule.deleted` — A social publish rule was soft-deleted (Issue #643). Producer: `social-publish-rule-directory.ts`'s `softDeleteSocialPublishRule`.
 - `awcms-mini.social-publishing.rule.updated` — A social publish rule was updated (Issue #643). Producer: `social-publish-rule-directory.ts`'s `updateSocialPublishRule`.
+- `awcms-mini.subscription-billing.dunning.attempted` — A dunning attempt requested a lifecycle transition through the #873 contract for a past-due invoice (Issue #876) — billing never mutates lifecycle state directly. Payload: `attemptId`, `invoiceId`, `subscriptionId`, `attemptNo`, `requestedLifecycleState`, `lifecycleOutcome`. Producer: `subscription-billing/application` (invoice-engine / subscription-engine / subscription-change-engine / dunning-engine), same-commit with the commercial state change.
+- `awcms-mini.subscription-billing.invoice.credited` — A credit note was issued against an original invoice/line (Issue #876). Payload: `creditNoteId`, `invoiceId`, `invoiceLineId`, `currency`, EXACT minor-unit `amountMinor` — never the operator's raw reason. Producer: `subscription-billing/application` (invoice-engine / subscription-engine / subscription-change-engine / dunning-engine), same-commit with the commercial state change.
+- `awcms-mini.subscription-billing.invoice.issued` — A draft invoice was issued into an immutable document (Issue #876). Payload: `invoiceId`, `subscriptionId`, `periodId`, `currency`, EXACT minor-unit `subtotalMinor`/`totalMinor`, `offerVersion`, `dueAt` — never a raw billing contact. Producer: `subscription-billing/application` (invoice-engine / subscription-engine / subscription-change-engine / dunning-engine), same-commit with the commercial state change.
+- `awcms-mini.subscription-billing.invoice.paid` — An issued invoice was marked paid from a validated payment/reconciliation outcome (Issue #876). Payload: `invoiceId`, `currency`, EXACT minor-unit `allocatedMinor`, `source`. Producer: `subscription-billing/application` (invoice-engine / subscription-engine / subscription-change-engine / dunning-engine), same-commit with the commercial state change.
+- `awcms-mini.subscription-billing.invoice.voided` — An invoice was voided (correction, never edit/delete) (Issue #876). Payload: `invoiceId`, `priorStatus`, `currency`, EXACT minor-unit `totalMinor` — never the operator's raw reason. Producer: `subscription-billing/application` (invoice-engine / subscription-engine / subscription-change-engine / dunning-engine), same-commit with the commercial state change.
+- `awcms-mini.subscription-billing.payment.recorded` — A validated payment allocation reference (manual or provider outcome) was recorded against an invoice (Issue #876) — a reference only, never an accounting entry. Payload: `allocationId`, `invoiceId`, `allocationSource`, `currency`, EXACT minor-unit `amountMinor`, `outcome` — never a provider secret. Producer: `subscription-billing/application` (invoice-engine / subscription-engine / subscription-change-engine / dunning-engine), same-commit with the commercial state change.
+- `awcms-mini.subscription-billing.subscription.changed` — A subscription upgrade/downgrade/cancel was scheduled or applied (Issue #876); historical terms preserved. Payload: `changeId`, `subscriptionId`, `changeType`, `fromOfferPlanKey/Version`, `toOfferPlanKey/Version`, `effectiveAt`, `status`. Producer: `subscription-billing/application` (invoice-engine / subscription-engine / subscription-change-engine / dunning-engine), same-commit with the commercial state change.
+- `awcms-mini.subscription-billing.subscription.transitioned` — A subscription state transition was validated and applied (Issue #876). Payload: `subscriptionId`, `fromState`, `toState`, `version`, `offerPlanKey`, `offerVersion`, `source` — never the operator's raw reason or any secret. Producer: `subscription-billing/application` (invoice-engine / subscription-engine / subscription-change-engine / dunning-engine), same-commit with the commercial state change.
 - `awcms-mini.sync.push.requested` — Baseline sync push event envelope for future sync-storage implementation.
 - `awcms-mini.tenant-entitlement.assignment.changed` — A tenant entitlement assignment was assigned/suspended/resumed/canceled (Issue #871, epic #868 SaaS control plane Wave 1, ADR-0022). Payload: `assignmentId`, `planKey`, `offerVersion`, `changeType`, resulting `status`, and the resolved `snapshotHash` for deterministic cache invalidation — never an operator reason or internal price. Producer: `tenant-entitlement/application/entitlement-directory.ts`, via `appendDomainEvent` in the same transaction as the append-only evaluation snapshot.
 - `awcms-mini.tenant-entitlement.override.changed` — A tenant entitlement override was created or revoked (Issue #871). Payload: `overrideId`, `targetKind`, `targetKey`, `effect`, `changeType`, and the resolved `snapshotHash` — never the operator's free-text reason. Producer: `tenant-entitlement/application/entitlement-directory.ts`'s `createOverride`/`revokeOverride`.
