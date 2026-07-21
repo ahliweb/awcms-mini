@@ -839,9 +839,9 @@ link-share terjadi bila port tak di-inject (proses SSR verify via
 `NEWS_MEDIA_R2_PUBLIC_BASE_URL` kosong → `publicBaseUrl` = `""` → semua gambar
 tak terpercaya — BUKAN karena tenant mematikan `news_portal`. Pola inversi ini
 SAMA dengan `NewsMediaPort.resolveMediaReferences` yang sudah ada (ADR-0011),
-bukan pengecualian baru. Versi kapabilitas `news_media` dinaikkan `1.0.0` →
-`1.1.0` di `capability-contract-versions.ts` (method additive
-`resolveMediaPublicBaseUrl`; MINOR). `blog_content` TETAP dependency HARD
+bukan pengecualian baru. Penambahan `resolveMediaPublicBaseUrl` bersifat additive
+(MINOR) pada port kapabilitas `news_media` (ADR-0011) — method baru opsional yang
+tidak mengubah kontrak method existing. `blog_content` TETAP dependency HARD
 (`social-publishing-port-adapter.ts` sengaja impor
 `fetchEffectivePublicRouteSettings`).
 

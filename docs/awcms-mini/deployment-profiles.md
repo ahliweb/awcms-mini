@@ -1010,8 +1010,8 @@ request HTTP, saturasi pool DB, status/backlog job, dan
 outcome/latency/circuit state provider) — **default adalah adapter no-op**
 (`createNoopMetricsPort`), jadi **setiap profil, termasuk offline/LAN,
 berjalan penuh tanpa collector eksternal apa pun** dan tanpa biaya runtime
-tambahan sampai sebuah aplikasi turunan secara eksplisit memanggil
-`setMetricsPort(...)`. Ini konsep terpisah dari (bukan pengganti)
+tambahan sampai sebuah composition root/deployment secara eksplisit
+memanggil `setMetricsPort(...)`. Ini konsep terpisah dari (bukan pengganti)
 structured logging/audit trail Issue #447 — lihat
 [`observability-metrics.md`](observability-metrics.md) untuk arsitektur
 lengkap, tabel kardinalitas/privasi per metrik, SLI/SLO awal +

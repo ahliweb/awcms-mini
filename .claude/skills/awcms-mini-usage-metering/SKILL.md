@@ -50,8 +50,9 @@ DO NOTHING RETURNING` lalu replay row pemenang. Route high-risk pakai
 6. **Meter resolve terhadap single source #874.** Semua meter/aggregation/bounds/
    admisibilitas koreksi lewat `_shared/saas-contract-registry.ts` (via
    `application/meter-registry.ts`) — JANGAN hardcode set meter. Meter tak dikenal
-   → fail closed (`null`/`unknown_meter`). Base kirim contoh netral di `module.ts`;
-   app turunan kontribusi lewat `application-registry.ts`.
+   → fail closed (`null`/`unknown_meter`). Kontribusi meter = deklarasikan meter
+   descriptor di `module.ts` modul domain terkait di `src/modules/` (registry base);
+   jangan edit base registry.
 
 ## Batas modul (module-boundary)
 

@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-saas-contracts
-description: Konsumsi atau evolusikan registry kontrak SaaS build-time AWCMS-Mini (feature/quota/meter/commercial-event descriptor) yang jadi SINGLE SOURCE OF TRUTH untuk service_catalog (#870), tenant_entitlement (#871), dan usage metering (#875). Gunakan saat sebuah modul (base atau aplikasi turunan lewat application-registry.ts) mengontribusikan feature/meter/quota/commercial-event, saat mengubah bentuk descriptor di ModuleDescriptor.serviceCatalog / SAAS_CONTRACT_VERSION, saat menyentuh validasi fail-closed (duplicate/owner/unit/bounds/aggregation/privacy), gate saas-contracts:registry:check, generated inventory, atau integrasi versi kontrak SaaS di compatibility manifest (extension:check). Sesuai Issue #874, epic #868, ADR-0022.
+description: Konsumsi atau evolusikan registry kontrak SaaS build-time AWCMS-Mini (feature/quota/meter/commercial-event descriptor) yang jadi SINGLE SOURCE OF TRUTH untuk service_catalog (#870), tenant_entitlement (#871), dan usage metering (#875). Gunakan saat sebuah modul domain (di src/modules/) mengontribusikan feature/meter/quota/commercial-event, saat mengubah bentuk descriptor di ModuleDescriptor.serviceCatalog / SAAS_CONTRACT_VERSION, saat menyentuh validasi fail-closed (duplicate/owner/unit/bounds/aggregation/privacy), gate saas-contracts:registry:check, atau generated inventory. Sesuai Issue #874, epic #868, ADR-0022.
 ---
 
 # AWCMS-Mini — SaaS Contract Registry (Issue #874)
@@ -30,17 +30,15 @@ komersial (feature / quota / meter / commercial-event). Menutup hutang drift
   (`bun run saas-contracts:registry:check`, masuk `bun run check` + ci.yml) +
   `scripts/saas-contract-inventory-generate.ts`
   (`bun run saas-contracts:inventory:generate` → `docs/awcms-mini/saas-contract-registry.generated.{json,md}`).
-- **Compatibility manifest**: field `saasContractVersion` di
-  `_shared/extension-manifest-contract.ts` + cek di
-  `module-management/domain/extension-compatibility.ts` (dicek `bun run extension:check`).
 
-## Cara kontribusi (base ATAU aplikasi turunan)
+## Cara kontribusi (modul domain di `src/modules/`)
 
 Deklarasikan di `module.ts` milik modul sendiri (`ModuleDescriptor.serviceCatalog`),
-JANGAN edit registry base. Aplikasi turunan lewat `application-registry.ts` (Issue #740).
-Contoh minimal (lihat `service-catalog/module.ts` untuk contoh netral + fixture
-`tests/fixtures/derived-application-example/modules/example-loyalty/module.ts` untuk
-kontribusi turunan dummy):
+JANGAN edit registry base. Kontribusi = tambah/kembangkan modul domain LANGSUNG di
+`src/modules/` template ini (ADR-0024; tidak ada lagi jalur aplikasi-turunan / repo
+terpisah). Contoh minimal (lihat `service-catalog/module.ts` untuk contoh netral +
+fixture `tests/fixtures/example-domain-modules/modules/example-loyalty/module.ts`
+untuk kontribusi modul domain dummy):
 
 - **feature**: `{ key, ownerModuleKey, description }`.
 - **meter**: `{ key, ownerModuleKey, description, eventVersion, valueType,
@@ -81,15 +79,15 @@ validation closed (`isKnown*` → false). Yang ditolak:
 
 `SAAS_CONTRACT_VERSION` (`module-contract.ts`) = versi bentuk kontrak SaaS. MAJOR bila
 field/enum dihapus-retype atau aturan validasi mengetat; MINOR bila field/enum baru
-opsional; PATCH dokumentasi. Aplikasi turunan mendeklarasikan `saasContractVersion` di
-`extension.manifest.json` → dicek MAJOR-match + MINOR-ceiling oleh `extension:check`.
-Perubahan bentuk descriptor juga bump `MODULE_CONTRACT_VERSION` (`serviceCatalog` bagian
-darinya).
+opsional; PATCH dokumentasi. Versi kontrak SaaS divalidasi build-time oleh
+`bun run saas-contracts:registry:check` (bagian `bun run check` + ci.yml). Perubahan
+bentuk descriptor juga bump `MODULE_CONTRACT_VERSION` (`serviceCatalog` bagian darinya).
 
 ## Jangan
 
 - JANGAN bikin daftar key privat baru di modul manapun — resolve dari seam `_shared/`.
-- JANGAN edit registry base untuk kontribusi turunan — pakai `application-registry.ts`.
+- JANGAN edit registry base untuk kontribusi — deklarasikan di `module.ts` modul domain
+  sendiri di `src/modules/`.
 - JANGAN tambah field payload mentah ke meter descriptor (numeric-only by design).
 - JANGAN lupa regen inventory + POT (line-number label nav bergeser) setelah edit
   `module.ts`.

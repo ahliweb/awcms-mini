@@ -8,7 +8,7 @@ Dokumen ini menjadi baseline kontrak API dan domain event AWCMS-Mini. Semua API 
 
 ## Versi kontrak
 
-`info.version` OpenAPI/AsyncAPI adalah SemVer **independen** dari versi rilis `package.json` — kebijakan lengkap + aturan bump di [ADR-0008](../adr/0008-independent-contract-and-module-versioning.md). Saat ini `1.0.0` (kontrak dinyatakan stabil sejak base generik selesai, v0.23.5). Divalidasi otomatis oleh `bun run api:spec:check` (harus berbentuk `X.Y.Z`).
+`info.version` OpenAPI/AsyncAPI adalah SemVer **independen** dari versi rilis `package.json` — kebijakan lengkap + aturan bump di [ADR-0008](../adr/0008-independent-contract-and-module-versioning.md). Saat ini `1.0.0` (kontrak dinyatakan stabil sejak base generik selesai, v1.0.0). Divalidasi otomatis oleh `bun run api:spec:check` (harus berbentuk `X.Y.Z`).
 
 ## Standard API
 

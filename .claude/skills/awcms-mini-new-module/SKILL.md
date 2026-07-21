@@ -94,35 +94,30 @@ tabel tenant-readable), downgrade/suspend **tidak pernah hapus data**,
 provider di luar transaksi; (d) billing SaaS ≠ general ledger (ADR-0013 §3,
 ADR-0020). Jangan lahirkan modul lintas-tenant tanpa membaca ADR-0022 dulu.
 
-**Modul di REPO BASE ini** (langkah 1 di atas) vs **modul di REPO TURUNAN**
-(Issue #740, ADR-0014) adalah dua alur berbeda: bila modulmu memang
-spesifik satu domain bisnis dan pohon keputusan doc 21 §3 mengarahkan ke
-"bukan untuk repo base ini", **jangan** daftarkan di `src/modules/index.ts`
-repo ini — buat repo turunan sendiri lalu daftarkan modulnya di
-`src/modules/application-registry.ts` MILIK REPO TURUNAN itu (satu-satunya
-file yang perlu diedit; struktur `module.ts` + `domain/application/
-infrastructure/api` di atas tetap sama persis). `composeModuleRegistry()`
-(`module-management/domain/module-composition.ts`) yang menggabungkan
-registry base + registry turunan saat build. Detail: skill
-`awcms-mini-module-management` §Komposisi modul build-time,
-`docs/awcms-mini/derived-application-guide.md`, dan
-`docs/adr/0014-deterministic-build-time-module-composition.md`.
+**Menambahkan modul domain langsung di template ini (ADR-0024).** Keluarga
+AWCMS = template dipakai-LANGSUNG; jalur "aplikasi-turunan di repo terpisah"
+(seam `application-registry.ts`, manifest `extension.manifest.json`, gerbang
+`extension:check`, namespace migration 900–999) sudah **dihapus**. Modul
+domain baru — termasuk ekstensi ERP dan modul konten/website — hidup
+LANGSUNG di `src/modules/` template ini dan didaftarkan di
+`src/modules/index.ts` (`listModules()`/`listBaseModules()`), persis alur
+langkah 1 di atas. Bila pohon keputusan doc 21 §3 menyimpulkan modulmu di
+luar scope template `awcms-mini` (fondasi modular-monolith generik), pindah
+ke template keluarga yang scope-nya paling dekat dan kembangkan modul
+langsung DI DALAMNYA — `awcms` (lineage ERP/back-office) atau `awcms-micro`
+(website full-online) — BUKAN membuat repo turunan di atas base ini.
 
-Setelah modul terdaftar dan `bun run modules:compose:check` hijau,
-publikasikan/perbarui `extension.manifest.json` repo turunan Anda
-(`compatibleAwcmsMiniRange`, `moduleContractVersion`,
-`contributedModules` termasuk modul baru ini, dst.) dan jalankan `bun run
-extension:check` (Issue #741/ADR-0015) — memverifikasi aplikasi turunan
-Anda TETAP kompatibel dengan rilis base saat ini, pertanyaan yang berbeda
-dari "registry saya valid hari ini" yang sudah dijawab
-`modules:compose:check`. Detail: skill `awcms-mini-module-management`
-§Manifest kompatibilitas aplikasi turunan,
-`docs/adr/0015-derived-application-compatibility-manifest.md`.
+Setelah modul terdaftar, verifikasi registry base tetap komposisi yang
+valid dengan `bun run modules:compose:check` (DAG, duplicate module key,
+capability binding, deployment profile, navigation, job descriptor) lalu
+`bun run modules:composition:inventory:check`. Detail: skill
+`awcms-mini-module-management` §Validasi komposisi registry base,
+`docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md`.
 
 ## Verifikasi
 
 - `bun run build` pass.
-- Modul terdaftar di registry (base: `src/modules/index.ts`; turunan:
-  `src/modules/application-registry.ts` milik repo turunan sendiri, lalu
-  `bun run modules:compose:check` hijau).
+- Modul terdaftar di registry base `src/modules/index.ts` (`listModules()`),
+  lalu `bun run modules:compose:check` + `bun run
+modules:composition:inventory:check` hijau.
 - README modul terisi.

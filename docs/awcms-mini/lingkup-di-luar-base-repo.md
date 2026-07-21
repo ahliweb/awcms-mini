@@ -1,16 +1,27 @@
 # Lingkup di Luar Base Repo — Isu yang Sengaja Tidak Dikerjakan
 
 > **Dokumen base (bukan contoh domain).** Dokumen ini mengkonsolidasikan **isu dan
-> kapabilitas yang secara sadar TIDAK dikerjakan di repo base `awcms-mini`** —
-> beserta alasan penutupan dan **ke mana** kapabilitas itu seharusnya dibangun
-> (umumnya aplikasi turunan seperti AWPOS, atau layanan/lapisan di luar base).
+> kapabilitas yang secara sadar TIDAK dikerjakan di repo base generik `awcms-mini`** —
+> beserta alasan penutupan dan **ke mana** kapabilitas itu seharusnya dibangun.
+> Sejak **ADR-0024**, "ke mana" itu **bukan** repo aplikasi-turunan terpisah: logika
+> domain (POS/retail, akuntansi, pajak, CRM), adapter provider nyata, dan dataset
+> region tetap **BUKAN** bagian base generik ini, tetapi ditambahkan **langsung di
+> `src/modules/`** template keluarga AWCMS yang scope-nya paling dekat (fork `awcms`
+> untuk lineage ERP, `awcms-micro` untuk website/e-commerce, atau `awcms-mini`
+> sendiri) — bukan repo turunan lewat `application-registry.ts` (jalur itu **dihapus**).
+> Contoh domain seperti **AWPOS** di dokumen ini bersifat **ilustratif**: ia mewakili
+> aplikasi domain yang dibangun di atas template, bukan lagi repo turunan wajib.
 > Tujuannya: menutup celah "kenapa fitur X tidak ada di sini?" secara permanen,
 > supaya tidak diinvestigasi ulang dari nol dan tidak diimplementasikan keliru di base.
 >
 > Sumber otoritatif angka isu = GitHub (`ahliweb/awcms-mini`) + snapshot
 > [`github/README.md`](github/README.md); backlog historis = [`06_github_issues_detail.md`](06_github_issues_detail.md).
-> Keputusan batas = ADR-0012/0013/0014/0020/0022. Bila dokumen ini dan ADR berbeda,
-> **ADR yang berlaku**.
+> Keputusan batas = ADR-0012/0020/0022 dan **ADR-0024** — yang **men-supersede**
+> ADR-0013/0014/0015 (jalur aplikasi-turunan repo terpisah + `application-registry.ts`
+>
+> - gerbang `extension:check` dihapus) dan **meng-amend** ADR-0012/0020 ("Derived
+>   Application" tak lagi berarti repo terpisah; ekstensi ERP boleh hidup langsung di
+>   `src/modules/`). Bila dokumen ini dan ADR berbeda, **ADR yang berlaku**.
 
 ## 1. Prinsip lingkup base
 
@@ -20,19 +31,26 @@ hardening, admin shell, dan — sejak epic #868 — SaaS control plane) untuk ap
 domain berikutnya. Base **tidak** memuat:
 
 - **Logika domain spesifik** (POS/retail, akuntansi/GL, pajak Coretax, CRM operasional).
-  Itu milik **aplikasi turunan** (mis. AWPOS) di lapisan _Derived Application_
-  (`docs/adr/0013-extension-layers-and-boundary-model.md`).
+  Itu **bukan** bagian base generik ini — dibangun sebagai **modul domain langsung di
+  `src/modules/`** template keluarga AWCMS yang dipakai (fork `awcms`/`awcms-micro`/
+  `awcms-mini` yang scope-nya cocok), dengan aplikasi domain seperti AWPOS sebagai
+  contoh ilustratif, **bukan** repo turunan terpisah (ADR-0024).
 - **Runtime pihak-ketiga yang melanggar aturan platform** (mis. layanan Python,
   runtime AI eksternal) — base ber-aturan **Bun-only backend**; integrasi semacam itu
   hidup sebagai **layanan/kontainer terpisah** yang di-_govern_ base lewat capability
   port + outbox, bukan di-_embed_.
 - **Migrasi data legacy** — sengaja di-deskop dari base (lihat §4.1).
 - **Adapter provider konkret** (gateway pembayaran spesifik, penyedia AI spesifik) —
-  masuk lewat `src/modules/application-registry.ts` di repo turunan (ADR-0014), bukan di base.
+  ditambahkan sebagai modul/adapter domain **langsung di `src/modules/`** template
+  yang dipakai (ADR-0024), sebagai konfigurasi **opt-in** dengan secret hanya di
+  `process.env`, bukan dependency hardcoded di base generik.
 
-Cara turunan menambah modulnya **tanpa mengedit base**: isi `application-registry.ts`
-(ADR-0014, Issue #740); base + registry turunan digabung `composeModuleRegistry()`.
-Lihat [`derived-application-guide.md`](derived-application-guide.md).
+Cara menambah modul domain **sejak ADR-0024**: **fork/pakai template keluarga AWCMS
+yang scope-nya paling dekat, lalu tambahkan modul domain langsung di `src/modules/`**
+dan daftarkan di `src/modules/index.ts`. Validasi komposisi registry tetap dijalankan
+via `bun run modules:compose:check` + `bun run modules:composition:inventory:check`.
+Jalur lama "repo turunan terpisah + `application-registry.ts` + `composeModuleRegistry()`"
+(ADR-0013/0014) sudah **dihapus** — lihat ADR-0024.
 
 ## 2. Gelombang 1 — Descope domain POS/retail → AWPOS (2026-07-04)
 
@@ -141,12 +159,13 @@ di repo ini. Rumah yang benar: aplikasi turunan (AWPOS) yang tahu skema sumberny
 - Akuntansi/pajak sesungguhnya = **ERP Extension** di luar base
   (`docs/adr/0020`, kontrak kesiapan di [`erp-extension-contracts.md`](erp-extension-contracts.md), Issue #755).
 
-### 4.3 Adapter provider pembayaran/AI konkret — **opt-in turunan**
+### 4.3 Adapter provider pembayaran/AI konkret — **opt-in modul domain in-repo**
 
 - `payment_gateway` (#877) menyediakan gateway **provider-neutral** + adapter
   **sandbox** untuk test/docs. **Adapter provider produksi nyata** (Stripe, Midtrans,
-  dsb.) = konfigurasi **opt-in** lewat `application-registry.ts`, **bukan** dependency
-  hardcoded di base. Secret provider hanya di `process.env`.
+  dsb.) = konfigurasi **opt-in** sebagai modul/adapter domain **langsung di
+  `src/modules/`** template yang dipakai (ADR-0024), **bukan** dependency hardcoded
+  di base generik. Secret provider hanya di `process.env`.
 - LAN/offline/manual-payment berjalan **tanpa** provider online (modul disabled = inert).
 
 ### 4.4 SaaS Control Plane — dahulu "di luar base", kini **di dalam base**
@@ -160,14 +179,14 @@ default-disabled** (epic #868). Dicatat di sini agar tidak keliru menganggapnya 
 
 ## 5. Ke mana membangunnya (ringkas)
 
-| Kebutuhan                                       | Rumah                                                       | Mekanisme                                               |
-| ----------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------- |
-| Logika domain (POS, warehouse, CRM operasional) | Aplikasi turunan (AWPOS)                                    | `application-registry.ts` (ADR-0014) + capability ports |
-| Migrasi data legacy                             | Aplikasi turunan                                            | Skema sumber spesifik instansi                          |
-| GL / AR-AP / pajak / e-invoicing                | ERP Extension (di luar base)                                | ADR-0020 + `erp-extension-contracts.md`                 |
-| Adapter provider pembayaran/AI nyata            | Turunan (opt-in)                                            | `application-registry.ts`, secret di `process.env`      |
-| Runtime AI eksternal (Hermes)                   | Layanan terpisah + (bila dibuka) modul control-plane opt-in | Capability port + outbox; jangan embed                  |
-| Dataset region Indonesia resmi lengkap          | Modul/dataset turunan                                       | Bukan vendoring #654 di base                            |
+| Kebutuhan                                       | Rumah                                                       | Mekanisme                                            |
+| ----------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| Logika domain (POS, warehouse, CRM operasional) | Modul domain in-repo (`src/modules/`)                       | Tambah modul + `modules:compose:check` (ADR-0024)    |
+| Migrasi data legacy                             | Modul domain in-repo                                        | Skema sumber spesifik instansi                       |
+| GL / AR-AP / pajak / e-invoicing                | Modul ekstensi ERP in-repo                                  | Kontrak `erp-extension-contracts.md` (ADR-0020/0024) |
+| Adapter provider pembayaran/AI nyata            | Modul/adapter domain in-repo (opt-in)                       | Modul di `src/modules/`, secret di `process.env`     |
+| Runtime AI eksternal (Hermes)                   | Layanan terpisah + (bila dibuka) modul control-plane opt-in | Capability port + outbox; jangan embed               |
+| Dataset region Indonesia resmi lengkap          | Modul/dataset domain in-repo                                | Bukan vendoring #654 di base                         |
 
 ## 6. Cara memverifikasi status (jangan mengandalkan ingatan)
 
@@ -188,9 +207,9 @@ bun run github:snapshot   # lihat skill awcms-mini-github-snapshot
 - [`06_github_issues_detail.md`](06_github_issues_detail.md) — backlog + §Riwayat perubahan backlog (gelombang 1).
 - [`github/README.md`](github/README.md) — snapshot faktual state GitHub (ringkasan closed/not-planned).
 - [`21_module_admission_governance.md`](21_module_admission_governance.md) — tata kelola admisi modul (apa yang boleh masuk registry base).
-- [`derived-application-guide.md`](derived-application-guide.md) — cara membangun aplikasi turunan.
+- [`derived-application-guide.md`](derived-application-guide.md) — **DEPRECATED** (ADR-0024): dahulu panduan aplikasi turunan repo terpisah; kini modul domain ditambahkan langsung di `src/modules/`.
 - [`erp-extension-contracts.md`](erp-extension-contracts.md) — kontrak kesiapan ekstensi ERP (di luar base).
-- ADR: `0012` (module admission & trusted registry), `0013` (extension layers & boundary), `0014` (build-time module composition), `0020` (ERP extension boundary), `0022` (SaaS control plane admission — amandemen ADR-0013).
+- ADR: `0012` (module admission & trusted registry), `0020` (ERP extension boundary), `0022` (SaaS control plane admission — amandemen ADR-0013), dan **`0024`** (keluarga AWCMS = template dipakai-langsung; men-supersede ADR-`0013`/`0014`/`0015` — lapisan/komposisi/manifest jalur-turunan — dan meng-amend ADR-`0012`/`0020`).
 - Skill: `awcms-mini-legacy-migration` (read-only, kenapa legacy tidak di base), `awcms-mini-idn-admin-regions`, `awcms-mini-github-snapshot`.
 
 ## Riwayat perubahan

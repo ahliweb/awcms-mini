@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-codeql-triage
-description: Triase dan perbaiki temuan CodeQL code scanning AWCMS-Mini (github.com/ahliweb/awcms-mini/security/code-scanning). Gunakan saat diminta "analisis code scanning"/"perbaiki CodeQL", saat sebuah PR gagal check CodeQL, atau saat menemukan alert baru. Mendokumentasikan enam false-positive nyata yang sudah ditemukan (name-heuristic password, incompatible-types typeof/null, URL substring-sanitization di test mock, dua kasus dismiss resmi tanpa reformulasi kode, Bun.SQL tagged-template null-cast, dan build-time extension seam trivial-conditional) plus pola "unused-local-variable di test kadang menandai coverage gap" — supaya tidak diinvestigasi ulang dari nol.
+description: Triase dan perbaiki temuan CodeQL code scanning AWCMS-Mini (github.com/ahliweb/awcms-mini/security/code-scanning). Gunakan saat diminta "analisis code scanning"/"perbaiki CodeQL", saat sebuah PR gagal check CodeQL, atau saat menemukan alert baru. Mendokumentasikan lima false-positive nyata yang sudah ditemukan (name-heuristic password, incompatible-types typeof/null, URL substring-sanitization di test mock, dua kasus dismiss resmi tanpa reformulasi kode, dan Bun.SQL tagged-template null-cast) plus pola "unused-local-variable di test kadang menandai coverage gap" — supaya tidak diinvestigasi ulang dari nol.
 ---
 
 # AWCMS-Mini — Triase CodeQL Code Scanning
@@ -194,38 +194,18 @@ pola string-interpolation generik yang tidak paham parameter binding SQL
 client library. Cari pola identik di file lain sebagai bukti sebelum
 dismiss.
 
-### 6. `js/trivial-conditional` — nilai build-time extension seam yang sengaja selalu satu cabang di base repo
+### (USANG — ADR-0024) `js/trivial-conditional` build-time extension seam
 
-Ditemukan 2026-07-14 (alert #44), Issue #788:
-`scripts/validate-module-composition.ts:41`,
-`applicationModuleRegistry ? ... : ...` — CodeQL benar bahwa
-`applicationModuleRegistry` (diimpor dari
-`src/modules/application-registry.ts`) SELALU `undefined` di repo dasar
-ini, sesuai desain (Issue #740, epic #738 `platform-evolution`): file itu
-adalah _build-time extension seam_ yang sebuah aplikasi turunan REPLACE
-seluruhnya dengan `ApplicationModuleRegistry` sungguhan. CodeQL cuma
-melihat kode yang ter-checked-in di REPO INI, jadi kondisinya memang
-trivial DI SINI — tapi genuinely conditional begitu file itu diganti oleh
-repo turunan. Bukti pembeda: 5 file lain
-(`src/modules/index.ts`, `module-composition-inventory-generate.ts`,
-`extension-check.ts`, `modules-sync.ts`) juga meng-import
-`applicationModuleRegistry` tapi HANYA meneruskannya sebagai _value_ ke
-fungsi lain (never in a truthy/boolean context) — tidak ada satu pun yang
-di-flag; hanya `validate-module-composition.ts` yang memakainya dalam
-ekspresi ternary boolean-context, satu-satunya tempat trivial-conditional
-bisa terdeteksi.
-
-**Fix**: dismiss (won't-fix) — bukan bug, dan reformulasi apa pun (mis.
-`!= null` alih-alih truthy check) tidak menghilangkan kesimpulan CodeQL
-karena akar masalahnya adalah NILAI-nya provably-constant di repo ini,
-bukan operator pembandingnya.
-
-**Pencegahan**: pola "build-time extension point/seam yang sengaja
-`undefined`/no-op di base repo, real value di repo turunan" akan selalu
-memicu `js/trivial-conditional` di base repo begitu nilainya dipakai dalam
-boolean context — ini SEHAT (bukan alasan untuk menghapus fitur
-ekstensibilitasnya), dismiss dengan menjelaskan desain seam-nya, jangan
-coba "memperbaiki" trivialitasnya.
+**Entri ini TIDAK berlaku lagi — jangan hitung sebagai false-positive aktif.**
+Dulu (alert #44, Issue #788) mendokumentasikan `js/trivial-conditional` di
+`scripts/validate-module-composition.ts:41` atas `applicationModuleRegistry`
+(diimpor dari `src/modules/application-registry.ts`) yang SELALU `undefined` di
+base — sebuah _build-time extension seam_ jalur aplikasi-turunan. ADR-0024
+**MENGHAPUS** seluruh jalur itu: `application-registry.ts`, `extension-check.ts`,
+dan seam terkait tidak ada lagi di repo, sehingga alert ini tak akan muncul
+kembali. Model sekarang: kontribusi = tambah modul domain LANGSUNG di
+`src/modules/` (tidak ada nilai seam yang sengaja `undefined`). Dipertahankan
+hanya sebagai catatan historis agar tidak diinvestigasi ulang sebagai FP baru.
 
 ### Pola tambahan: `js/unused-local-variable` di test kadang menandai coverage gap, bukan sekadar dead code
 

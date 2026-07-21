@@ -3,7 +3,7 @@
 > **Tujuan dokumen.** Menjelaskan secara rinci hubungan dan perbedaan antara repo
 > ini (**awcms-mini**) dan repo turunannya (**awcms**), agar kontributor/agent
 > paham posisi masing-masing dan alur kerja lintas-repo. Angka pada dokumen ini
-> berlaku per **2026-07-17** (awcms-mini v0.24.0 vs awcms v5.1.1).
+> berlaku per **2026-07-21** (awcms-mini v1.0.0 vs awcms v5.1.1).
 
 ## 1. Hubungan kedua repo
 
@@ -34,7 +34,7 @@ merintis fitur dari nol.
 
 | Dimensi                         | **awcms-mini** (fondasi)               | **awcms** (turunan ERP-scope)                                                                |
 | ------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Versi                           | 0.24.0                                 | 5.1.1 (melanjutkan legacy major, ADR-0024)                                                   |
+| Versi                           | 1.0.0                                  | 5.1.1 (melanjutkan legacy major, ADR-0024)                                                   |
 | Deskripsi                       | "Modular Monolith Standard"            | "basis/fondasi untuk pengembangan ERP"                                                       |
 | Modul di `src/modules/`         | ~23                                    | **10** (naik dari 4 — 6 modul fondasi diport)                                                |
 | Migrasi `sql/`                  | 76 (`awcms_mini_…`)                    | **16** (`awcms_…`, `001`–`016`)                                                              |
@@ -95,7 +95,7 @@ masih khusus mini.
 
 - **Kontrak & inventory:** `openapi:bundle`, `api:docs:generate/check`,
   `repo:inventory:generate/check`, `modules:compose:check`,
-  `modules:composition:inventory:check`, `extension:check`,
+  `modules:composition:inventory:check`,
   `db:work-class:generate/check`.
 - **Dispatcher outbox:** `social-publishing:dispatch`,
   `integration-hub:outbound:dispatch`, `data-exchange:worker`.

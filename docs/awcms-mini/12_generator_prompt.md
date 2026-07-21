@@ -526,7 +526,7 @@ Wajib laporkan:
 
 ## Instruksi final coding pertama
 
-> **Catatan status (base selesai, v0.23.5).** Prompt bootstrap di bawah adalah instruksi asli yang dipakai untuk membangun base generik dari nol — seluruh 18 issue backlog (doc 06) sudah tuntas, jadi ini **arsip**, bukan pekerjaan yang perlu dikerjakan lagi. Untuk pekerjaan baru (aplikasi turunan / modul domain atau perawatan base), lihat [`../../AGENTS.md`](../../AGENTS.md) §Mulai dari sini dan [`README.md`](README.md) §Langkah berikutnya.
+> **Catatan status (base selesai, v1.0.0).** Prompt bootstrap di bawah adalah instruksi asli yang dipakai untuk membangun base generik dari nol — seluruh 18 issue backlog (doc 06) sudah tuntas, jadi ini **arsip**, bukan pekerjaan yang perlu dikerjakan lagi. Untuk pekerjaan baru (aplikasi turunan / modul domain atau perawatan base), lihat [`../../AGENTS.md`](../../AGENTS.md) §Mulai dari sini dan [`README.md`](README.md) §Langkah berikutnya.
 
 ```text
 Kerjakan Issue 0.1 — Initialize AWCMS-Mini Modular Monolith Repository Structure.

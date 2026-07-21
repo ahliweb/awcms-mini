@@ -4,7 +4,7 @@ Dokumen ini adalah **kontrak kerja** untuk coding agent (Claude Code, Codex, dsb
 
 > **Konteks keluarga produk:** kontrak repository ini (AGENTS.md, README.md, CONTRIBUTING.md, `derived-application-guide.md`, dan skill proyek) menjadi **sumber utama** bagi [`docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf`](docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf) — pedoman penggunaan agent yang berlaku lintas keluarga produk (AWCMS, AWCMS-Mini, AWCMS-Micro, dan software turunannya). Bila ada perbedaan, dokumen repository ini (AGENTS.md, ADR, kontrak) tetap sumber kebenaran paling spesifik untuk repo ini.
 
-> **Status base generik: selesai (v0.23.5).** Seluruh 18 issue backlog base generik (doc 06) tuntas — foundation, tenant/office, central profile, identity/login, RBAC/ABAC, setup wizard, Sync Storage (outbox/inbox/conflict/object-queue), management reporting, structured logging & audit trail, connection pooling & backpressure, production readiness, workflow approval, dan deployment profile — plus perawatan/peningkatan pasca-backlog milestone M9 (penegakan RLS + role least-privilege, Access & Users / Sync / Settings admin, runtime i18n, audit UX/UI & aksesibilitas AA, audit performa, dispatcher object-sync + kerasan integrasi, security hardening OWASP/ASVS/ISO, dan aktivasi sistem log). Tabel tenant/auth/RBAC/sync/logging/deployment **sudah** ada dan berjalan — jangan membangunnya ulang. Pekerjaan baru = **modul domain** ditambahkan langsung di `src/modules/` template ini ([ADR-0024](docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md); lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya), atau perawatan/peningkatan lanjutan. Status per-issue historis dicatat di [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md).
+> **Status base generik: selesai (v1.0.0).** Seluruh 18 issue backlog base generik (doc 06) tuntas — foundation, tenant/office, central profile, identity/login, RBAC/ABAC, setup wizard, Sync Storage (outbox/inbox/conflict/object-queue), management reporting, structured logging & audit trail, connection pooling & backpressure, production readiness, workflow approval, dan deployment profile — plus perawatan/peningkatan pasca-backlog milestone M9 (penegakan RLS + role least-privilege, Access & Users / Sync / Settings admin, runtime i18n, audit UX/UI & aksesibilitas AA, audit performa, dispatcher object-sync + kerasan integrasi, security hardening OWASP/ASVS/ISO, dan aktivasi sistem log). Tabel tenant/auth/RBAC/sync/logging/deployment **sudah** ada dan berjalan — jangan membangunnya ulang. Pekerjaan baru = **modul domain** ditambahkan langsung di `src/modules/` template ini ([ADR-0024](docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md); lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya), atau perawatan/peningkatan lanjutan. Status per-issue historis dicatat di [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md).
 
 ## Ringkasan proyek
 
@@ -295,12 +295,12 @@ Aturan: reviewer & auditor **read-only** (temuan dikembalikan ke coder); auditor
 
 ## Perintah yang sudah tersedia sekarang
 
-Base generik selesai (v0.23.5) — semua skrip di bawah ini nyata dan
+Base generik selesai (v1.0.0) — semua skrip di bawah ini nyata dan
 berjalan, bukan target/rencana:
 
 ```bash
 bun install
-bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + modules:compose:check + modules:composition:inventory:check + extension:check + data-lifecycle:registry:check + reporting:projections:registry:check + identity-access:sod-registry:check + reference-data:contributions:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + tx:lint:check + db:work-class:check + typecheck + test + build
+bun run check                    # gate lengkap: lint + check:docs + api:spec:check + api:docs:check + repo:inventory:check + modules:dag:check + modules:compose:check + modules:composition:inventory:check + data-lifecycle:registry:check + reporting:projections:registry:check + identity-access:sod-registry:check + rls:platform-claim:check + control-plane:step-up:check + reference-data:contributions:check + saas-contracts:registry:check + i18n:pot:check + i18n:parity:check + config:docs:check + logging:lint:check + tx:lint:check + db:work-class:check + typecheck + test + build
 bun run dev                      # bun --bun astro dev
 bun run build                    # bun --bun astro build
 bun run preview                  # bun --bun astro preview
@@ -503,7 +503,7 @@ Next recommended step:
 
 ## Mulai dari sini
 
-Base generik sudah selesai (v0.23.5, lihat blockquote status di atas) — tidak ada lagi "Issue 0.1" untuk dikerjakan sebagai pekerjaan baru. Untuk kontribusi baru:
+Base generik sudah selesai (v1.0.0, lihat blockquote status di atas) — tidak ada lagi "Issue 0.1" untuk dikerjakan sebagai pekerjaan baru. Untuk kontribusi baru:
 
 - **Membangun modul domain** (retail/POS gaya AWPOS, portal, sistem pengaduan, dsb.) langsung di `src/modules/` template ini → mulai dengan skill `awcms-mini-new-module`, lalu `awcms-mini-new-migration` → `awcms-mini-new-endpoint` → `awcms-mini-new-event` → `awcms-mini-testing` → `awcms-mini-security-review` → `awcms-mini-production-preflight`. Orkestrasi penuh: skill `awcms-mini-implement-issue`. Lihat panduan lengkap di [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya.
 - **Perawatan / peningkatan base** (performa, UX, integrasi, keamanan, observability) → pakai skill peningkatan terkait (`awcms-mini-performance`, `awcms-mini-ux-review`, `awcms-mini-integration`, `awcms-mini-security-hardening`, `awcms-mini-observability`) dan catat di §Perawatan pasca-backlog pada `AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`.
