@@ -54,7 +54,10 @@ import {
   runExpireSweep,
   runReconciliation
 } from "../../src/modules/payment-gateway/application/reconciliation-engine";
-import { requestRefund } from "../../src/modules/payment-gateway/application/refund-engine";
+import {
+  approveRefund,
+  requestRefund
+} from "../../src/modules/payment-gateway/application/refund-engine";
 import {
   sandboxControl,
   signSandboxWebhook
@@ -533,6 +536,35 @@ describe.skipIf(!integrationEnabled)("payment_gateway (integration)", () => {
       return res.refund.id;
     });
 
+    // Issue #879 (maker/checker): requesting a refund enqueues NO dispatch — a
+    // dispatch run at this point must be a clean no-op (money is NOT moved).
+    await runOutboxDispatch(sql, {
+      dryRun: false,
+      correlationId: crypto.randomUUID()
+    });
+    expect(
+      await withTenant(
+        sql,
+        owner.tenantId,
+        async (tx) =>
+          (
+            (await tx`SELECT status FROM awcms_mini_payment_gateway_refunds
+               WHERE tenant_id = ${owner.tenantId} AND id = ${refundId}`) as {
+              status: string;
+            }[]
+          )[0]!.status
+      )
+    ).toBe("requested");
+
+    // A SECOND actor approves — ONLY THEN is the provider dispatch enqueued.
+    await withTenant(sql, owner.tenantId, async (tx) => {
+      const res = await approveRefund(tx, owner.tenantId, refundId, {
+        actorTenantUserId: crypto.randomUUID(),
+        correlationId: crypto.randomUUID()
+      });
+      if (!res.ok) throw new Error("approve: " + JSON.stringify(res));
+    });
+
     await runOutboxDispatch(sql, {
       dryRun: false,
       correlationId: crypto.randomUUID()
@@ -748,7 +780,9 @@ describe.skipIf(!integrationEnabled)("payment_gateway (integration)", () => {
     const intentId = await settledIntent(owner, accountId);
     const sql = getTestSql();
 
-    // Request a refund (creates a 'requested' refund + a request_refund outbox row).
+    // Request a refund (creates a 'requested' refund; NO outbox yet), then a
+    // distinct actor approves it (transitions to 'approved' + enqueues the
+    // request_refund outbox row).
     const refundId = await withTenant(sql, owner.tenantId, async (tx) => {
       const res = await requestRefund(
         tx,
@@ -761,6 +795,11 @@ describe.skipIf(!integrationEnabled)("payment_gateway (integration)", () => {
         }
       );
       if (!res.ok) throw new Error("refund: " + JSON.stringify(res));
+      const approved = await approveRefund(tx, owner.tenantId, res.refund.id, {
+        actorTenantUserId: crypto.randomUUID(),
+        correlationId: crypto.randomUUID()
+      });
+      if (!approved.ok) throw new Error("approve: " + JSON.stringify(approved));
       return res.refund.id;
     });
 
@@ -788,7 +827,7 @@ describe.skipIf(!integrationEnabled)("payment_gateway (integration)", () => {
     });
 
     // The stale refund outbox is dead-lettered WITHOUT a provider call: the refund
-    // stays 'requested' (a provider success would have made it 'succeeded'), and
+    // stays 'approved' (a provider success would have made it 'succeeded'), and
     // the intent is not double-refunded.
     const refund = await withTenant(
       sql,
@@ -799,7 +838,7 @@ describe.skipIf(!integrationEnabled)("payment_gateway (integration)", () => {
           WHERE tenant_id = ${owner.tenantId} AND id = ${refundId}
         `) as { status: string }[]
     );
-    expect(refund[0]!.status).toBe("requested");
+    expect(refund[0]!.status).toBe("approved");
     const outbox = await withTenant(
       sql,
       owner.tenantId,

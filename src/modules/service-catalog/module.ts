@@ -189,14 +189,53 @@ export const serviceCatalogModule = defineModule({
     },
     {
       activityCode: "offers",
+      action: "approve",
+      description:
+        "Commercially approve (CHECKER) a draft offer version so it may be published — distinct actor (SoD) + step-up"
+    },
+    {
+      activityCode: "offers",
       action: "publish",
       description:
-        "Validate and publish a draft version into an immutable offer"
+        "Validate and publish a commercially-approved draft version into an immutable offer"
     },
     {
       activityCode: "offers",
       action: "retire",
       description: "Retire a published offer version"
+    }
+  ],
+  // Segregation-of-duties (Issue #879, epic #868 Wave 2, ADR-0022 §5 HIGH-2 —
+  // "catalog publish versus commercial approval"). Wired automatically into the
+  // real `authorizeInTransaction` chokepoint via `high-risk-sod-guard.ts`.
+  // Enforced at the high-risk `offers.approve` step: the subject who commercially
+  // APPROVES an offer version must not also PUBLISH it. (The earlier
+  // publish↔retire placeholder from #907's first round fired at the wrong step —
+  // it blocked an operator from doing ordinary lifecycle management — and was
+  // removed in favor of this real create-vs-approve control.)
+  sodRules: [
+    {
+      // Issue #879 (ADR-0022 §5 HIGH-2) — publish vs commercial approval. Fires at
+      // the high-risk `offers.approve` action: the subject who commercially
+      // APPROVES an offer version must not also be able to PUBLISH it. Publish
+      // additionally requires the version to be commercially approved by a
+      // distinct actor (belt-and-suspenders in `publishVersion`).
+      ruleKey: "service_catalog.publish_vs_commercial_approve",
+      ownerModuleKey: "service_catalog",
+      description:
+        "A subject who commercially APPROVES an offer version must not also PUBLISH it — publish vs commercial approval maker/checker (ADR-0022 §5 catalog publish vs commercial approval).",
+      conflictingPermissionKeys: [
+        "service_catalog.offers.publish",
+        "service_catalog.offers.approve"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "high",
+      exceptionPolicy: {
+        allowed: true,
+        requiresApprovalPermission:
+          "identity_access.business_scope_exceptions.approve",
+        maxDurationDays: 14
+      }
     }
   ],
   api: {

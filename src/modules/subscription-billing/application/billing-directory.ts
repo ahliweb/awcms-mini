@@ -636,6 +636,8 @@ export async function insertCreditNote(
     actor: string | null;
   }
 ): Promise<{ id: string }> {
+  // Issue #879 — credit note is created in `pending_approval` (schema default);
+  // the invoice balance is NOT touched until a distinct actor approves.
   const rows = (await tx`
     INSERT INTO awcms_mini_subscription_billing_credit_notes (
       tenant_id, invoice_id, invoice_line_id, reason, currency, amount_minor,
@@ -648,6 +650,78 @@ export async function insertCreditNote(
     RETURNING id
   `) as { id: string }[];
   return rows[0]!;
+}
+
+export type CreditNoteRow = {
+  id: string;
+  tenant_id: string;
+  invoice_id: string;
+  invoice_line_id: string | null;
+  currency: string;
+  amount_minor: string;
+  status: string;
+  approved_by: string | null;
+  approved_at: string | null;
+};
+
+export async function loadCreditNoteForUpdate(
+  tx: Bun.SQL,
+  tenantId: string,
+  creditNoteId: string
+): Promise<CreditNoteRow | null> {
+  const rows = (await tx`
+    SELECT id, tenant_id, invoice_id, invoice_line_id, currency, amount_minor,
+           status, approved_by, approved_at
+    FROM awcms_mini_subscription_billing_credit_notes
+    WHERE tenant_id = ${tenantId} AND id = ${creditNoteId}
+    FOR UPDATE
+  `) as CreditNoteRow[];
+  return rows[0] ?? null;
+}
+
+/**
+ * Sum of credit-note amounts that COUNT against the invoice total — pending
+ * (not yet applied) OR already applied. Used by the maker step's over-credit
+ * guard so the sum of concurrent pending credits can never exceed the total.
+ * EXACT decimal string (BigInt-compared by the caller).
+ */
+export async function sumOpenCreditNotes(
+  tx: Bun.SQL,
+  tenantId: string,
+  invoiceId: string
+): Promise<string> {
+  const rows = (await tx`
+    SELECT COALESCE(SUM(amount_minor), 0)::text AS total
+    FROM awcms_mini_subscription_billing_credit_notes
+    WHERE tenant_id = ${tenantId} AND invoice_id = ${invoiceId}
+      AND status IN ('pending_approval', 'applied')
+  `) as { total: string }[];
+  return rows[0]?.total ?? "0";
+}
+
+/**
+ * Approve (CHECKER) a pending credit note: transition pending_approval ->
+ * applied and record the approver (write-once). Returns null on a concurrent
+ * transition (no longer pending). The caller applies the invoice balance in the
+ * same transaction.
+ */
+export async function applyCreditNote(
+  tx: Bun.SQL,
+  input: {
+    tenantId: string;
+    creditNoteId: string;
+    approvedBy: string | null;
+  }
+): Promise<CreditNoteRow | null> {
+  const rows = (await tx`
+    UPDATE awcms_mini_subscription_billing_credit_notes
+    SET status = 'applied', approved_by = ${input.approvedBy}, approved_at = now()
+    WHERE tenant_id = ${input.tenantId} AND id = ${input.creditNoteId}
+      AND status = 'pending_approval'
+    RETURNING id, tenant_id, invoice_id, invoice_line_id, currency, amount_minor,
+              status, approved_by, approved_at
+  `) as CreditNoteRow[];
+  return rows[0] ?? null;
 }
 
 /** Bump the invoice's credited counter (allowed on issued/paid invoices — not a frozen field). */

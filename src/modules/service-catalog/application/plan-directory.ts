@@ -22,7 +22,11 @@ import {
   SERVICE_CATALOG_OFFER_RETIRED_EVENT_TYPE
 } from "../../domain-event-runtime/domain/event-type-registry";
 import type { ServiceCatalogKeyRegistry } from "../domain/key-registry";
-import { assertPublishable, assertRetirable } from "../domain/lifecycle";
+import {
+  assertPublishable,
+  assertRetirable,
+  canCommerciallyApprove
+} from "../domain/lifecycle";
 import { buildOfferSnapshot } from "../domain/offer-snapshot";
 import {
   validatePlanHeader,
@@ -129,6 +133,8 @@ type VersionDbRow = {
   offer_hash: string | null;
   published_at: Date | null;
   retired_at: Date | null;
+  commercial_approved_by: string | null;
+  commercial_approved_at: Date | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -870,7 +876,7 @@ async function loadVersionByPlanKeyForUpdate(
   const rows = (await tx`
     SELECT v.id, v.plan_id, v.version, v.status, v.currency, v.market, v.trial_enabled,
       v.trial_days, v.available_from, v.available_to, v.notes, v.offer_hash, v.published_at,
-      v.retired_at, v.created_at, v.updated_at
+      v.retired_at, v.commercial_approved_by, v.commercial_approved_at, v.created_at, v.updated_at
     FROM awcms_mini_service_catalog_plan_versions v
     JOIN awcms_mini_service_catalog_plans p ON p.id = v.plan_id
     WHERE p.plan_key = ${planKey} AND v.version = ${version}
@@ -887,6 +893,7 @@ export type PublishVersionResult =
   | { ok: true; planKey: string; version: number; offerHash: string }
   | { ok: false; reason: "not_found" }
   | { ok: false; reason: "not_draft"; message: string }
+  | { ok: false; reason: "not_approved"; message: string }
   | { ok: false; reason: "validation"; errors: PlanValidationError[] };
 
 export async function publishVersion(
@@ -916,6 +923,29 @@ export async function publishVersion(
   const transition = assertPublishable(found.status);
   if (transition) {
     return { ok: false, reason: "not_draft", message: transition.message };
+  }
+
+  // Issue #879 (ADR-0022 §5 HIGH-2) — commercial approval is a hard prerequisite
+  // for publish. The version must have been commercially approved by a DIFFERENT
+  // actor than the publisher. The SoD rule `publish_vs_commercial_approve`
+  // already prevents one actor holding both permissions from approving; this
+  // belt-and-suspenders check additionally rejects the degenerate case where the
+  // same actor somehow recorded both, and rejects publishing an unapproved offer.
+  if (!found.commercial_approved_at) {
+    return {
+      ok: false,
+      reason: "not_approved",
+      message:
+        "This offer version has not been commercially approved. A distinct approver must approve it before it can be published."
+    };
+  }
+  if (found.commercial_approved_by === actorTenantUserId) {
+    return {
+      ok: false,
+      reason: "not_approved",
+      message:
+        "The commercial approver and the publisher must be different actors (maker/checker)."
+    };
   }
 
   // Children read AFTER the lock (Codex-C) — the snapshot/offer-hash reflect the
@@ -1006,6 +1036,80 @@ export async function publishVersion(
   });
 
   return { ok: true, planKey, version, offerHash: snapshot.offerHash };
+}
+
+// ---------------------------------------------------------------------------
+// Commercial approval (Issue #879, ADR-0022 §5 HIGH-2) — the CHECKER step that
+// must precede publish. A DIFFERENT actor than the publisher records commercial
+// sign-off on a draft version (write-once); publish then requires it.
+// ---------------------------------------------------------------------------
+
+export type ApproveOfferVersionResult =
+  | { ok: true; planKey: string; version: number }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "not_draft"; message: string }
+  | { ok: false; reason: "already_approved"; message: string };
+
+export async function approveOfferVersion(
+  tx: Bun.SQL,
+  tenantId: string,
+  actorTenantUserId: string,
+  planKey: string,
+  version: number,
+  correlationId?: string
+): Promise<ApproveOfferVersionResult> {
+  const found = await loadVersionByPlanKeyForUpdate(tx, planKey, version);
+  if (!found) {
+    return { ok: false, reason: "not_found" };
+  }
+  if (!canCommerciallyApprove(found.status)) {
+    return {
+      ok: false,
+      reason: "not_draft",
+      message: `Only a draft offer version can be commercially approved (this version is "${found.status}").`
+    };
+  }
+  if (found.commercial_approved_at) {
+    return {
+      ok: false,
+      reason: "already_approved",
+      message: "This offer version is already commercially approved."
+    };
+  }
+
+  // draft -> draft UPDATE (permitted by the immutability trigger). Sets the
+  // write-once commercial-approval provenance under the row lock.
+  const updated = (await tx`
+    UPDATE awcms_mini_service_catalog_plan_versions
+    SET commercial_approved_by = ${actorTenantUserId},
+        commercial_approved_at = now(),
+        updated_by = ${actorTenantUserId},
+        updated_at = now()
+    WHERE id = ${found.id} AND status = 'draft' AND commercial_approved_at IS NULL
+    RETURNING id
+  `) as { id: string }[];
+  if (updated.length === 0) {
+    return {
+      ok: false,
+      reason: "already_approved",
+      message: "This offer version was concurrently approved or transitioned."
+    };
+  }
+
+  await recordAuditEvent(tx, {
+    tenantId,
+    actorTenantUserId,
+    moduleKey: MODULE_KEY,
+    action: "approve",
+    resourceType: "service_catalog_offer",
+    resourceId: found.id,
+    severity: "warning",
+    message: `Service catalog offer "${planKey}" v${version} commercially approved (prerequisite for publish).`,
+    attributes: { planKey, version },
+    correlationId
+  });
+
+  return { ok: true, planKey, version };
 }
 
 // ---------------------------------------------------------------------------

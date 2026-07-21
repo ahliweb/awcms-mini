@@ -40,6 +40,7 @@ import { resolveModuleEnabled } from "../../src/modules/identity-access/applicat
 import { syncModuleDescriptors } from "../../src/modules/module-management/application/descriptor-sync";
 import { resolveServiceCatalogKeyRegistry } from "../../src/modules/service-catalog/domain/key-registry";
 import {
+  approveOfferVersion,
   createPlan,
   publishVersion
 } from "../../src/modules/service-catalog/application/plan-directory";
@@ -152,6 +153,8 @@ async function seedOffer(
       throw new Error(
         "seedOffer createPlan failed: " + JSON.stringify(created)
       );
+    // Issue #879 — publish requires a prior commercial approval by a DISTINCT actor.
+    await approveOfferVersion(tx, tenantId, crypto.randomUUID(), planKey, 1);
     const pub = await publishVersion(
       tx,
       tenantId,
@@ -916,6 +919,46 @@ async function bootstrapOperator(
   return { tenantId, token: login.body.data.token };
 }
 
+/**
+ * Issue #879 (epic #868 Wave 2, ADR-0022 §5): `tenant_entitlement` now
+ * declares a `global_within_tenant` SoD rule
+ * (`tenant_entitlement.override_vs_audit_review`) enforced at the high-risk
+ * `overrides.override` step. The setup-wizard OWNER role grants EVERY
+ * permission, so it holds BOTH halves of that conflict
+ * (`tenant_entitlement.overrides.override` AND `logging.audit_trail.read`) —
+ * the intended AC behavior (a single actor cannot complete the flow without
+ * an approved exception), the same effect the shipped
+ * `data_lifecycle.legal_hold_maker_checker` rule already has on the owner.
+ * Tests below that legitimately need the owner to author an override seed the
+ * AC-sanctioned escape hatch: an APPROVED, time-bounded SoD exception. Tests
+ * that assert the conflict IS enforced simply omit this call.
+ */
+async function grantApprovedOverrideSodException(
+  tenantId: string
+): Promise<void> {
+  const admin = getAdminSql();
+  const users = (await admin`
+    SELECT id FROM awcms_mini_tenant_users WHERE tenant_id = ${tenantId} LIMIT 1
+  `) as { id: string }[];
+  const ownerUserId = users[0]?.id;
+  if (!ownerUserId) {
+    throw new Error("no tenant_user found for the freshly set-up tenant");
+  }
+  await admin`
+    INSERT INTO awcms_mini_sod_conflict_exceptions
+      (tenant_id, rule_key, subject_tenant_user_id, scope_type, scope_id,
+       justification, requested_by_tenant_user_id, approved_by_tenant_user_id,
+       status, effective_from, effective_to)
+    VALUES (
+      ${tenantId}, 'tenant_entitlement.override_vs_audit_review', ${ownerUserId},
+      NULL, NULL,
+      'Owner super-role holds audit-review + override in this control-plane test; SoD exception approved (Issue #879).',
+      ${ownerUserId}, ${ownerUserId}, 'approved',
+      now() - interval '1 hour', now() + interval '1 day'
+    )
+  `;
+}
+
 const routeSuite = integrationEnabled ? describe : describe.skip;
 
 routeSuite("tenant_entitlement — routes", () => {
@@ -1088,6 +1131,10 @@ routeSuite("tenant_entitlement — routes", () => {
 
   test("Fix 1: revoking an override without a reason -> 400 (reason required)", async () => {
     const { tenantId, token } = await bootstrapOperator("terev", true);
+    // The owner super-role holds both halves of the #879
+    // override-vs-audit-review SoD rule; this test authors an override, so it
+    // needs the AC-sanctioned approved exception (see helper above).
+    await grantApprovedOverrideSodException(tenantId);
     const created = await invoke<{ data: { override: { id: string } } }>(
       overridesCreateRoute,
       {
@@ -1125,6 +1172,53 @@ routeSuite("tenant_entitlement — routes", () => {
       body: { reason: "no longer needed" }
     });
     expect(withReason.status).toBe(200);
+  });
+
+  test("Issue #879: an operator holding override + audit-review is BLOCKED (403 SOD_CONFLICT) with NO approved exception", async () => {
+    // Adversarial + mutation proof for the #879 control-plane SoD rule
+    // `tenant_entitlement.override_vs_audit_review`, enforced at the real
+    // `authorizeInTransaction` chokepoint (NOT UI hiding). The owner
+    // super-role holds BOTH conflicting permissions
+    // (`overrides.override` + `logging.audit_trail.read`); WITHOUT the
+    // approved SoD exception the high-risk `override` is refused with a safe
+    // error that enumerates neither tenant nor resource. Deleting the SoD
+    // rule from `tenant_entitlement/module.ts` makes this test fail — the
+    // enforcement is wired, not theater.
+    const { tenantId, token } = await bootstrapOperator("tesod", true);
+    const blocked = await invoke<{ error: { code: string } }>(
+      overridesCreateRoute,
+      {
+        method: "POST",
+        path: "/api/v1/tenant-entitlement/overrides",
+        headers: headers(tenantId, token, "ksod1"),
+        body: {
+          targetKind: "feature",
+          targetKey: "platform.custom_domain",
+          effect: "grant",
+          reason: "should be blocked by SoD"
+        }
+      }
+    );
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe("SOD_CONFLICT");
+
+    // Same actor, same action, now WITH an approved exception -> allowed.
+    await grantApprovedOverrideSodException(tenantId);
+    const allowed = await invoke<{ data: { override: { id: string } } }>(
+      overridesCreateRoute,
+      {
+        method: "POST",
+        path: "/api/v1/tenant-entitlement/overrides",
+        headers: headers(tenantId, token, "ksod2"),
+        body: {
+          targetKind: "feature",
+          targetKey: "platform.custom_domain",
+          effect: "grant",
+          reason: "approved via SoD exception"
+        }
+      }
+    );
+    expect(allowed.status).toBe(200);
   });
 
   test("Fix 3: GET /effective with a PAST at is rejected (400); now/future is accepted", async () => {

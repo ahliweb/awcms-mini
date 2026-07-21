@@ -160,11 +160,23 @@ export type SoDRuleRegistryValidationResult = {
 
 /**
  * Validates the WHOLE registry: per-rule structural validity
- * (`validateSingleRule`) plus a cross-rule invariant (unique `ruleKey`
- * across the whole registry — a rule must never be registered twice).
+ * (`validateSingleRule`) plus cross-rule invariants (unique `ruleKey`; and —
+ * Issue #879 — an OPTIONAL existence check).
+ *
+ * **Existence validation (Issue #879, FIX LOW-6 / L1).** When
+ * `seededPermissionKeys` is supplied, EVERY `conflictingPermissionKeys` entry
+ * and every `exceptionPolicy.requiresApprovalPermission` must exist in that set
+ * of actually-seeded permission keys — the same drift-killer the step-up
+ * registry already applies. A typo (`refunds.approv`) or a removed permission
+ * then fails the gate LOUDLY instead of silently registering a dead rule the SoD
+ * chokepoint can never match. The set is passed by the gate script (parsed from
+ * the SQL permission seeds — the true seed source, since some Core modules seed
+ * permissions in SQL without a descriptor `permissions` array). Omitting it
+ * keeps the pure, DB-free structural validation unchanged for existing callers.
  */
 export function validateSoDRuleRegistry(
-  modules: readonly ModuleDescriptor[]
+  modules: readonly ModuleDescriptor[],
+  seededPermissionKeys?: ReadonlySet<string>
 ): SoDRuleRegistryValidationResult {
   const issues: SoDRuleRegistryIssue[] = [];
   const allRules: SoDRuleDescriptor[] = [];
@@ -174,6 +186,31 @@ export function validateSoDRuleRegistry(
     for (const rule of module.sodRules ?? []) {
       allRules.push(rule);
       issues.push(...validateSingleRule(module, rule));
+
+      if (seededPermissionKeys) {
+        for (const key of rule.conflictingPermissionKeys ?? []) {
+          if (
+            PERMISSION_KEY_PATTERN.test(key) &&
+            !seededPermissionKeys.has(key)
+          ) {
+            issues.push({
+              ruleKey: rule.ruleKey || "(missing key)",
+              message: `conflictingPermissionKeys entry ${JSON.stringify(key)} does not match any seeded permission — a SoD rule must never point at a non-existent permission (drift).`
+            });
+          }
+        }
+        const approvalKey = rule.exceptionPolicy?.requiresApprovalPermission;
+        if (
+          approvalKey &&
+          PERMISSION_KEY_PATTERN.test(approvalKey) &&
+          !seededPermissionKeys.has(approvalKey)
+        ) {
+          issues.push({
+            ruleKey: rule.ruleKey || "(missing key)",
+            message: `exceptionPolicy.requiresApprovalPermission ${JSON.stringify(approvalKey)} does not match any seeded permission (drift).`
+          });
+        }
+      }
 
       seenKeys.set(rule.ruleKey, (seenKeys.get(rule.ruleKey) ?? 0) + 1);
     }

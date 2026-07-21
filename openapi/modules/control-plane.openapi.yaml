@@ -1,0 +1,201 @@
+# Control Plane (cross-cutting security) module OpenAPI fragment (Issue #879,
+# epic #868, ADR-0022 §5/§6). Merged into the generated bundle by
+# `bun run openapi:bundle`. Edit THIS file, never the generated bundle. The
+# "Control Plane" tag lives in the root fragment
+# (openapi/awcms-mini-public-api.src.yaml).
+paths:
+  /api/v1/control-plane/tenants/{tenantId}/support-access:
+    get:
+      tags:
+        - Control Plane
+      summary: "List support-access grants for a tenant"
+      description: "Issue #879 (ADR-0022 §5/§6) — audit view of support-access grants for a target tenant. Platform-operator only."
+      operationId: controlPlaneListSupportAccess
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Support-access grants listed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Control Plane
+      summary: "Request a cross-tenant support-access grant (maker)"
+      description: "MAKER step. Request a time/reason-bound support-access grant for a target tenant (for the requesting operator's identity). A DISTINCT actor must approve it before any cross-tenant read is permitted."
+      operationId: controlPlaneRequestSupportAccess
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "201":
+          description: "Support-access grant requested (pending approval)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: "A live grant for this operator already exists."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/control-plane/tenants/{tenantId}/support-access/{grantId}/approve:
+    post:
+      tags:
+        - Control Plane
+      summary: "Approve a support-access grant (checker)"
+      description: "CHECKER step. A DISTINCT actor from the requester approves a grant, setting its auto-expiry window. High-risk: SoD identity_access.support_request_vs_approve."
+      operationId: controlPlaneApproveSupportAccess
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                ttlSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 86400
+      responses:
+        "200":
+          description: "Grant approved."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Grant is not in a requested state, or a SoD denial."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/control-plane/tenants/{tenantId}/support-access/{grantId}/revoke:
+    post:
+      tags:
+        - Control Plane
+      summary: "Revoke an active support-access grant"
+      description: "Revoke an active grant before its expiry. After this, the operator's cross-tenant reads for this tenant fail closed immediately."
+      operationId: controlPlaneRevokeSupportAccess
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Grant revoked."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Grant is not active."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"

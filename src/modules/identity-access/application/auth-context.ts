@@ -39,7 +39,8 @@ export async function resolveTenantContext(
     tenantId,
     tenantUserId: tenantUser.id,
     identityId: session.identity_id,
-    roles
+    roles,
+    assuranceAt: session.assurance_at
   };
 }
 

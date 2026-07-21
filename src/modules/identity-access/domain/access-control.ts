@@ -14,6 +14,15 @@ export type TenantContext = {
   roles: string[];
   correlationId?: string;
   requestId?: string;
+  /**
+   * Issue #879 (FIX MEDIUM-3) — the actor's most recent strong-assurance
+   * timestamp (the session assurance signal, set at authentication and
+   * refreshable by a future re-assert/step-up endpoint). Consumed ONLY by the
+   * `authorizeInTransaction` step-up chokepoint via `evaluateStepUp`; the pure
+   * `evaluateAccess` ignores it. Optional so every hand-built `TenantContext`
+   * (unit tests, `POST /access/evaluate`) is unaffected.
+   */
+  assuranceAt?: Date;
 };
 
 export type AccessAction =
@@ -217,7 +226,16 @@ export type AccessAction =
   // `void`/`post`. (`void` is already a union member above, shared verbatim by
   // this module for `invoices.void`; `create`/`update`/`read`/`configure` reused
   // for the other billing permissions.)
-  | "issue";
+  | "issue"
+  // Issue #879 (epic #868 SaaS control plane, ADR-0022 §5/§6) — support-access
+  // grant lifecycle. `request` is the MAKER step (a support operator asks for a
+  // time/reason-bound, per-target-tenant cross-tenant read grant). Deliberately
+  // its OWN action (not `create`) so a role granted request cannot also approve,
+  // and NOT added to `HIGH_RISK_ACTIONS` — requesting is the safe maker step; the
+  // high-risk checker is `approve` (already high-risk) and `revoke` (already
+  // high-risk). Same "seed permission first, add the action when a real endpoint
+  // needs it" precedent as `verify`/`reserve`.
+  | "request";
 
 export type AccessRequest = {
   moduleKey: string;

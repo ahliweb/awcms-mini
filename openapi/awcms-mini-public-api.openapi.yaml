@@ -105,6 +105,8 @@ tags:
     description: "Provider-neutral SaaS control-plane payment gateway (epic #868 SaaS control plane Wave 1, Issue #877, ADR-0022) — the SIXTH and LAST control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Provider-neutral hosted checkout/payment sessions, SIGNED inbound webhooks (fail-closed HMAC + freshness <=300s + provider/account binding + payload-size + DURABLE per-event-id anti-replay + ordering), normalized payment events, refunds where supported, retry/DLQ, provider health + circuit breaker, and reconciliation. Payment status is NEVER trusted from a browser redirect — only a verified signed webhook or a reconciliation outcome updates payment (exactly once). The provider call ALWAYS happens OUTSIDE any DB transaction (ADR-0006): the local intent + outbox row commit first; a worker dispatches asynchronously. Provider adapters are OPTIONAL configuration wired by a derived application; the base ships only a fake/sandbox adapter for tests + docs. Provider secrets live in process.env only (an env: pointer on the account row), never in a table/event/log; stored webhook envelopes are doc-04 masked before persist. Money is EXACT minor units (bigint, never float). NOT a general ledger / AR-AP / double-entry accounting / merchant settlement / tax engine, and never stores raw card credentials/PAN (ADR-0022 §11). CONSUMES billing_document_state (#876); PROVIDES payment_outcome (consumed by subscription_billing). Platform-operator writes are separate from tenant admin and restricted to the platform tenant; the webhook receiver is authenticated by the opaque account id + provider signature. LAN/offline/manual-payment mode runs with no provider configured at all."
   - name: Usage Metering
     description: "Provider-neutral SaaS control-plane usage metering (epic #868 SaaS control plane Wave 1, Issue #875, ADR-0022) — the third control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id). Owning modules emit reviewed, NUMERIC-ONLY meter events in their own commit through the transaction-safe usage_append port (the events table is the transactional outbox); identity binds (tenant, producer, meter, sourceEventId, sourceVersion) so a duplicate producer event is counted once. An async, resumable worker deterministically materializes usage WINDOWS from the immutable events + signed CORRECTIONS (recompute-from-source: a rebuild reproduces stored aggregates, a replay never double-counts); late/out-of-order events recompute their window deterministically. Corrections link to the original event and NEVER mutate it (append-only, DB-trigger enforced). Reconciliation independently recomputes windows and flags drift/missing. The read-only usage_aggregate port exposes effective usage + a FAIL-CLOSED quota decision (the #871 entitlement limit + authoritative live usage — a hard quota denies when usage is unavailable). Meter keys/aggregation/bounds resolve against the #874 single source; an unknown meter fails closed. NO PII / no raw payloads. Operator-only + default-deny + default-disabled per tenant. correct/reconcile/rebuild require Idempotency-Key + audit. Not subscription/invoice pricing and not application telemetry."
+  - name: Control Plane
+    description: "Cross-cutting SaaS control-plane security surfaces (Issue #879, ADR-0022 §5/§6). Support-access grants: a platform/support operator has NO standing right to read another tenant's records — a time/reason-bound grant, approved by a DISTINCT actor (SoD identity_access.support_request_vs_approve), revocable and auto-expiring, is required for every cross-tenant support read (never reusable across tenants, fail-closed on expiry/revocation)."
 paths:
   /api/v1/access/assignments:
     post:
@@ -4564,6 +4566,201 @@ paths:
           $ref: "#/components/responses/NotFound"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/control-plane/tenants/{tenantId}/support-access:
+    get:
+      tags:
+        - Control Plane
+      summary: List support-access grants for a tenant
+      description: "Issue #879 (ADR-0022 §5/§6) — audit view of support-access grants for a target tenant. Platform-operator only."
+      operationId: controlPlaneListSupportAccess
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Support-access grants listed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    post:
+      tags:
+        - Control Plane
+      summary: Request a cross-tenant support-access grant (maker)
+      description: MAKER step. Request a time/reason-bound support-access grant for a target tenant (for the requesting operator's identity). A DISTINCT actor must approve it before any cross-tenant read is permitted.
+      operationId: controlPlaneRequestSupportAccess
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+      responses:
+        "201":
+          description: Support-access grant requested (pending approval).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A live grant for this operator already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/control-plane/tenants/{tenantId}/support-access/{grantId}/approve:
+    post:
+      tags:
+        - Control Plane
+      summary: Approve a support-access grant (checker)
+      description: "CHECKER step. A DISTINCT actor from the requester approves a grant, setting its auto-expiry window. High-risk: SoD identity_access.support_request_vs_approve."
+      operationId: controlPlaneApproveSupportAccess
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                ttlSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 86400
+      responses:
+        "200":
+          description: Grant approved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Grant is not in a requested state, or a SoD denial.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/control-plane/tenants/{tenantId}/support-access/{grantId}/revoke:
+    post:
+      tags:
+        - Control Plane
+      summary: Revoke an active support-access grant
+      description: Revoke an active grant before its expiry. After this, the operator's cross-tenant reads for this tenant fail closed immediately.
+      operationId: controlPlaneRevokeSupportAccess
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Grant revoked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Grant is not active.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/data-exchange/descriptors:
@@ -14100,8 +14297,8 @@ paths:
     post:
       tags:
         - Payment Gateway
-      summary: Request a refund
-      description: Request a refund against a settled intent where the provider supports it. Commits a local refund + outbox row FIRST; the provider call is dispatched OUTSIDE any transaction. Mandatory reason. Platform-operator only. Requires Idempotency-Key.
+      summary: Request a refund (maker)
+      description: "MAKER step (Issue #879, ADR-0022 §5). Request a refund against a settled intent — commits a local refund row in status 'requested' but enqueues NO provider dispatch. Money leaves only after a DISTINCT actor approves. Mandatory reason. Platform-operator only. Requires Idempotency-Key."
       operationId: paymentGatewayRequestRefund
       security:
         - bearerAuth: []
@@ -14300,6 +14497,55 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/payment-gateway/tenants/{tenantId}/refunds/{refundId}/approve:
+    post:
+      tags:
+        - Payment Gateway
+      summary: Approve a requested refund (checker)
+      description: "CHECKER step (Issue #879, ADR-0022 §5 CRITICAL-1). A DISTINCT actor from the requester approves a requested refund; ONLY THEN is the provider dispatch (money-out) enqueued. High-risk: SoD payment_gateway.refund_create_vs_approve + step-up. Platform-operator only. Requires Idempotency-Key."
+      operationId: paymentGatewayApproveRefund
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: refundId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Refund approved; provider dispatch enqueued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Refund is not in a requested state, or a SoD/step-up denial.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/payment-gateway/webhook/{providerAccountId}:
@@ -18383,12 +18629,62 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/service-catalog/plans/{planKey}/versions/{version}/approve:
+    post:
+      tags:
+        - Service Catalog
+      summary: Commercially approve a draft offer version (prerequisite for publish)
+      description: "Issue #879 (ADR-0022 §5 HIGH-2) — maker/checker. A DISTINCT actor from the publisher commercially approves a draft version before it may be published. High-risk (SoD publish_vs_commercial_approve + step-up); requires Idempotency-Key."
+      operationId: serviceCatalogOfferApprove
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: planKey
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^[a-z][a-z0-9_]*$
+            maxLength: 100
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Offer version commercially approved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Version is not a draft, already approved, or Idempotency-Key reused.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/service-catalog/plans/{planKey}/versions/{version}/publish:
     post:
       tags:
         - Service Catalog
       summary: Publish a draft version into an immutable offer
-      description: Platform-operator only; requires Idempotency-Key. Emits awcms-mini.service-catalog.offer.published.
+      description: Platform-operator only; requires Idempotency-Key and a prior commercial approval by a distinct actor (Issue
       operationId: serviceCatalogOfferPublish
       security:
         - bearerAuth: []
@@ -19782,6 +20078,55 @@ paths:
           $ref: "#/components/responses/PayloadTooLarge"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/credits/{creditNoteId}/approve:
+    post:
+      tags:
+        - Subscription Billing
+      summary: Approve a pending credit note (checker)
+      description: "CHECKER step (Issue #879, ADR-0022 §5 CRITICAL-1). A DISTINCT actor from the creator approves a pending credit note; ONLY THEN is it applied to the invoice balance. High-risk: SoD subscription_billing.credit_create_vs_approve + step-up. Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingApproveCredit
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: creditNoteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Credit note approved and applied to the invoice balance.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Credit note is not pending, over-credit, or a SoD/step-up denial.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/subscription-billing/tenants/{tenantId}/invoices:
     get:
       tags:
@@ -19929,8 +20274,8 @@ paths:
     post:
       tags:
         - Subscription Billing
-      summary: Issue a credit note
-      description: Issue a credit note against an original issued/paid invoice (and optionally a line). Never edits the invoice. Exact minor-unit amount. Platform-operator only. Requires Idempotency-Key.
+      summary: Create a credit note (maker)
+      description: "MAKER step (Issue #879, ADR-0022 §5). Create a credit note against an issued/paid invoice in status 'pending_approval' — does NOT reduce the invoice balance. A DISTINCT actor must approve it before it applies. Never edits the invoice. Exact minor-unit amount. Platform-operator only. Requires Idempotency-Key."
       operationId: subscriptionBillingCreditInvoice
       security:
         - bearerAuth: []

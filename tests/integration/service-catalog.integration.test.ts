@@ -36,13 +36,49 @@ import { resolveModuleEnabled } from "../../src/modules/identity-access/applicat
 import { syncModuleDescriptors } from "../../src/modules/module-management/application/descriptor-sync";
 import { resolveServiceCatalogKeyRegistry } from "../../src/modules/service-catalog/domain/key-registry";
 import {
+  approveOfferVersion,
   createPlan,
   createDraftVersion,
   fetchPlanDetail,
-  publishVersion,
+  publishVersion as rawPublishVersion,
   retireVersion,
   updatePlanDraft
 } from "../../src/modules/service-catalog/application/plan-directory";
+
+/**
+ * Issue #879 (ADR-0022 §5 HIGH-2) — publish now requires a prior COMMERCIAL
+ * APPROVAL by a DISTINCT actor. This test helper performs that approval (with a
+ * fresh, distinct approver identity) and then publishes, so every existing
+ * lifecycle test exercises the real, gated publish path. On a re-publish/race
+ * attempt the version is no longer draft, so the approve is a harmless no-op and
+ * the real `publishVersion` conflict semantics are preserved.
+ */
+async function publishVersion(
+  tx: Parameters<typeof rawPublishVersion>[0],
+  tenantId: string,
+  actorTenantUserId: string,
+  planKey: string,
+  version: number,
+  registry: Parameters<typeof rawPublishVersion>[5],
+  correlationId?: string
+): ReturnType<typeof rawPublishVersion> {
+  await approveOfferVersion(
+    tx,
+    tenantId,
+    crypto.randomUUID(),
+    planKey,
+    version
+  );
+  return rawPublishVersion(
+    tx,
+    tenantId,
+    actorTenantUserId,
+    planKey,
+    version,
+    registry,
+    correlationId
+  );
+}
 import { listPublishedOffers } from "../../src/modules/service-catalog/application/service-catalog-read-query";
 import {
   buildOfferSnapshot,
@@ -1209,6 +1245,11 @@ routeSuite("service_catalog routes — D1 idempotency replay", () => {
         },
         registry
       )
+    );
+
+    // Issue #879 — commercial approval is a prerequisite for the HTTP publish.
+    await withTenant(getTestSql(), tenantId, (tx) =>
+      approveOfferVersion(tx, tenantId, crypto.randomUUID(), "d1p", 1)
     );
 
     const key = crypto.randomUUID();

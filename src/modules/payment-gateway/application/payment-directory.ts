@@ -67,6 +67,8 @@ export type RefundRow = {
   version: number;
   provider_refund_ref: string | null;
   result_class: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
 };
 
 export type OutboxRow = {
@@ -698,7 +700,7 @@ export async function sumCountedRefunds(
     SELECT COALESCE(SUM(amount_minor), 0)::text AS total
     FROM awcms_mini_payment_gateway_refunds
     WHERE tenant_id = ${tenantId} AND intent_id = ${intentId}
-      AND status IN ('requested', 'pending', 'succeeded')
+      AND status IN ('requested', 'approved', 'pending', 'succeeded')
   `) as { total: string }[];
   return rows[0]?.total ?? "0";
 }
@@ -714,6 +716,13 @@ export async function advanceRefundStatus(
     providerRefundRef?: string | null;
     resultClass?: string | null;
     resolvedAt?: string | null;
+    /**
+     * Issue #879 — the approver (CHECKER). Set ONLY on the `requested ->
+     * approved` transition; write-once (trigger-enforced). Passing it on any
+     * other transition is ignored by the trigger's write-once guard.
+     */
+    approvedBy?: string | null;
+    approvedAt?: string | null;
     actor: string | null;
   }
 ): Promise<RefundRow | null> {
@@ -725,6 +734,8 @@ export async function advanceRefundStatus(
         provider_refund_ref = COALESCE(${input.providerRefundRef ?? null}, provider_refund_ref),
         result_class = ${input.resultClass ?? null},
         resolved_at = COALESCE(${input.resolvedAt ?? null}, resolved_at),
+        approved_by = COALESCE(${input.approvedBy ?? null}, approved_by),
+        approved_at = COALESCE(${input.approvedAt ?? null}, approved_at),
         updated_by = ${input.actor},
         updated_at = now()
     WHERE tenant_id = ${input.tenantId} AND id = ${input.refundId}

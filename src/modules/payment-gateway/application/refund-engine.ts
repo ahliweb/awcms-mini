@@ -41,6 +41,7 @@ export type RefundDto = {
   status: string;
   version: number;
   providerRefundRef: string | null;
+  approvedBy: string | null;
 };
 
 export function toRefundDto(row: RefundRow): RefundDto {
@@ -52,7 +53,8 @@ export function toRefundDto(row: RefundRow): RefundDto {
     amountMinor: Number(row.amount_minor),
     status: row.status,
     version: Number(row.version),
-    providerRefundRef: row.provider_refund_ref
+    providerRefundRef: row.provider_refund_ref,
+    approvedBy: row.approved_by
   };
 }
 
@@ -121,9 +123,10 @@ export async function requestRefund(
   });
   if (!refund) {
     // The partial-unique `(tenant_id, intent_id) WHERE status IN
-    // ('requested','pending')` rejected a concurrent LIVE refund — at most one
-    // live refund per intent. This is the second racer; it is a clean 409 no-op
-    // (no outbox row, no provider call), so the provider is never double-refunded.
+    // ('requested','approved','pending')` rejected a concurrent LIVE refund — at
+    // most one live refund per intent. This is the second racer; it is a clean
+    // 409 no-op (no outbox row, no provider call), so the provider is never
+    // double-refunded.
     return {
       ok: false,
       reason: "refund_in_progress",
@@ -131,21 +134,11 @@ export async function requestRefund(
     };
   }
 
-  await insertOutbox(tx, {
-    tenantId,
-    providerAccountId: intent.provider_account_id,
-    intentId,
-    refundId: refund.id,
-    kind: "request_refund",
-    payload: {
-      refundId: refund.id,
-      intentId,
-      amountMinor: amount,
-      currency: intent.currency
-    },
-    correlationId: ctx.correlationId
-  });
-
+  // Issue #879 (ADR-0022 §5 CRITICAL-1) — MAKER step only. NO outbox dispatch is
+  // enqueued here: the provider refund (money-out) is enqueued exclusively by
+  // `approveRefund`, performed by a DIFFERENT, high-risk-authorized actor (SoD
+  // `payment_gateway.refund_create_vs_approve`). Requesting a refund therefore
+  // never moves money on its own.
   await appendDomainEvent(
     tx,
     tenantId,
@@ -168,12 +161,110 @@ export async function requestRefund(
     resourceType: "payment_gateway_refund",
     resourceId: refund.id,
     severity: "warning",
-    message: `Refund requested (outbox dispatch enqueued): ${command.reason}`,
+    message: `Refund requested (awaiting a second-actor approval before any dispatch): ${command.reason}`,
     attributes: { intentId, amountMinor: amount, currency: intent.currency },
     ctx
   });
 
   return { ok: true, refund: toRefundDto(refund) };
+}
+
+export type ApproveRefundResult =
+  | { ok: true; refund: RefundDto }
+  | {
+      ok: false;
+      reason: "not_found" | "not_approvable";
+      message: string;
+    };
+
+/**
+ * Issue #879 (ADR-0022 §5 CRITICAL-1) — CHECKER step. A DIFFERENT actor than the
+ * requester (enforced by the SoD chokepoint at the `approve` high-risk action)
+ * transitions a `requested` refund to `approved` and — ONLY THEN — enqueues the
+ * provider dispatch (money-out). Idempotent: an already-approved/in-flight refund
+ * returns its current state without re-enqueuing.
+ */
+export async function approveRefund(
+  tx: Bun.SQL,
+  tenantId: string,
+  refundId: string,
+  ctx: EventCtx
+): Promise<ApproveRefundResult> {
+  const refund = await loadRefundForUpdate(tx, tenantId, refundId);
+  if (!refund) {
+    return { ok: false, reason: "not_found", message: "Refund not found." };
+  }
+  if (refund.status !== "requested") {
+    // Already approved / dispatched / terminal — not re-approvable. An already
+    // `approved`+ refund is treated as a clean idempotent no-op success by the
+    // route via the idempotency record; here we surface a deterministic 409 for
+    // a genuinely non-requested state.
+    return {
+      ok: false,
+      reason: "not_approvable",
+      message: `Only a requested refund can be approved (is "${refund.status}").`
+    };
+  }
+
+  const intent = await loadIntentForUpdate(tx, tenantId, refund.intent_id);
+  if (!intent) {
+    return {
+      ok: false,
+      reason: "not_found",
+      message: "Payment intent for this refund not found."
+    };
+  }
+
+  const approved = await advanceRefundStatus(tx, {
+    tenantId,
+    refundId,
+    fromStatus: "requested",
+    fromVersion: Number(refund.version),
+    toStatus: "approved",
+    approvedBy: ctx.actorTenantUserId,
+    approvedAt: new Date().toISOString(),
+    actor: ctx.actorTenantUserId
+  });
+  if (!approved) {
+    return {
+      ok: false,
+      reason: "not_approvable",
+      message: "This refund was concurrently transitioned out of requested."
+    };
+  }
+
+  // ONLY NOW is the money-out enqueued (outside any provider call, ADR-0006).
+  await insertOutbox(tx, {
+    tenantId,
+    providerAccountId: intent.provider_account_id,
+    intentId: refund.intent_id,
+    refundId: refund.id,
+    kind: "request_refund",
+    payload: {
+      refundId: refund.id,
+      intentId: refund.intent_id,
+      amountMinor: Number(refund.amount_minor),
+      currency: refund.currency
+    },
+    correlationId: ctx.correlationId
+  });
+
+  await auditPayment(tx, tenantId, {
+    action: "approve",
+    resourceType: "payment_gateway_refund",
+    resourceId: refund.id,
+    severity: "warning",
+    message: "Refund approved by a second actor; provider dispatch enqueued.",
+    attributes: {
+      intentId: refund.intent_id,
+      amountMinor: Number(refund.amount_minor),
+      currency: refund.currency,
+      approvedBy: ctx.actorTenantUserId
+    },
+    ctx
+  });
+
+  return { ok: true, refund: toRefundDto(approved) };
 }
 
 /**
@@ -199,13 +290,15 @@ export async function resolveRefundOutcome(
     return toRefundDto(refund);
   }
 
-  // Ensure we are at `pending` before the terminal step (requested -> pending).
+  // Ensure we are at `pending` before the terminal step. The outbox dispatch is
+  // enqueued only after approval (Issue #879), so the worker sees the refund in
+  // `approved`; advance approved -> pending here.
   let current = refund;
-  if (current.status === "requested") {
+  if (current.status === "approved") {
     const pending = await advanceRefundStatus(tx, {
       tenantId,
       refundId,
-      fromStatus: "requested",
+      fromStatus: "approved",
       fromVersion: Number(current.version),
       toStatus: "pending",
       actor: ctx.actorTenantUserId

@@ -159,7 +159,13 @@ export const subscriptionBillingModule = defineModule({
       activityCode: "credits",
       action: "create",
       description:
-        "Issue a credit note against an original issued invoice/line (never edits the invoice)"
+        "Create (MAKER) a credit note in pending_approval — does not reduce the invoice balance"
+    },
+    {
+      activityCode: "credits",
+      action: "approve",
+      description:
+        "Approve (CHECKER) a pending credit note — distinct actor (SoD) + step-up; applies it to the invoice balance"
     },
     {
       activityCode: "payments",
@@ -178,6 +184,54 @@ export const subscriptionBillingModule = defineModule({
       action: "update",
       description:
         "Run/schedule dunning attempts that request lifecycle transitions through the #873 contract"
+    }
+  ],
+  // Segregation-of-duties (Issue #879, epic #868 Wave 2, ADR-0022 §5 —
+  // "invoice/credit/refund creation versus approval"). SoD was DEFERRED from
+  // #876 to #879; declared here, wired into the `authorizeInTransaction`
+  // chokepoint via `high-risk-sod-guard.ts`. Enforced at the high-risk
+  // `invoices.issue` step (freezing a draft into an immutable commercial
+  // document): the subject who CREATED the draft invoice must not also be the
+  // one who ISSUES it — maker/checker over billing documents.
+  sodRules: [
+    {
+      ruleKey: "subscription_billing.invoice_create_vs_issue",
+      ownerModuleKey: "subscription_billing",
+      description:
+        "A subject who CREATES a draft invoice must not also ISSUE (freeze) it into an immutable commercial document — invoice maker/checker (ADR-0022 §5 invoice/credit/refund creation vs approval).",
+      conflictingPermissionKeys: [
+        "subscription_billing.invoices.create",
+        "subscription_billing.invoices.issue"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "high",
+      exceptionPolicy: {
+        allowed: true,
+        requiresApprovalPermission:
+          "identity_access.business_scope_exceptions.approve",
+        maxDurationDays: 14
+      }
+    },
+    {
+      // Issue #879 (ADR-0022 §5 CRITICAL-1) — credit maker/checker. Fires at the
+      // high-risk `credits.approve` action: a subject who CREATED a pending credit
+      // note must not also APPROVE (apply) it to a tenant's invoice balance.
+      ruleKey: "subscription_billing.credit_create_vs_approve",
+      ownerModuleKey: "subscription_billing",
+      description:
+        "A subject who CREATES a credit note must not also APPROVE (apply) it to the invoice balance — credit maker/checker (ADR-0022 §5 invoice/credit/refund creation vs approval).",
+      conflictingPermissionKeys: [
+        "subscription_billing.credits.create",
+        "subscription_billing.credits.approve"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "high",
+      exceptionPolicy: {
+        allowed: true,
+        requiresApprovalPermission:
+          "identity_access.business_scope_exceptions.approve",
+        maxDurationDays: 14
+      }
     }
   ],
   api: {

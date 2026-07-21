@@ -168,6 +168,20 @@ jobs:
       - name: Business-scope SoD rule registry validation check
         run: bun run identity-access:sod-registry:check
 
+      # Issue #879 (epic #868 SaaS control plane, Wave 2, ADR-0022 §6 High-1):
+      # the "no soft super-tenant" static gate — scans every CREATE POLICY
+      # predicate for a platform-claim RLS extension (a functional BYPASSRLS
+      # the role-attribute check cannot see). Added here alongside the other
+      # registry checks for the exact same "CI silently runs a subset of
+      # `bun run check`" reason documented above.
+      - name: RLS platform-claim (no soft super-tenant) check
+        run: bun run rls:platform-claim:check
+
+      # Issue #879: control-plane step-up policy registry validation — proves
+      # every step-up policy points at a real seeded permission (drift-killer).
+      - name: Control-plane step-up policy registry validation check
+        run: bun run control-plane:step-up:check
+
       # Issue #750 (epic #738): added alongside the other registry checks
       # above, for the exact same "CI silently runs a subset of `bun run
       # check`" reason Issue #685/#740/#745/#746 already documented for

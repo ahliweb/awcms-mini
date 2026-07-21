@@ -17,6 +17,11 @@ export function canEditDraft(status: OfferVersionStatus): boolean {
   return status === "draft";
 }
 
+/** Only a draft version can be commercially approved (Issue #879, ADR-0022 §5 HIGH-2). */
+export function canCommerciallyApprove(status: OfferVersionStatus): boolean {
+  return status === "draft";
+}
+
 /** Only a draft version can be published. */
 export function canPublish(status: OfferVersionStatus): boolean {
   return status === "draft";

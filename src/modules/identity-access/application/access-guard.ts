@@ -12,7 +12,12 @@ import {
   TENANT_COOKIE_NAME
 } from "../../../lib/auth/ssr-session";
 import type { AccessRequest, TenantContext } from "../domain/access-control";
-import { evaluateAccess, isHighRiskAction } from "../domain/access-control";
+import {
+  evaluateAccess,
+  isHighRiskAction,
+  permissionKey
+} from "../domain/access-control";
+import { evaluateStepUp } from "../../_shared/control-plane-step-up-registry";
 import {
   fetchGrantedPermissionKeys,
   resolveModuleEnabled,
@@ -152,6 +157,33 @@ export async function authorizeInTransaction(
     return {
       allowed: false,
       denied: fail(403, "ACCESS_DENIED", decision.reason)
+    };
+  }
+
+  // Issue #879 (FIX MEDIUM-3) — RUNTIME step-up enforcement. For a control-plane
+  // permission classified step-up-required (`control-plane-step-up-registry.ts`),
+  // the actor must hold a CURRENT assurance (`assuranceAt` within the registry's
+  // `maxAssuranceAgeSeconds`). Fail-closed: a missing/stale assurance is DENIED
+  // here, turning the previously-vacuous registry into an enforced control. The
+  // interactive step-up UX (#878) can then prompt and re-assert; this runtime
+  // refusal is real regardless. Non-registered keys make this a no-op (every
+  // ordinary tenant endpoint is completely unaffected).
+  const stepUpKey = permissionKey(
+    guard.moduleKey,
+    guard.activityCode,
+    guard.action
+  );
+  const stepUp = evaluateStepUp(stepUpKey, context.assuranceAt, now);
+  if (stepUp.required && !stepUp.satisfied) {
+    const reason = `Step-up authentication required for "${stepUpKey}": a current assurance (within ${stepUp.maxAssuranceAgeSeconds}s) is missing or stale.`;
+    await recordDecisionLog(tx, tenantId, context.tenantUserId, guard, {
+      allowed: false,
+      reason,
+      matchedPolicy: "step_up_required"
+    });
+    return {
+      allowed: false,
+      denied: fail(403, "STEP_UP_REQUIRED", reason)
     };
   }
 

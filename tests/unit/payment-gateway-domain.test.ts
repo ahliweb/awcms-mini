@@ -128,8 +128,15 @@ describe("payment intent state machine (ADR-0022 §11.5)", () => {
   });
 
   test("refund transitions", () => {
-    expect(isLegalRefundTransition("requested", "pending")).toBe(true);
+    // Issue #879 (ADR-0022 §5 CRITICAL-1) — refund maker/checker state machine:
+    // requested -> approved -> pending -> {succeeded, failed}. Money-out is only
+    // enqueued on the approve step, so `requested` can NEVER skip straight to
+    // `pending` (that would dispatch without a distinct approver).
+    expect(isLegalRefundTransition("requested", "approved")).toBe(true);
+    expect(isLegalRefundTransition("approved", "pending")).toBe(true);
     expect(isLegalRefundTransition("pending", "succeeded")).toBe(true);
+    // The new invariant: no approval-skipping path from requested to pending.
+    expect(isLegalRefundTransition("requested", "pending")).toBe(false);
     expect(isLegalRefundTransition("succeeded", "failed")).toBe(false);
   });
 });

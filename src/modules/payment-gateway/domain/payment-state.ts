@@ -113,10 +113,15 @@ export function intentStatusForNormalized(
 // Refund state machine
 // -------------------------------------------------------------------------
 
-export type RefundStatus = "requested" | "pending" | "succeeded" | "failed";
+// Issue #879 (ADR-0022 §5 CRITICAL-1) — maker/checker for refunds. A refund is
+// REQUESTED (maker) then APPROVED (checker, a different actor, high-risk) before
+// any provider dispatch; the money-out outbox is enqueued only on approval.
+export type RefundStatus =
+  "requested" | "approved" | "pending" | "succeeded" | "failed";
 
 export const REFUND_STATUSES: readonly RefundStatus[] = [
   "requested",
+  "approved",
   "pending",
   "succeeded",
   "failed"
@@ -125,7 +130,8 @@ export const REFUND_STATUSES: readonly RefundStatus[] = [
 const REFUND_TRANSITIONS: Readonly<
   Record<RefundStatus, readonly RefundStatus[]>
 > = {
-  requested: ["pending", "failed"],
+  requested: ["approved", "failed"],
+  approved: ["pending", "failed"],
   pending: ["succeeded", "failed"],
   succeeded: [],
   failed: []

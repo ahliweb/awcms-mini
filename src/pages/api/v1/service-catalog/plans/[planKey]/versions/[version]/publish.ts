@@ -108,6 +108,9 @@ export const POST: APIRoute = async ({ request, cookies, params, locals }) => {
       if (result.reason === "not_found") {
         return fail(404, "RESOURCE_NOT_FOUND", "Plan version not found.");
       }
+      if (result.reason === "not_approved") {
+        return fail(409, "OFFER_NOT_APPROVED", result.message);
+      }
       if (result.reason === "not_draft") {
         // D1: a concurrent SAME-key publish may have won and already published
         // this version — replay its stored 200 rather than a misleading 409.
