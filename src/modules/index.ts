@@ -1,6 +1,4 @@
 import type { ModuleDescriptor } from "./_shared/module-contract";
-import { applicationModuleRegistry } from "./application-registry";
-import { mergeModuleRegistries } from "./module-management/domain/module-composition";
 import { blogContentModule } from "./blog-content/module";
 import { dataExchangeModule } from "./data-exchange/module";
 import { dataLifecycleModule } from "./data-lifecycle/module";
@@ -33,9 +31,7 @@ import { visitorAnalyticsModule } from "./visitor-analytics/module";
 import { workflowApprovalModule } from "./workflow-approval/module";
 
 /**
- * The reviewed BASE registry — unchanged in shape/order/content by Issue
- * #740. Every module below is reviewed, in-repo code; nothing here is
- * conditional on a derived repository's own contribution.
+ * The reviewed BASE registry. Every module below is reviewed, in-repo code.
  */
 const baseModules: ModuleDescriptor[] = [
   tenantAdminModule,
@@ -134,27 +130,24 @@ const baseModules: ModuleDescriptor[] = [
   paymentGatewayModule
 ];
 
-/** Base-only registry, regardless of any application registry — Issue #740's composition API. */
+/**
+ * Base registry accessor. Retained as a distinct name from `listModules()`
+ * for the composition/reporting/SoD gates that validate the reviewed base
+ * registry explicitly.
+ */
 export function listBaseModules(): readonly ModuleDescriptor[] {
   return baseModules;
 }
 
 /**
- * Final, effective registry — `baseModules` merged with an optional
- * build-time application registry (`./application-registry.ts`, Issue
- * #740). Merge only, never validated here: `index.ts` stays pure data,
- * exactly like before this issue (`listModules()` used to be `return
- * modules` with zero validation) — the composed registry's VALIDITY is a
- * separate, explicit check (`bun run modules:compose:check`,
- * `bun run modules:dag:check`, tests), never something module load itself
- * throws on. In this base repository, `applicationModuleRegistry` is
- * always `undefined`, so `modules` below is a byte-identical pass-through
- * of `baseModules` — the exact same effective registry as before this
- * change.
+ * The effective module registry. `index.ts` stays pure data — module load
+ * never validates or throws; the registry's VALIDITY is a separate,
+ * explicit check (`bun run modules:compose:check`,
+ * `bun run modules:dag:check`, tests). Each entry keeps its own object
+ * identity from `baseModules`. (ADR-0024 removed the derived-application
+ * composition seam; the effective registry is now the base registry.)
  */
-export const modules: ModuleDescriptor[] = [
-  ...mergeModuleRegistries(baseModules, applicationModuleRegistry)
-];
+export const modules: ModuleDescriptor[] = [...baseModules];
 
 export function getModuleByKey(
   moduleKey: string

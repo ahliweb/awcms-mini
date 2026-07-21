@@ -1,19 +1,18 @@
 /**
- * Deterministic build-time module composition — the validation engine
- * (Issue #740, epic #738 `platform-evolution`, Wave 1). Composes the
- * reviewed base registry (`src/modules/index.ts`'s `listBaseModules()`)
- * with at most one reviewed application registry
- * (`ApplicationModuleRegistry`, supplied only through the designated
- * build-time extension point `src/modules/application-registry.ts`) into
- * one final, validated module list. See
- * `docs/adr/0013-extension-layers-and-boundary-model.md` §5/§9 and
- * `docs/awcms-mini/21_module_admission_governance.md` §7 for the binding
- * architectural context this implements: the base registry stays the
- * single, statically-reviewed source of Core/System/Official Optional
- * modules; a derived repository contributes application modules WITHOUT
- * ever editing `src/modules/index.ts`, and composition is 100%
- * compile-time TypeScript — no runtime discovery, file upload, package
+ * Deterministic module-registry composition — the validation engine
+ * (originally Issue #740, epic #738 `platform-evolution`, Wave 1).
+ * Validates the reviewed base registry (`src/modules/index.ts`'s
+ * `listBaseModules()`) into one final, validated module list. Validation is
+ * 100% compile-time TypeScript — no runtime discovery, file upload, package
  * scanning, `eval`, or untrusted code loading.
+ *
+ * ADR-0024 removed the derived-application pathway: the `application`
+ * registry parameter, the migration-namespace overlap check, the
+ * base-override / reserved-module-type checks, and the
+ * `mergeModuleRegistries` seam are gone. These functions now validate a
+ * single reviewed registry (the base). The remaining checks are all
+ * base-load-bearing invariants that also hold when new domain modules are
+ * added directly to `src/modules/`.
  *
  * ## Why this lives in `module-management/domain/`, not `_shared/`
  *
@@ -38,88 +37,34 @@
  * module's `application`/`domain` tree directly, instead of through
  * `_shared/ports/`.
  *
- * ## Two-phase design: merge (always succeeds) vs validate (can fail)
- *
- * `mergeModuleRegistries` is a pure, unconditional concatenation — base
- * modules first (in their declared order), then the application
- * registry's modules (in ITS declared order), never reordered,
- * deduplicated, or mutated. This is deliberately the ONLY thing
- * `src/modules/index.ts` itself calls (mirroring the existing architecture
- * where `index.ts` is pure data and has never itself thrown —
- * `listModules()` before Issue #740 was `return modules`, no validation,
- * ever; `validateModuleDependencyGraph` has always been a SEPARATE,
- * explicit call a script/test makes, never embedded in module load). This
- * is also WHY a default base build (`applicationModuleRegistry ===
- * undefined`, this base repo's real shipped state) produces a
- * byte-identical effective registry to before this issue: merging with
- * nothing is a no-op pass-through (`[...base]`, same order, same object
- * references).
- *
  * `validateComposedModuleRegistry` is the actual rule engine — called
  * explicitly by `bun run modules:compose:check`
  * (`scripts/validate-module-composition.ts`) and by tests, never by
- * `index.ts`'s module-load path. `composeModuleRegistry` is a convenience
- * wrapper combining both for callers that want one call (the CI script,
- * the composed-inventory generator, fixture tests).
+ * `index.ts`'s module-load path (`index.ts` stays pure data and has never
+ * itself thrown). `composeModuleRegistry` is a convenience wrapper.
  *
  * ## Every composition issue class (see `ModuleCompositionIssue`)
  *
  * Reused as-is from the existing whole-registry DAG validator (Issue
- * #680), run against the MERGED list: `self_dependency`,
- * `duplicate_dependency`, `missing_dependency`, `cycle`.
- *
- * New in this issue:
- * - `duplicate_module_key` — two contributed application modules share a
- *   key (neither is a base module's key — see `prohibited_base_override`
- *   for that case, reported INSTEAD of this one on the same collision to
- *   avoid double-noise, the same "most specific issue wins" philosophy
- *   `module-dependency-graph.ts` already documents for its own
- *   self-dependency/duplicate-dependency split).
- * - `prohibited_base_override` — an application module's `key` exactly
- *   matches a BASE module's key. Doc 21 §7 / ADR-0013 §9's guardrail says
- *   "Core/System modules cannot be replaced or shadowed" — this check is
- *   deliberately stricter (ANY base module, not only Core/System),
- *   because `ModuleDescriptor.type` is not consistently populated across
- *   the base registry today (doc 21 §8's own remediation note R1: 9 of 16
- *   modules leave `type` `undefined`), so a Core/System-only filter would
- *   be unreliable. Blocking every base collision is a strict superset of
- *   the required guardrail and forbids nothing an application registry
- *   would ever legitimately need — an application module reusing a base
- *   module's own key is never correct.
- * - `invalid_module_type` — an application module declares `type: "base"`
- *   or `type: "system"` — those categories are reserved for the reviewed
- *   base registry (doc 21 §2); an application/derived module must be
- *   `"domain"`, `"integration"`, `"derived"`, or leave `type` undeclared
- *   (same leniency the base registry itself allows, doc 21 §8 R1).
- * - `capability_provider_conflict` — two or more modules in the merged
- *   registry declare the same string in their own `capabilities.provides`
- *   — ambiguous which module a consumer's `providedBy` actually resolves
- *   to.
+ * #680): `self_dependency`, `duplicate_dependency`, `missing_dependency`,
+ * `cycle`. Plus:
+ * - `duplicate_module_key` — two modules in the registry share a key.
+ * - `capability_provider_conflict` — two or more modules in the registry
+ *   declare the same string in their own `capabilities.provides` —
+ *   ambiguous which module a consumer's `providedBy` actually resolves to.
  * - `capability_provider_missing` — a REQUIRED (`optional` not `true`)
  *   `capabilities.consumes` entry names a `providedBy` module that either
- *   isn't in the merged registry at all, or IS but doesn't declare that
- *   capability in its own `provides`. An `optional: true` entry is never
- *   checked — ADR-0011's whole point is that the consumer degrades safely
- *   when it resolves to "not applicable".
- * - `migration_namespace_overlap` — the application registry's declared
- *   `migrationNamespace` numeric range intersects the base's reserved
- *   range (`BASE_MODULE_MIGRATION_NAMESPACE`). Best-effort, declared-data
- *   only: this does NOT read real `sql/*.sql` filenames (a pure domain
- *   function has no filesystem access, matching this module's own no-I/O
- *   convention) — skipped entirely when the application registry omits
- *   `migrationNamespace`.
+ *   isn't in the registry at all, or IS but doesn't declare that capability
+ *   in its own `provides`. An `optional: true` entry is never checked —
+ *   ADR-0011's whole point is that the consumer degrades safely.
  * - `deployment_profile_incompatible` — a module declares
  *   `compatibility.deploymentProfiles` including a profile that one of its
  *   own `dependencies` (which also declares `deploymentProfiles`) does NOT
  *   support — claiming to run somewhere a required dependency cannot.
  * - `navigation_path_conflict` — two navigation entries anywhere in the
- *   merged registry (same module or different modules) declare the exact
- *   same `path`.
+ *   registry (same module or different modules) declare the exact same `path`.
  * - `invalid_job_descriptor` — reuses `./job-registry.ts`'s
- *   `validateJobDescriptor` against every contributed module's `jobs`
- *   array (not just the base registry's, which already implicitly passes
- *   today, verified by `tests/unit/module-composition.test.ts`'s own
- *   "real base registry" smoke test).
+ *   `validateJobDescriptor` against every module's `jobs` array.
  *
  * No issue type exists for permission catalogs or health descriptors
  * beyond what's covered above — `ModuleHealthContract` is two optional
@@ -128,15 +73,10 @@
  * (`comparePermissions`'s `${moduleKey}.${activityCode}.${action}`,
  * `domain/permission-sync.ts`) so cross-module collisions are structurally
  * impossible. Both still flow into `buildComposedModuleInventory` below so
- * the deterministic inventory reflects contributed modules' permission and
- * health metadata (acceptance criterion: "Permission/navigation/job/health
- * inventories include contributed modules and remain deterministic").
+ * the deterministic inventory reflects every module's permission and health
+ * metadata.
  */
-import type {
-  ApplicationModuleRegistry,
-  ModuleDescriptor,
-  ModuleMigrationNamespace
-} from "../../_shared/module-contract";
+import type { ModuleDescriptor } from "../../_shared/module-contract";
 import { validateJobDescriptor } from "./job-registry";
 import {
   formatModuleDependencyGraphIssue,
@@ -144,50 +84,9 @@ import {
   type ModuleDependencyGraphIssue
 } from "./module-dependency-graph";
 
-/**
- * This base repository's own reserved migration-number range — every
- * `sql/NNN_awcms_mini_*.sql` file this repo ever ships must stay within
- * `1..899`. `899` is a deliberately generous ceiling (the real current
- * high-water mark is far below it — `ls sql | sort -V | tail -1` for the
- * live count) so the base can keep growing for a long time without needing
- * to renumber anything; a derived repository's own `migrationNamespace`
- * must start at `900` or above (or otherwise not overlap this range) to
- * guarantee zero numbering collisions with the base by construction. This
- * is a POLICY constant, not derived from the real `sql/` directory (this
- * file is pure, no filesystem access — no function in this file reads
- * `sql/*.sql` filenames at all).
- *
- * PR #769 security-auditor review (Medium finding): a prior version of
- * this comment claimed `scripts/repo-inventory-generate.ts` "cross-checks"
- * the real directory against this range — verified false, that script only
- * lists/counts migration filenames for the inventory doc, with no
- * assertion against this constant. `repo-inventory-generate.ts` now
- * actually performs that cross-check (`findMigrationNamespaceViolations`,
- * reusing this exact constant) — every `sql/*.sql` file's numeric prefix
- * is verified to stay within `1..899` in the base repository's own build,
- * reported as a possible gap in `docs/awcms-mini/repo-inventory.md` if
- * violated. This is still a BASE-repo-only guarantee: it has no visibility
- * into a derived repository's own separate `sql/` directory, which must
- * verify its own files stay inside ITS declared `migrationNamespace`
- * itself (composition only compares declared RANGES against each other,
- * §"migration_namespace_overlap" above — no mechanism here reads across
- * repository boundaries).
- */
-export const BASE_MODULE_MIGRATION_NAMESPACE: ModuleMigrationNamespace = {
-  label: "awcms-mini base",
-  rangeStart: 1,
-  rangeEnd: 899
-};
-
 export type ModuleCompositionIssue =
   | ModuleDependencyGraphIssue
   | { type: "duplicate_module_key"; moduleKey: string; occurrences: number }
-  | {
-      type: "prohibited_base_override";
-      moduleKey: string;
-      baseModuleType: string | undefined;
-    }
-  | { type: "invalid_module_type"; moduleKey: string; declaredType: string }
   | {
       type: "capability_provider_conflict";
       capability: string;
@@ -200,13 +99,6 @@ export type ModuleCompositionIssue =
       providedBy: string;
       reason:
         "provider_not_registered" | "provider_does_not_declare_capability";
-    }
-  | {
-      type: "migration_namespace_overlap";
-      applicationLabel: string;
-      baseLabel: string;
-      overlapStart: number;
-      overlapEnd: number;
     }
   | {
       type: "deployment_profile_incompatible";
@@ -226,11 +118,6 @@ export type ModuleCompositionIssue =
       errors: readonly string[];
     };
 
-export type ModuleCompositionInput = {
-  base: readonly ModuleDescriptor[];
-  application?: ApplicationModuleRegistry;
-};
-
 export type ModuleCompositionResult =
   | { valid: true; registry: readonly ModuleDescriptor[] }
   | {
@@ -238,18 +125,6 @@ export type ModuleCompositionResult =
       registry: readonly ModuleDescriptor[];
       issues: readonly ModuleCompositionIssue[];
     };
-
-/**
- * Pure, unconditional concatenation — see file header for why
- * `src/modules/index.ts` calls ONLY this, never
- * `validateComposedModuleRegistry`, directly.
- */
-export function mergeModuleRegistries(
-  base: readonly ModuleDescriptor[],
-  application: ApplicationModuleRegistry | undefined
-): readonly ModuleDescriptor[] {
-  return application ? [...base, ...application.modules] : [...base];
-}
 
 export function formatModuleCompositionIssue(
   issue: ModuleCompositionIssue
@@ -261,19 +136,13 @@ export function formatModuleCompositionIssue(
     case "cycle":
       return formatModuleDependencyGraphIssue(issue);
     case "duplicate_module_key":
-      return `Module key "${issue.moduleKey}" is declared ${issue.occurrences} times by the application registry.`;
-    case "prohibited_base_override":
-      return `Application module "${issue.moduleKey}" uses the same key as a base module (type: ${issue.baseModuleType ?? "undeclared"}) — application registries cannot replace or shadow any base module.`;
-    case "invalid_module_type":
-      return `Application module "${issue.moduleKey}" declares type "${issue.declaredType}", which is reserved for the reviewed base registry (must be "domain", "integration", "derived", or left undeclared).`;
+      return `Module key "${issue.moduleKey}" is declared ${issue.occurrences} times in the module registry.`;
     case "capability_provider_conflict":
       return `Capability "${issue.capability}" is provided by more than one module: ${issue.providerModuleKeys.join(", ")}.`;
     case "capability_provider_missing":
       return issue.reason === "provider_not_registered"
-        ? `Module "${issue.moduleKey}" requires capability "${issue.capability}" from "${issue.providedBy}", which is not a registered module in the composed registry.`
+        ? `Module "${issue.moduleKey}" requires capability "${issue.capability}" from "${issue.providedBy}", which is not a registered module in the registry.`
         : `Module "${issue.moduleKey}" requires capability "${issue.capability}" from "${issue.providedBy}", which does not declare providing that capability.`;
-    case "migration_namespace_overlap":
-      return `Migration namespace "${issue.applicationLabel}" overlaps the base's reserved namespace "${issue.baseLabel}" in the range ${issue.overlapStart}-${issue.overlapEnd}.`;
     case "deployment_profile_incompatible":
       return `Module "${issue.moduleKey}" declares compatibility with deployment profile "${issue.unsupportedProfile}", but its dependency "${issue.dependencyKey}" does not support that profile.`;
     case "navigation_path_conflict":
@@ -283,64 +152,31 @@ export function formatModuleCompositionIssue(
   }
 }
 
-function checkKeyCollisions(
-  base: readonly ModuleDescriptor[],
-  application: ApplicationModuleRegistry | undefined
+function checkDuplicateModuleKeys(
+  registry: readonly ModuleDescriptor[]
 ): ModuleCompositionIssue[] {
-  const issues: ModuleCompositionIssue[] = [];
-  if (!application) return issues;
-
-  const baseByKey = new Map(base.map((m) => [m.key, m] as const));
-  const applicationKeyCounts = new Map<string, number>();
-
-  for (const module of application.modules) {
-    const baseMatch = baseByKey.get(module.key);
-    if (baseMatch) {
-      issues.push({
-        type: "prohibited_base_override",
-        moduleKey: module.key,
-        baseModuleType: baseMatch.type
-      });
-      continue;
-    }
-
-    applicationKeyCounts.set(
-      module.key,
-      (applicationKeyCounts.get(module.key) ?? 0) + 1
-    );
+  const counts = new Map<string, number>();
+  for (const module of registry) {
+    counts.set(module.key, (counts.get(module.key) ?? 0) + 1);
   }
 
-  for (const [moduleKey, occurrences] of applicationKeyCounts) {
+  const issues: ModuleCompositionIssue[] = [];
+  for (const [moduleKey, occurrences] of counts) {
     if (occurrences > 1) {
       issues.push({ type: "duplicate_module_key", moduleKey, occurrences });
     }
   }
-
   return issues;
 }
 
-function checkModuleTypes(
-  application: ApplicationModuleRegistry | undefined
-): ModuleCompositionIssue[] {
-  if (!application) return [];
-
-  return application.modules
-    .filter((m) => m.type === "base" || m.type === "system")
-    .map((m) => ({
-      type: "invalid_module_type" as const,
-      moduleKey: m.key,
-      declaredType: m.type!
-    }));
-}
-
 function checkCapabilityBindings(
-  merged: readonly ModuleDescriptor[]
+  registry: readonly ModuleDescriptor[]
 ): ModuleCompositionIssue[] {
   const issues: ModuleCompositionIssue[] = [];
-  const byKey = new Map(merged.map((m) => [m.key, m] as const));
+  const byKey = new Map(registry.map((m) => [m.key, m] as const));
 
   const providerMap = new Map<string, string[]>();
-  for (const module of merged) {
+  for (const module of registry) {
     for (const capability of module.capabilities?.provides ?? []) {
       const providers = providerMap.get(capability) ?? [];
       providers.push(module.key);
@@ -358,7 +194,7 @@ function checkCapabilityBindings(
     }
   }
 
-  for (const module of merged) {
+  for (const module of registry) {
     for (const consumed of module.capabilities?.consumes ?? []) {
       if (consumed.optional) continue;
 
@@ -391,45 +227,13 @@ function checkCapabilityBindings(
   return issues;
 }
 
-function rangesOverlap(
-  a: ModuleMigrationNamespace,
-  b: ModuleMigrationNamespace
-): boolean {
-  return a.rangeStart <= b.rangeEnd && b.rangeStart <= a.rangeEnd;
-}
-
-function checkMigrationNamespace(
-  application: ApplicationModuleRegistry | undefined
-): ModuleCompositionIssue[] {
-  if (!application?.migrationNamespace) return [];
-
-  const ns = application.migrationNamespace;
-  if (!rangesOverlap(ns, BASE_MODULE_MIGRATION_NAMESPACE)) return [];
-
-  return [
-    {
-      type: "migration_namespace_overlap",
-      applicationLabel: ns.label,
-      baseLabel: BASE_MODULE_MIGRATION_NAMESPACE.label,
-      overlapStart: Math.max(
-        ns.rangeStart,
-        BASE_MODULE_MIGRATION_NAMESPACE.rangeStart
-      ),
-      overlapEnd: Math.min(
-        ns.rangeEnd,
-        BASE_MODULE_MIGRATION_NAMESPACE.rangeEnd
-      )
-    }
-  ];
-}
-
 function checkDeploymentProfiles(
-  merged: readonly ModuleDescriptor[]
+  registry: readonly ModuleDescriptor[]
 ): ModuleCompositionIssue[] {
   const issues: ModuleCompositionIssue[] = [];
-  const byKey = new Map(merged.map((m) => [m.key, m] as const));
+  const byKey = new Map(registry.map((m) => [m.key, m] as const));
 
-  for (const module of merged) {
+  for (const module of registry) {
     const ownProfiles = module.compatibility?.deploymentProfiles;
     if (!ownProfiles) continue;
 
@@ -455,11 +259,11 @@ function checkDeploymentProfiles(
 }
 
 function checkNavigationPaths(
-  merged: readonly ModuleDescriptor[]
+  registry: readonly ModuleDescriptor[]
 ): ModuleCompositionIssue[] {
   const pathToModules = new Map<string, string[]>();
 
-  for (const module of merged) {
+  for (const module of registry) {
     for (const entry of module.navigation ?? []) {
       const owners = pathToModules.get(entry.path) ?? [];
       owners.push(module.key);
@@ -477,11 +281,11 @@ function checkNavigationPaths(
 }
 
 function checkJobDescriptors(
-  merged: readonly ModuleDescriptor[]
+  registry: readonly ModuleDescriptor[]
 ): ModuleCompositionIssue[] {
   const issues: ModuleCompositionIssue[] = [];
 
-  for (const module of merged) {
+  for (const module of registry) {
     for (const job of module.jobs ?? []) {
       const result = validateJobDescriptor(job);
       if (!result.valid) {
@@ -500,39 +304,33 @@ function checkJobDescriptors(
 
 /**
  * The full rule engine. Reports EVERY distinct issue across the whole
- * composed registry in one pass (never stops at the first), same
- * philosophy `validateModuleDependencyGraph`'s own tests document.
+ * registry in one pass (never stops at the first), the same philosophy
+ * `validateModuleDependencyGraph`'s own tests document.
  */
 export function validateComposedModuleRegistry(
-  input: ModuleCompositionInput
+  registry: readonly ModuleDescriptor[]
 ): readonly ModuleCompositionIssue[] {
-  const merged = mergeModuleRegistries(input.base, input.application);
-  const dagResult = validateModuleDependencyGraph(merged);
+  const dagResult = validateModuleDependencyGraph(registry);
 
   return [
     ...(dagResult.valid ? [] : dagResult.issues),
-    ...checkKeyCollisions(input.base, input.application),
-    ...checkModuleTypes(input.application),
-    ...checkCapabilityBindings(merged),
-    ...checkMigrationNamespace(input.application),
-    ...checkDeploymentProfiles(merged),
-    ...checkNavigationPaths(merged),
-    ...checkJobDescriptors(merged)
+    ...checkDuplicateModuleKeys(registry),
+    ...checkCapabilityBindings(registry),
+    ...checkDeploymentProfiles(registry),
+    ...checkNavigationPaths(registry),
+    ...checkJobDescriptors(registry)
   ];
 }
 
 /**
- * Convenience wrapper combining merge + validate for callers that want one
- * call (the CI script, the composed-inventory generator, fixture tests).
- * `registry` is always present (even when `valid: false`) so a caller can
- * still inspect what WOULD have been composed for diagnostics — never
- * treat it as safe to ship/sync when `valid` is `false`.
+ * Convenience wrapper. `registry` is always echoed back (even when
+ * `valid: false`) so a caller can inspect it for diagnostics — never treat
+ * it as safe to ship/sync when `valid` is `false`.
  */
 export function composeModuleRegistry(
-  input: ModuleCompositionInput
+  registry: readonly ModuleDescriptor[]
 ): ModuleCompositionResult {
-  const registry = mergeModuleRegistries(input.base, input.application);
-  const issues = validateComposedModuleRegistry(input);
+  const issues = validateComposedModuleRegistry(registry);
 
   return issues.length > 0
     ? { valid: false, registry, issues }
@@ -545,7 +343,6 @@ export type ComposedModuleInventoryEntry = {
   version: string;
   status: string;
   type: string | null;
-  source: "base" | "application";
   dependencies: readonly string[];
   capabilitiesProvided: readonly string[];
   capabilitiesConsumed: readonly {
@@ -562,24 +359,14 @@ export type ComposedModuleInventoryEntry = {
 };
 
 export type ComposedModuleInventory = {
-  baseModuleCount: number;
-  applicationModuleCount: number;
-  applicationRegistryId: string | null;
-  totalModuleCount: number;
+  moduleCount: number;
   valid: boolean;
   issueCount: number;
-  migrationNamespaces: readonly {
-    label: string;
-    rangeStart: number;
-    rangeEnd: number;
-    source: "base" | "application";
-  }[];
   modules: readonly ComposedModuleInventoryEntry[];
 };
 
 function toInventoryEntry(
-  module: ModuleDescriptor,
-  source: "base" | "application"
+  module: ModuleDescriptor
 ): ComposedModuleInventoryEntry {
   return {
     key: module.key,
@@ -587,7 +374,6 @@ function toInventoryEntry(
     version: module.version,
     status: module.status,
     type: module.type ?? null,
-    source,
     dependencies: module.dependencies,
     capabilitiesProvided: module.capabilities?.provides ?? [],
     capabilitiesConsumed: (module.capabilities?.consumes ?? []).map((c) => ({
@@ -605,59 +391,28 @@ function toInventoryEntry(
 }
 
 /**
- * Deterministic, machine-readable composed inventory for CI/release
- * evidence (Issue #740's own acceptance criterion). No wall-clock
- * timestamp embedded — same "pure function of committed source" freshness
- * design `scripts/repo-inventory-generate.ts` documents for its own
- * output, enforced the same way (`scripts/module-composition-inventory-
- * check.ts`'s regenerate-and-diff gate). `modules` is sorted by `key` so
- * two runs against the same input always produce byte-identical JSON,
- * independent of registration order.
- *
- * `source` is attributed by POSITION, not by key membership: `mergeModuleRegistries`
- * guarantees `result.registry` is exactly `[...base, ...application.modules]`
- * in that order (`module-composition.ts`'s own file header), so index `<
- * input.base.length` is `"base"` and everything after is `"application"` —
- * correct even when the composed registry is INVALID and a
- * `prohibited_base_override` collision means an application module shares
- * a base module's key (PR #769 security-auditor Low finding: an earlier
- * version of this function attributed `source` via `baseKeys.has(m.key)`,
- * which misreported the colliding APPLICATION module as `"base"` for that
- * one collision case — fixed here, not merely documented as a known
- * limitation, since the positional fix costs nothing extra).
+ * Deterministic, machine-readable module inventory for CI/release evidence
+ * (Issue #740's own acceptance criterion). No wall-clock timestamp embedded
+ * — same "pure function of committed source" freshness design
+ * `scripts/repo-inventory-generate.ts` documents for its own output,
+ * enforced the same way (`scripts/module-composition-inventory-check.ts`'s
+ * regenerate-and-diff gate). `modules` is sorted by `key` so two runs
+ * against the same input always produce byte-identical JSON, independent of
+ * registration order.
  */
 export function buildComposedModuleInventory(
-  input: ModuleCompositionInput
+  registry: readonly ModuleDescriptor[]
 ): ComposedModuleInventory {
-  const result = composeModuleRegistry(input);
-  const baseCount = input.base.length;
+  const result = composeModuleRegistry(registry);
 
   const modules = result.registry
-    .map((m, index) =>
-      toInventoryEntry(m, index < baseCount ? "base" : "application")
-    )
+    .map((m) => toInventoryEntry(m))
     .sort((a, b) => a.key.localeCompare(b.key));
 
-  const migrationNamespaces: ComposedModuleInventory["migrationNamespaces"] = [
-    { ...BASE_MODULE_MIGRATION_NAMESPACE, source: "base" },
-    ...(input.application?.migrationNamespace
-      ? [
-          {
-            ...input.application.migrationNamespace,
-            source: "application" as const
-          }
-        ]
-      : [])
-  ];
-
   return {
-    baseModuleCount: input.base.length,
-    applicationModuleCount: input.application?.modules.length ?? 0,
-    applicationRegistryId: input.application?.id ?? null,
-    totalModuleCount: result.registry.length,
+    moduleCount: result.registry.length,
     valid: result.valid,
     issueCount: result.valid ? 0 : result.issues.length,
-    migrationNamespaces,
     modules
   };
 }

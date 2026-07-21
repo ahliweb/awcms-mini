@@ -22,7 +22,7 @@ import {
   resolveSaasContractRegistry,
   validateSaasContractRegistry
 } from "../../src/modules/_shared/saas-contract-registry";
-import { exampleLoyaltyModule } from "../fixtures/derived-application-example/modules/example-loyalty/module";
+import { exampleLoyaltyModule } from "../fixtures/example-domain-modules/modules/example-loyalty/module";
 import {
   SAAS_CONTRACT_INVENTORY_JSON_PATH,
   buildSaasContractInventory,

@@ -48,7 +48,6 @@
  * below.
  */
 import { listBaseModules, listModules } from "../..";
-import { applicationModuleRegistry } from "../../application-registry";
 import type { ModuleDescriptor } from "../../_shared/module-contract";
 import {
   planModuleSync,
@@ -253,21 +252,16 @@ export async function syncModuleDescriptors(
   // `listModules()` always returns the same stable, module-level array
   // reference (computed once at import time, `src/modules/index.ts`) — so
   // this reference check reliably identifies "the caller is syncing the
-  // real, global effective registry" (every real call site: the CLI
-  // script, the API endpoint, and all four internal "sync first" callers)
-  // vs. "the caller passed an explicit/synthetic array" (this repo's own
-  // diff/orphan-detection tests). Only the former can be resolved back to
-  // known base-vs-application provenance, so only it gets the FULL
-  // composition rule set (capability bindings, migration namespace,
-  // deployment profiles, prohibited base override, etc.) with rich
-  // diagnostics; the latter still gets the cheaper, provenance-agnostic
+  // real, global registry" (every real call site: the CLI script, the API
+  // endpoint, and all four internal "sync first" callers) vs. "the caller
+  // passed an explicit/synthetic array" (this repo's own diff/orphan-
+  // detection tests). Only the former gets the FULL composition rule set
+  // (capability bindings, deployment profiles, navigation, jobs, etc.) with
+  // rich diagnostics; the latter still gets the cheaper, provenance-agnostic
   // duplicate-key check, which is the one structural invariant that must
   // hold unconditionally for ANY descriptor list about to be upserted.
   if (descriptors === listModules()) {
-    const compositionResult = composeModuleRegistry({
-      base: listBaseModules(),
-      application: applicationModuleRegistry
-    });
+    const compositionResult = composeModuleRegistry(listBaseModules());
 
     if (!compositionResult.valid) {
       throw new ModuleCompositionInvalidError(

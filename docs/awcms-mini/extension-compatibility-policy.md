@@ -1,5 +1,7 @@
 # Derived-Application Compatibility, Deprecation, and Support-Window Policy
 
+> **⚠️ DEPRECATED ([ADR-0024](../adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md)).** Mekanisme manifest kompatibilitas aplikasi-turunan (`extension.manifest.json`, `bun run extension:check`, `extension-compatibility.ts`, `extension-manifest-contract.ts`, `capability-contract-versions.ts`) sudah **dihapus** — keluarga AWCMS kini template dipakai-langsung tanpa repo turunan. Dokumen ini dipertahankan sebagai catatan historis.
+
 Issue #741 (epic #738 `platform-evolution`, Wave 1, ADR-0015). This
 document is the authoritative policy reference for every SemVer scheme a
 derived application's `extension.manifest.json` declares itself against,
@@ -130,6 +132,7 @@ checked requirement rather than an assumption):
   — the original three-scheme policy this document extends to six.
 - [`derived-application-guide.md`](derived-application-guide.md) — the
   practical, step-by-step guide for a derived application author.
-- [`tests/fixtures/extension-contract-incompatible/README.md`](../../tests/fixtures/extension-contract-incompatible/README.md)
-  — eight concrete examples of exactly what each incompatibility class
-  looks like in a real manifest.
+- [`docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md`](../adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md)
+  — the decision that removed this manifest mechanism (`extension.manifest.json`,
+  `bun run extension:check`, and the `tests/fixtures/extension-contract-incompatible/`
+  examples this section once linked). This document is retained as a historical note.

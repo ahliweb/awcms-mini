@@ -2,15 +2,10 @@
  * module-composition-inventory-generate.ts — `bun run
  * modules:composition:inventory:generate`.
  *
- * Issue #740 (epic #738 `platform-evolution`, Wave 1). Generates a single,
- * deterministic, machine-readable snapshot of the COMPOSED module registry
- * (base + this repository's own build-time application registry,
- * `src/modules/application-registry.ts`) for CI/release evidence —
- * `docs/awcms-mini/module-composition-inventory.json`. A derived repository
- * that has replaced `application-registry.ts` with its own
- * `ApplicationModuleRegistry` would regenerate this same file to get
- * release evidence for ITS OWN composed registry (base + its application
- * modules), using the exact same script.
+ * Generates a single, deterministic, machine-readable snapshot of the
+ * reviewed base module registry (`listBaseModules()`) for CI/release
+ * evidence — `docs/awcms-mini/module-composition-inventory.json`.
+ * (ADR-0024 removed the derived-application composition surface.)
  *
  * Same "pure function of committed source, no wall-clock timestamp"
  * freshness design as `scripts/repo-inventory-generate.ts` (see that
@@ -21,9 +16,8 @@
  *
  * Deliberately separate from `docs/awcms-mini/repo-inventory.md`
  * (Markdown, for humans, one section per repository-level concern):
- * this file is JSON, specifically scoped to the composed module registry,
- * intended to be diffed/parsed by CI or a derived repository's own release
- * tooling — not prose.
+ * this file is JSON, specifically scoped to the module registry, intended
+ * to be diffed/parsed by CI or release tooling — not prose.
  *
  * Local/offline only: no network access, no external CLI — pure in-memory
  * computation over the already-imported module registry.
@@ -31,7 +25,6 @@
 import prettier from "prettier";
 
 import { listBaseModules } from "../src/modules";
-import { applicationModuleRegistry } from "../src/modules/application-registry";
 import { buildComposedModuleInventory } from "../src/modules/module-management/domain/module-composition";
 
 export const MODULE_COMPOSITION_INVENTORY_PATH =
@@ -49,10 +42,7 @@ export const MODULE_COMPOSITION_INVENTORY_PATH =
 export async function buildModuleCompositionInventoryJson(
   rootDir = process.cwd()
 ): Promise<string> {
-  const inventory = buildComposedModuleInventory({
-    base: listBaseModules(),
-    application: applicationModuleRegistry
-  });
+  const inventory = buildComposedModuleInventory(listBaseModules());
 
   const raw = JSON.stringify(inventory, null, 2);
   const filepath = `${rootDir}/${MODULE_COMPOSITION_INVENTORY_PATH}`;

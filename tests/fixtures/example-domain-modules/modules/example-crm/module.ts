@@ -1,18 +1,19 @@
 /**
- * Minimal fixture module (Issue #740, epic #738 `platform-evolution`,
- * Wave 1) — illustrates what a real derived repository's own
- * `src/modules/<domain>/module.ts` looks like. NOT part of the base
- * registry: never imported by `src/modules/index.ts`, only by
- * `tests/fixtures/derived-application-example/application-registry.ts`
- * and the composition tests that exercise it
+ * Minimal TEST-SUPPORT example domain module (originally Issue #740, epic
+ * #738 `platform-evolution`, Wave 1; ADR-0024). Illustrates realistic
+ * DOMAIN module metadata (a capability, permissions/navigation/jobs, a
+ * deployment-profile claim) the reviewed base itself deliberately never
+ * ships — used ONLY by tests to exercise the base composition machinery.
+ * NOT part of the base registry: never imported by `src/modules/index.ts`,
+ * only by `tests/fixtures/example-domain-modules/index.ts` and the
+ * composition tests that compose it with `listBaseModules()`
  * (`tests/unit/module-composition-fixture.test.ts`).
  *
- * Depends on two base Core modules (`tenant_admin`, `identity_access`) —
- * the same baseline every real derived application module declares
- * (`docs/awcms-mini/derived-application-guide.md`) — to prove composition
- * correctly validates a lifecycle dependency edge from an APPLICATION
- * module onto a BASE module. Provides the `example_crm_directory`
- * capability that the sibling `example_loyalty` fixture module consumes.
+ * Depends on two base Core modules (`tenant_admin`, `identity_access`) to
+ * prove the composition rule engine validates a lifecycle dependency edge
+ * from a domain module onto a base module. Provides the
+ * `example_crm_directory` capability that the sibling `example_loyalty`
+ * example module consumes.
  */
 import { defineModule } from "../../../../../src/modules/_shared/module-contract";
 
@@ -22,13 +23,11 @@ export const exampleCrmModule = defineModule({
   version: "0.1.0",
   status: "experimental",
   description:
-    "Minimal in-repo fixture derived-application module (Issue #740) — illustrates a contact directory a real derived application (e.g. AWPOS's own crm-communication module) might own. Never registered in the base repository.",
+    "Minimal in-repo test-support domain module — illustrates a contact directory used only to exercise base composition/enforcement. Never registered in the base repository.",
   dependencies: ["tenant_admin", "identity_access"],
-  type: "derived",
-  // Offline/LAN-first is the default expectation for a POS-shaped derived
-  // application (`docs/awcms-mini/derived-application-guide.md`'s AWPOS
-  // illustration) — declared here purely to exercise Issue #740's
-  // deployment-profile composition metadata; its own dependencies
+  type: "domain",
+  // Offline/LAN-first deployment-profile claim declared here purely to
+  // exercise the composition deployment-profile metadata; its own dependencies
   // (`tenant_admin`/`identity_access`) declare no `deploymentProfiles`
   // constraint, so this is compatible by construction (absence = every
   // profile), not a real restriction.

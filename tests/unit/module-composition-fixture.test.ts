@@ -1,29 +1,23 @@
 /**
- * Integration/build proof for Issue #740's composition API, using the
- * in-repo fixture derived application
- * (`tests/fixtures/derived-application-example/`, see its own README for
- * what it illustrates). No database, no network — composition is a pure,
- * synchronous, in-memory operation, so this test always runs (never
- * silently skipped without `DATABASE_URL`, unlike this repo's
- * `*.integration.test.ts` suite).
+ * Composition test: the LIVE base registry (`listBaseModules()`) combined
+ * with the in-repo example DOMAIN modules
+ * (`tests/fixtures/example-domain-modules/`, see its own README) validates
+ * cleanly — proves the composition rule engine accepts domain modules added
+ * to the registry (the same shape as adding one directly to `src/modules/`),
+ * with their dependencies satisfied by real base modules. No database, no
+ * network — composition is a pure, synchronous, in-memory operation, so this
+ * test always runs (never silently skipped without `DATABASE_URL`).
  *
- * Proves the acceptance criteria this issue names explicitly:
- * - "A derived fixture composes modules without modifying the base
- *   registry file" — the fixture lives entirely under `tests/fixtures/`;
- *   `src/modules/index.ts` and `src/modules/application-registry.ts` are
- *   never imported or mutated by this file.
- * - "At least one integration/build test proves an external fixture can
- *   compile and pass module DAG checks" — TypeScript already compiled the
- *   fixture to get here (`bun run typecheck`/`bun test` both require valid
- *   syntax/types), and this file additionally re-runs
- *   `validateModuleDependencyGraph` (the same whole-registry check
- *   `bun run modules:dag:check` runs) against the composed result.
- * - "Repository inventory supports base-only and composed-fixture modes
- *   without stale generated output" — `buildRepoInventoryMarkdown` is
- *   exercised against the composed (base + fixture) registry, proving it
- *   does not crash and reflects contributed modules, without touching the
- *   committed `docs/awcms-mini/repo-inventory.md` (a different, in-memory
- *   module list is passed explicitly).
+ * Preserves the acceptance criteria originally exercised via the derived
+ * fixture (Issue #740), now reframed as domain modules composed with the
+ * base:
+ * - the example modules compose without modifying the base registry file —
+ *   they live entirely under `tests/fixtures/`; `src/modules/index.ts` is
+ *   never mutated;
+ * - the composed registry passes the whole-registry DAG check;
+ * - the repository inventory supports base-only AND composed modes without
+ *   stale generated output;
+ * - `planModuleSync` consumes the composed registry.
  */
 import { describe, expect, test } from "bun:test";
 
@@ -35,14 +29,13 @@ import {
 } from "../../src/modules/module-management/domain/module-composition";
 import { validateModuleDependencyGraph } from "../../src/modules/module-management/domain/module-dependency-graph";
 import { planModuleSync } from "../../src/modules/module-management/domain/descriptor-diff";
-import { exampleApplicationModuleRegistry } from "../fixtures/derived-application-example/application-registry";
+import { exampleDomainModules } from "../fixtures/example-domain-modules";
 
-describe("derived-application-example fixture composes with the base registry (Issue #740)", () => {
-  test("composition succeeds and includes both fixture modules", () => {
-    const result = composeModuleRegistry({
-      base: listBaseModules(),
-      application: exampleApplicationModuleRegistry
-    });
+const composed = () => [...listBaseModules(), ...exampleDomainModules];
+
+describe("base registry + example domain modules compose cleanly", () => {
+  test("composition succeeds and includes all three example modules", () => {
+    const result = composeModuleRegistry(composed());
 
     expect(result.valid).toBe(true);
     if (result.valid) {
@@ -55,10 +48,7 @@ describe("derived-application-example fixture composes with the base registry (I
   });
 
   test("the composed registry independently passes the same whole-registry DAG check `bun run modules:dag:check` runs", () => {
-    const result = composeModuleRegistry({
-      base: listBaseModules(),
-      application: exampleApplicationModuleRegistry
-    });
+    const result = composeModuleRegistry(composed());
     expect(result.valid).toBe(true);
     if (result.valid) {
       expect(validateModuleDependencyGraph(result.registry)).toEqual({
@@ -67,11 +57,8 @@ describe("derived-application-example fixture composes with the base registry (I
     }
   });
 
-  test("example_loyalty's application-to-application lifecycle dependency on example_crm resolves inside the composed graph", () => {
-    const result = composeModuleRegistry({
-      base: listBaseModules(),
-      application: exampleApplicationModuleRegistry
-    });
+  test("example_loyalty's domain-to-domain lifecycle dependency on example_crm resolves inside the composed graph", () => {
+    const result = composeModuleRegistry(composed());
     expect(result.valid).toBe(true);
     if (result.valid) {
       const loyalty = result.registry.find((m) => m.key === "example_loyalty");
@@ -79,7 +66,7 @@ describe("derived-application-example fixture composes with the base registry (I
     }
   });
 
-  test("the base repository's own listModules() is completely unaffected — the fixture is never wired into src/modules/application-registry.ts", () => {
+  test("the base repository's own listModules() is completely unaffected — the example modules are never registered in src/modules/index.ts", () => {
     const keys = listModules().map((m) => m.key);
     expect(keys).not.toContain("example_crm");
     expect(keys).not.toContain("example_loyalty");
@@ -87,21 +74,15 @@ describe("derived-application-example fixture composes with the base registry (I
     expect(listModules()).toEqual(listBaseModules());
   });
 
-  test("buildComposedModuleInventory produces a deterministic snapshot that reflects both fixture modules' permissions/navigation/jobs/capabilities", () => {
-    const inventory = buildComposedModuleInventory({
-      base: listBaseModules(),
-      application: exampleApplicationModuleRegistry
-    });
+  test("buildComposedModuleInventory produces a deterministic snapshot that reflects the example modules' permissions/navigation/jobs/capabilities", () => {
+    const inventory = buildComposedModuleInventory(composed());
 
     expect(inventory.valid).toBe(true);
-    expect(inventory.applicationRegistryId).toBe(
-      exampleApplicationModuleRegistry.id
-    );
-    expect(inventory.applicationModuleCount).toBe(3);
+    expect(inventory.moduleCount).toBe(listBaseModules().length + 3);
 
     const crm = inventory.modules.find((m) => m.key === "example_crm");
     expect(crm).toBeDefined();
-    expect(crm?.source).toBe("application");
+    expect(crm?.type).toBe("domain");
     expect(crm?.capabilitiesProvided).toEqual(["example_crm_directory"]);
     expect(crm?.permissionCount).toBe(1);
     expect(crm?.navigationCount).toBe(1);
@@ -120,7 +101,7 @@ describe("derived-application-example fixture composes with the base registry (I
     const erpExtension = inventory.modules.find(
       (m) => m.key === "example_erp_extension"
     );
-    expect(erpExtension?.source).toBe("application");
+    expect(erpExtension?.type).toBe("domain");
     expect(erpExtension?.capabilitiesConsumed).toEqual([
       {
         capability: "party_directory",
@@ -134,56 +115,44 @@ describe("derived-application-example fixture composes with the base registry (I
       }
     ]);
     expect(erpExtension?.permissionCount).toBe(1);
-
-    expect(inventory.migrationNamespaces).toContainEqual({
-      ...exampleApplicationModuleRegistry.migrationNamespace!,
-      source: "application"
-    });
   });
 
-  test("repository inventory generation (base-only mode) does not include fixture modules", async () => {
+  test("repository inventory generation (base-only mode) does not include the example modules", async () => {
     const markdown = await buildRepoInventoryMarkdown();
     expect(markdown).not.toContain("example_crm");
     expect(markdown).not.toContain("example_loyalty");
     expect(markdown).not.toContain("example_erp_extension");
   });
 
-  test("repository inventory generation (composed-fixture mode) succeeds and includes the fixture's contributed modules, without touching the committed doc", async () => {
-    const composed = composeModuleRegistry({
-      base: listBaseModules(),
-      application: exampleApplicationModuleRegistry
-    });
-    expect(composed.valid).toBe(true);
-    if (!composed.valid) return;
+  test("repository inventory generation (composed mode) succeeds and includes the example modules, without touching the committed doc", async () => {
+    const result = composeModuleRegistry(composed());
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
 
     const markdown = await buildRepoInventoryMarkdown(
       process.cwd(),
-      composed.registry
+      result.registry
     );
     expect(markdown).toContain("`example_crm`");
     expect(markdown).toContain("`example_loyalty`");
     expect(markdown).toContain("`example_erp_extension`");
-    // Every base module key is still present too — composed-fixture mode
-    // is additive, never a replacement of the base inventory.
+    // Every base module key is still present too — composed mode is
+    // additive, never a replacement of the base inventory.
     for (const module of listBaseModules()) {
       expect(markdown).toContain(`\`${module.key}\``);
     }
   });
 
-  test("module-management's descriptor-sync planning (planModuleSync) consumes the composed registry, creating an entry for every contributed module — Issue #740 acceptance: sync consumes the composed registry, not a duplicate source", () => {
-    const composed = composeModuleRegistry({
-      base: listBaseModules(),
-      application: exampleApplicationModuleRegistry
-    });
-    expect(composed.valid).toBe(true);
-    if (!composed.valid) return;
+  test("module-management's descriptor-sync planning (planModuleSync) consumes the composed registry, creating an entry for every module", () => {
+    const result = composeModuleRegistry(composed());
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
 
     // Empty `existingRows` — same as a freshly-migrated instance that has
-    // never run `bun run modules:sync` yet (`module-management/README.md`'s
-    // own documented "sync first" scenario).
-    const plan = planModuleSync(composed.registry, []);
+    // never run `bun run modules:sync` yet.
+    const plan = planModuleSync(result.registry, []);
 
-    expect(plan.entries.length).toBe(composed.registry.length);
+    expect(plan.entries.length).toBe(result.registry.length);
     expect(plan.entries.every((e) => e.action === "create")).toBe(true);
     expect(plan.entries.map((e) => e.moduleKey)).toContain("example_crm");
     expect(plan.entries.map((e) => e.moduleKey)).toContain("example_loyalty");

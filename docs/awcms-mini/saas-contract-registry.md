@@ -90,8 +90,8 @@ default.
 1. Declare descriptors in your module's own `module.ts` under `serviceCatalog`
    (see [`src/modules/service-catalog/module.ts`](../../src/modules/service-catalog/module.ts)
    for neutral base examples, and
-   [`tests/fixtures/derived-application-example/modules/example-loyalty/module.ts`](../../tests/fixtures/derived-application-example/modules/example-loyalty/module.ts)
-   for a dummy derived-module contribution).
+   [`tests/fixtures/example-domain-modules/modules/example-loyalty/module.ts`](../../tests/fixtures/example-domain-modules/modules/example-loyalty/module.ts)
+   for a dummy example-domain-module contribution).
 2. A derived application contributes through its own modules via
    `src/modules/application-registry.ts` (Issue #740) — never by editing a base
    registry file.

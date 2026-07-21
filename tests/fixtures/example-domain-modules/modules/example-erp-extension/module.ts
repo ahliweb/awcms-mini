@@ -1,21 +1,20 @@
 /**
- * Minimal fixture module (Issue #755, epic #738 `platform-evolution` Wave
- * 4, ADR-0020) — a sample ERP extension proving ADR-0020's contracts are
- * actually consumable by composition, NOT part of the base registry (same
- * "never imported by `src/modules/index.ts`" rule every sibling fixture
- * module in this directory follows).
+ * Minimal TEST-SUPPORT example domain module (Issue #755, epic #738
+ * `platform-evolution` Wave 4, ADR-0020; ADR-0024) — a sample ERP
+ * extension proving ADR-0020's contracts are actually consumable by a
+ * domain module, NOT part of the base registry (same "never imported by
+ * `src/modules/index.ts`" rule every sibling example module in this
+ * directory follows).
  *
- * Illustrates the shape a REAL, separately-repositoried ERP extension
- * would take: it depends only on base Core modules, CONSUMES base
- * capabilities (never a direct table/import into `profile_identity`/
- * `organization_structure`), contributes a `reporting` projection (Issue
- * #753) driven by its own posting-result domain event, and owns ALL of
- * its ERP-specific tables in its own reserved migration range (`sql/
- * 901_example_erp_extension_schema.sql`, illustration only, see that
- * file's own header) — never in the base's `sql/` directory or module
- * registry, per ADR-0020's explicit exclusion of chart-of-accounts/
- * journal/inventory-valuation/sales/procurement/AR-AP/payroll/tax/asset/
- * manufacturing tables from this repository.
+ * Illustrates the shape a REAL ERP extension domain module (added directly
+ * to `src/modules/`) would take: it depends only on base Core modules,
+ * CONSUMES base capabilities (never a direct table/import into
+ * `profile_identity`/`organization_structure`), contributes a `reporting`
+ * projection (Issue #753) driven by its own posting-result domain event,
+ * and would own its ERP-specific tables in its own `sql/` migrations —
+ * per ADR-0020's explicit exclusion of chart-of-accounts/journal/
+ * inventory-valuation/sales/procurement/AR-AP/payroll/tax/asset/
+ * manufacturing tables from the base's own default shipped schema.
  *
  * The extension's own posting engine (`posting-engine.ts`) and period-
  * lock adapter (`period-lock-adapter.ts`) in this same directory
@@ -35,9 +34,9 @@ export const exampleErpExtensionModule = defineModule({
   version: "0.1.0",
   status: "experimental",
   description:
-    "Minimal in-repo fixture derived-application module (Issue #755, ADR-0020) — illustrates a sample ERP extension consuming this repository's party/scope/period-lock/posting/reporting-projection contracts without adding any accounting/inventory/sales/procurement/payroll/tax domain table to the base. Never registered in the base repository.",
+    "Minimal in-repo test-support domain module (Issue #755, ADR-0020) — illustrates a sample ERP extension consuming this repository's party/scope/period-lock/posting/reporting-projection contracts without adding any accounting/inventory/sales/procurement/payroll/tax domain table to the base's default schema. Never registered in the base repository.",
   dependencies: ["tenant_admin", "identity_access"],
-  type: "derived",
+  type: "domain",
   capabilities: {
     consumes: [
       // Canonical party reference (Issue #748) — the extension's own
