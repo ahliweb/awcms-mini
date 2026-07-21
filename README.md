@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-informational.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-black.svg)](https://bun.sh)
 
-AWCMS-Mini adalah **base modular monolith standar** AhliWeb berbasis **Bun + Astro 7 + PostgreSQL**. Ia berisi lapisan **reusable** (multi-tenant, RBAC/ABAC/RLS, audit, offline-first, kontrak OpenAPI/AsyncAPI, coding standard, skill proyek) yang menjadi fondasi aplikasi turunan. Aplikasi domain (mis. AWPOS untuk retail/POS) dibangun **di atas** base ini dengan menambah modulnya sendiri.
+AWCMS-Mini adalah **template modular monolith standar** AhliWeb berbasis **Bun + Astro 7 + PostgreSQL** yang **dipakai langsung**. Ia berisi lapisan **reusable** (multi-tenant, RBAC/ABAC/RLS, audit, offline-first, kontrak OpenAPI/AsyncAPI, coding standard, skill proyek) — salah satu dari tiga template sejajar keluarga AWCMS (`awcms-mini`/`awcms`/`awcms-micro`), dipakai langsung sebagai titik awal pengembangan, bukan basis-turunan-wajib yang di atasnya harus dibangun aplikasi terpisah ([ADR-0024](docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md)). Modul domain (mis. retail/POS gaya AWPOS) ditambahkan **langsung di `src/modules/`** template ini saat dipakai.
 
 > **Status:** Sprint foundation Issue 0.1-0.3, seluruh epic Tenant/Identity/Profile (Issue 2.1-2.4, M2), Issue 12.1 (Setup Wizard), seluruh epic M5 Sync Storage (Issue 6.1-6.3), seluruh epic M7 UI/UX & Reporting (Issue 8.1 Admin Layout Shell, 9.1 Management Reporting Views), Issue 10.1 (Structured Logging and Audit Trail), Issue 10.2 (Database Connection Pooling and Backpressure), Issue 10.3 (Production Security Readiness Checklist), Issue 11.1 (Workflow Approval Engine), dan Issue 12.2 (Offline/LAN Deployment Profile) tersedia — **seluruh 18 issue backlog base generik (doc06) tuntas**: Astro build, health endpoint, module contract, response helper, soft-delete convention, folder standar, runner PostgreSQL checksum-based, baseline OpenAPI/AsyncAPI dengan validator, skema tenant/office/physical location/tenant settings, skema profile/identifier/channel/address/entity link/merge request, skema identity/tenant user/session dengan endpoint live `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, skema RBAC/ABAC dengan evaluator default-deny live `POST /access/evaluate`, setup wizard live `GET /setup/status`, `POST /setup/initialize`, sync node/outbox/inbox HMAC-signed live `POST /sync/push`, `POST /sync/pull`, `GET /sync/status`, sync conflict tracking/resolution (bearer session) live `GET /sync/conflicts`, `POST /sync/conflicts/{id}/resolve`, R2 object sync queue HMAC-signed live `POST /sync/objects`, `GET /sync/objects/status`, SSR admin shell (`/login`, `/admin`, `/admin/settings`) dengan design token/theming dan sesi cookie httpOnly, dashboard reporting live `GET /reports/tenant-activity`, `GET /reports/access-audit`, `GET /reports/sync-health`, `GET /reports/module-usage`, audit trail generik live `GET /logs/audit` dengan logger JSON terstruktur, redaksi lintas-modul, correlation ID, serta contoh lifecycle profil (`DELETE`/`POST .../restore`/`POST .../purge`), connection pooling/backpressure live `GET /database/pool/health` dengan work-class gate serta circuit breaker terpasang di `withTenant` (melindungi seluruh endpoint tenant-scoped), tooling production readiness `bun run db:pool:health`/`security:readiness`/`production:preflight` (checklist go-live nyata dengan gate kritis, terverifikasi live memblokir saat RLS sengaja dimatikan), workflow approval engine generik live `GET /workflows/tasks`, `POST /workflows/tasks/{id}/decisions` (idempotent, self-approval guard memakai ulang evaluator ABAC yang sudah ada), dan deployment profile offline/LAN lengkap (`deploy/systemd`, `deploy/nginx`, `deploy/pgbouncer`, `deploy/backup`, `docker-compose.yml`, `bun run config:validate`) — seluruhnya dengan RLS. Kontributor & coding agent **wajib membaca [`AGENTS.md`](AGENTS.md) lebih dulu**.
 
@@ -27,7 +27,7 @@ AWCMS-Mini adalah **base modular monolith standar** AhliWeb berbasis **Bun + Ast
 flowchart TB
   subgraph Client["Client / LAN"]
     ADM[Admin]
-    APP[Aplikasi turunan<br/>modul domain]
+    APP[Modul domain<br/>di src/modules/]
   end
 
   subgraph App["AWCMS-Mini — Bun + Astro 7 (Modular Monolith)"]
@@ -86,7 +86,7 @@ flowchart LR
 
 1. Alur operasional kritikal tetap berjalan tanpa internet bila mode offline/LAN diaktifkan.
 2. Provider eksternal (R2, pesan, dsb.) tidak boleh menjadi dependency alur kritikal dan tidak boleh dipanggil di dalam DB transaction.
-3. Data yang sudah posted (bila aplikasi turunan memilikinya) bersifat immutable, idempotent, atomic, dan audit-ready.
+3. Data yang sudah posted (bila modul domain memilikinya) bersifat immutable, idempotent, atomic, dan audit-ready.
 4. Multi-tenant wajib memakai `tenant_id`, RLS, tenant context, dan ABAC.
 5. Data sensitif (password, token, NPWP, NIK, email, nomor HP) wajib di-hash/mask/redact.
 6. Master/config/draft yang bisa dihapus memakai **soft delete**; list default menyembunyikan `deleted_at`, restore/purge harus berizin dan diaudit ([ADR-0005](docs/adr/0005-soft-delete-and-immutability.md)).
@@ -123,7 +123,7 @@ flowchart LR
 ```
 
 - **01–13** perencanaan → kontrak → eksekusi; **14–18** desain teknis; **19** glossary; **20** threat model & arsitektur keamanan.
-- **Catatan penting:** dokumen **02–19** memakai domain retail/POS (gaya AWPOS) sebagai **contoh ilustratif** — polanya reusable, entitas/endpoint/layarnya adalah ilustrasi domain yang diganti aplikasi turunan. Lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Reusable vs domain turunan.
+- **Catatan penting:** dokumen **02–19** memakai domain retail/POS (gaya AWPOS) sebagai **contoh ilustratif** — polanya reusable, entitas/endpoint/layarnya adalah ilustrasi domain yang diisi **langsung di repo ini** dengan modul domain sendiri saat template dipakai. Lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Reusable vs domain turunan.
 - **Keputusan arsitektural** dicatat di [`docs/adr/`](docs/adr/README.md).
 - **Snapshot GitHub issue** aktual di [`docs/awcms-mini/github/`](docs/awcms-mini/github/README.md).
 - **Tata kelola pemakaian agent lintas keluarga produk** (AWCMS, AWCMS-Mini, AWCMS-Micro, dan software turunannya) ada di [`docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf`](docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf) — AWCMS-Mini (AGENTS.md, README.md, CONTRIBUTING.md, `derived-application-guide.md`, skill proyek) adalah sumber utama pedoman ini.
@@ -138,7 +138,7 @@ flowchart LR
 
 ### Mulai dari
 
-Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md) — **seluruh 18 issue-nya kini tuntas**: foundation (**0.1-0.3**), epic M2 Tenant/Identity/Profile (**2.1-2.4**), **12.1** (setup wizard), epic M5 Sync Storage (**6.1-6.3**), epic M7 UI/UX & Reporting (**8.1**, **9.1**), dan epic M8 Security/Performance/Production (**10.1-10.3**, **11.1**, **12.2**). Base ini siap dipakai sebagai fondasi aplikasi turunan — panduan langkah-demi-langkah (9 langkah berbasis skill nyata, 5 contoh aplikasi ilustratif, checklist keamanan): [`docs/awcms-mini/derived-application-guide.md`](docs/awcms-mini/derived-application-guide.md).
+Backlog base generik ada di [`docs/awcms-mini/06_github_issues_detail.md`](docs/awcms-mini/06_github_issues_detail.md) — **seluruh 18 issue-nya kini tuntas**: foundation (**0.1-0.3**), epic M2 Tenant/Identity/Profile (**2.1-2.4**), **12.1** (setup wizard), epic M5 Sync Storage (**6.1-6.3**), epic M7 UI/UX & Reporting (**8.1**, **9.1**), dan epic M8 Security/Performance/Production (**10.1-10.3**, **11.1**, **12.2**). Template ini dipakai **langsung**: tambahkan modul domain di `src/modules/` template ini ([ADR-0024](docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md)). Jalur aplikasi-turunan terpisah kini **dihapus** (ADR-0024, men-supersede ADR-0013/0014/0015); panduan lawasnya di [`docs/awcms-mini/derived-application-guide.md`](docs/awcms-mini/derived-application-guide.md) (DEPRECATED, rujukan historis).
 
 ## Keamanan
 

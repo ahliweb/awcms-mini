@@ -4,7 +4,7 @@ Dokumen ini adalah **kontrak kerja** untuk coding agent (Claude Code, Codex, dsb
 
 > **Konteks keluarga produk:** kontrak repository ini (AGENTS.md, README.md, CONTRIBUTING.md, `derived-application-guide.md`, dan skill proyek) menjadi **sumber utama** bagi [`docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf`](docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf) — pedoman penggunaan agent yang berlaku lintas keluarga produk (AWCMS, AWCMS-Mini, AWCMS-Micro, dan software turunannya). Bila ada perbedaan, dokumen repository ini (AGENTS.md, ADR, kontrak) tetap sumber kebenaran paling spesifik untuk repo ini.
 
-> **Status base generik: selesai (v0.23.5).** Seluruh 18 issue backlog base generik (doc 06) tuntas — foundation, tenant/office, central profile, identity/login, RBAC/ABAC, setup wizard, Sync Storage (outbox/inbox/conflict/object-queue), management reporting, structured logging & audit trail, connection pooling & backpressure, production readiness, workflow approval, dan deployment profile — plus perawatan/peningkatan pasca-backlog milestone M9 (penegakan RLS + role least-privilege, Access & Users / Sync / Settings admin, runtime i18n, audit UX/UI & aksesibilitas AA, audit performa, dispatcher object-sync + kerasan integrasi, security hardening OWASP/ASVS/ISO, dan aktivasi sistem log). Tabel tenant/auth/RBAC/sync/logging/deployment **sudah** ada dan berjalan — jangan membangunnya ulang. Pekerjaan baru = **aplikasi turunan / modul domain** di atas base ini (lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya), atau perawatan/peningkatan lanjutan. Status per-issue historis dicatat di [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md).
+> **Status base generik: selesai (v0.23.5).** Seluruh 18 issue backlog base generik (doc 06) tuntas — foundation, tenant/office, central profile, identity/login, RBAC/ABAC, setup wizard, Sync Storage (outbox/inbox/conflict/object-queue), management reporting, structured logging & audit trail, connection pooling & backpressure, production readiness, workflow approval, dan deployment profile — plus perawatan/peningkatan pasca-backlog milestone M9 (penegakan RLS + role least-privilege, Access & Users / Sync / Settings admin, runtime i18n, audit UX/UI & aksesibilitas AA, audit performa, dispatcher object-sync + kerasan integrasi, security hardening OWASP/ASVS/ISO, dan aktivasi sistem log). Tabel tenant/auth/RBAC/sync/logging/deployment **sudah** ada dan berjalan — jangan membangunnya ulang. Pekerjaan baru = **modul domain** ditambahkan langsung di `src/modules/` template ini ([ADR-0024](docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md); lihat [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya), atau perawatan/peningkatan lanjutan. Status per-issue historis dicatat di [`docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`](docs/awcms-mini/AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md).
 
 ## Ringkasan proyek
 
@@ -343,10 +343,9 @@ bun run analytics:rollup         # job terjadwal: rollup visitor analytics haria
 bun run analytics:purge          # job terjadwal: purge/anonymisasi visitor analytics kedaluwarsa
 bun run modules:sync             # sinkronisasi descriptor modul ke awcms_mini_modules
 bun run modules:dag:check        # validasi seluruh registry adalah DAG valid (bagian dari `bun run check`)
-bun run modules:compose:check    # validasi registry base + application-registry.ts terkomposisi valid (bagian dari `bun run check`, Issue #740)
+bun run modules:compose:check    # validasi registry base terkomposisi valid (bagian dari `bun run check`, Issue #740; jalur aplikasi-turunan/`application-registry.ts` dihapus per ADR-0024)
 bun run modules:composition:inventory:generate # generate docs/awcms-mini/module-composition-inventory.json dari registry terkomposisi (Issue #740) — jalankan sebelum commit tiap kali registry/capability/migration-namespace berubah
 bun run modules:composition:inventory:check    # validasi module-composition-inventory.json tidak stale (read-only, bagian dari `bun run check`, Issue #740)
-bun run extension:check          # validasi extension.manifest.json (bila ada) + komposisi registry — jalan identik di repo base ini & repo turunan (bagian dari `bun run check`, `ci.yml`, dan `production:preflight`, Issue #741/ADR-0015)
 bun run domain-events:dispatch   # job terjadwal: claim/eksekusi/finalize domain event deliveries (outbox generik multi-consumer, Issue #742)
 bun run i18n:extract             # generate ulang i18n/messages.pot dari scan t("...") di src/ (mutasi file, TIDAK di `bun run check` — Issue #694)
 bun run i18n:pot:check           # validasi i18n/messages.pot identik dengan hasil i18n:extract (read-only, bagian dari `bun run check`, Issue #694)
@@ -406,7 +405,7 @@ Modul **base generik** yang terdaftar di registry (`src/modules/index.ts` `listM
 
 Sejumlah concern lintas-modul (i18n/localization, observability wiring, database pooling, komponen UI, production/security readiness) **tidak** punya direktori `src/modules/` sendiri — mereka hidup di `src/lib/` (`i18n/`, `observability/`, `database/`, `security/`, dst.), `src/components/ui/`, dan `scripts/` (mis. `security-readiness.ts`, `production-preflight.ts`). Jangan cari/tambahkan direktori modul untuk concern ini; ikuti struktur yang sudah ada.
 
-Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) pada umumnya **bukan bagian repo ini** — itu ditambahkan di aplikasi turunan contoh (mis. AWPOS) di atas base ini; lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
+Modul domain (mis. katalog produk, POS, gudang, pajak, CRM, AI analyst) **belum ada di registry base ini** — itu ditambahkan **langsung di `src/modules/`** template ini saat dipakai (mis. aplikasi retail/POS gaya AWPOS), bukan di repo turunan terpisah ([ADR-0024](docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md)); lihat `docs/awcms-mini/README.md` §Reusable vs domain turunan.
 
 **Pengecualian:** enam modul didaftarkan **langsung** di repo base ini sebagai contoh referensi (bukan preseden untuk memindahkan modul domain lain seperti POS/gudang ke repo ini) — tiga bertipe `domain` (fitur bisnis tenant) dan tiga bertipe `system` (infrastruktur platform bersama, lihat kolom Type di `docs/awcms-mini/repo-inventory.md` §Modules untuk status hidup):
 
@@ -435,7 +434,7 @@ flowchart LR
   WF --> DEP[Deployment 12.2]
 ```
 
-Alasan urutan: aplikasi turunan tidak aman tanpa tenant/auth/profile/access; observability/pooling/security readiness disiapkan sebelum modul lain bergantung padanya; provider eksternal (sync/R2) menyusul; production diaktifkan hanya setelah security readiness pass.
+Alasan urutan: modul domain tidak aman tanpa tenant/auth/profile/access; observability/pooling/security readiness disiapkan sebelum modul lain bergantung padanya; provider eksternal (sync/R2) menyusul; production diaktifkan hanya setelah security readiness pass.
 
 ## Konvensi commit
 
@@ -444,7 +443,7 @@ Alasan urutan: aplikasi turunan tidak aman tanpa tenant/auth/profile/access; obs
 ```
 
 Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `security`, `perf`, `ci`, `build`.
-Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `sync`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`. Aplikasi turunan menambah scope domainnya sendiri (mis. `pos`, `inventory`, `warehouse`, `tax`, `crm`).
+Scopes: `foundation`, `db`, `api`, `auth`, `access`, `profile`, `tenant`, `sync`, `ui`, `logging`, `pooling`, `workflow`, `reporting`, `security`, `docs`. Modul domain menambah scope domainnya sendiri (mis. `pos`, `inventory`, `warehouse`, `tax`, `crm`).
 
 Branch: `feature/<issue>-<name>`, `fix/<issue>-<name>`, `release/vX.Y.Z`, `hotfix/vX.Y.Z-<name>`.
 
@@ -506,7 +505,7 @@ Next recommended step:
 
 Base generik sudah selesai (v0.23.5, lihat blockquote status di atas) — tidak ada lagi "Issue 0.1" untuk dikerjakan sebagai pekerjaan baru. Untuk kontribusi baru:
 
-- **Membangun aplikasi turunan / modul domain** (AWPOS, portal, sistem pengaduan, dsb.) di atas base ini → mulai dengan skill `awcms-mini-new-module`, lalu `awcms-mini-new-migration` → `awcms-mini-new-endpoint` → `awcms-mini-new-event` → `awcms-mini-testing` → `awcms-mini-security-review` → `awcms-mini-production-preflight`. Orkestrasi penuh: skill `awcms-mini-implement-issue`. Lihat panduan lengkap di [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya.
+- **Membangun modul domain** (retail/POS gaya AWPOS, portal, sistem pengaduan, dsb.) langsung di `src/modules/` template ini → mulai dengan skill `awcms-mini-new-module`, lalu `awcms-mini-new-migration` → `awcms-mini-new-endpoint` → `awcms-mini-new-event` → `awcms-mini-testing` → `awcms-mini-security-review` → `awcms-mini-production-preflight`. Orkestrasi penuh: skill `awcms-mini-implement-issue`. Lihat panduan lengkap di [`docs/awcms-mini/README.md`](docs/awcms-mini/README.md) §Langkah berikutnya.
 - **Perawatan / peningkatan base** (performa, UX, integrasi, keamanan, observability) → pakai skill peningkatan terkait (`awcms-mini-performance`, `awcms-mini-ux-review`, `awcms-mini-integration`, `awcms-mini-security-hardening`, `awcms-mini-observability`) dan catat di §Perawatan pasca-backlog pada `AUDIT_STANDAR_PENGEMBANGAN_2026-07-17.md`.
 
 Pertahankan lapisan reusable base; ganti/ tambah hanya lapisan spesifik domain. Doc 09 dan doc 12 tetap acuan konvensi commit/roadmap/generator, bukan urutan pengerjaan issue foundation yang sudah selesai.
