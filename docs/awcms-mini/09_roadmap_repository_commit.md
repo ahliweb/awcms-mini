@@ -292,14 +292,14 @@ flowchart LR
 
 Aplikasi turunan (mis. AWPOS) memakai baseline versinya sendiri di atas base ini (lihat versioning doc 09 milik aplikasi tersebut).
 
-Nomor versi naik progresif per rilis Changesets, bukan hanya saat satu slot di atas selesai penuh — satu issue yang merge bisa langsung memicu rilis minor/patch walau issue lain dalam slot yang sama belum selesai. `CHANGELOG.md` mencatat isi riil tiap rilis; tabel ini hanya peta target.
+Nomor versi naik progresif per rilis Changesets, bukan hanya saat satu slot di atas selesai penuh — satu issue yang merge bisa langsung memicu rilis minor/patch walau issue lain dalam slot yang sama belum selesai. `CHANGELOG.md` mencatat isi riil tiap rilis; tabel ini hanya peta target. **Status: `v1.0.0` tercapai 2026-07-21** (ADR-0024, hapus jalur aplikasi-turunan; `MODULE_CONTRACT_VERSION` 2.0.0) — peta di atas selesai, rilis berikutnya melanjutkan di jalur `1.x`.
 
 ### SemVer
 
 - **MAJOR** — perubahan tidak-kompatibel (breaking) pada API/kontrak/schema publik.
 - **MINOR** — fitur baru yang kompatibel ke belakang.
 - **PATCH** — bug fix kompatibel.
-- Pra-1.0.0: perubahan minor boleh membawa penyesuaian yang belum stabil.
+- Sejak `v1.0.0` (base production-ready, tercapai 2026-07-21 lewat ADR-0024): SemVer ketat berlaku penuh — breaking pada API/kontrak/schema publik **wajib MAJOR**. Aturan pra-1.0.0 (minor boleh membawa penyesuaian belum stabil) **tidak berlaku lagi**.
 
 ### Versioning dengan Changesets
 
@@ -319,7 +319,7 @@ Aturan:
 
 - **Setiap PR** yang mengubah perilaku (fitur, fix, schema/API/event) **wajib menyertakan satu changeset** dengan tingkat bump SemVer + ringkasan.
 - Perubahan **docs-only/chore** boleh tanpa changeset.
-- Baseline saat ini `0.0.0` (belum ada kode dirilis); rilis bertag pertama = `0.1.0` (Foundation).
+- Rilis bertag pertama `0.1.0` (Foundation); baseline kini **`v1.0.0`** (base production-ready, tercapai 2026-07-21 lewat ADR-0024). Evolusi selanjutnya bergerak di jalur `1.x`.
 - `CHANGELOG.md` mengikuti format Keep a Changelog; entri versi digenerate dari changeset.
 - Proses rilis ter-otomasi lewat skill `awcms-mini-release` (status → version → tag → GitHub release).
 
