@@ -61,6 +61,7 @@ import { buildEngineDeps } from "../../src/pages/api/v1/tenant-lifecycle/_suppor
 import { listModules } from "../../src/modules";
 import { resolveServiceCatalogKeyRegistry } from "../../src/modules/service-catalog/domain/key-registry";
 import {
+  approveOfferVersion,
   createPlan,
   publishVersion
 } from "../../src/modules/service-catalog/application/plan-directory";
@@ -140,6 +141,8 @@ async function seedOffer(
     );
     if (!created.ok)
       throw new Error("seedOffer createPlan: " + JSON.stringify(created));
+    // Issue #879 — publish requires a prior commercial approval by a DISTINCT actor.
+    await approveOfferVersion(tx, tenantId, crypto.randomUUID(), planKey, 1);
     const pub = await publishVersion(
       tx,
       tenantId,

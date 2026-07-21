@@ -34,6 +34,7 @@ import { withTenant } from "../../src/lib/database/tenant-context";
 import { listModules } from "../../src/modules";
 import { resolveServiceCatalogKeyRegistry } from "../../src/modules/service-catalog/domain/key-registry";
 import {
+  approveOfferVersion,
   createPlan,
   publishVersion
 } from "../../src/modules/service-catalog/application/plan-directory";
@@ -46,6 +47,7 @@ import type {
 } from "../../src/modules/_shared/ports/tenant-lifecycle-port";
 import { createSubscriptionForOffer } from "../../src/modules/subscription-billing/application/subscription-engine";
 import {
+  approveCredit,
   creditInvoice,
   generateInvoiceDraft,
   issueInvoice,
@@ -139,6 +141,8 @@ async function seedOffer(
     );
     if (!created.ok)
       throw new Error("seedOffer createPlan: " + JSON.stringify(created));
+    // Issue #879 — publish requires a prior commercial approval by a DISTINCT actor.
+    await approveOfferVersion(tx, tenantId, crypto.randomUUID(), planKey, 1);
     const pub = await publishVersion(
       tx,
       tenantId,
@@ -571,8 +575,9 @@ suite("subscription_billing — engine + integrity", () => {
       return gen.invoice.id;
     });
 
-    // A partial credit reduces outstanding.
-    await withTenant(sql, owner.tenantId, async (tx) => {
+    // Issue #879 (maker/checker): a credit note is created PENDING and does NOT
+    // reduce the balance until a DIFFERENT actor approves it.
+    const creditNoteId = await withTenant(sql, owner.tenantId, async (tx) => {
       const credit = await creditInvoice(
         tx,
         owner.tenantId,
@@ -581,11 +586,13 @@ suite("subscription_billing — engine + integrity", () => {
         { actorTenantUserId: owner.tenantUserId }
       );
       expect(credit.ok).toBe(true);
-      if (credit.ok) {
-        expect(credit.invoice.creditedMinor).toBe(900000);
-        expect(credit.invoice.outstandingMinor).toBe(9900000 - 900000);
-      }
-      // Over-credit (beyond the total) is rejected.
+      if (!credit.ok) throw new Error("credit failed");
+      // Balance NOT yet reduced (pending approval).
+      expect(credit.invoice.creditedMinor).toBe(0);
+      expect(credit.invoice.outstandingMinor).toBe(9900000);
+
+      // Over-credit guard sums OPEN (pending) credits: a second pending credit
+      // beyond the remaining total is rejected before any approval.
       const over = await creditInvoice(
         tx,
         owner.tenantId,
@@ -595,6 +602,19 @@ suite("subscription_billing — engine + integrity", () => {
       );
       expect(over.ok).toBe(false);
       if (!over.ok) expect(over.reason).toBe("over_credit");
+      return credit.creditNoteId;
+    });
+
+    // A DIFFERENT actor approves — only now is the balance reduced.
+    await withTenant(sql, owner.tenantId, async (tx) => {
+      const applied = await approveCredit(tx, owner.tenantId, creditNoteId, {
+        actorTenantUserId: crypto.randomUUID()
+      });
+      expect(applied.ok).toBe(true);
+      if (applied.ok) {
+        expect(applied.invoice.creditedMinor).toBe(900000);
+        expect(applied.invoice.outstandingMinor).toBe(9900000 - 900000);
+      }
     });
 
     // The invoice can still be voided (correction, never edit/delete).

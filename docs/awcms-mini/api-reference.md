@@ -10948,12 +10948,41 @@ Creates version N+1 as a draft, seeded from the latest version. Requires Idempot
 | 409    | A draft version already exists, or Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.                                          | [`ApiError`](#standard-error-envelope)                   |
 
+### `POST /api/v1/service-catalog/plans/{planKey}/versions/{version}/approve` — Commercially approve a draft offer version (prerequisite for publish)
+
+- **operationId**: `serviceCatalogOfferApprove`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #879 (ADR-0022 §5 HIGH-2) — maker/checker. A DISTINCT actor from the publisher commercially approves a draft version before it may be published. High-risk (SoD publish_vs_commercial_approve + step-up); requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type    | Description                                 |
+| ------------------ | ------ | -------- | ------- | ------------------------------------------- |
+| `planKey`          | path   | yes      | string  |                                             |
+| `version`          | path   | yes      | integer |                                             |
+| `Idempotency-Key`  | header | yes      | string  | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string  | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string  | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                          | Schema                                     |
+| ------ | -------------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Offer version commercially approved.                                 | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                         | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                                  | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                       | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.                  | [`ApiError`](#standard-error-envelope)     |
+| 409    | Version is not a draft, already approved, or Idempotency-Key reused. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                           | [`ApiError`](#standard-error-envelope)     |
+
 ### `POST /api/v1/service-catalog/plans/{planKey}/versions/{version}/publish` — Publish a draft version into an immutable offer
 
 - **operationId**: `serviceCatalogOfferPublish`
 - **Security**: bearerAuth + tenantHeader
 
-Platform-operator only; requires Idempotency-Key. Emits awcms-mini.service-catalog.offer.published.
+Platform-operator only; requires Idempotency-Key and a prior commercial approval by a distinct actor (Issue
 
 **Parameters**
 
@@ -11580,6 +11609,35 @@ Move the tenant to a target state (activate, suspend, past_due, grace, cancel, b
 
 Provider-neutral SaaS control-plane subscription billing (epic #868 SaaS control plane Wave 1, Issue #876, ADR-0022) — the fifth control-plane module and a tenant-scoped one (every table tenant_id + ENABLE + FORCE RLS, predicate ALWAYS AND ONLY tenant_id, no soft super-tenant). Records the commercial SaaS STATE of a tenant's subscription: a subscription bound to an IMMUTABLE published offer version (#870), billing periods, invoice drafts/issued documents + line items, credit notes, payment allocation REFERENCES, dunning attempts, and scheduled upgrade/downgrade/cancel changes. NOT a general ledger / AR-AP subledger / double-entry accounting / tax engine / e-invoicing / cash-bank reconciliation / tenant business invoice (ADR-0013 §3 / ADR-0022 §11) — payment allocation is a reference only, never an accounting entry. Money is EXACT minor units (bigint, never float), single-currency per invoice, explicit rounding policy. Issued invoices are IMMUTABLE (correction via credit-note/void, never edit/delete); invoice generation is idempotent per (subscription, period, offer version) under concurrent workers with a per-tenant lease. Usage-based lines reconcile to #875 aggregates and record their source window/version. Dunning REQUESTS lifecycle transitions through the #873 contract (fail-closed) and never mutates lifecycle state directly. Provides the billing_document_state capability (consumed by payment_gateway #877). Platform-operator writes are separate from tenant admin and restricted to the platform tenant; tenant users may read only their own authorized records and can never mutate an issued invoice. LAN/offline/manual-payment mode works without an online gateway.
 
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/credits/{creditNoteId}/approve` — Approve a pending credit note (checker)
+
+- **operationId**: `subscriptionBillingApproveCredit`
+- **Security**: bearerAuth + tenantHeader
+
+CHECKER step (Issue #879, ADR-0022 §5 CRITICAL-1). A DISTINCT actor from the creator approves a pending credit note; ONLY THEN is it applied to the invoice balance. High-risk: SoD subscription_billing.credit_create_vs_approve + step-up. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `creditNoteId`     | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                       | Schema                                     |
+| ------ | ----------------------------------------------------------------- | ------------------------------------------ |
+| 200    | Credit note approved and applied to the invoice balance.          | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                      | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                               | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                    | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.               | [`ApiError`](#standard-error-envelope)     |
+| 409    | Credit note is not pending, over-credit, or a SoD/step-up denial. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                        | [`ApiError`](#standard-error-envelope)     |
+
 ### `GET /api/v1/subscription-billing/tenants/{tenantId}/invoices` — List a tenant's invoices
 
 - **operationId**: `subscriptionBillingListInvoices`
@@ -11666,12 +11724,12 @@ List credit notes issued against an invoice. Platform operator or self-read.
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
 
-### `POST /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/credits` — Issue a credit note
+### `POST /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/credits` — Create a credit note (maker)
 
 - **operationId**: `subscriptionBillingCreditInvoice`
 - **Security**: bearerAuth + tenantHeader
 
-Issue a credit note against an original issued/paid invoice (and optionally a line). Never edits the invoice. Exact minor-unit amount. Platform-operator only. Requires Idempotency-Key.
+MAKER step (Issue #879, ADR-0022 §5). Create a credit note against an issued/paid invoice in status 'pending_approval' — does NOT reduce the invoice balance. A DISTINCT actor must approve it before it applies. Never edits the invoice. Exact minor-unit amount. Platform-operator only. Requires Idempotency-Key.
 
 **Parameters**
 
@@ -12273,12 +12331,12 @@ List refund requests + write-once results for a payment intent. Platform operato
 | 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)     |
 | 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)     |
 
-### `POST /api/v1/payment-gateway/tenants/{tenantId}/intents/{intentId}/refunds` — Request a refund
+### `POST /api/v1/payment-gateway/tenants/{tenantId}/intents/{intentId}/refunds` — Request a refund (maker)
 
 - **operationId**: `paymentGatewayRequestRefund`
 - **Security**: bearerAuth + tenantHeader
 
-Request a refund against a settled intent where the provider supports it. Commits a local refund + outbox row FIRST; the provider call is dispatched OUTSIDE any transaction. Mandatory reason. Platform-operator only. Requires Idempotency-Key.
+MAKER step (Issue #879, ADR-0022 §5). Request a refund against a settled intent — commits a local refund row in status 'requested' but enqueues NO provider dispatch. Money leaves only after a DISTINCT actor approves. Mandatory reason. Platform-operator only. Requires Idempotency-Key.
 
 **Parameters**
 
@@ -12394,6 +12452,35 @@ Create/update a (provider, account) binding. The signing secret is an env: POINT
 | 409    | Conflict (a same-key replay differs, or a concurrent change).                                                                                                                                                    | [`ApiError`](#standard-error-envelope)     |
 | 413    | Request body exceeds the endpoint's size limit (Issue #686, epic #679) — either its declared `Content-Length` or, for a chunked/ unlabeled body, the actual streamed byte count. Error code `PAYLOAD_TOO_LARGE`. | [`ApiError`](#standard-error-envelope)     |
 | 500    | Internal server error without stack trace.                                                                                                                                                                       | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/payment-gateway/tenants/{tenantId}/refunds/{refundId}/approve` — Approve a requested refund (checker)
+
+- **operationId**: `paymentGatewayApproveRefund`
+- **Security**: bearerAuth + tenantHeader
+
+CHECKER step (Issue #879, ADR-0022 §5 CRITICAL-1). A DISTINCT actor from the requester approves a requested refund; ONLY THEN is the provider dispatch (money-out) enqueued. High-risk: SoD payment_gateway.refund_create_vs_approve + step-up. Platform-operator only. Requires Idempotency-Key.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `refundId`         | path   | yes      | string (uuid) |                                             |
+| `Idempotency-Key`  | header | yes      | string        | Required for high-risk mutations.           |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                  | Schema                                     |
+| ------ | ------------------------------------------------------------ | ------------------------------------------ |
+| 200    | Refund approved; provider dispatch enqueued.                 | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                                 | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                          | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.               | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy.          | [`ApiError`](#standard-error-envelope)     |
+| 409    | Refund is not in a requested state, or a SoD/step-up denial. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.                   | [`ApiError`](#standard-error-envelope)     |
 
 ### `POST /api/v1/payment-gateway/webhook/{providerAccountId}` — Signed inbound payment webhook receiver
 
@@ -12652,6 +12739,121 @@ Recompute each window in a bounded range from the immutable events + corrections
 | 403    | Access denied by RBAC, ABAC, or tenant policy.   | [`ApiError`](#standard-error-envelope)                   |
 | 409    | Idempotency-Key reused with a different request. | [`ApiError`](#standard-error-envelope)                   |
 | 500    | Internal server error without stack trace.       | [`ApiError`](#standard-error-envelope)                   |
+
+## Control Plane
+
+Cross-cutting SaaS control-plane security surfaces (Issue #879, ADR-0022 §5/§6). Support-access grants: a platform/support operator has NO standing right to read another tenant's records — a time/reason-bound grant, approved by a DISTINCT actor (SoD identity_access.support_request_vs_approve), revocable and auto-expiring, is required for every cross-tenant support read (never reusable across tenants, fail-closed on expiry/revocation).
+
+### `GET /api/v1/control-plane/tenants/{tenantId}/support-access` — List support-access grants for a tenant
+
+- **operationId**: `controlPlaneListSupportAccess`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #879 (ADR-0022 §5/§6) — audit view of support-access grants for a target tenant. Platform-operator only.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                    | Schema                                     |
+| ------ | ---------------------------------------------- | ------------------------------------------ |
+| 200    | Support-access grants listed.                  | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/control-plane/tenants/{tenantId}/support-access` — Request a cross-tenant support-access grant (maker)
+
+- **operationId**: `controlPlaneRequestSupportAccess`
+- **Security**: bearerAuth + tenantHeader
+
+MAKER step. Request a time/reason-bound support-access grant for a target tenant (for the requesting operator's identity). A DISTINCT actor must approve it before any cross-tenant read is permitted.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (required): object
+
+**Responses**
+
+| Status | Description                                        | Schema                                     |
+| ------ | -------------------------------------------------- | ------------------------------------------ |
+| 201    | Support-access grant requested (pending approval). | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                       | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.     | [`ApiError`](#standard-error-envelope)     |
+| 409    | A live grant for this operator already exists.     | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.         | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/control-plane/tenants/{tenantId}/support-access/{grantId}/approve` — Approve a support-access grant (checker)
+
+- **operationId**: `controlPlaneApproveSupportAccess`
+- **Security**: bearerAuth + tenantHeader
+
+CHECKER step. A DISTINCT actor from the requester approves a grant, setting its auto-expiry window. High-risk: SoD identity_access.support_request_vs_approve.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `grantId`          | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Request body** (optional): object
+
+**Responses**
+
+| Status | Description                                         | Schema                                     |
+| ------ | --------------------------------------------------- | ------------------------------------------ |
+| 200    | Grant approved.                                     | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)     |
+| 409    | Grant is not in a requested state, or a SoD denial. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)     |
+
+### `POST /api/v1/control-plane/tenants/{tenantId}/support-access/{grantId}/revoke` — Revoke an active support-access grant
+
+- **operationId**: `controlPlaneRevokeSupportAccess`
+- **Security**: bearerAuth + tenantHeader
+
+Revoke an active grant before its expiry. After this, the operator's cross-tenant reads for this tenant fail closed immediately.
+
+**Parameters**
+
+| Name               | In     | Required | Type          | Description                                 |
+| ------------------ | ------ | -------- | ------------- | ------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid) |                                             |
+| `grantId`          | path   | yes      | string (uuid) |                                             |
+| `X-Correlation-ID` | header | no       | string        | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string        | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                         | Schema                                     |
+| ------ | --------------------------------------------------- | ------------------------------------------ |
+| 200    | Grant revoked.                                      | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                        | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.                 | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.      | [`ApiError`](#standard-error-envelope)     |
+| 404    | Resource not found or hidden by soft-delete policy. | [`ApiError`](#standard-error-envelope)     |
+| 409    | Grant is not active.                                | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.          | [`ApiError`](#standard-error-envelope)     |
 
 ## Schema appendix
 

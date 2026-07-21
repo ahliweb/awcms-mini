@@ -123,6 +123,36 @@ export const tenantEntitlementModule = defineModule({
         "Revoke a tenant entitlement override (stops applying immediately, without restart)"
     }
   ],
+  // Segregation-of-duties (Issue #879, epic #868 Wave 2, ADR-0022 §5 —
+  // "entitlement override versus audit review"). SoD was DEFERRED from #871 to
+  // #879; declared here, wired into the `authorizeInTransaction` chokepoint via
+  // `high-risk-sod-guard.ts`. Enforced at the high-risk `overrides.override`
+  // step: the subject who REVIEWS the audit trail (the independent audit/
+  // security-review duty, ADR-0022 §5) must not also APPLY entitlement
+  // overrides — an auditor who can also grant the very overrides they review
+  // can silently cover their own tracks. `logging.audit_trail.read` is a
+  // deliberately DIFFERENT duty from ordinary entitlement operation, so a
+  // normal entitlement operator (who does not hold audit-review) is unaffected.
+  sodRules: [
+    {
+      ruleKey: "tenant_entitlement.override_vs_audit_review",
+      ownerModuleKey: "tenant_entitlement",
+      description:
+        "A subject who REVIEWS the audit trail must not also APPLY entitlement overrides — separation of independent audit/security review from privileged entitlement change (ADR-0022 §5 entitlement override vs audit review).",
+      conflictingPermissionKeys: [
+        "tenant_entitlement.overrides.override",
+        "logging.audit_trail.read"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "high",
+      exceptionPolicy: {
+        allowed: true,
+        requiresApprovalPermission:
+          "identity_access.business_scope_exceptions.approve",
+        maxDurationDays: 14
+      }
+    }
+  ],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/tenant-entitlement"

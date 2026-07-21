@@ -13,9 +13,13 @@ import {
   formatSoDRuleRegistryIssue,
   validateSoDRuleRegistry
 } from "../src/modules/identity-access/domain/sod-rule-registry";
+import { collectSeededPermissionKeysFromSql } from "./lib/seeded-permission-keys";
 
 function main(): void {
-  const result = validateSoDRuleRegistry(listModules());
+  // Issue #879 — pass the SQL-seeded permission universe so the registry gate
+  // ALSO proves every conflicting permission key exists (drift-killer).
+  const seeded = collectSeededPermissionKeysFromSql();
+  const result = validateSoDRuleRegistry(listModules(), seeded);
 
   if (result.valid) {
     console.log(

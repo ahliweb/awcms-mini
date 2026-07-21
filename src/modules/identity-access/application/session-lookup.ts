@@ -2,6 +2,13 @@ export type ActiveSession = {
   id: string;
   tenant_id: string;
   identity_id: string;
+  /**
+   * Issue #879 — the session's strong-assurance timestamp (sql/098 adds the
+   * column, DEFAULT now() at insert). Used by the step-up chokepoint. Older
+   * sessions predating the column are backfilled to their creation instant by
+   * the migration, so this is always present.
+   */
+  assurance_at: Date;
 };
 
 export async function resolveActiveSession(
@@ -11,7 +18,7 @@ export async function resolveActiveSession(
   now: Date
 ): Promise<ActiveSession | null> {
   const rows = await tx`
-    SELECT id, tenant_id, identity_id, expires_at, revoked_at
+    SELECT id, tenant_id, identity_id, expires_at, revoked_at, assurance_at
     FROM awcms_mini_sessions
     WHERE tenant_id = ${tenantId} AND token_hash = ${tokenHash}
   `;
@@ -22,6 +29,7 @@ export async function resolveActiveSession(
         identity_id: string;
         expires_at: Date;
         revoked_at: Date | null;
+        assurance_at: Date;
       }
     | undefined;
 
@@ -40,7 +48,8 @@ export async function resolveActiveSession(
   return {
     id: session.id,
     tenant_id: session.tenant_id,
-    identity_id: session.identity_id
+    identity_id: session.identity_id,
+    assurance_at: session.assurance_at
   };
 }
 

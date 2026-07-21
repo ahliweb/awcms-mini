@@ -138,6 +138,33 @@ export const tenantLifecycleModule = defineModule({
         "Authorize owner recovery / tenant data export while restricted (separately authorized)"
     }
   ],
+  // Segregation-of-duties (Issue #879, epic #868 Wave 2, ADR-0022 §5 —
+  // "requester versus lifecycle restore/exception approval"). SoD was DEFERRED
+  // from #873 to #879; declared here, wired into the `authorizeInTransaction`
+  // chokepoint via `high-risk-sod-guard.ts`. Enforced at the high-risk
+  // `states.restore` step: the subject who SCHEDULES a tenant lifecycle
+  // transition (the requester) must not also be the one who RESTORES/reactivates
+  // the tenant (the approver) — maker/checker over reactivation.
+  sodRules: [
+    {
+      ruleKey: "tenant_lifecycle.restore_requester_vs_approver",
+      ownerModuleKey: "tenant_lifecycle",
+      description:
+        "A subject who SCHEDULES a tenant lifecycle transition must not also RESTORE/reactivate the tenant — requester vs restore-approver maker/checker (ADR-0022 §5).",
+      conflictingPermissionKeys: [
+        "tenant_lifecycle.states.schedule",
+        "tenant_lifecycle.states.restore"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "high",
+      exceptionPolicy: {
+        allowed: true,
+        requiresApprovalPermission:
+          "identity_access.business_scope_exceptions.approve",
+        maxDurationDays: 14
+      }
+    }
+  ],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/tenant-lifecycle"

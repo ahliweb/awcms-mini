@@ -341,6 +341,11 @@
       "source": "default"
     },
     {
+      "path": "src/pages/api/v1/control-plane/_support.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
       "path": "src/pages/api/v1/data-exchange/descriptors/index.ts",
       "workClass": "interactive",
       "source": "default"
@@ -1212,6 +1217,11 @@
     },
     {
       "path": "src/pages/api/v1/service-catalog/plans/[planKey]/versions.ts",
+      "workClass": "interactive",
+      "source": "default"
+    },
+    {
+      "path": "src/pages/api/v1/service-catalog/plans/[planKey]/versions/[version]/approve.ts",
       "workClass": "interactive",
       "source": "default"
     },

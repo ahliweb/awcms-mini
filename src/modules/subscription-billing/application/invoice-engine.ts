@@ -40,6 +40,7 @@ import {
   addInvoiceCredited,
   advanceInvoiceStatus,
   appendInvoiceStatusHistory,
+  applyCreditNote,
   ensurePeriod,
   findPeriodByStart,
   getLiveInvoiceForPeriod,
@@ -48,10 +49,12 @@ import {
   insertInvoiceLine,
   insertPaymentAllocation,
   latestPeriodSequence,
+  loadCreditNoteForUpdate,
   loadInvoiceForUpdate,
   loadSubscriptionForUpdate,
   markPeriodInvoiced,
   setDraftInvoiceTotals,
+  sumOpenCreditNotes,
   type InvoiceLineInput,
   type InvoiceRow,
   type SubscriptionRow
@@ -670,17 +673,21 @@ export async function creditInvoice(
     };
   }
   const amount = assertSafeMinor(command.amountMinor, "credit amountMinor");
-  const alreadyCredited = Number(row.credited_minor);
   const total = Number(row.total_minor);
-  const newCredited = sumMinor([alreadyCredited, amount]);
-  if (newCredited > total) {
+  // Issue #879 — over-credit guard now sums pending + applied credit notes (not
+  // just the applied `credited_minor` balance), so concurrent pending credits can
+  // never collectively exceed the invoice total even before any is approved.
+  const openCredits = BigInt(await sumOpenCreditNotes(tx, tenantId, invoiceId));
+  if (openCredits + BigInt(amount) > BigInt(total)) {
     return {
       ok: false,
       reason: "over_credit",
-      message: `Credit ${amount} would exceed the invoice total ${total} (already credited ${alreadyCredited}).`
+      message: `Credit ${amount} plus open credits ${openCredits.toString()} would exceed the invoice total ${total}.`
     };
   }
 
+  // MAKER step: create the credit note in `pending_approval`. The invoice
+  // balance is NOT reduced here — a distinct actor must approve first.
   const credit = await insertCreditNote(tx, {
     tenantId,
     invoiceId,
@@ -691,25 +698,7 @@ export async function creditInvoice(
     correlationId: ctx.correlationId ?? null,
     actor: ctx.actorTenantUserId
   });
-  await addInvoiceCredited(tx, tenantId, invoiceId, newCredited);
 
-  await appendDomainEvent(tx, tenantId, {
-    eventType: SUBSCRIPTION_BILLING_INVOICE_CREDITED_EVENT_TYPE,
-    eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
-    aggregateType: AGGREGATE_TYPE,
-    aggregateId: invoiceId,
-    aggregateVersion: Number(row.version),
-    producerModule: MODULE_KEY,
-    correlationId: ctx.correlationId,
-    actorTenantUserId: ctx.actorTenantUserId,
-    payload: {
-      creditNoteId: credit.id,
-      invoiceId,
-      invoiceLineId: command.invoiceLineId,
-      currency: row.currency,
-      amountMinor: amount
-    }
-  });
   await recordAuditEvent(tx, {
     tenantId,
     actorTenantUserId: ctx.actorTenantUserId ?? undefined,
@@ -718,12 +707,123 @@ export async function creditInvoice(
     resourceType: "subscription_billing_credit_note",
     resourceId: credit.id,
     severity: "warning",
-    message: `Credit note issued against invoice ${invoiceId}: ${command.reason}`,
+    message: `Credit note requested (pending approval) against invoice ${invoiceId}: ${command.reason}`,
     attributes: { invoiceId, amountMinor: amount, currency: row.currency },
     correlationId: ctx.correlationId
   });
 
   const refreshed = (await getInvoiceForDto(tx, tenantId, invoiceId))!;
+  return { ok: true, creditNoteId: credit.id, invoice: refreshed };
+}
+
+export type ApproveCreditResult =
+  | { ok: true; creditNoteId: string; invoice: InvoiceDto }
+  | {
+      ok: false;
+      reason: "not_found" | "invalid_state" | "over_credit";
+      message: string;
+    };
+
+/**
+ * Issue #879 (ADR-0022 §5 CRITICAL-1) — CHECKER step. A DIFFERENT actor than the
+ * creator (enforced by the SoD chokepoint at the high-risk `approve` action)
+ * applies a `pending_approval` credit note to the invoice balance. Idempotency +
+ * step-up required. Re-checks the over-credit invariant under the invoice lock.
+ */
+export async function approveCredit(
+  tx: Bun.SQL,
+  tenantId: string,
+  creditNoteId: string,
+  ctx: ActionContext
+): Promise<ApproveCreditResult> {
+  const credit = await loadCreditNoteForUpdate(tx, tenantId, creditNoteId);
+  if (!credit) {
+    return {
+      ok: false,
+      reason: "not_found",
+      message: "Credit note not found."
+    };
+  }
+  if (credit.status !== "pending_approval") {
+    return {
+      ok: false,
+      reason: "invalid_state",
+      message: `Only a pending credit note can be approved (is "${credit.status}").`
+    };
+  }
+
+  const invoice = await loadInvoiceForUpdate(tx, tenantId, credit.invoice_id);
+  if (!invoice) {
+    return {
+      ok: false,
+      reason: "not_found",
+      message: "Invoice for this credit note not found."
+    };
+  }
+
+  const amount = Number(credit.amount_minor);
+  const alreadyApplied = Number(invoice.credited_minor);
+  const total = Number(invoice.total_minor);
+  const newCredited = sumMinor([alreadyApplied, amount]);
+  if (newCredited > total) {
+    return {
+      ok: false,
+      reason: "over_credit",
+      message: `Applying credit ${amount} would exceed the invoice total ${total} (already applied ${alreadyApplied}).`
+    };
+  }
+
+  const applied = await applyCreditNote(tx, {
+    tenantId,
+    creditNoteId,
+    approvedBy: ctx.actorTenantUserId
+  });
+  if (!applied) {
+    return {
+      ok: false,
+      reason: "invalid_state",
+      message: "This credit note was concurrently transitioned out of pending."
+    };
+  }
+
+  await addInvoiceCredited(tx, tenantId, credit.invoice_id, newCredited);
+
+  await appendDomainEvent(tx, tenantId, {
+    eventType: SUBSCRIPTION_BILLING_INVOICE_CREDITED_EVENT_TYPE,
+    eventVersion: SUBSCRIPTION_BILLING_EVENT_VERSION,
+    aggregateType: AGGREGATE_TYPE,
+    aggregateId: credit.invoice_id,
+    aggregateVersion: Number(invoice.version),
+    producerModule: MODULE_KEY,
+    correlationId: ctx.correlationId,
+    actorTenantUserId: ctx.actorTenantUserId,
+    payload: {
+      creditNoteId: credit.id,
+      invoiceId: credit.invoice_id,
+      invoiceLineId: credit.invoice_line_id,
+      currency: credit.currency,
+      amountMinor: amount
+    }
+  });
+  await recordAuditEvent(tx, {
+    tenantId,
+    actorTenantUserId: ctx.actorTenantUserId ?? undefined,
+    moduleKey: MODULE_KEY,
+    action: "approve",
+    resourceType: "subscription_billing_credit_note",
+    resourceId: credit.id,
+    severity: "warning",
+    message: `Credit note applied to invoice ${credit.invoice_id} by a second actor.`,
+    attributes: {
+      invoiceId: credit.invoice_id,
+      amountMinor: amount,
+      currency: credit.currency,
+      approvedBy: ctx.actorTenantUserId
+    },
+    correlationId: ctx.correlationId
+  });
+
+  const refreshed = (await getInvoiceForDto(tx, tenantId, credit.invoice_id))!;
   return { ok: true, creditNoteId: credit.id, invoice: refreshed };
 }
 

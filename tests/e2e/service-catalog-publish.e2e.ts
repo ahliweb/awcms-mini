@@ -41,6 +41,39 @@ async function seedServiceCatalogTenant(
   return JSON.parse(stdout.trim());
 }
 
+/**
+ * Issue #879 (ADR-0022 §5 HIGH-2) — commercially APPROVE the draft version
+ * out-of-band as a DISTINCT approver before the operator publishes. `publishVersion`
+ * now refuses an un-approved version and refuses a publisher equal to the approver
+ * (maker/checker); the admin approve UI is #878 scope. The approver id is a fresh
+ * random uuid (never the publisher), so maker != checker holds.
+ */
+async function approveOfferVersionOutOfBand(
+  databaseUrl: string,
+  tenantId: string,
+  planKey: string,
+  version: number
+): Promise<void> {
+  const cliPath = new URL(
+    "./helpers/approve-offer-version-cli.ts",
+    import.meta.url
+  ).pathname;
+  const proc = Bun.spawn(
+    ["bun", cliPath, databaseUrl, tenantId, planKey, String(version)],
+    { stdout: "pipe", stderr: "pipe" }
+  );
+  const [, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited
+  ]);
+  if (exitCode !== 0) {
+    throw new Error(
+      `approve-offer-version-cli.ts failed (exit ${exitCode}): ${stderr}`
+    );
+  }
+}
+
 test.describe("admin/service-catalog — create + publish flow", () => {
   test("an operator creates a draft plan and publishes it into an offer", async ({
     page
@@ -85,8 +118,24 @@ test.describe("admin/service-catalog — create + publish flow", () => {
     const draftRow = page.locator('tr[data-version="1"]');
     await expect(draftRow).toHaveAttribute("data-status", "draft");
 
-    // Publish v1.
-    await draftRow.locator("button.publish-button").click();
+    // Issue #879 — a DISTINCT approver must commercially approve v1 before it can
+    // be published (maker/checker). Done out-of-band here (the approve UI is #878
+    // scope); the operator remains the publisher, so approver != publisher holds.
+    await approveOfferVersionOutOfBand(
+      seedDatabaseUrl!,
+      owner.tenantId,
+      planKey,
+      1
+    );
+    // Reload so the detail view reflects the now-approved (still draft) version.
+    await page.goto(`/admin/service-catalog/plans?plan=${planKey}`);
+    await expect(page.locator('tr[data-version="1"]')).toHaveAttribute(
+      "data-status",
+      "draft"
+    );
+
+    // Publish v1 (the operator, a different actor than the approver).
+    await page.locator('tr[data-version="1"] button.publish-button').click();
 
     // The page reloads after a successful publish (reloadAfterDelay). Poll the
     // reloaded detail view until v1 shows as published — a re-query, not a

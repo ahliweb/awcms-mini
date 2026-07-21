@@ -299,7 +299,7 @@
           "optional": true
         }
       ],
-      "permissionCount": 12,
+      "permissionCount": 13,
       "navigationCount": 1,
       "jobCount": 3,
       "hasHealthCheck": true,
@@ -379,7 +379,7 @@
       ],
       "capabilitiesProvided": ["service_catalog_read"],
       "capabilitiesConsumed": [],
-      "permissionCount": 5,
+      "permissionCount": 6,
       "navigationCount": 1,
       "jobCount": 0,
       "hasHealthCheck": false,
@@ -443,7 +443,7 @@
           "optional": true
         }
       ],
-      "permissionCount": 11,
+      "permissionCount": 12,
       "navigationCount": 1,
       "jobCount": 2,
       "hasHealthCheck": false,

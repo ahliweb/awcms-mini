@@ -26,6 +26,7 @@
  * silently dropped or force-fit into a fake automated check.
  */
 import { readFile } from "node:fs/promises";
+import { readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
@@ -41,6 +42,12 @@ import {
   validateLifecycleRegistry
 } from "../src/modules/data-lifecycle/domain/lifecycle-registry";
 import { DATA_LIFECYCLE_PERMISSIONS } from "../src/modules/data-lifecycle/domain/data-lifecycle-permissions";
+import { collectSoDRuleDescriptors } from "../src/modules/identity-access/domain/sod-rule-registry";
+import {
+  formatStepUpRegistryIssue,
+  validateStepUpPolicyRegistry
+} from "../src/modules/_shared/control-plane-step-up-registry";
+import { scanSqlForPlatformClaim } from "./rls-platform-claim-check";
 import { evaluateLoginAttempt } from "../src/modules/identity-access/domain/login-policy";
 import { hashPassword } from "../src/lib/auth/password";
 import { resolveAppBaseUrl } from "./lib/app-url";
@@ -2686,6 +2693,159 @@ export function checkDataLifecycleLegalHoldReleaseSeparate(): SecurityCheckResul
 }
 
 // ---------------------------------------------------------------------------
+// Control-plane security (Issue #879, epic #868 Wave 2, ADR-0022 §5/§6/§8).
+// ---------------------------------------------------------------------------
+
+/**
+ * ADR-0022 §6 High-1 "no soft super-tenant" — blocks go-live if ANY RLS
+ * policy predicate in `sql/*.sql` is widened past `tenant_id` with a
+ * platform-claim disjunction (a functional BYPASSRLS that the role-attribute
+ * check `checkAppDbUserNotSuperuser` cannot see). Reuses the SAME pure
+ * scanner the `rls:platform-claim:check` CI gate uses.
+ */
+export function checkNoSoftSuperTenantRlsPredicate(
+  rootDir = process.cwd()
+): SecurityCheckResult {
+  const name = "No soft super-tenant / platform-claim RLS predicate";
+  const severity: CheckSeverity = "critical";
+
+  try {
+    const sqlDir = path.join(rootDir, "sql");
+    const files = readdirSync(sqlDir)
+      .filter((file) => file.endsWith(".sql"))
+      .sort();
+    const violations = files.flatMap((file) =>
+      scanSqlForPlatformClaim(
+        readFileSync(path.join(sqlDir, file), "utf8"),
+        file
+      )
+    );
+
+    if (violations.length === 0) {
+      return {
+        name,
+        severity,
+        status: "pass",
+        evidence: `Scanned ${files.length} migration file(s); every CREATE POLICY predicate is tenant_id-only (no OR-extended tenant predicate, no is_platform/has_platform_claim/BYPASSRLS token).`
+      };
+    }
+
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `${violations.length} forbidden platform-claim RLS predicate(s): ${violations
+        .map((v) => `[${v.source} · ${v.policyName}] ${v.reason}`)
+        .join("; ")}.`
+    };
+  } catch (error) {
+    return {
+      name,
+      severity,
+      status: "fail",
+      evidence: `Could not scan sql/ for platform-claim predicates: ${errorMessage(error)}.`
+    };
+  }
+}
+
+/**
+ * ADR-0022 §5/§8 — blocks go-live if the control-plane step-up policy
+ * registry drifts (a policy pointing at a non-existent permission, or a
+ * missing reason/idempotency/assurance-age guarantee).
+ */
+export function checkControlPlaneStepUpPolicyValid(): SecurityCheckResult {
+  const name = "Control-plane step-up policy registry is valid";
+  const severity: CheckSeverity = "critical";
+
+  const result = validateStepUpPolicyRegistry(listModules());
+  if (result.valid) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `${result.policies.length} step-up policy(ies) reference real seeded permissions and carry mandatory reason + idempotency + bounded assurance age.`
+    };
+  }
+
+  return {
+    name,
+    severity,
+    status: "fail",
+    evidence: `${result.issues.length} step-up policy issue(s): ${result.issues
+      .map(formatStepUpRegistryIssue)
+      .join("; ")}.`
+  };
+}
+
+const CONTROL_PLANE_MODULE_KEYS: readonly string[] = [
+  "service_catalog",
+  "tenant_entitlement",
+  "tenant_provisioning",
+  "tenant_lifecycle",
+  "usage_metering",
+  "subscription_billing",
+  "payment_gateway"
+];
+
+const REQUIRED_CONTROL_PLANE_SOD_RULE_KEYS: readonly string[] = [
+  // Issue #879 — the REAL money-out / commercial maker-checker set (create/publish
+  // vs approve). The old placeholders (publish↔retire, configure↔create) fired at
+  // the wrong step or not at all and were replaced.
+  "service_catalog.publish_vs_commercial_approve",
+  "tenant_entitlement.override_vs_audit_review",
+  "tenant_lifecycle.restore_requester_vs_approver",
+  "subscription_billing.invoice_create_vs_issue",
+  "subscription_billing.credit_create_vs_approve",
+  "payment_gateway.refund_create_vs_approve",
+  "identity_access.support_request_vs_approve"
+];
+
+/**
+ * ADR-0022 §5/§7 — blocks go-live if a control-plane maker/checker SoD rule
+ * is missing (a single actor could complete a high-risk flow un-segregated)
+ * OR if any control-plane module is no longer `defaultTenantState: "disabled"`
+ * (a billing/entitlement surface silently active on a LAN/offline deployment).
+ */
+export function checkControlPlaneSoDAndDefaultDisabled(): SecurityCheckResult {
+  const name = "Control-plane SoD rules present and modules default-disabled";
+  const severity: CheckSeverity = "critical";
+
+  const modules = listModules();
+  const ruleKeys = new Set(
+    collectSoDRuleDescriptors(modules).map((rule) => rule.ruleKey)
+  );
+  const missingRules = REQUIRED_CONTROL_PLANE_SOD_RULE_KEYS.filter(
+    (key) => !ruleKeys.has(key)
+  );
+
+  const byKey = new Map(modules.map((module) => [module.key, module]));
+  const notDisabled = CONTROL_PLANE_MODULE_KEYS.filter((key) => {
+    const module = byKey.get(key);
+    return !module || module.defaultTenantState !== "disabled";
+  });
+
+  if (missingRules.length === 0 && notDisabled.length === 0) {
+    return {
+      name,
+      severity,
+      status: "pass",
+      evidence: `All ${REQUIRED_CONTROL_PLANE_SOD_RULE_KEYS.length} control-plane maker/checker SoD rules are registered, and all ${CONTROL_PLANE_MODULE_KEYS.length} control-plane modules are defaultTenantState "disabled".`
+    };
+  }
+
+  const parts: string[] = [];
+  if (missingRules.length > 0) {
+    parts.push(`missing SoD rule(s): ${missingRules.join(", ")}`);
+  }
+  if (notDisabled.length > 0) {
+    parts.push(
+      `control-plane module(s) not default-disabled: ${notDisabled.join(", ")}`
+    );
+  }
+  return { name, severity, status: "fail", evidence: `${parts.join("; ")}.` };
+}
+
+// ---------------------------------------------------------------------------
 // Out-of-scope items — printed as their own report section, never silently
 // dropped.
 // ---------------------------------------------------------------------------
@@ -2772,7 +2932,10 @@ export async function runSecurityReadinessChecks(): Promise<
     await checkSecurityHeadersPresent(),
     checkLoginRateLimitImplemented(),
     checkDataLifecycleRegistryValid(),
-    checkDataLifecycleLegalHoldReleaseSeparate()
+    checkDataLifecycleLegalHoldReleaseSeparate(),
+    checkNoSoftSuperTenantRlsPredicate(),
+    checkControlPlaneStepUpPolicyValid(),
+    checkControlPlaneSoDAndDefaultDisabled()
   ];
 }
 

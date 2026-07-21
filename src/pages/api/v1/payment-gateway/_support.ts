@@ -34,6 +34,7 @@ import {
 } from "../../../../modules/identity-access/application/access-guard";
 import type { AccessAction } from "../../../../modules/identity-access/domain/access-control";
 import { hashSessionToken } from "../../../../lib/auth/session-token";
+import { hasActiveSupportGrant } from "../../../../modules/identity-access/application/support-access";
 import type { PaymentOutcomePort } from "../../../../modules/_shared/ports/payment-outcome-port";
 import type { PaymentEngineDeps } from "../../../../modules/payment-gateway/application/payment-engine";
 import { createBillingDocumentStatePort } from "../../../../modules/subscription-billing/application/billing-document-port-adapter";
@@ -176,33 +177,59 @@ export async function authorizeRead(
   if (!token) return fail(401, "AUTH_REQUIRED", "Authentication required.");
   const sql = getDatabaseClient();
   const tokenHash = hashSessionToken(token);
-  const result = await withTenant(sql, tenantId, async (tx) => {
-    const auth = await authorizeInTransaction(
-      tx,
-      tenantId,
-      tokenHash,
-      new Date(),
-      {
-        moduleKey: MODULE_KEY,
-        activityCode,
-        action: "read"
-      }
-    );
-    if (!auth.allowed) return auth.denied;
+  const now = new Date();
+  const outcome = await withTenant(sql, tenantId, async (tx) => {
+    const auth = await authorizeInTransaction(tx, tenantId, tokenHash, now, {
+      moduleKey: MODULE_KEY,
+      activityCode,
+      action: "read"
+    });
+    if (!auth.allowed) return { kind: "denied" as const, denied: auth.denied };
     const platformTenantId = await readPlatformTenantId(tx);
     const isPlatformOperator =
       platformTenantId !== null && platformTenantId === tenantId;
     const isSelf = tenantId === targetTenantId;
     if (!isPlatformOperator && !isSelf) {
+      return {
+        kind: "denied" as const,
+        denied: fail(
+          403,
+          "ACCESS_DENIED",
+          "You may only read your own tenant's payment records."
+        )
+      };
+    }
+    return {
+      kind: "ok" as const,
+      actorTenantUserId: auth.context.tenantUserId,
+      operatorIdentityId: auth.context.identityId,
+      // A platform operator reading ANOTHER tenant = support access.
+      crossTenant: isPlatformOperator && !isSelf
+    };
+  });
+
+  if (outcome instanceof Response) return outcome;
+  if (outcome.kind === "denied") return outcome.denied;
+
+  // Issue #879 (FIX MEDIUM-5) — a platform operator's cross-tenant READ requires
+  // an ACTIVE support-access grant for THIS target tenant (time/reason-bound,
+  // approved by a distinct actor, revocable). Checked in the TARGET tenant's RLS
+  // context, so a grant for another tenant is invisible here (never reusable
+  // across tenants). Fail-closed: expiry/revocation both deny.
+  if (outcome.crossTenant) {
+    const granted = await withTenant(sql, targetTenantId, (tx) =>
+      hasActiveSupportGrant(tx, targetTenantId, outcome.operatorIdentityId, now)
+    );
+    if (!granted) {
       return fail(
         403,
-        "ACCESS_DENIED",
-        "You may only read your own tenant's payment records."
+        "SUPPORT_ACCESS_REQUIRED",
+        "Cross-tenant support access requires an active, approved support-access grant for this tenant."
       );
     }
-    return { actorTenantUserId: auth.context.tenantUserId };
-  });
-  return result as OperatorAuth | Response;
+  }
+
+  return { actorTenantUserId: outcome.actorTenantUserId };
 }
 
 export type MutationOutcome =
@@ -320,6 +347,8 @@ export function paymentFailureResponse(reason: string): {
       return { status: 409, code: "PAYMENT_AMOUNT_MISMATCH" };
     case "not_refundable":
       return { status: 409, code: "PAYMENT_NOT_REFUNDABLE" };
+    case "not_approvable":
+      return { status: 409, code: "PAYMENT_REFUND_NOT_APPROVABLE" };
     case "over_refund":
       return { status: 409, code: "PAYMENT_OVER_REFUND" };
     case "refund_in_progress":

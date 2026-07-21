@@ -683,8 +683,8 @@ paths:
     post:
       tags:
         - Subscription Billing
-      summary: "Issue a credit note"
-      description: "Issue a credit note against an original issued/paid invoice (and optionally a line). Never edits the invoice. Exact minor-unit amount. Platform-operator only. Requires Idempotency-Key."
+      summary: "Create a credit note (maker)"
+      description: "MAKER step (Issue #879, ADR-0022 §5). Create a credit note against an issued/paid invoice in status 'pending_approval' — does NOT reduce the invoice balance. A DISTINCT actor must approve it before it applies. Never edits the invoice. Exact minor-unit amount. Platform-operator only. Requires Idempotency-Key."
       operationId: subscriptionBillingCreditInvoice
       security:
         - bearerAuth: []
@@ -734,6 +734,55 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/subscription-billing/tenants/{tenantId}/credits/{creditNoteId}/approve:
+    post:
+      tags:
+        - Subscription Billing
+      summary: "Approve a pending credit note (checker)"
+      description: "CHECKER step (Issue #879, ADR-0022 §5 CRITICAL-1). A DISTINCT actor from the creator approves a pending credit note; ONLY THEN is it applied to the invoice balance. High-risk: SoD subscription_billing.credit_create_vs_approve + step-up. Platform-operator only. Requires Idempotency-Key."
+      operationId: subscriptionBillingApproveCredit
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: creditNoteId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Credit note approved and applied to the invoice balance."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Credit note is not pending, over-credit, or a SoD/step-up denial."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/subscription-billing/tenants/{tenantId}/invoices/{invoiceId}/payments:

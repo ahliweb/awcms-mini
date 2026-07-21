@@ -342,12 +342,62 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/service-catalog/plans/{planKey}/versions/{version}/approve:
+    post:
+      tags:
+        - Service Catalog
+      summary: Commercially approve a draft offer version (prerequisite for publish)
+      description: "Issue #879 (ADR-0022 §5 HIGH-2) — maker/checker. A DISTINCT actor from the publisher commercially approves a draft version before it may be published. High-risk (SoD publish_vs_commercial_approve + step-up); requires Idempotency-Key."
+      operationId: serviceCatalogOfferApprove
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: planKey
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z][a-z0-9_]*$"
+            maxLength: 100
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Offer version commercially approved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Version is not a draft, already approved, or Idempotency-Key reused.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/v1/service-catalog/plans/{planKey}/versions/{version}/publish:
     post:
       tags:
         - Service Catalog
       summary: Publish a draft version into an immutable offer
-      description: Platform-operator only; requires Idempotency-Key. Emits awcms-mini.service-catalog.offer.published.
+      description: Platform-operator only; requires Idempotency-Key and a prior commercial approval by a distinct actor (Issue #879). Emits awcms-mini.service-catalog.offer.published.
       operationId: serviceCatalogOfferPublish
       security:
         - bearerAuth: []

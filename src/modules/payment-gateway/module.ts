@@ -161,7 +161,13 @@ export const paymentGatewayModule = defineModule({
       activityCode: "refunds",
       action: "create",
       description:
-        "Request a refund where supported (mandatory reason, idempotency, SoD/step-up)"
+        "Request (MAKER) a refund where supported — mandatory reason + idempotency; does NOT dispatch money"
+    },
+    {
+      activityCode: "refunds",
+      action: "approve",
+      description:
+        "Approve (CHECKER) a requested refund — distinct actor (SoD) + step-up; enqueues the provider dispatch (money-out)"
     },
     {
       activityCode: "reconciliation",
@@ -184,6 +190,62 @@ export const paymentGatewayModule = defineModule({
       action: "read",
       description:
         "Read provider adapter health/readiness and circuit-breaker state"
+    }
+  ],
+  // Segregation-of-duties (Issue #879, epic #868 Wave 2, ADR-0022 §5 —
+  // payment/refund/reconciliation separation). SoD was DEFERRED from #877 to
+  // #879; declared here, wired into the `authorizeInTransaction` chokepoint via
+  // `high-risk-sod-guard.ts`. Enforced at the high-risk
+  // `provider_accounts.configure` step: the subject who CONFIGURES a payment
+  // provider binding (controlling WHERE settlement money flows) must not also
+  // be able to CREATE refunds — a single actor holding both can redirect
+  // settlement AND move money back out, the strongest control-plane fraud
+  // vector. Global-within-tenant, critical.
+  sodRules: [
+    {
+      // Issue #879 (ADR-0022 §5 CRITICAL-1) — the REAL money-out maker/checker.
+      // Fires at the high-risk `approve` action: a subject who REQUESTED a refund
+      // (holds `refunds.create`) must not also APPROVE it. Money leaves only after
+      // a second, distinct actor approves. `refunds.approve` IS a high-risk action
+      // so the SoD chokepoint runs here (unlike the old rule, which paired
+      // `refunds.create` — a non-high-risk action the chokepoint never evaluated).
+      ruleKey: "payment_gateway.refund_create_vs_approve",
+      ownerModuleKey: "payment_gateway",
+      description:
+        "A subject who REQUESTS (creates) a refund must not also APPROVE it — refund maker/checker; the provider dispatch (money-out) is enqueued only on approval by a distinct actor (ADR-0022 §5 refund creation vs approval).",
+      conflictingPermissionKeys: [
+        "payment_gateway.refunds.create",
+        "payment_gateway.refunds.approve"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "critical",
+      exceptionPolicy: {
+        allowed: true,
+        requiresApprovalPermission:
+          "identity_access.business_scope_exceptions.approve",
+        maxDurationDays: 7
+      }
+    },
+    {
+      // Retained separation of settlement control from disbursement. Enforced at
+      // the high-risk `approve` action (approving a refund while also controlling
+      // WHERE money settles is the strongest fraud combination).
+      ruleKey: "payment_gateway.provider_config_vs_refund_approve",
+      ownerModuleKey: "payment_gateway",
+      description:
+        "A subject who CONFIGURES a payment provider binding (where money settles) must not also APPROVE refunds (where money returns) — anti-fraud separation of settlement control from disbursement (ADR-0022 §5 payment/refund separation).",
+      conflictingPermissionKeys: [
+        "payment_gateway.provider_accounts.configure",
+        "payment_gateway.refunds.approve"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "critical",
+      exceptionPolicy: {
+        allowed: true,
+        requiresApprovalPermission:
+          "identity_access.business_scope_exceptions.approve",
+        maxDurationDays: 7
+      }
     }
   ],
   health: {

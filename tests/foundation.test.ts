@@ -804,7 +804,11 @@ describe("database migration runner helpers", () => {
       "091_awcms_mini_subscription_billing_schema.sql",
       "092_awcms_mini_subscription_billing_permissions.sql",
       "093_awcms_mini_payment_gateway_schema.sql",
-      "094_awcms_mini_payment_gateway_permissions.sql"
+      "094_awcms_mini_payment_gateway_permissions.sql",
+      "095_awcms_mini_payment_gateway_refund_approval.sql",
+      "096_awcms_mini_subscription_billing_credit_approval.sql",
+      "097_awcms_mini_service_catalog_commercial_approval.sql",
+      "098_awcms_mini_control_plane_support_access_and_step_up.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

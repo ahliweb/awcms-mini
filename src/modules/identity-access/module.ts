@@ -115,6 +115,26 @@ export const identityAccessModule = defineModule({
           "identity_access.business_scope_exceptions.approve",
         maxDurationDays: 30
       }
+    },
+    {
+      // Issue #879 (epic #868 SaaS control plane, ADR-0022 §5/§6) — support
+      // access maker/checker. Fires at the high-risk `support_access.approve`
+      // action: a subject who can REQUEST a cross-tenant support-access grant
+      // must not also be able to APPROVE one. Global-within-tenant: holding both
+      // permissions is itself the conflict.
+      ruleKey: "identity_access.support_request_vs_approve",
+      ownerModuleKey: "identity_access",
+      description:
+        "A subject who can REQUEST a cross-tenant support-access grant must not also be able to APPROVE one — support access maker/checker (ADR-0022 §5/§6 support request vs approve).",
+      conflictingPermissionKeys: [
+        "identity_access.support_access.request",
+        "identity_access.support_access.approve"
+      ],
+      scopeApplicability: "global_within_tenant",
+      severity: "high",
+      // Not exception-able: the whole point of support access is a hard,
+      // independent second-actor approval — an override would defeat it.
+      exceptionPolicy: { allowed: false }
     }
   ]
 });

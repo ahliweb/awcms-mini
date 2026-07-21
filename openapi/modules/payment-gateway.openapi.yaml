@@ -323,8 +323,8 @@ paths:
     post:
       tags:
         - Payment Gateway
-      summary: "Request a refund"
-      description: "Request a refund against a settled intent where the provider supports it. Commits a local refund + outbox row FIRST; the provider call is dispatched OUTSIDE any transaction. Mandatory reason. Platform-operator only. Requires Idempotency-Key."
+      summary: "Request a refund (maker)"
+      description: "MAKER step (Issue #879, ADR-0022 §5). Request a refund against a settled intent — commits a local refund row in status 'requested' but enqueues NO provider dispatch. Money leaves only after a DISTINCT actor approves. Mandatory reason. Platform-operator only. Requires Idempotency-Key."
       operationId: paymentGatewayRequestRefund
       security:
         - bearerAuth: []
@@ -374,6 +374,55 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/payment-gateway/tenants/{tenantId}/refunds/{refundId}/approve:
+    post:
+      tags:
+        - Payment Gateway
+      summary: "Approve a requested refund (checker)"
+      description: "CHECKER step (Issue #879, ADR-0022 §5 CRITICAL-1). A DISTINCT actor from the requester approves a requested refund; ONLY THEN is the provider dispatch (money-out) enqueued. High-risk: SoD payment_gateway.refund_create_vs_approve + step-up. Platform-operator only. Requires Idempotency-Key."
+      operationId: paymentGatewayApproveRefund
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: refundId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: "#/components/parameters/IdempotencyKey"
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Refund approved; provider dispatch enqueued."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: "Refund is not in a requested state, or a SoD/step-up denial."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "500":
           $ref: "#/components/responses/InternalError"
   /api/v1/payment-gateway/tenants/{tenantId}/outbox/{outboxId}/retry:
