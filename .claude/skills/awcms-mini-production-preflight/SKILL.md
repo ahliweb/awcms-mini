@@ -30,13 +30,12 @@ adalah SATU perintah **read-only** yang menjalankan urutan lengkap sendiri
 lintas-instance, murni aritmatika config, tanpa koneksi database sama
 sekali; lihat `database-capacity-runbook.md`) → `db:connectivity` (satu
 `SELECT` memverifikasi koneksi + tabel ledger migrasi) → `api:spec:check`
-→ `modules:compose:check` (Issue #740, epic #738 — registry komposisi
-build-time aplikasi turunan valid) → `extension:check` (Issue #741, epic
-#738 — kompatibilitas manifest aplikasi turunan terhadap rilis base
-saat ini) → `test` → `build` → `db:pool:health` (skip bila server belum
-jalan, kecuali `APP_ENV=production` — di situ skip BLOKIR go-live) →
+→ `modules:compose:check` (ADR-0024 — registry komposisi base valid: DAG,
+duplicate module key, capability binding, deployment profile, navigation,
+job descriptor) → `test` → `build` → `db:pool:health` (skip bila server
+belum jalan, kecuali `APP_ENV=production` — di situ skip BLOKIR go-live) →
 `migration:plan` (dry-run: daftar migrasi pending TANPA menjalankannya).
-**Sebelas** stage read-only total (`scripts/production-preflight.ts`'s
+**Sepuluh** stage read-only total (`scripts/production-preflight.ts`'s
 `REMAINING_CHILD_PROCESS_STAGES` + `db:connectivity`/`db:pool:health`/
 `migration:plan` yang ditangani terpisah). Tidak ada stage yang menulis ke
 database. Menjalankan command satu-satu secara manual (seperti daftar lama
@@ -51,7 +50,7 @@ database — bug lama (Issue #684): `db:migrate` dulu berjalan sebagai
 stage awal tanpa syarat, jadi stage belakangan (spec check/test/build)
 yang gagal tetap meninggalkan database ter-migrasi walau verdict akhirnya
 "GO-LIVE DIBLOKIR". Sekarang menerapkan migrasi butuh flag eksplisit,
-HANYA berjalan bila verdict `GO-LIVE DIIZINKAN` (sebelas stage read-only
+HANYA berjalan bila verdict `GO-LIVE DIIZINKAN` (sepuluh stage read-only
 di atas semua lulus):
 
 ```bash

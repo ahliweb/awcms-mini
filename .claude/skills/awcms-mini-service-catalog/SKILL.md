@@ -54,9 +54,10 @@ master (ADR-0013 §3). Baca `src/modules/service-catalog/README.md` +
    (bukan lagi agregasi privat). module key = `listModules()` keys; feature/meter
    key = union rich descriptor `ModuleDescriptor.serviceCatalog.{features,meters}`.
    Key tak dikenal → DITOLAK (bukan diterima diam) di draft-edit/validate/publish.
-   Kontribusi aplikasi turunan lewat `application-registry.ts` — jangan edit base
-   registry. Untuk bentuk descriptor lengkap (quota/commercial-event, validasi
-   fail-closed, versioning) pakai skill `awcms-mini-saas-contracts`.
+   Kontribusi lewat modul domain di `src/modules/` (registry base) — descriptor
+   `serviceCatalog` di `module.ts` masing-masing, jangan edit base registry. Untuk
+   bentuk descriptor lengkap (quota/commercial-event, validasi fail-closed,
+   versioning) pakai skill `awcms-mini-saas-contracts`.
 
 6. **Uang EXACT minor-unit.** `amount_minor bigint`, `limit_value bigint` — NO
    float/double. Validasi `Number.isInteger` + bound. Harga per komponen wajib

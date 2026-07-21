@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-payment-gateway
-description: Kerjakan bagian mana pun dari modul payment_gateway AWCMS-Mini (Issue #877, epic #868 SaaS control plane Wave 1, ADR-0022) — modul control-plane KEENAM & TERAKHIR. Gunakan saat menambah/mengubah checkout/session provider-netral, webhook masuk bertandatangan, event pembayaran ternormalisasi, refund, retry/DLQ, provider health/circuit-breaker, atau reconciliation. Merangkum BOUNDARY KRITIS: status pembayaran TAK PERNAH dipercaya dari redirect browser (hanya webhook signed tervalidasi ATAU reconciliation); panggilan provider SELALU di luar transaksi DB (ADR-0006) lewat outbox + worker; webhook fail-closed WAJIB (HMAC timing-safe + freshness ≤300s + binding provider/account + payload size + anti-replay per-event-id DURABLE di DB + ordering) → valid signed webhook update payment TEPAT SEKALI; SSRF/open-redirect allow-list via new URL()+host equality (BUKAN startsWith); secret provider HANYA di process.env (pointer env: di row), TAK PERNAH di tabel/event/log; webhook envelope PII di-mask doc 04 sebelum persist; uang EXACT minor-unit bigint (TIDAK PERNAH float); RLS ENABLE+FORCE predikat SELALU-HANYA tenant_id; provider adapter = opsional config (fake/sandbox di base, provider nyata via application-registry.ts); CONSUMES billing_document_state (#876) + PROVIDES payment_outcome; BUKAN general ledger/AR-AP/merchant settlement/tax/PCI card-data; LAN/offline/manual-payment jalan tanpa provider.
+description: Kerjakan bagian mana pun dari modul payment_gateway AWCMS-Mini (Issue #877, epic #868 SaaS control plane Wave 1, ADR-0022) — modul control-plane KEENAM & TERAKHIR. Gunakan saat menambah/mengubah checkout/session provider-netral, webhook masuk bertandatangan, event pembayaran ternormalisasi, refund, retry/DLQ, provider health/circuit-breaker, atau reconciliation. Merangkum BOUNDARY KRITIS: status pembayaran TAK PERNAH dipercaya dari redirect browser (hanya webhook signed tervalidasi ATAU reconciliation); panggilan provider SELALU di luar transaksi DB (ADR-0006) lewat outbox + worker; webhook fail-closed WAJIB (HMAC timing-safe + freshness ≤300s + binding provider/account + payload size + anti-replay per-event-id DURABLE di DB + ordering) → valid signed webhook update payment TEPAT SEKALI; SSRF/open-redirect allow-list via new URL()+host equality (BUKAN startsWith); secret provider HANYA di process.env (pointer env: di row), TAK PERNAH di tabel/event/log; webhook envelope PII di-mask doc 04 sebelum persist; uang EXACT minor-unit bigint (TIDAK PERNAH float); RLS ENABLE+FORCE predikat SELALU-HANYA tenant_id; provider adapter = opsional config (fake/sandbox di base, provider nyata opt-in via composition-root repo ini lewat registerPaymentProviderAdapter); CONSUMES billing_document_state (#876) + PROVIDES payment_outcome; BUKAN general ledger/AR-AP/merchant settlement/tax/PCI card-data; LAN/offline/manual-payment jalan tanpa provider.
 ---
 
 # AWCMS-Mini — Payment Gateway Module
@@ -74,9 +74,9 @@ validation`). Event versioned emit dgn KONSTANTA ter-import LANGSUNG dari
 
 Adapter provider = **External Integration off-by-default**. Base HANYA ship
 `sandbox-adapter.ts` (fake, untuk test + docs) di `infrastructure/adapter-
-registry.ts`. Provider nyata (Midtrans/Xendit/Stripe) opt-in di repo turunan
-lewat `application-registry.ts` + `registerPaymentProviderAdapter`, TAK PERNAH
-hardcoded di base. LAN/offline (modul disabled) = 100% tanpa provider.
+registry.ts`. Provider nyata (Midtrans/Xendit/Stripe) opt-in via composition-root
+repo ini lewat `registerPaymentProviderAdapter`, TAK PERNAH hardcoded di base.
+LAN/offline (modul disabled) = 100% tanpa provider.
 
 ## Kontrak & seam
 

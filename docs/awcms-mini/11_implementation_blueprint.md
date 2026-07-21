@@ -86,7 +86,7 @@ Semua script di atas wajib dijalankan dengan Bun. Bin Astro/Vite dipanggil lewat
 
 **Catatan:** blok JSON di atas adalah **contoh minimal ilustratif** dari
 sprint awal, bukan cermin `package.json` aktual — `package.json` yang
-sebenarnya sudah jauh lebih lengkap (base generik selesai, v0.23.5).
+sebenarnya sudah jauh lebih lengkap (base generik selesai, v1.0.0).
 `api:contract:test` khususnya **belum diimplementasikan** di repo ini
 (tidak ada `scripts/api-contract-test.ts` maupun entry `package.json`
 yang cocok) — lihat `AGENTS.md` §Perintah yang sudah tersedia sekarang

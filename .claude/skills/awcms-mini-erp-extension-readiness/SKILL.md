@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-erp-extension-readiness
-description: Konsumsi atau evolusikan kontrak kesiapan ekstensi ERP AWCMS-Mini (business transaction, posting request/result, period-lock, item/currency/UoM, inventory movement, reconciliation, reporting projection). Gunakan saat membangun ekstensi ERP di repository turunan yang perlu berinteraksi dengan tenant/party/scope/dokumen/event/reporting base, atau saat menambah/mengubah kontrak `_shared/business-transaction-contract.ts`/`_shared/erp-reference-data-contract.ts`/`_shared/ports/period-lock-port.ts` di base ini sendiri. Sesuai Issue #755, epic #738 platform-evolution Wave 4, ADR-0020, `docs/awcms-mini/erp-extension-contracts.md`.
+description: Konsumsi atau evolusikan kontrak kesiapan ekstensi ERP AWCMS-Mini (business transaction, posting request/result, period-lock, item/currency/UoM, inventory movement, reconciliation, reporting projection). Gunakan saat membangun modul ERP langsung di `src/modules/` template ini yang perlu berinteraksi dengan tenant/party/scope/dokumen/event/reporting base, atau saat menambah/mengubah kontrak `_shared/business-transaction-contract.ts`/`_shared/erp-reference-data-contract.ts`/`_shared/ports/period-lock-port.ts` di sini sendiri. Sesuai Issue #755, epic #738 platform-evolution Wave 4, ADR-0020 (kontrak kesiapan ERP) + ADR-0024 (kontrak ini kini dikonsumsi modul domain in-repo; jalur repo-turunan/`extension:check` dihapus), `docs/awcms-mini/erp-extension-contracts.md`.
 ---
 
 # AWCMS-Mini — Kesiapan Ekstensi ERP
@@ -12,7 +12,7 @@ versi/failure-semantics/privasi/contoh per kontrak),
 `src/modules/_shared/business-transaction-contract.ts`,
 `src/modules/_shared/erp-reference-data-contract.ts`,
 `src/modules/_shared/ports/period-lock-port.ts`,
-`tests/fixtures/derived-application-example/modules/
+`tests/fixtures/example-domain-modules/modules/
 example-erp-extension/` (fixture referensi lengkap).
 
 **Base ini bukan ERP.** Tidak ada chart of accounts/jurnal/general
@@ -25,7 +25,7 @@ implementasikan.
 
 ## Kapan pakai skill ini
 
-1. **Membangun ekstensi ERP** di repository turunan Anda sendiri — baca
+1. **Membangun modul ERP** langsung di `src/modules/` template ini — baca
    §Playbook konsumsi di bawah.
 2. **Menambah keluarga kontrak baru** ke base ini sendiri (jarang —
    hanya bila ada issue base baru yang eksplisit memintanya) — baca
@@ -34,7 +34,7 @@ implementasikan.
    `erp-reference-data-contract.ts`** — baca §Invariant yang tidak boleh
    dilonggarkan dulu.
 
-## Playbook konsumsi (membangun ekstensi ERP di repository turunan)
+## Playbook konsumsi (membangun modul ERP langsung di `src/modules/`)
 
 1. Baca `docs/awcms-mini/erp-extension-contracts.md` — tabel sebelas
    kontrak, mana yang BARU (business transaction, posting event,
@@ -42,20 +42,22 @@ implementasikan.
    yang MEMAKAI ULANG mekanisme Wave 2/3 yang sudah ada (party
    directory, business-scope hierarchy, document numbering, reporting
    projection) — jangan menduplikasi yang sudah ada.
-2. Susun `ApplicationModuleRegistry` Anda sendiri (Issue #740/#741, doc
-   `derived-application-guide.md`) — modul ERP Anda `dependencies` ke
-   Core base (`tenant_admin`, `identity_access`) seperti modul turunan
-   biasa, LALU `capabilities.consumes` opsional ke `party_directory`
+2. Daftarkan modul ERP Anda di registry base `src/modules/index.ts`
+   (`listModules()`), langsung di `src/modules/` template ini (ADR-0024 —
+   tidak ada lagi `ApplicationModuleRegistry`/repo turunan terpisah) —
+   modul ERP Anda `dependencies` ke Core base (`tenant_admin`,
+   `identity_access`) seperti modul domain lain, LALU
+   `capabilities.consumes` opsional ke `party_directory`
    (`profile_identity`) dan/atau `organization_hierarchy_resolution`
    (`organization_structure`) bila Anda butuh referensi party/scope —
-   lihat `tests/fixtures/derived-application-example/modules/
+   lihat `tests/fixtures/example-domain-modules/modules/
 example-erp-extension/module.ts` untuk contoh persis.
 3. Implementasikan `PeriodLockPort` Anda sendiri (base tidak
    menyediakan satu pun adapter berperilaku nyata — hanya
    `noPeriodLockAdapterConfigured`, yang SELALU `checked: false`). Mesin
    posting Anda WAJIB memperlakukan `checked: false` identik dengan
    `locked: true` untuk operasi `"post"` — lihat `tests/fixtures/
-derived-application-example/modules/example-erp-extension/
+example-domain-modules/modules/example-erp-extension/
 posting-engine.ts` untuk pola fail-closed yang benar.
 4. Registrasikan tipe event Anda sendiri (`"<extension_key>.posting.
 requested"`/`"...result_recorded"`) di atas `domain_event_runtime`
@@ -91,8 +93,10 @@ externalTransactionId)` (invariant #3), independen `requestId`:
    (lihat catatan "descriptor field terdokumentasi tapi tidak
    ditegakkan" di `erp-extension-contracts.md` §11, pola yang berulang
    di Wave 3 epic ini).
-8. `bun run extension:check` dari repository turunan Anda (skema sama
-   dengan base ini) untuk memvalidasi manifest kompatibilitas Anda.
+8. `bun run modules:compose:check` + `bun run
+modules:composition:inventory:check` untuk memverifikasi registry base
+   tetap komposisi yang valid setelah modul ERP Anda ditambahkan
+   langsung ke `src/modules/index.ts`.
 
 ## Playbook evolusi kontrak base (menambah keluarga kontrak baru di sini)
 
@@ -116,7 +120,7 @@ port.ts`/`document_infrastructure`'s numbering/`ProjectionDescriptor`
 3. Update `docs/awcms-mini/erp-extension-contracts.md`'s tabel + section
    per-kontrak (ownership/versioning/failure-semantics/privasi/contoh)
    — jangan biarkan kontrak baru tanpa entri di dokumen ini.
-4. Tambah/luaskan `tests/fixtures/derived-application-example/modules/
+4. Tambah/luaskan `tests/fixtures/example-domain-modules/modules/
 example-erp-extension/` untuk membuktikan kontrak baru bisa
    diimplementasikan nyata (bukan hanya tipe TypeScript yang belum
    pernah dipakai) — pola yang sama `posting-engine.ts`/
@@ -155,8 +159,7 @@ tests/unit/module-composition-fixture.test.ts` sebelum PR.
 
 - `bun run typecheck`
 - `bun test tests/unit/erp-extension-contracts.test.ts
-tests/unit/module-composition-fixture.test.ts
-tests/unit/extension-check-fixtures.test.ts`
+tests/unit/module-composition-fixture.test.ts`
 - `bun run repo:inventory:check` (bila jumlah test/file berubah)
 - `bun run check` penuh sebelum PR (docs-only + kontrak TypeScript +
   fixture, tanpa migration/endpoint baru — jangan asumsikan

@@ -1,6 +1,6 @@
 ---
 name: awcms-mini-module-management
-description: Kelola/konsumsi sistem Module Management AWCMS-Mini (registry, komposisi modul build-time untuk aplikasi turunan, manifest kompatibilitas aplikasi turunan, tenant lifecycle enable/disable, settings, permission sync/status, navigation, job registry, health/readiness). Gunakan saat menambah field descriptor baru (permissions/navigation/settings/jobs/health) di modul lain, saat menyelidiki kenapa suatu modul terlihat degraded/orphaned, saat aplikasi turunan perlu menyusun modulnya sendiri lewat `src/modules/application-registry.ts` tanpa mengedit registry base, saat aplikasi turunan perlu memverifikasi kompatibilitasnya dengan rilis base terbaru (`bun run extension:check`), atau saat mengubah perilaku enable/disable/settings/health module_management sendiri. Sesuai src/modules/module-management/README.md, epic #510, epic #738 (Issue #740/ADR-0014, Issue #741/ADR-0015).
+description: Kelola/konsumsi sistem Module Management AWCMS-Mini (registry, validasi komposisi registry base, tenant lifecycle enable/disable, settings, permission sync/status, navigation, job registry, health/readiness). Gunakan saat menambah field descriptor baru (permissions/navigation/settings/jobs/health) di modul lain, saat menambah modul domain baru langsung di `src/modules/` dan perlu memverifikasi registry base tetap valid (`bun run modules:compose:check`), saat menyelidiki kenapa suatu modul terlihat degraded/orphaned, atau saat mengubah perilaku enable/disable/settings/health module_management sendiri. Sesuai src/modules/module-management/README.md, epic #510, ADR-0024 (men-supersede ADR-0013/0014/0015 — jalur aplikasi-turunan dihapus, keluarga AWCMS dipakai langsung).
 ---
 
 # AWCMS-Mini — Module Management System
@@ -333,119 +333,59 @@ boundary yang sudah ada — pakai sebagai template saat mengerjakan issue
   menutupnya (flag `defaultTenantState` atau aktivasi lewat preset/
   entitlement) sebelum merge — verifikasi ini saat review modul SaaS.
 
-## Komposisi modul build-time untuk aplikasi turunan (Issue #740, ADR-0014)
+## Validasi komposisi registry base (ADR-0024, gate `modules:compose:check`)
 
 Pertanyaan BERBEDA dari admission (§ di atas, yang mengatur "modul apa
-boleh masuk registry BASE ini"): bagaimana REPO TURUNAN (di luar repo ini)
-menyusun modul aplikasinya sendiri ke registry final tanpa mengedit
-`src/modules/index.ts`. Jawabannya `src/modules/module-management/domain/
-module-composition.ts` — `mergeModuleRegistries()` (concatenation murni,
-selalu sukses, dipanggil `src/modules/index.ts`) + `composeModuleRegistry()`/
-`validateComposedModuleRegistry()` (mesin validasi, dipanggil eksplisit
-oleh `bun run modules:compose:check`, tidak pernah oleh `index.ts` sendiri
-— pola yang identik dengan `validateModuleDependencyGraph`/`modules:dag:check`
-di atas, sengaja dipakai ulang bukan diduplikasi).
+boleh masuk registry ini"): apakah registry base — termasuk setiap modul
+domain baru yang ditambahkan LANGSUNG ke `src/modules/` — tetap membentuk
+komposisi yang valid secara menyeluruh. Keluarga AWCMS dipakai LANGSUNG
+sebagai template (ADR-0024, men-supersede ADR-0013/0014/0015): tidak ada
+lagi repo aplikasi-turunan terpisah, seam `application-registry.ts`,
+namespace migration turunan 900–999, manifest `extension.manifest.json`,
+atau gerbang `extension:check` — semua permukaan itu sudah **dihapus**.
+Modul domain baru (termasuk ekstensi ERP dan modul konten/website) hidup
+di `src/modules/` dan terdaftar di `src/modules/index.ts` lewat
+`listModules()`/`listBaseModules()`.
 
-- **Titik ekstensi tunggal**: `src/modules/application-registry.ts`. Repo
-  base ini mengirim `applicationModuleRegistry: undefined`; repo turunan
-  mengganti nilai itu dengan `ApplicationModuleRegistry` miliknya sendiri
-  (`{ id, modules, migrationNamespace? }`). Tidak ada file lain yang perlu
-  diedit — `src/modules/index.ts` dan setiap `module.ts` base tetap
-  utuh.
-- **`listModules()` sekarang compose-aware** — mengembalikan hasil merge
-  base + `applicationModuleRegistry`. Di repo base ini nilainya SELALU
-  sama seperti sebelum Issue #740 (registry base 23 modul, byte-identical)
-  karena `applicationModuleRegistry` selalu `undefined` di sini. Konsumen
-  yang sudah ada (`modules:sync`, `modules:dag:check`,
-  `repo:inventory:generate`, semua service module-management) TIDAK perlu
-  diubah — semuanya sudah memanggil `listModules()`.
-- **13 jenis issue komposisi** (empat dipakai ulang dari
-  `validateModuleDependencyGraph` + sembilan baru: `duplicate_module_key`,
-  `prohibited_base_override`, `invalid_module_type`,
+Mesin validasinya `src/modules/module-management/domain/
+module-composition.ts` — `validateComposedModuleRegistry(registry)` /
+`composeModuleRegistry(registry)` / `buildComposedModuleInventory(registry)`,
+semuanya menerima `readonly ModuleDescriptor[]` (registry base sendiri,
+`listModules()`). Dipanggil EKSPLISIT oleh gate, tidak pernah oleh
+`index.ts` sendiri — pola identik dengan `validateModuleDependencyGraph`/
+`modules:dag:check` di atas, sengaja dipakai ulang bukan diduplikasi.
+
+- **`validateComposedModuleRegistry()`** melaporkan SETIAP masalah dalam
+  satu pass (tidak berhenti di yang pertama), menggabungkan empat isu DAG
+  (`self_dependency`, `duplicate_dependency`, `missing_dependency`,
+  `cycle`) dengan isu komposisi tambahan: `duplicate_module_key`,
   `capability_provider_conflict`, `capability_provider_missing`,
-  `migration_namespace_overlap`, `deployment_profile_incompatible`,
-  `navigation_path_conflict`, `invalid_job_descriptor`) — detail lengkap
-  di `module-composition.ts`'s file header dan ADR-0014 §3. Setiap
-  application module yang key-nya bentrok dengan modul BASE mana pun
-  (bukan cuma Core/System — `type` tidak konsisten diisi, doc 21 §8 R1)
-  ditolak (`prohibited_base_override`), tidak pernah "menang" menimpa
-  base.
-- **Namespace migration**: base mereservasi `1-899`
-  (`BASE_MODULE_MIGRATION_NAMESPACE`); `ApplicationModuleRegistry.
-migrationNamespace` (opsional) mendeklarasikan range milik repo turunan
-  sendiri (rekomendasi: mulai `900`) — komposisi menolak bila beririsan.
-  Perbandingan data yang dideklarasikan saja, tidak membaca `sql/*.sql`
-  nyata (fungsi domain tetap tanpa I/O).
+  `deployment_profile_incompatible`, `navigation_path_conflict`, dan
+  `invalid_job_descriptor`. Semuanya invariant base yang WAJIB tetap
+  benar saat modul domain baru ditambahkan langsung ke registry —
+  duplicate module key, capability binding (ports-and-adapters, § di
+  atas), profil deployment antar-dependency yang kompatibel, path
+  navigasi yang tak bentrok, dan job descriptor yang valid. Detail
+  lengkap di `module-composition.ts`'s file header.
+- **`bun run modules:compose:check`**
+  (`scripts/validate-module-composition.ts`) menjalankan validator itu
+  terhadap `listModules()` dan gagal bila ada isu — wired ke `bun run
+check`.
 - **`bun run modules:composition:inventory:generate`/`:check`** —
-  snapshot JSON deterministik registry gabungan
+  snapshot JSON deterministik registry
   (`docs/awcms-mini/module-composition-inventory.json`) untuk bukti
-  CI/rilis, wired ke `bun run check`.
-- **Fixture referensi**: `tests/fixtures/derived-application-example/`
-  (dua modul minimal, `bun test tests/unit/module-composition-fixture.test.ts`)
-  — contoh nyata yang bisa dijalankan, bukan sekadar dokumentasi naratif.
+  CI/rilis, juga wired ke `bun run check`. Regenerate setiap menambah/
+  mengubah modul.
+- **Fixture referensi**: `tests/fixtures/example-domain-modules/` (modul
+  domain contoh in-repo — `example-crm`, `example-loyalty`,
+  `example-erp-extension`; `bun test
+tests/unit/module-composition-fixture.test.ts`) — contoh nyata yang bisa
+  dijalankan, bukan sekadar dokumentasi naratif.
 
-Detail keputusan lengkap: `docs/adr/0014-deterministic-build-time-module-
-composition.md`. Panduan penggunaan dari sisi aplikasi turunan:
-`docs/awcms-mini/derived-application-guide.md` §langkah 2.
+`MODULE_CONTRACT_VERSION` kini `2.0.0` (MAJOR: tipe kontrak khusus
+jalur-turunan yang dulu diekspor — `ApplicationModuleRegistry`/
+`ModuleMigrationNamespace`, `mergeModuleRegistries`, dan konsep namespace
+migration 900–999 — dihapus). Tidak ada field `ModuleDescriptor` yang
+berubah: setiap `module.ts` yang ada tetap valid tanpa perubahan.
 
-## Manifest kompatibilitas aplikasi turunan (Issue #741, ADR-0015)
-
-Pertanyaan BERBEDA lagi dari komposisi (§ di atas, yang membuktikan
-registry TypeScript Anda valid HARI INI): apakah aplikasi turunan Anda
-TETAP kompatibel begitu base ini merilis versi baru. Jawabannya
-`src/modules/module-management/domain/extension-compatibility.ts` +
-`bun run extension:check` (`scripts/extension-check.ts`) — dua lapisan
-digabung satu laporan:
-
-1. **`composeModuleRegistry()`** (§ di atas, dipakai ulang APA ADANYA) —
-   terhadap registry TypeScript nyata. Selalu jalan, dengan atau tanpa
-   manifest.
-2. **`evaluateExtensionManifest()`** (baru) — terhadap
-   `extension.manifest.json`/`.yaml` yang Anda publikasikan di root repo
-   turunan Anda (skema: `src/modules/_shared/extension-manifest-
-contract.ts`). Hanya jalan bila file itu ditemukan — **tidak ada** file
-   itu di repo base ini sendiri (dengan sengaja), jadi `bun run
-extension:check` di sini selalu lulus trivial, sama seperti
-   `applicationModuleRegistry === undefined`.
-
-Manifest memvalidasi: range SemVer base yang kompatibel
-(`compatibleAwcmsMiniRange`, terhadap `package.json` base nyata), versi
-module-contract (`moduleContractVersion`, terhadap
-`MODULE_CONTRACT_VERSION` konstanta baru di `_shared/module-contract.ts`),
-versi capability yang dikonsumsi/disediakan (`capabilities.requires`/
-`.provides`, terhadap `CAPABILITY_CONTRACT_VERSIONS` registry global baru
-di `_shared/capability-contract-versions.ts` — capability yang tidak
-ditemukan di registry global dicek ulang terhadap `capabilities.provides`
-manifest itu SENDIRI, untuk kasus satu modul aplikasi turunan mengonsumsi
-capability modul aplikasi turunan lain), immutabilitas+ordering checksum
-migration historis (`migrations.historicalChecksums`, checksum dihitung
-ulang persis dengan `computeMigrationChecksum`/
-`stripOptionalTransactionWrapper` yang sama dipakai `bun run db:migrate`
-— **bukan** `discoverMigrationFiles`'s sendiri, yang naming pattern-nya
-hardcode `_awcms_mini_`), profil deployment wajib
-(`deployment.requiredProfiles` vs `contributedModules[].deploymentProfiles`
-self-declared), dan staleness versi kontrak OpenAPI/AsyncAPI yang
-dikonsumsi (`consumes.openApiContractVersion`/`.asyncApiContractVersion`,
-terhadap `info.version` nyata, aturan MAJOR/MINOR ADR-0008).
-
-**Wiring nyata, bukan cuma script berdiri sendiri** (pelajaran eksplisit
-dari PR #769/#770's kegagalan wiring pada wave yang sama) — tiga tempat:
-`package.json`'s `check` composite, `.github/workflows/ci.yml`'s
-`quality` job (langkah bernama eksplisit, bukan diasumsikan otomatis dari
-`bun run check`), dan `scripts/production-preflight.ts`'s stage list
-(tepat setelah `modules:compose:check`, alasan yang sama persis). `bun
-run release:verify`/`release.yml` tercakup otomatis lewat `bun run check`.
-
-Fixture: satu manifest COMPATIBLE
-(`tests/fixtures/derived-application-example/extension.manifest.json`) +
-delapan manifest INCOMPATIBLE, masing-masing gagal untuk alasan berbeda
-(`tests/fixtures/extension-contract-incompatible/`, lihat README di
-direktori itu untuk tabel lengkap). Diuji dua lapis:
-`tests/unit/extension-compatibility.test.ts` (fungsi murni, setiap issue
-type) dan `tests/unit/extension-check-fixtures.test.ts` (men-spawn CLI
-SUNGGUHAN sebagai proses child terhadap tiap fixture — bukti pipeline
-end-to-end, bukan cuma fungsi validator).
-
-Detail keputusan lengkap: `docs/adr/0015-derived-application-
-compatibility-manifest.md`. Panduan penggunaan dari sisi aplikasi
-turunan: `docs/awcms-mini/derived-application-guide.md` §langkah 9.
+Detail keputusan lengkap: `docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md`.
