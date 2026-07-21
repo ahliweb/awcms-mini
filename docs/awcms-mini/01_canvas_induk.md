@@ -71,7 +71,7 @@ flowchart LR
 
 > **Diagram ini menyederhanakan.** Ia menggambar alur arsitektur inti, **bukan** seluruh 28 modul terdaftar, dan beberapa node-nya (UI Experience, Localization UI, Database Connectivity, Production Security) **bukan modul terdaftar** sama sekali — lihat §"Kapabilitas base yang BUKAN modul terdaftar" di bawah. Ketergantungan yang mengikat secara mesin adalah field `dependencies` di tiap `module.ts`, divalidasi `bun run modules:dag:check`.
 
-> Modul domain aplikasi turunan (mis. katalog produk, POS, gudang, pajak, CRM) menambah node-nya sendiri di diagram ketergantungan milik aplikasi tersebut — tidak digambar di sini karena disumbangkan lewat `src/modules/application-registry.ts`, bukan oleh base.
+> Modul domain (mis. katalog produk, POS, gudang, pajak, CRM) ditambahkan langsung di `src/modules/` template ini/fork yang dipakai (ADR-0024) dan menambah node-nya sendiri di diagram ketergantungan — tidak digambar di sini; komposisi registry base divalidasi `bun run modules:compose:check`.
 
 > Desain teknis implementasi ada di dokumen lanjutan: UI/UX (`14`), frontend & integrasi/offline-first (`15`), backend data access & database (`16`), seed/RBAC/ABAC (`17`), konfigurasi/environment (`18`).
 
@@ -140,11 +140,11 @@ modul ke registry tanpa menambah barisnya di sini akan gagal di CI.
 > Official Optional lainnya) di `src/modules/index.ts`. Yang benar adalah:
 > modul **Core/System** wajib ada, sedangkan modul **Official Optional**
 > ikut ter-ship di base tapi bisa di-disable per tenant. Modul domain
-> **aplikasi turunan** (katalog produk, POS, gudang, pajak/Coretax, CRM
-> receipt, AI business analyst, dsb.) yang bukan bagian base ini —
-> ditambahkan aplikasi turunan (mis. AWPOS) lewat
-> `src/modules/application-registry.ts` (Issue #740), bukan dengan mengedit
-> registry base.
+> tambahan (katalog produk, POS, gudang, pajak/Coretax, CRM receipt,
+> AI business analyst, dsb.) — bila dibutuhkan aplikasi domain tertentu —
+> ditambahkan **langsung** di `src/modules/` template ini/fork yang dipakai
+> (ADR-0024, men-supersede jalur turunan #740/ADR-0014), lalu divalidasi
+> `bun run modules:compose:check`.
 
 ### Kapabilitas base yang BUKAN modul terdaftar
 

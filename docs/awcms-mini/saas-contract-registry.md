@@ -92,9 +92,9 @@ default.
    for neutral base examples, and
    [`tests/fixtures/example-domain-modules/modules/example-loyalty/module.ts`](../../tests/fixtures/example-domain-modules/modules/example-loyalty/module.ts)
    for a dummy example-domain-module contribution).
-2. A derived application contributes through its own modules via
-   `src/modules/application-registry.ts` (Issue #740) — never by editing a base
-   registry file.
+2. Contributions come only from domain modules' own `module.ts` in
+   `src/modules/` — never by hand-editing the shared aggregator or a
+   generated inventory file.
 3. Regenerate the inventory: `bun run saas-contracts:inventory:generate`, and
    commit both generated files.
 4. `bun run saas-contracts:registry:check` (in `bun run check`) validates the
@@ -114,12 +114,8 @@ absent from `events.publishes`, and the deprecated pre-#874 thin fields
 
 ## Versioning
 
-`SAAS_CONTRACT_VERSION` versions the descriptor shape (scheme #7 in
-[`extension-compatibility-policy.md`](extension-compatibility-policy.md)): MAJOR
-when a field/enum is removed/retyped or a rule tightens; MINOR for a new optional
-field/enum member; PATCH for documentation. A derived repository declares the
-version it was authored against in its `extension.manifest.json`
-`saasContractVersion` field, checked (MAJOR-match, MINOR-ceiling) by
-`bun run extension:check`. Descriptor-shape changes also bump
+`SAAS_CONTRACT_VERSION` versions the descriptor shape: MAJOR when a
+field/enum is removed/retyped or a rule tightens; MINOR for a new optional
+field/enum member; PATCH for documentation. Descriptor-shape changes also bump
 `MODULE_CONTRACT_VERSION` (the `serviceCatalog` field is part of it) and require a
 changeset.

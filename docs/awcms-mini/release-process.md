@@ -121,17 +121,15 @@ Two entry points, both converging on the same job graph:
    CI must stay the same source of truth for the full step-by-step
    comparison.
 
-   `extension:check` (Issue #741, epic #738 `platform-evolution`,
-   ADR-0015 — derived-application compatibility manifest) is deliberately
-   **not** part of the gap above: it was added to both `package.json`'s
-   `check` composite AND as an explicit named step in `ci.yml`'s
-   `quality` job in the same PR, precisely to avoid reproducing this
-   exact class of drift for a brand-new check (see ADR-0015 §6). A tagged
-   release of a derived repository that has published its own
-   `extension.manifest.json` is therefore verified against this
-   repository's actual current SemVer, module-contract version,
-   capability versions, and migration checksums as part of this same
-   step, with no separate release-time gate to configure.
+   The former `extension:check` gate (Issue #741, epic #738
+   `platform-evolution`, ADR-0015 — derived-application compatibility
+   manifest) has been **removed** by ADR-0024, which retires the
+   derived-application pathway entirely; a release no longer runs it.
+   Module composition is instead validated in-repo by
+   `modules:compose:check` + `modules:composition:inventory:check`, both
+   already part of the `bun run check` composite above (and of `ci.yml`'s
+   `quality` job) — so a tagged release re-runs them here as part of the
+   same step, with no separate release-time gate to configure.
 
 ### `build` job (unprivileged: `contents: read`, `packages: write` only)
 

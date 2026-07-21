@@ -95,7 +95,7 @@ masih khusus mini.
 
 - **Kontrak & inventory:** `openapi:bundle`, `api:docs:generate/check`,
   `repo:inventory:generate/check`, `modules:compose:check`,
-  `modules:composition:inventory:check`, `extension:check`,
+  `modules:composition:inventory:check`,
   `db:work-class:generate/check`.
 - **Dispatcher outbox:** `social-publishing:dispatch`,
   `integration-hub:outbound:dispatch`, `data-exchange:worker`.

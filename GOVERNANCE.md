@@ -4,7 +4,7 @@ Dokumen ini menjelaskan bagaimana keputusan diambil dan bagaimana AWCMS-Mini dik
 
 ## Ringkasan
 
-AWCMS-Mini adalah **base modular monolith standar** milik AhliWeb, dikelola sebagai proyek open-source (lisensi [MIT](LICENSE)) yang juga menjadi fondasi aplikasi turunan internal. Tata kelola bersifat ringan namun eksplisit agar standar tetap konsisten.
+AWCMS-Mini adalah **base modular monolith standar** milik AhliWeb, dikelola sebagai proyek open-source (lisensi [MIT](LICENSE)) yang juga menjadi template dasar yang dipakai langsung untuk pengembangan internal (ADR-0024). Tata kelola bersifat ringan namun eksplisit agar standar tetap konsisten.
 
 ## Peran
 

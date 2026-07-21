@@ -2,30 +2,34 @@
 
 Issue #755, epic #738 (`platform-evolution`), Wave 4 — issue TERAKHIR
 epic ini. `docs/adr/0020-erp-extension-readiness-contracts.md` adalah
-keputusan arsitektural yang mengikat; dokumen ini adalah referensi
-teknis lengkap untuk setiap kontrak yang keputusan itu definisikan —
-ownership, versioning, failure semantics, klasifikasi privasi, dan
-contoh, untuk siapa pun yang membangun **ekstensi ERP** (repository
-TERPISAH dari base ini) yang perlu berinteraksi dengan tenant/party/
-scope/dokumen/event/reporting milik AWCMS-Mini.
+keputusan arsitektural yang mengikat, di-amend
+[ADR-0024](../adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md):
+kontrak ini DIPERTAHANKAN, tetapi ekstensi ERP kini hidup langsung
+sebagai modul domain di `src/modules/` template ini — bukan di repo
+turunan terpisah. Dokumen ini adalah referensi teknis lengkap untuk
+setiap kontrak yang keputusan itu definisikan — ownership, versioning,
+failure semantics, klasifikasi privasi, dan contoh, untuk siapa pun yang
+membangun **modul ekstensi ERP** langsung di `src/modules/` yang perlu
+berinteraksi dengan tenant/party/scope/dokumen/event/reporting milik
+AWCMS-Mini.
 
 **Base ini bukan ERP.** Tidak ada chart of accounts, jurnal, general
 ledger, valuasi inventori, sales/purchase order, AR/AP, kas-bank, fixed
 asset, payroll, atau perhitungan pajak di repository ini — dan tidak
-akan pernah ada (ADR-0013 §1, doc ini §Eksklusi eksplisit). Yang
+akan pernah ada (ADR-0020 §Konteks, doc ini §Eksklusi eksplisit). Yang
 disediakan hanyalah **kontrak netral**: bentuk data, satu capability
-port, dan skema payload event yang sebuah ekstensi ERP eksternal
+port, dan skema payload event yang sebuah modul ekstensi ERP
 implementasikan/konsumsi.
 
 ## Untuk siapa dokumen ini
 
-Anda membangun (atau berencana membangun) sebuah aplikasi turunan
-ERP/akuntansi/inventori di atas AWCMS-Mini, di repository Anda sendiri
-(lihat `docs/awcms-mini/derived-application-guide.md` untuk pola umum
-aplikasi turunan, dan `docs/adr/0013-extension-layers-and-boundary-
-model.md` §"ERP Extension" untuk penempatan layernya). Dokumen ini
-menjelaskan kontrak yang tersedia untuk Anda pakai, TANPA mengharuskan
-Anda mengedit registry modul base (Issue #740/#741, ADR-0014/0015).
+Anda membangun (atau berencana membangun) sebuah modul domain
+ERP/akuntansi/inventori langsung di `src/modules/` template ini
+(ADR-0024: pengembangan dilakukan langsung di template yang dipakai,
+bukan lewat repo aplikasi turunan terpisah). Dokumen ini menjelaskan
+kontrak yang tersedia untuk modul Anda konsumsi, yang MENGONSUMSI kontrak
+`_shared/*` di bawah tanpa menduplikasi data yang dimiliki modul base
+lain.
 
 ## Ringkasan sebelas keluarga kontrak
 
@@ -135,9 +139,9 @@ sesuai skill `awcms-mini-sensitive-data`.
 yang payload-nya berbentuk `AccountingPostingRequestPayload`/
 `AccountingPostingResultPayload` (`_shared/business-transaction-
 contract.ts`). Event itu sendiri naik di atas `domain_event_runtime`
-(Issue #742) — ekstensi meregistrasi event type/consumer-nya sendiri
-di build turunannya sendiri (`domain-event-runtime/infrastructure/
-consumer-registry.ts` versi fork-nya), TIDAK di base.
+(Issue #742) — modul ekstensi ERP meregistrasi event type/consumer-nya
+sendiri lewat `domain-event-runtime/infrastructure/consumer-registry.ts`
+di repo ini, seperti modul domain lain.
 **Bentuk:**
 
 - Request: `requestId` (idempotency key), `transaction`
@@ -158,7 +162,7 @@ consumer-registry.ts` versi fork-nya), TIDAK di base.
   `domain_event_runtime`'s `validateDomainEventPayload` (menolak nilai
   berbentuk-credential/secret, membatasi ukuran payload) sebelum
   dipublikasikan, sama seperti event modul manapun.
-  **Contoh:** lihat `tests/fixtures/derived-application-example/modules/
+  **Contoh:** lihat `tests/fixtures/example-domain-modules/modules/
 example-erp-extension/posting-engine.ts` untuk implementasi referensi
   lengkap (idempotent per `requestId`, penolakan duplikat per identitas
   bisnis, fail-closed period lock, resolusi target reversal ter-scope
@@ -254,13 +258,13 @@ tabel ledger ekstensi secara langsung (ADR-0013 §6).
 **Failure semantics:** `requiredPermission` pada descriptor WAJIB
 diperiksa oleh caller — lihat batasan ini sudah ditegakkan
 `reporting/domain/projection-permission-filter.ts` untuk descriptor
-BASE; sebuah ekstensi yang mendaftarkan descriptor-nya sendiri di
-build turunannya bertanggung jawab memastikan penegakan yang sama
-berlaku untuk descriptor-nya (lihat catatan Wave 3 tentang pola
-"descriptor field terdokumentasi tapi tidak ditegakkan" — jangan
-ulangi kesalahan itu di ekstensi Anda).
-**Bukti machine-verifiable:** `tests/fixtures/derived-application-
-example/modules/example-erp-extension/module.ts`'s
+BASE; sebuah modul ekstensi ERP yang mendaftarkan descriptor-nya sendiri
+bertanggung jawab memastikan penegakan yang sama berlaku untuk
+descriptor-nya (lihat catatan Wave 3 tentang pola "descriptor field
+terdokumentasi tapi tidak ditegakkan" — jangan ulangi kesalahan itu di
+modul Anda).
+**Bukti machine-verifiable:** `tests/fixtures/example-domain-modules/
+modules/example-erp-extension/module.ts`'s
 `reportingProjections` entry lulus `reporting`'s `validateProjectionRegistry`
 nyata — lihat `tests/unit/erp-extension-contracts.test.ts`.
 **Klasifikasi privasi:** mengikuti klasifikasi data yang diagregasi
@@ -294,7 +298,7 @@ diulang di sini.
 
 ## Fixture referensi & test
 
-`tests/fixtures/derived-application-example/modules/
+`tests/fixtures/example-domain-modules/modules/
 example-erp-extension/` — module descriptor + mesin posting in-memory +
 adapter period-lock fixture, TIDAK PERNAH dikomposisi ke registry base
 nyata (`src/modules/index.ts` tidak berubah). Diverifikasi

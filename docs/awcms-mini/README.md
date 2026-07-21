@@ -234,7 +234,7 @@ SemVer + [Changesets](../../.changeset/README.md); riwayat di [`../../CHANGELOG.
 
 Kontribusi baru masuk salah satu dari dua jalur:
 
-**A. Membangun aplikasi turunan / modul domain** (mis. AWPOS retail/POS, portal sekolah, sistem pengaduan, sistem manajemen mutu) di atas base ini:
+**A. Membangun aplikasi domain dengan menambah modul** (mis. AWPOS retail/POS, portal sekolah, sistem pengaduan, sistem manajemen mutu) langsung di `src/modules/` template ini/fork yang dipakai (ADR-0024):
 
 1. Definisikan PRD/SRS domain (pola doc 02/03, ganti entitas retail/POS ilustratif dengan domain Anda).
 2. Scaffold modul domain di `src/modules/` — skill `awcms-mini-new-module`.

@@ -2,9 +2,9 @@
 
 > **Status:** Accepted (kebijakan mengikat, lihat `docs/adr/0012-module-admission-and-trusted-registry-boundary.md`).
 > **Terkait:** Issue #696 (epic #679 platform-hardening), Issue #510 (epic Module Management), ADR-0001, ADR-0002, ADR-0008, ADR-0011.
-> **Lihat juga:** `docs/adr/0013-extension-layers-and-boundary-model.md` (Issue #739, epic #738 `platform-evolution`) — memperluas lima kategori admission dokumen ini dengan kosakata **lapisan ekstensi** lintas-repo (Core/System Foundation/Official Optional Business Foundation/SaaS Control Plane/ERP Extension/Derived Application), batas tenant vs legal entity vs organization unit, data-ownership matrix, dan kriteria evidence-based ekstraksi layanan. ADR-0013 **tidak mengubah** lima kategori admission atau pohon keputusan §3 di dokumen ini — murni lapisan tambahan di atasnya untuk pertanyaan "repo mana + boundary data apa" ketika banyak repo turunan independen terlibat.
+> **Lihat juga:** `docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md` **men-supersede** ADR-0013/0014/0015 dan **meng-amend ADR-0012**: keluarga AWCMS (`awcms-mini`, `awcms`, `awcms-micro`) kini adalah **template yang dipakai-LANGSUNG**, dan jalur "aplikasi-turunan di repo terpisah" **dihapus**. Konsekuensi untuk dokumen ini: kategori admission **"Derived Application" tak lagi berarti repo terpisah** — fitur domain-spesifik dibangun sebagai **modul domain langsung di `src/modules/`** template yang dipakai (fork/pakai template yang scope-nya paling dekat), sedangkan fitur **generik** untuk banyak aplikasi tetap kandidat **Official Optional Module** base (lihat §2 kategori 4, §3 node Q3, §4.4). Seam `src/modules/application-registry.ts` + `composeModuleRegistry()` (dulu ADR-0014), gerbang `bun run extension:check` + `extension.manifest.json` (ADR-0015), serta namespace migration turunan 900–999 **sudah dihapus dari repo**; validasi komposisi **registry base** kini lewat `bun run modules:compose:check` + `bun run modules:composition:inventory:check`.
 >
-> `docs/adr/0014-deterministic-build-time-module-composition.md` (Issue #740) — mekanisme KONKRET yang ADR-0013 §5 sengaja belum desain: bagaimana repo turunan mendaftarkan modul aplikasinya sendiri (`src/modules/application-registry.ts`) lalu digabung dengan registry base ini (`composeModuleRegistry()`) TANPA pernah mengedit `src/modules/index.ts`. ADR-0014 juga tidak mengubah lima kategori admission atau §7 di bawah — ia menegakkan ulang §7 (registry statis, tanpa runtime loading) di level mekanisme baru, bukan melonggarkannya.
+> **Riwayat (superseded — dibaca sebagai konteks, bukan mekanisme berjalan).** `docs/adr/0013-extension-layers-and-boundary-model.md` (Issue #739, epic #738 `platform-evolution`) dahulu memperluas lima kategori admission dengan kosakata **lapisan ekstensi** lintas-repo (Core/System Foundation/Official Optional Business Foundation/SaaS Control Plane/ERP Extension/Derived Application), batas tenant vs legal entity vs organization unit, data-ownership matrix, dan kriteria evidence-based ekstraksi layanan — ia **tidak mengubah** lima kategori admission atau pohon keputusan §3. `docs/adr/0014-deterministic-build-time-module-composition.md` (Issue #740) dahulu mendefinisikan mekanisme build-time composition (`application-registry.ts`, `composeModuleRegistry()`, konvensi namespace migration turunan) untuk repo turunan — **jalur ini dicabut ADR-0024** dan tidak lagi berlaku. Konsep boundary data yang tetap relevan (tenant vs legal entity vs organization unit, mis. §8 `organization_structure`) masih dirujuk apa adanya.
 
 ## 1. Konteks dan tujuan
 
@@ -42,18 +42,21 @@ atau runtime install baru yang dibangun oleh dokumen ini.
 | **Core**                         | Fondasi wajib: tanpanya platform tidak bisa boot/berfungsi untuk deployment mana pun. Selalu aktif di semua profil deployment.                                                                                                                                                                                                                   | Maintainer base (`@ahliweb`, lihat `.github/CODEOWNERS`) | Tidak — tidak pernah `disabled` secara global; per-tenant enable/disable (`awcms_mini_tenant_modules`) tidak berlaku bermakna karena modul lain bergantung padanya secara transitif.                                             |
 | **System**                       | Kapabilitas platform lintas-modul (observability, sync/offline infra, email generik, reporting generik, workflow generik, routing tenant publik, telemetry, module management itu sendiri). Bersifat infrastruktur/reusable, bukan fitur produk end-user yang berdiri sendiri. Bisa off secara default (feature flag) tanpa menghentikan Core.   | Maintainer base                                          | Sebagian besar ya, lewat `*_ENABLED` env flag (default off, ADR-0006) — bukan status modul, karena modul-modul ini sendiri harus tetap terdaftar (statusnya `active`) supaya `bun run db:migrate`/registry sync tetap konsisten. |
 | **Official Optional Module**     | Fitur produk yang dipelihara resmi oleh tim base, opt-in per tenant, bernilai bisnis langsung (bukan sekadar infrastruktur). Contoh saat ini: `blog_content`, `news_portal`.                                                                                                                                                                     | Maintainer base                                          | Ya — `awcms_mini_tenant_modules` per tenant.                                                                                                                                                                                     |
-| **Derived Application (domain)** | Modul domain spesifik aplikasi turunan (POS, gudang, pajak, CRM, dll.) — **tidak pernah** hidup di repo base ini. Hidup di repo/branch aplikasi turunan (mis. AWPOS) di atas base ini.                                                                                                                                                           | Tim aplikasi turunan masing-masing                       | N/A — di luar registry base sepenuhnya.                                                                                                                                                                                          |
+| **Derived Application (domain)** | Modul domain spesifik (POS, gudang, pajak, CRM, dll.) — per **ADR-0024** (meng-amend ADR-0012) **tak lagi** berarti repo terpisah. Tidak ditambahkan ke registry base generik ini, melainkan hidup **langsung di `src/modules/`** template AWCMS yang dipakai (fork yang scope-nya cocok), bukan repo turunan lewat `application-registry.ts`.   | Tim yang fork/pakai template (maintainer in-repo)        | Ya, bila didaftarkan di `src/modules/index.ts` template yang dipakai (`awcms_mini_tenant_modules` per tenant) — kategori ini kini menandai fitur domain-spesifik yang dibangun in-repo, bukan repo eksternal.                    |
 | **External Integration**         | Adapter provider eksternal (Mailketing, Cloudflare R2, Cloudflare DNS, Google/generic OIDC, dsb.) — **bukan** modul top-level terpisah hari ini, melainkan sub-komponen di dalam modul System/Official Optional yang memilikinya (`email` → Mailketing, `sync_storage` → R2, `tenant_domain` → Cloudflare DNS, `identity_access` → Google/OIDC). | Modul pemilik kapabilitas                                | Ya — selalu opt-in via `*_ENABLED`, default off.                                                                                                                                                                                 |
 
-Field `ModuleType` (`src/modules/_shared/module-contract.ts`) sudah punya
+Field `ModuleType` (`src/modules/_shared/module-contract.ts`) masih punya
 lima nilai — `"base" | "system" | "domain" | "integration" | "derived"` —
 yang dipetakan ke kategori di atas sebagai berikut: `base`→Core,
 `system`→System, `domain`→Official Optional Module, `integration`→External
 Integration (jika suatu hari perlu jadi modul top-level tersendiri, bukan
-sub-komponen), `derived`→Derived Application (nilai ini tidak pernah dipakai
-oleh modul di repo base ini — hanya relevan bila suatu hari repo aplikasi
-turunan mem-vendor tipe yang sama). Lihat §8 untuk gap saat ini antara nilai
-`type` yang benar-benar di-set di kode vs kategori final dokumen ini.
+sub-komponen), dan `derived`→Derived Application. Nilai `"derived"` kini
+adalah **legacy yang tidak dipakai modul mana pun**: sejak ADR-0024
+(jalur aplikasi-turunan repo terpisah dihapus, `MODULE_CONTRACT_VERSION`
+2.0.0) modul domain spesifik-bisnis ditambahkan **langsung di `src/modules/`**
+dengan `type: "domain"`, bukan lewat tipe `derived` di repo eksternal. Lihat
+§8 untuk gap saat ini antara nilai `type` yang benar-benar di-set di kode vs
+kategori final dokumen ini.
 
 ## 3. Pohon keputusan admission
 
@@ -68,8 +71,8 @@ flowchart TD
   Q1 -- Ya --> Core[Kategori: Core\nButuh ADR + 2 maintainer approval]
   Q1 -- Tidak --> Q2{Apakah ini kapabilitas\ninfrastruktur/reusable lintas-modul\n(bukan fitur produk berdiri sendiri)?}
   Q2 -- Ya --> Sys[Kategori: System\nOff-by-default via *_ENABLED bila\nmelibatkan provider eksternal]
-  Q2 -- Tidak --> Q3{Apakah ini fitur produk\nyang generik untuk SEMUA\naplikasi turunan\n(bukan spesifik satu domain bisnis)?}
-  Q3 -- Tidak --> Derived[BUKAN untuk repo base ini.\nBuat di repo aplikasi turunan.\nLihat derived-application-guide.md]
+  Q2 -- Tidak --> Q3{Apakah ini fitur produk\nyang generik untuk SEMUA\naplikasi\n(bukan spesifik satu domain bisnis)?}
+  Q3 -- Tidak --> Derived[Domain-spesifik: BUKAN modul base generik ini.\nTambah sbg modul domain LANGSUNG di src/modules/\ntemplate yang dipakai fork scope terdekat, ADR-0024]
   Q3 -- Ya --> Q4{Apakah ini adapter untuk\nsatu provider eksternal spesifik\n(bukan modul mandiri)?}
   Q4 -- Ya --> Ext[Kategori: External Integration\nHidup DI DALAM modul pemilik\nkapabilitas — lihat §6]
   Q4 -- Tidak --> Q6{Sudah lolos proposal template\n+ ADR checklist (§9),\ndisetujui maintainer?}
@@ -97,9 +100,12 @@ Ringkasan tekstual (bila mermaid tidak dirender):
 3. **Bukan Core, tapi infrastruktur reusable lintas-modul (bukan fitur
    produk berdiri sendiri)?** → **System**.
 4. **Bukan infrastruktur, tapi juga bukan fitur generik untuk semua
-   aplikasi turunan (spesifik satu domain bisnis: POS, gudang, pajak,
-   CRM, dst.)?** → **bukan untuk repo ini**, arahkan ke aplikasi turunan.
-5. **Fitur generik untuk semua aplikasi turunan** (bukan spesifik satu
+   aplikasi (spesifik satu domain bisnis: POS, gudang, pajak, CRM,
+   dst.)?** → **bukan modul base generik ini**; tambahkan sebagai **modul
+   domain langsung di `src/modules/`** template yang dipakai (fork/pakai
+   template yang scope-nya paling dekat), bukan repo turunan terpisah
+   (ADR-0024).
+5. **Fitur generik untuk semua aplikasi** (bukan spesifik satu
    domain), tapi hanya berupa adapter satu provider eksternal? →
    **External Integration** di dalam modul pemilik kapabilitas.
 6. Sisanya (fitur produk generik, opt-in, bukan infrastruktur murni) →
@@ -135,7 +141,7 @@ module-dependency-graph.ts`, Issue #680/#681).
 
 ### 4.3 Official Optional Module
 
-- Harus generik untuk **semua** aplikasi turunan potensial, bukan spesifik
+- Harus generik untuk **semua** aplikasi potensial, bukan spesifik
   satu domain bisnis (lihat pohon keputusan §3, node Q3). Blog dan news
   portal lolos kriteria ini karena konten editorial adalah kebutuhan lintas
   domain (retail, layanan publik, media internal, dst.), bukan spesifik
@@ -149,12 +155,18 @@ module-dependency-graph.ts`, Issue #680/#681).
 
 ### 4.4 Derived Application (domain)
 
-- **Tidak pernah** diajukan sebagai PR ke repo base ini. Lihat
-  `derived-application-guide.md` dan `derived-app-pilot-plan.md`.
-- Bila sebuah modul domain turunan terbukti benar-benar generik lintas
-  banyak aplikasi turunan sehingga layak naik jadi Official Optional
-  Module base, itu **keputusan maintainer eksplisit** lewat proses §9 —
-  tidak otomatis, tidak dilakukan oleh tim aplikasi turunan sendiri.
+- Sejak **ADR-0024**, kategori ini **tak lagi berarti repo terpisah**. Fitur
+  domain-spesifik (POS, gudang, pajak, CRM, dll.) dibangun sebagai **modul
+  domain langsung di `src/modules/`** template keluarga AWCMS yang dipakai
+  (fork/pakai template yang scope-nya paling dekat) — **bukan** ditambahkan
+  ke registry base generik ini sebagai fitur resmi, dan **bukan** repo
+  eksternal via `application-registry.ts` (seam itu sudah dihapus). Validasi
+  komposisi registry tetap `bun run modules:compose:check` +
+  `modules:composition:inventory:check`. Dokumen `derived-application-guide.md`
+  dan `derived-app-pilot-plan.md` **DEPRECATED** (menunjuk ADR-0024).
+- Bila sebuah modul domain terbukti benar-benar generik lintas banyak
+  aplikasi sehingga layak naik jadi **Official Optional Module** base, itu
+  **keputusan maintainer eksplisit** lewat proses §9 — tidak otomatis.
 
 ### 4.5 External Integration
 
@@ -242,9 +254,10 @@ eksplisit sesuai permintaan Issue #696):
    apa pun yang memungkinkan kode pihak ketiga tereksekusi di proses
    aplikasi tanpa melalui review PR + CI penuh.
 4. Satu-satunya jalan sebuah kemampuan baru masuk adalah proses admission
-   di dokumen ini (§3-§4) yang berujung pada PR normal ke repo ini (untuk
-   Core/System/Official Optional Module) atau ke repo aplikasi turunan
-   (untuk Derived Application) — tidak pernah lewat jalur runtime.
+   di dokumen ini (§3-§4) yang berujung pada **PR normal ke repo template
+   yang dipakai** — baik untuk Core/System/Official Optional Module base
+   maupun untuk modul domain/Derived Application yang dibangun langsung di
+   `src/modules/` (ADR-0024) — tidak pernah lewat jalur runtime.
 5. Bila suatu hari ada kebutuhan bisnis nyata yang tampak membutuhkan
    pelonggaran ini (mis. "tenant ingin upload skrip kustom sendiri"),
    proposal itu **wajib** melalui ADR baru yang secara eksplisit
@@ -497,14 +510,20 @@ masa depan juga (bukan preseden khusus ERP).
 
 ## 10. Referensi
 
-- `docs/adr/0013-extension-layers-and-boundary-model.md` — lapisan ekstensi
-  lintas-repo (SaaS Control Plane, ERP Extension, Derived Application),
-  batas tenant/legal entity/organization unit, data-ownership matrix, dan
-  kriteria evidence-based ekstraksi layanan — Issue #739, epic #738.
-- `docs/adr/0014-deterministic-build-time-module-composition.md` —
-  mekanisme build-time module assembly (`src/modules/application-
-registry.ts`, `composeModuleRegistry()`), taksonomi kegagalan komposisi,
-  dan konvensi namespace migration — Issue #740, epic #738.
+- `docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md`
+  — keluarga AWCMS = template dipakai-langsung; **men-supersede ADR-0013/0014/0015**
+  (lapisan/komposisi/manifest jalur-turunan dihapus) dan **meng-amend
+  ADR-0012/0020**; "Derived Application" tak lagi berarti repo terpisah.
+- `docs/adr/0013-extension-layers-and-boundary-model.md` — **(superseded oleh
+  ADR-0024)** lapisan ekstensi lintas-repo (SaaS Control Plane, ERP Extension,
+  Derived Application), batas tenant/legal entity/organization unit, dan
+  data-ownership matrix — Issue #739, epic #738. Bagian boundary data masih
+  relevan; framing "repo turunan terpisah wajib" tidak lagi berlaku.
+- `docs/adr/0014-deterministic-build-time-module-composition.md` — **(superseded
+  oleh ADR-0024, mekanisme dihapus dari repo)** dahulu mendefinisikan build-time
+  module assembly (`src/modules/application-registry.ts`, `composeModuleRegistry()`),
+  taksonomi kegagalan komposisi, dan konvensi namespace migration turunan —
+  Issue #740, epic #738.
 - `docs/adr/0001-modular-monolith-architecture.md`,
   `docs/adr/0002-bun-only-runtime.md` — batas arsitektural yang membuat §7
   mengikat.
@@ -519,8 +538,10 @@ registry.ts`, `composeModuleRegistry()`), taksonomi kegagalan komposisi,
   `docs/awcms-mini/erp-extension-contracts.md` — kontrak kesiapan
   ekstensi ERP tanpa modul baru (§9 di atas), Issue #755, epic #738 Wave 4.
 - `docs/awcms-mini/derived-application-guide.md`,
-  `docs/awcms-mini/derived-app-pilot-plan.md` — kategori Derived
-  Application (§2, §4.4).
+  `docs/awcms-mini/derived-app-pilot-plan.md` — **DEPRECATED (ADR-0024)**:
+  dahulu kategori Derived Application via repo terpisah; kini fitur
+  domain-spesifik dibangun langsung di `src/modules/` template yang dipakai
+  (§2, §4.4).
 - `src/modules/module-management/README.md`, `.claude/skills/
 awcms-mini-module-management/SKILL.md` — mekanisme sync/lifecycle
   registry yang mendasari §7.
