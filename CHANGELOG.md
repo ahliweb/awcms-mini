@@ -1,5 +1,467 @@
 # Changelog
 
+## 1.0.0
+
+### Major Changes
+
+- f79da66: refactor(module-composition)!: hapus penuh jalur aplikasi-turunan (ADR-0024)
+
+  Menghapus permukaan yang khusus jalur aplikasi-turunan sesuai keputusan ADR-0024 (keluarga AWCMS = template dipakai-langsung, tidak ada repo derivatif): seam `src/modules/application-registry.ts`, gerbang `bun run extension:check` (`scripts/extension-check.ts`, dari script `check` + `.github/workflows/ci.yml` + `production:preflight`), konsep migration namespace turunan 900–999, tipe komposisi `ApplicationModuleRegistry`/`ModuleMigrationNamespace`, dan seluruh mesin manifest kompatibilitas turunan (`src/modules/module-management/domain/extension-compatibility.ts`, `src/modules/_shared/extension-manifest-contract.ts`, `src/modules/_shared/capability-contract-versions.ts`, `extension.manifest.json`).
+
+  `src/modules/module-management/domain/module-composition.ts` kini memvalidasi satu registry base (`validateComposedModuleRegistry(registry)`/`composeModuleRegistry(registry)`/`buildComposedModuleInventory(registry)` menerima `readonly ModuleDescriptor[]`, bukan `{ base, application }`); check turunan-only (`prohibited_base_override`, `invalid_module_type`, `migration_namespace_overlap`) dan `mergeModuleRegistries` dihapus. Check base-load-bearing (DAG, duplicate module key, capability binding, deployment profile, navigation, job descriptor) dipertahankan. `MODULE_CONTRACT_VERSION` naik `1.4.0` → `2.0.0` (MAJOR: tipe diekspor dihapus).
+
+  Fixture `tests/fixtures/derived-application-example/` direlokasi jadi test-support non-derived `tests/fixtures/example-domain-modules/` (mengekspor `exampleDomainModules`) — cakupan test #740 (komposisi), #755 (kontrak kesiapan ERP), dan #874 (SaaS commercial contract) dipertahankan setara. Gate `modules:compose:check` + `modules:composition:inventory:check` tetap ada (validasi registry base). Men-supersede ADR-0013/0014/0015, meng-amend ADR-0012/0020. Tanpa migration.
+
+### Minor Changes
+
+- 2cf86eb: feat(identity-access): dynamic ABAC policy evaluator from awcms_mini_abac_policies (#179)
+
+  `evaluateAccess`/`authorizeInTransaction` now CONSUME stored ABAC policies at the
+  single authorization chokepoint, default-deny, without weakening any existing
+  guard (tenant isolation, self-approval, force-decision, module-enabled,
+  business-scope, SoD) or RLS.
+
+  - **DSL** (`domain/abac-policy.ts`): a bounded, deterministic, versioned jsonb
+    condition AST — `allOf`/`anyOf`/`not` nodes and `{attr, op, value|valueAttr}`
+    leaves over a server-side attribute allow-list (`subject.*`/`resource.*`/
+    `action`/`env.*`) with operators `eq/ne/in/nin/lt/lte/gt/gte/exists`.
+    Fail-closed parser/validator: unknown attribute/operator, wrong value type, or
+    a too-new `dsl_version` makes a policy invalid at authoring, so it can never be
+    stored or enabled. No `eval`/`new Function`/dynamic import/templated SQL.
+  - **Evaluator** (`domain/abac-evaluator.ts`): a pure interpreter. Precedence
+    (ADR-0023): explicit deny (and any invalid policy / evaluation error) wins over
+    RBAC and allow-policies; the RBAC permission is still required (an allow-policy
+    never creates one); applicable allow-policies act as a constraint.
+  - **Cache** (`application/policy-cache.ts`): tenant-keyed, invalidated
+    deterministically after every policy create/update/enable/disable — no restart.
+  - **Admin API**: `GET/POST /api/v1/access/policies`, `GET/PUT
+/api/v1/access/policies/{id}`, `POST /api/v1/access/policies/{id}/{enable,
+disable}`, and a read-only, audited `POST /api/v1/access/policies/simulate`.
+    `POST /api/v1/access/evaluate` now reflects active policies too.
+  - **Decision log** records `matched_policy` + `matched_policy_version` + reason,
+    with no raw PII.
+  - **Hardening (adversarial review):** allow-list membership is now own-property
+    only (`Object.prototype.hasOwnProperty.call`) in both the validator and the
+    eval-time backstop, so prototype-chain keys (`__proto__`/`constructor`/
+    `toString`/…) can no longer pass the unknown-attribute check and silently skip
+    a `deny` (fail-open closed). The simulation endpoint now requires
+    `identity_access.user_management.read` to simulate a DIFFERENT existing tenant
+    user (foreign-subject horizontal-read oracle), and records the probed subject
+    id in the audit event for attribution.
+  - Migrations `sql/083` (policy DSL columns + decision-log version) and `sql/084`
+    (admin permission seed). ADR-0023, identity-access README, threat model, and
+    five illustrative ERP example policies (`fixtures/abac-example-policies.json`,
+    not seeded into the base) added.
+
+- 16f505d: security(saas-control-plane): platform/tenant separation, SoD, step-up policy, and no-soft-super-tenant enforcement (#879)
+
+  Cross-cutting security model for the SaaS control-plane modules (epic #868,
+  Wave 2, ADR-0022 §5/§6/§8). Enforcement and static gates — the operator admin
+  surfaces (runtime step-up prompts, support-access grant UI/worker) are applied
+  in #878 and verified in #881, per the issue's dependency note.
+
+  - **Segregation of duties (SoD).** Five maker/checker rules deferred from
+    #870–#877 are now declared on their owning module's `sodRules`
+    (service_catalog publish/retire, tenant_entitlement override vs audit-review,
+    tenant_lifecycle restore requester/approver, subscription_billing invoice
+    create/issue, payment_gateway provider-config vs refund) and wired into the
+    real `authorizeInTransaction` chokepoint via `high-risk-sod-guard.ts`. A
+    single actor holding both halves is denied the high-risk enforcing action
+    with a safe `403 SOD_CONFLICT` unless a bounded, approver-gated exception is
+    on file. Adversarial + mutation proof in the tenant_entitlement integration
+    suite.
+  - **Step-up policy registry** (`_shared/control-plane-step-up-registry.ts`,
+    gate `control-plane:step-up:check`): pure code classification of the
+    high-risk control-plane actions requiring current assurance (refund, credit,
+    entitlement override, lifecycle restore, provider configuration, + adjacent),
+    validated against the live registry so a policy can never point at a
+    non-existent permission. Reuses the existing MFA/assurance mechanism — no new
+    IdP/MFA.
+  - **No soft super-tenant** (ADR-0022 §6 High-1): new static gate
+    `rls:platform-claim:check` fails any `CREATE POLICY` predicate widened past
+    `tenant_id` with a platform-claim disjunction (`OR is_platform`,
+    `has_platform_claim()`, or a novel `OR current_setting('app.…')`) — a
+    functional BYPASSRLS the role-attribute check cannot see.
+  - **security-readiness** adds three critical, go-live-blocking checks:
+    `checkNoSoftSuperTenantRlsPredicate`, `checkControlPlaneStepUpPolicyValid`,
+    `checkControlPlaneSoDAndDefaultDisabled` (all five SoD rules present + all
+    seven control-plane modules default-disabled).
+  - Docs: `docs/awcms-mini/control-plane-security.md` (role matrix, SoD registry,
+    step-up policy, support/break-glass SOP, privacy/data-classification/retention
+    matrix, no-soft-super-tenant trust model, anomaly signals, OWASP/ISO control
+    mapping). No schema change (SoD rules, step-up policy, and gates are
+    code/registry only).
+
+- e9fb6e2: feat(payment-gateway): add provider-neutral checkout, signed webhook inbox, retries, and reconciliation (#877)
+
+  The SIXTH and LAST SaaS control-plane module (epic #868 Wave 1, ADR-0022) —
+  Official Optional Business Foundation, opt-in per tenant, **default-disabled**,
+  tenant-scoped (every table `tenant_id` + `ENABLE` + `FORCE RLS`, predicate ALWAYS
+  AND ONLY `tenant_id`).
+
+  Provider-neutral payment: hosted checkout/payment sessions, SIGNED inbound
+  webhooks (fail-closed: timing-safe HMAC + freshness ≤300s + provider/account
+  BINDING + payload size + DURABLE per-event-id anti-replay + event ordering →
+  a valid signed webhook updates payment EXACTLY ONCE), normalized payment events,
+  refunds where supported, retry/DLQ, provider health + circuit breaker, and
+  reconciliation. Payment status is NEVER trusted from a browser redirect — only a
+  verified signed webhook or a reconciliation outcome. The PROVIDER CALL always
+  happens OUTSIDE any DB transaction (ADR-0006): the local intent + outbox row
+  commit FIRST; a worker dispatches asynchronously. Provider secrets live in
+  `process.env` only (an `env:` pointer on the account row), never in a
+  table/event/log; stored webhook envelopes are doc-04 masked before persist. Money
+  is EXACT minor units (bigint, never float). Provider adapters are OPTIONAL
+  configuration (a derived app wires a real one via `application-registry.ts`); the
+  base ships only a fake/sandbox adapter for tests + docs, so LAN/offline/
+  manual-payment mode runs with no provider configured at all.
+
+  CONSUMES `billing_document_state` (#876); PROVIDES `payment_outcome` (consumed by
+  `subscription_billing`) — without importing subscription_billing's application/
+  domain. NOT a general ledger / AR-AP / double-entry accounting / merchant
+  settlement / tax engine, and never stores card credentials/PAN (ADR-0022 §11).
+
+  Adds migrations `093`/`094`, module descriptor + permissions (platform-operator
+  only, default-deny, granted to no role), 10 tenant-scoped tables with immutability/
+  append-only triggers, OpenAPI + AsyncAPI (8 events), admin navigation, three
+  scheduled jobs (`payment-gateway:dispatch-outbox|reconcile|expire-sweep`), and a
+  new project skill `awcms-mini-payment-gateway`.
+
+- bc89579: feat(redis): add optional Bun-native Redis readiness foundation (#890)
+
+  Adds an opt-in, fail-open Redis capability for scalable derived applications without changing PostgreSQL as the authoritative transactional store. The additive foundation includes typed configuration, tenant-aware key namespacing, JSON cache-aside helpers with TTL, a Redis health CLI, unit tests, a hardened Docker Compose overlay with ACL authentication and no public port, and operational/security guidance for LAN and Coolify deployments.
+
+  Redis remains disabled by default. No session, audit, workflow, durable outbox, or authoritative domain state is migrated to Redis, and no third-party runtime dependency is added.
+
+- 1a6b01b: feat(saas-contracts): add static feature, quota, meter, and commercial-event registries with conformance gates (#874)
+
+  Adds the build-time **SaaS contract registry** (epic #868, ADR-0022) — the single
+  source of truth for the commercial identifiers the SaaS control plane uses:
+  features, usage meters, quota limit dimensions, and lifecycle/commercial domain
+  events. `service_catalog` (#870) and `tenant_entitlement` (#871) now **re-export**
+  this one aggregator (`src/modules/_shared/saas-contract-registry.ts`) instead of
+  each keeping a private key-list, retiring the drift the #871 drift-guard test
+  previously defended.
+
+  - **Rich versioned descriptors** on `ModuleDescriptor.serviceCatalog`
+    (`features`/`meters`/`quotas`/`commercialEvents`), plus the `SAAS_CONTRACT_VERSION`
+    constant. Meters carry event version, quantity/value type, aggregation rule,
+    correction semantics, an **explicit privacy classification**, billable-versus-
+    informational classification, and numeric bounds; quotas carry unit, reset
+    period, and enforcement mode. Meter descriptors are numeric-only (no raw-payload
+    field), so they cannot request raw sensitive-payload storage by default.
+  - **Fail-closed validation** (`bun run saas-contracts:registry:check`, wired into
+    `bun run check` + `ci.yml`): duplicate keys, feature/meter collisions, unknown
+    owner, unsafe unit, NaN/overflow/negative bounds (negative only with explicit
+    `signed_delta` correction), aggregation incompatible with value type, missing
+    privacy classification, dangling quota→meter references, `hard` enforcement on
+    an informational meter, event/AsyncAPI parity gaps, and the deprecated pre-#874
+    thin key fields all fail the build and fail runtime validation closed.
+  - **Generated inventory** (owner module, version, unit, aggregation, privacy
+    class, billable) as machine-readable JSON + human-readable Markdown, with a
+    freshness gate.
+  - **Compatibility-manifest integration**: derived repositories declare a
+    `saasContractVersion` in `extension.manifest.json`, checked by
+    `bun run extension:check` (MAJOR-match, MINOR-ceiling). A ninth incompatible
+    fixture proves the gate.
+
+  MINOR/additive module-contract change (`MODULE_CONTRACT_VERSION` 1.3.0 -> 1.4.0,
+  `EXTENSION_MANIFEST_SCHEMA_VERSION` 1.0.0 -> 1.1.0): the pre-#874
+  `contributesFeatureKeys`/`contributesMeterKeys` fields are kept (now `@deprecated`,
+  rejected by the gate with a migration message) so an old derived `module.ts` still
+  type-checks. No runtime table/migration is added — the registry is build-time and
+  static.
+
+- 7b630a5: feat(service-catalog): versioned SaaS plans, features, quotas, pricing, and offer lifecycle (#870)
+
+  Adds `service_catalog`, the first SaaS control-plane module (epic #868, Wave 1,
+  ADR-0022) — Official Optional Business Foundation, opt-in per tenant,
+  **default-disabled**. Provider-neutral versioned commercial plans with an
+  immutable-once-published offer lifecycle (draft -> validate -> publish ->
+  retire), feature/whole-module entitlement grants, usage quotas (unit + reset
+  policy), EXACT minor-unit prices (no floating point), and trial/availability/
+  market/currency metadata.
+
+  Migrations 079/080 add six GLOBAL control-plane tables split into an
+  operator-only authoring tier and a tenant-readable published projection (only
+  published versions + public prices — internal prices/draft data never cross the
+  tenant boundary, ADR-0022 §3 Medium-1), with DB-level immutability triggers and
+  least-privilege grants. Exposes bounded list/detail/create/update/version/
+  validate/publish/retire APIs (OpenAPI), emits versioned domain events
+  (`awcms-mini.service-catalog.offer.{published,retired}`, AsyncAPI), and ships an
+  admin UI (draft/published state, version history, validation errors) with en/id
+  i18n. publish/retire require Idempotency-Key + audit.
+
+  This module also lands two foundations reused by #871-#877:
+
+  - **Default-disabled mechanism + gate.** New `ModuleDescriptor.defaultTenantState`
+    - `isModuleTenantEnabledByDefault`, read by every runtime resolver
+      (`resolveModuleEnabled`, the SSR permission gate, the nav registry, the
+      tenant-module matrix), so a control-plane module with no explicit
+      `awcms_mini_tenant_modules` row resolves disabled. Enforced by
+      `tests/unit/module-governance-default-disabled.test.ts`. MINOR-additive
+      module-contract change (version 1.3.0); every other module is unaffected.
+  - **Control-plane <-> tenant-plane boundary test** in
+    `tests/unit/module-boundary.test.ts` (no reverse dependency into
+    service_catalog internals, no-shared-table-write, read-only capability port).
+
+- 17ae11d: feat(subscription-billing): add subscription, invoice, credit, renewal, and dunning state machines (#876)
+
+  The FIFTH SaaS control-plane module (epic #868 Wave 1, ADR-0022) — a
+  provider-neutral, tenant-scoped, `defaultTenantState: "disabled"` module that
+  records the commercial SaaS STATE of a tenant's subscription. It is NOT a
+  general ledger / AR-AP subledger / double-entry accounting / tax engine /
+  e-invoicing / cash-bank reconciliation / tenant business invoice (ADR-0013 §3 /
+  ADR-0022 §11) — payment allocation is a REFERENCE only, never an accounting
+  entry or claim.
+
+  - **Schema** (`sql/091`, 10 tables + `sql/092` permissions): subscriptions
+    (immutable published-offer binding), billing periods, invoices, invoice lines,
+    invoice status history, credit notes, payment allocation references,
+    subscription changes, dunning attempts, and per-tenant job leases. RLS
+    ENABLE+FORCE on every table, predicate ALWAYS AND ONLY `tenant_id` (no soft
+    super-tenant). Immutability triggers freeze the subscription offer binding and
+    ISSUED invoices (amounts/currency/period/issued provenance); status history /
+    credit notes / payment allocations are append-only; REVOKE DELETE.
+  - **Money is EXACT minor units** (`domain/money.ts`): bigint minor units, NEVER a
+    float — all arithmetic via BigInt, bounded to `Number.MAX_SAFE_INTEGER` at the
+    CHECK layer and the parser; single-currency per invoice; explicit rounding
+    policy (`half_up`/`half_even`/`floor`/`ceil`) with exact-remainder proration.
+  - **State machines**: subscription (pending/trialing/active/past_due/canceled/
+    expired) and invoice (draft→issued→{paid,void}), forward-legal only with
+    optimistic-concurrency version guards (invalid transition → deterministic 409),
+    mirrored by DB triggers.
+  - **Idempotent invoice generation** per (subscription, period, offer version):
+    subscription row-lock + partial-unique index + `ON CONFLICT DO NOTHING` +
+    `replayConcurrentIdempotentWinner` guarantee AT MOST ONE invoice per period
+    under concurrent workers. Usage-based lines reconcile to #875 aggregates and
+    record their source window + content hash.
+  - **Correction is a credit-note or void**, never an edit/delete of an issued
+    invoice. Payment state is updated ONLY from a validated manual/provider
+    allocation outcome (idempotent by provider reference) — never a provider call
+    inside a billing transaction (ADR-0006).
+  - **Dunning** REQUESTS lifecycle transitions through the #873
+    `lifecycle_transition` port (fail-closed: an error/non-ok result is recorded as
+    not-applied, never assumed applied) — billing never mutates tenant lifecycle
+    state directly.
+  - **Scheduled workers** (`subscription-billing:run-renewal`,
+    `subscription-billing:run-dunning`) use per-(tenant, job_kind) leases + bounded
+    batches so multiple workers cooperate idempotently and a crashed worker's lease
+    expires for another to resume. DB-only, offline/LAN safe.
+  - **Ports**: PROVIDES the read-only `billing_document_state` capability (consumed
+    by `payment_gateway` #877); CONSUMES `service_catalog_read` (#870),
+    `usage_aggregate` (#875), and `lifecycle_transition` (#873) at the composition
+    root only (module-boundary gated).
+  - **API/UI/events/docs**: 18 REST operations under
+    `/api/v1/subscription-billing/tenants/{tenantId}/...` (writes = platform
+    operator restricted to the platform tenant; reads = platform operator OR the
+    tenant's own user, cross-tenant isolated), 8 versioned same-commit domain
+    events (OpenAPI + AsyncAPI), an admin panel, audit on every high-risk action
+    with a mandatory reason, and `awcms-mini-subscription-billing` skill + module
+    README. Blast-radius docs (01/13/21), foundation/governance/boundary/skill-
+    coverage tests, and generated inventories updated to 29 modules.
+
+- 4e47e58: feat(tenant-entitlement): compute and enforce effective features, modules, quotas, and overrides (#871)
+
+  Adds the `tenant_entitlement` module — the second SaaS control-plane module and
+  the heart of epic #868 (ADR-0022), and the first tenant-scoped one. It derives a
+  tenant's deterministic, explainable effective feature/module/quota entitlement
+  from published `service_catalog` offers (read via the `service_catalog_read`
+  port), trial/grace effective-dating, operator overrides (grant/deny, reason-bound,
+  optionally time-bound, revocable without restart), suspension/lifecycle
+  restriction, and module-dependency safe-downgrade. It exposes one read-only,
+  fail-closed capability contract — `effective_entitlement` — that gates commercial
+  access on a different axis from RBAC/ABAC/RLS (a positive entitlement can never
+  grant a permission the actor lacks), and is the sole surface #872/#873/#875/#876
+  consume.
+
+  Admitted as an Official Optional Business Foundation, opt-in per tenant,
+  `defaultTenantState: "disabled"`. Every table is `tenant_id` + `ENABLE` +
+  `FORCE RLS` with a `tenant_id`-only policy (no soft super-tenant). Assign/
+  transition/override/revoke run a uniform concurrency pattern (row-lock or
+  `ON CONFLICT` + status-predicated update → clean 409, idempotency-replay wins a
+  same-key race), require `Idempotency-Key`, write an append-only evaluation
+  snapshot + emit a versioned domain event (same-commit, carrying the snapshot hash
+  for deterministic cache invalidation), and are audited. Immutability/write-once is
+  enforced by DB triggers; entitlement loss changes state + gates, never deleting
+  tenant data. Resolution is bounded (bulk query + in-memory, no per-request N+1
+  catalog query). Ships migrations 081/082, the `/api/v1/tenant-entitlement/*`
+  endpoints (OpenAPI), the two `awcms-mini.tenant-entitlement.*` events (AsyncAPI),
+  an admin explanation/override screen, and the `awcms-mini-tenant-entitlement`
+  skill.
+
+- b55fff3: feat(tenant-lifecycle): enforce trial, active, grace, suspended, canceled, restore, and downgrade semantics (#873)
+
+  The FOURTH SaaS control-plane module (epic #868 Wave 1, ADR-0022) — an Official
+  Optional Business Foundation, opt-in per tenant, `defaultTenantState: "disabled"`,
+  tenant-scoped (every table `tenant_id` + `ENABLE` + `FORCE RLS`, predicate always
+  and only `tenant_id` — no soft super-tenant). Lifecycle is a DISTINCT axis from
+  entitlement (#871) and permission (identity_access): it decides WHETHER a tenant
+  may operate and HOW MUCH.
+
+  - **State machine** (migration `sql/089`): 10 states (provisioning/trial/active/
+    renewal_due/past_due/grace/suspended/canceled/restoring/blocked) with a
+    forward-legal transition whitelist enforced by a DB `BEFORE UPDATE` trigger
+    that byte-mirrors `domain/lifecycle-state.ts`, an optimistic-concurrency
+    `version` that advances by exactly one per transition, an append-only history
+    table, and `REVOKE DELETE`/append-only guards. `canceled` may only leave toward
+    `restoring`. A suspend/cancel/downgrade changes STATE (+ entitlement), NEVER
+    deletes tenant data.
+  - **Server-derived, fail-closed restrictions** (`_shared/tenant-lifecycle-policy.ts`
+    - `_shared/tenant-lifecycle-restriction-read.ts`, neutral ground): a state maps
+      deterministically to a `RestrictionProfile`. Enforced at the SINGLE API+SSR auth
+      chokepoint (`authorizeInTransaction`) — a suspended tenant is denied entirely, a
+      `past_due` tenant's writes only; the module's own endpoints are exempt so owner
+      recovery/export stay reachable. Public host routing + background workers enforce
+      the SAME suspension via the projected `awcms_mini_tenants.status`, set in the
+      same commit — the four-surface parity. A tenant with no lifecycle row is
+      UNRESTRICTED (offline/LAN-safe); a governing read error is `DENY_ALL`.
+  - **Concurrency-safe transitions**: row-lock + state+version-predicated UPDATE
+    (invalid transition / stale version → deterministic 409). Idempotent scheduled
+    transitions (trial/grace expiry) applied safely under concurrent workers
+    (`bun run tenant-lifecycle:run-scheduled`). Every mutation requires
+    `Idempotency-Key` + a mandatory audited reason and emits a versioned domain
+    event same-commit (`.transitioned`/`.downgraded`/`.restored`/`.scheduled`).
+  - **Downgrade** changes the effective entitlement via the #871 contract without
+    deleting data; **restore** runs reconciliation against provisioning readiness
+    (#872) and refuses to silently overlook an unresolved state.
+  - PROVIDES the `tenant_restrictions` (read) and `lifecycle_transition` (write,
+    consumed by billing #876) capabilities; CONSUMES `effective_entitlement` (#871)
+    and `provisioning_status` (#872) at its composition root.
+  - Migrations `sql/089` (schema/RLS/triggers) + `sql/090` (permission seed),
+    operator admin UI, OpenAPI/AsyncAPI, i18n, module README + skill, and the
+    registry blast-radius (28 modules) all synchronized.
+
+- 0a05fbc: feat(tenant-provisioning): add idempotent provisioning workflow, compensation, reconciliation, and readiness (#872)
+
+  The third SaaS control-plane module (epic #868 Wave 1, ADR-0022). Admitted as an
+  Official Optional Business Foundation, opt-in per tenant, `defaultTenantState:
+"disabled"`, tenant-scoped (every table `tenant_id` + `ENABLE` + `FORCE RLS`,
+  predicate always-and-only `tenant_id` — no soft super-tenant). Provisioning
+  commands are platform-operator only + default-deny and restricted to the
+  platform (setup singleton) tenant.
+
+  Orchestrates an idempotent, resumable tenant-provisioning run from a versioned
+  plan/step registry: tenant record/bootstrap, owner identity, default
+  configuration/locale, optional entitlement assignment (via the #871
+  `tenant_entitlement` path), optional module preset, optional subdomain,
+  mandatory readiness, and derived-application contributed steps (via the
+  `provisioning_step` capability port). Durable checkpoints, bounded retries,
+  lease/lock ownership, idempotency-key replay, explicit compensation
+  classification (reversible/manual/forbidden), and non-destructive
+  desired-vs-actual reconciliation. It REUSES existing tenant/owner/office/config
+  creation (shared `tenant_admin` onboarding helpers, extracted from the setup
+  wizard) rather than duplicating it; runs provider/async work OUTSIDE the source
+  transaction (outbox/domain events); and NEVER deletes tenant data as
+  compensation. A failed/canceled run leaves the tenant inactive with a visible
+  blocked/failed status + `readiness=blocked` — never active without mandatory
+  security controls. Provider secrets are references only, never in step
+  payloads/logs; the owner password is consumed once at request time and never
+  stored. Provides the read-only `provisioning_status` capability; consumes the
+  fail-closed `effective_entitlement` contract. LAN/offline safe: provisions with
+  all online/provider steps absent or disabled.
+
+  Adds migrations 085/086 (six tenant-scoped tables with immutability/write-once/
+  append-only triggers + least-privilege grants), the `tenant_provisioning`
+  module, five REST endpoints (+ OpenAPI), four domain events (+ AsyncAPI), an
+  admin control panel, audit, and metrics-safe observability.
+
+  Review-round hardening (safety-critical): tenant ACTIVATION happens only in the
+  finalize path, fenced on lease ownership + all-steps-done + activation being the
+  terminal step — never inside a step handler — so a canceled/expired/undone run
+  can never leave a tenant active; the lease is re-asserted + renewed as a fencing
+  token at the start of every step transaction. A non-retryable step failure now
+  BLOCKS the run (retry/manual state, completed steps intact) instead of
+  compensating — compensation runs only on explicit cancel and transitions the
+  reversible step to `compensated` (so a resume is refused and reconcile detects
+  drift). The bounded attempt budget is enforced before each attempt (no unhandled
+  CHECK-violation 500 / lease leak on repeated retries). Idempotency-Key is bound
+  to the full request hash in the platform-operator tenant (same key + different
+  payload → 409). Cross-tenant operator reads are audited.
+
+- de9d5c8: feat(usage-metering): add idempotent usage events, aggregation, quotas, corrections, and reconciliation (#875)
+
+  The third SaaS control-plane module (epic #868 Wave 1, ADR-0022) — a tenant-scoped,
+  default-disabled provider-neutral metering foundation. Owning modules emit reviewed,
+  numeric-only meter events in their own commit through a transaction-safe append port;
+  an async, resumable worker deterministically materializes usage windows from the
+  immutable events plus signed corrections; a reconciliation pass recomputes windows
+  from the immutable source and flags drift; and a read-only aggregate port exposes
+  effective usage plus a fail-closed quota decision that billing (#876) reads.
+
+  - **Schema** (`sql/087`, `sql/088`): tenant-scoped `awcms_mini_usage_events`,
+    `awcms_mini_usage_corrections`, `awcms_mini_usage_aggregates`,
+    `awcms_mini_usage_aggregation_cursors`, `awcms_mini_usage_reconciliation_runs`
+    — all `FORCE ROW LEVEL SECURITY`, predicate always and only `tenant_id`.
+    Append-only immutability + write-once triggers (events/corrections/runs
+    append-only; aggregate window identity frozen + `source_watermark` monotonic +
+    `window_closed` one-way; cursor `checkpoint_seq` monotonic) beneath the app
+    guards, plus least-privilege REVOKEs (app never writes aggregates; worker never
+    writes source; purge is the only, worker-only DELETE, legal-hold-respecting).
+    Migration numbering skips 085/086 (reserved for provisioning #872, not yet merged).
+  - **Ports** (`_shared/ports/usage-append-port.ts`, `usage-aggregate-port.ts`): the
+    transaction-safe `usage_append` seam (a producing module records usage in the same
+    commit as its business transaction — the events table is the outbox) and the
+    read-only `usage_aggregate` seam. Consumes #871's fail-closed `effective_entitlement`
+    at the composition root only.
+  - **Idempotency**: identity binds `(tenant, producer, meter, sourceEventId,
+sourceVersion)` — a duplicate producer event is counted once (`ON CONFLICT DO
+NOTHING` + winning-row replay). `correct`/`reconcile`/`rebuild` routes require
+    `Idempotency-Key` (resource-id-bound hash) + concurrent-winner replay.
+  - **Determinism**: a window's aggregate is a pure function of the events + corrections
+    whose `event_time` falls in it (sum/max/last/unique_count) — never ingest order — so
+    a rebuild reproduces stored aggregates, a replay never double-counts, and late/
+    out-of-order events recompute their window and bump a late counter. Reconciliation
+    independently recomputes and flags any drift.
+  - **Fail-closed quota**: combines the #871 entitlement limit with an authoritative live
+    usage recompute over the immutable events (never a stale aggregate); a hard quota
+    denies when usage is unavailable. Entitlement is not permission.
+  - **Privacy**: numeric-only quantity + a bounded, structurally-admitted dimension map
+    (no PII, no raw payloads); domain event + audit payloads never carry the operator's
+    free-text correction reason. Meter keys/aggregation/bounds resolve against the #874
+    single source; an unknown meter fails closed.
+  - **API** under `/api/v1/usage-metering` (events, aggregates, quota, corrections,
+    reconciliation, aggregation rebuild/status) + OpenAPI/AsyncAPI; jobs
+    `usage-metering:aggregate` and `usage-metering:purge`; operator UI at
+    `/admin/usage-metering`; `usage_metering.events` registered with data_lifecycle.
+
+### Patch Changes
+
+- 0e57af1: docs(governance): reposisi README/AGENTS ke ADR-0024 (template dipakai-langsung)
+
+  Menyelaraskan dokumen pintu-depan dengan ADR-0024 (keluarga AWCMS = tiga template dipakai-langsung, jalur aplikasi-turunan dihapus) yang sudah Accepted & sudah men-supersede ADR-0013/0014/0015:
+
+  - README & AGENTS: narasi "base + aplikasi turunan di repo terpisah" → "template modular monolith standar dipakai-langsung; modul domain ditambahkan langsung di `src/modules/`"; node mermaid & guide turunan diberi caveat DEPRECATED (rujukan historis).
+  - Perbaiki dua deskripsi command basi di AGENTS: `modules:compose:check` tak lagi menyebut `application-registry.ts` (dihapus ADR-0024), dan baris `extension:check` dihapus (command sudah tidak ada).
+
+  Doc-only.
+
+- 471b7d4: chore(deps): bump astro from 7.0.7 to 7.1.1
+- bbb2cbf: chore(actions): bump actions/attest-build-provenance from 2.4.0 to 4.1.1
+- 7068552: chore(deps-dev): bump @changesets/cli from 2.31.0 to 2.31.1
+- 87bf89a: chore(actions): bump github/codeql-action init and analyze to 4.37.1
+- 1227774: chore(actions): bump docker/build-push-action from 6.19.2 to 7.3.0
+- d03f28e: chore(actions): bump actions/upload-artifact from 4.6.2 to 7.0.1
+- 7a79476: test(e2e): fix admin-analytics sessions-table flake via reload-poll (#883)
+
+  `admin-analytics-dashboard.e2e.ts` asserted a sessions-table row on a table
+  populated by a single client-side fetch (`loadSessionsPage(null)`) that races
+  the deferred visitor-telemetry write (~200ms per-tenant batcher linger,
+  #832/#846). With no client re-fetch, a fixed `toBeVisible` wait could never
+  recover once that fetch resolved empty, so the assertion failed ~100% on fast
+  CI and blocked the merge queue. The one-shot wait is replaced with a bounded
+  reload-poll that re-runs the fetch — a re-query, not a longer timeout — so the
+  assertion is deterministic while still proving a real, middleware-collected
+  session row is visible. Test-only; no runtime/product change.
+
+- 1d0e1e2: fix(release): GitHub Release title = tag name, so tag and Release match (#825)
+
+  `gh release create` titled the Release `awcms-mini <version>` while the git
+  tag was `vX.Y.Z`, so the tag and its Release read differently. Title now
+  uses `github.ref_name` (the `vX.Y.Z` tag), matching the ahliweb/awcms
+  convention where the tag and Release are the same string. The already-
+  published `v0.25.0` Release title was corrected in place. Release-tooling
+  only; no runtime/product change.
+
 ## 0.25.0
 
 ### Minor Changes

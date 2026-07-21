@@ -28,7 +28,7 @@ Folder ini dikelola oleh [Changesets](https://github.com/changesets/changesets) 
 
 - **Setiap PR** yang mengubah perilaku (fitur, fix, perubahan schema/API/event) **wajib menyertakan changeset**.
 - Perubahan **docs-only/chore** boleh tanpa changeset.
-- Tingkat bump mengikuti SemVer (lihat `docs/awcms-mini/09_roadmap_repository_commit.md`).
+- Tingkat bump mengikuti SemVer (lihat `docs/awcms-mini/09_roadmap_repository_commit.md`). Sejak **`v1.0.0`** (tercapai 2026-07-21, ADR-0024) SemVer ketat berlaku penuh: breaking pada API/kontrak/schema publik **wajib `major`** — aturan pra-1.0.0 (breaking cukup `minor`) tidak berlaku lagi.
 - Format changeset:
 
   ```md
@@ -39,4 +39,4 @@ Folder ini dikelola oleh [Changesets](https://github.com/changesets/changesets) 
   Ringkasan singkat perubahan yang berdampak ke pengguna.
   ```
 
-> Catatan: Changesets aktif penuh setelah `package.json` diperluas dan dependency terinstall (mulai Issue 0.1). Konfigurasi & workflow sudah disiapkan di repository ini.
+> Catatan: Changesets aktif penuh di repository ini. Baseline rilis kini **`v1.0.0`** (base production-ready); proses rilis end-to-end didokumentasikan di skill `awcms-mini-release` dan `docs/awcms-mini/release-process.md`.
