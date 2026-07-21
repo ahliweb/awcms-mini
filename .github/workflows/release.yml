@@ -348,7 +348,7 @@ jobs:
       # still discover and verify it via `cosign verify-attestation` /
       # `docker buildx imagetools inspect`.
       - name: Attest build provenance — image
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ needs.build.outputs.digest }}
@@ -368,7 +368,7 @@ jobs:
       # `gh attestation verify <file> --owner ahliweb` (see
       # docs/awcms-mini/release-process.md §Verification for consumers).
       - name: Attest build provenance — source artifacts
-        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: |
             CHECKSUMS.txt
