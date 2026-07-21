@@ -1,18 +1,7 @@
 {
-  "baseModuleCount": 30,
-  "applicationModuleCount": 0,
-  "applicationRegistryId": null,
-  "totalModuleCount": 30,
+  "moduleCount": 30,
   "valid": true,
   "issueCount": 0,
-  "migrationNamespaces": [
-    {
-      "label": "awcms-mini base",
-      "rangeStart": 1,
-      "rangeEnd": 899,
-      "source": "base"
-    }
-  ],
   "modules": [
     {
       "key": "blog_content",
@@ -20,7 +9,6 @@
       "version": "0.9.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -53,7 +41,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -75,7 +62,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "system",
-      "source": "base",
       "dependencies": ["tenant_admin", "identity_access", "logging"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -92,7 +78,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -114,7 +99,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "system",
-      "source": "base",
       "dependencies": ["tenant_admin", "identity_access", "logging"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -131,7 +115,6 @@
       "version": "0.5.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": ["tenant_admin", "profile_identity", "identity_access"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -148,7 +131,6 @@
       "version": "1.0.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": ["identity_access", "logging"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -165,7 +147,6 @@
       "version": "1.0.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": ["tenant_admin", "profile_identity", "logging"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [
@@ -188,7 +169,6 @@
       "version": "0.1.0",
       "status": "experimental",
       "type": "base",
-      "source": "base",
       "dependencies": ["identity_access", "logging", "module_management"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -205,7 +185,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "system",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -226,7 +205,6 @@
       "version": "1.0.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": ["tenant_admin"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -243,7 +221,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "system",
-      "source": "base",
       "dependencies": ["tenant_admin", "identity_access", "logging", "email"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -260,7 +237,6 @@
       "version": "0.4.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -288,7 +264,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -310,7 +285,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -338,7 +312,6 @@
       "version": "1.1.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": ["tenant_admin", "logging"],
       "capabilitiesProvided": ["party_directory"],
       "capabilitiesConsumed": [],
@@ -355,7 +328,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -377,7 +349,6 @@
       "version": "1.2.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -400,7 +371,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -422,7 +392,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -450,7 +419,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -488,7 +456,6 @@
       "version": "1.0.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": ["tenant_admin"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -505,7 +472,6 @@
       "version": "1.0.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": [],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -522,7 +488,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "system",
-      "source": "base",
       "dependencies": ["tenant_admin", "identity_access"],
       "capabilitiesProvided": [],
       "capabilitiesConsumed": [],
@@ -539,7 +504,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -568,7 +532,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -602,7 +565,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -631,7 +593,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "domain",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -660,7 +621,6 @@
       "version": "0.1.0",
       "status": "active",
       "type": "system",
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",
@@ -682,7 +642,6 @@
       "version": "2.0.0",
       "status": "active",
       "type": null,
-      "source": "base",
       "dependencies": [
         "tenant_admin",
         "identity_access",

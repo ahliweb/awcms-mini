@@ -3,7 +3,7 @@
  * `platform-evolution` Wave 4, ADR-0020). No database, no network —
  * everything under test here is pure/in-memory: `_shared/ports/
  * period-lock-port.ts`'s fail-closed default, the fixture posting engine
- * (`tests/fixtures/derived-application-example/modules/
+ * (`tests/fixtures/example-domain-modules/modules/
  * example-erp-extension/posting-engine.ts`), and `reporting`'s own
  * `validateProjectionRegistry` applied to the fixture's contributed
  * projection descriptor.
@@ -35,9 +35,9 @@ import { listBaseModules } from "../../src/modules";
 import { validateProjectionRegistry } from "../../src/modules/reporting/domain/projection-registry";
 import { noPeriodLockAdapterConfigured } from "../../src/modules/_shared/ports/period-lock-port";
 import type { AccountingPostingRequestPayload } from "../../src/modules/_shared/business-transaction-contract";
-import { exampleErpExtensionModule } from "../fixtures/derived-application-example/modules/example-erp-extension/module";
-import { createFixturePeriodLockAdapter } from "../fixtures/derived-application-example/modules/example-erp-extension/period-lock-adapter";
-import { FixturePostingEngine } from "../fixtures/derived-application-example/modules/example-erp-extension/posting-engine";
+import { exampleErpExtensionModule } from "../fixtures/example-domain-modules/modules/example-erp-extension/module";
+import { createFixturePeriodLockAdapter } from "../fixtures/example-domain-modules/modules/example-erp-extension/period-lock-adapter";
+import { FixturePostingEngine } from "../fixtures/example-domain-modules/modules/example-erp-extension/posting-engine";
 
 const FAKE_TX = {} as unknown as Bun.SQL;
 const TENANT_A = "11111111-1111-1111-1111-111111111111";
@@ -92,10 +92,10 @@ describe("Dependency direction — Core/System never imports the example ERP ext
     return files;
   }
 
-  test("no file under src/ has a real import/export statement reaching the example-erp-extension fixture (prose mentions in doc comments, e.g. application-registry.ts's own illustrative header, are not a real dependency)", () => {
+  test("no file under src/ has a real import/export statement reaching the example-erp-extension fixture (prose mentions in doc comments are not a real dependency)", () => {
     const srcDir = path.join(import.meta.dir, "../../src");
     const importPattern =
-      /(?:from\s+["'][^"']*|import\s*\(\s*["'][^"']*)(?:example-erp-extension|derived-application-example)[^"']*["']/;
+      /(?:from\s+["'][^"']*|import\s*\(\s*["'][^"']*)(?:example-erp-extension|example-domain-modules)[^"']*["']/;
     const offenders: string[] = [];
 
     for (const file of listTsFiles(srcDir)) {

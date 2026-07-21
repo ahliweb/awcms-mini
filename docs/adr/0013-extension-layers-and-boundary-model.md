@@ -1,6 +1,6 @@
 # ADR-0013 — Lapisan ekstensi platform, batas tenant/bisnis, dan kriteria evidence-based ekstraksi layanan
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0024](0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md)
 - **Tanggal:** 2026-07-13
 - **Pengambil keputusan:** @ahliweb
 - **Terkait:** Issue #739 (epic #738 `platform-evolution`), Issue #680/#681/#696 (epic #679 `platform-hardening`), ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0011, ADR-0012, `docs/awcms-mini/21_module_admission_governance.md`, `docs/awcms-mini/derived-application-guide.md`, `docs/awcms-mini/19_glossary_terminology.md`, `src/modules/module-management/domain/module-dependency-graph.ts`

@@ -861,24 +861,7 @@ export function defineModule(descriptor: ModuleDescriptor): ModuleDescriptor {
 }
 
 /**
- * One derived/downstream repository's declared reservation of the numeric
- * `NNN_` migration-filename prefix range its own `sql/` directory owns
- * (Issue #740). Purely declarative composition metadata — this contract
- * does not read real `sql/*.sql` filenames (see
- * `module-management/domain/module-composition.ts`'s file header for why
- * that check stays a pure, filesystem-free, declared-data comparison).
- */
-export type ModuleMigrationNamespace = {
-  /** Human label for diagnostics, e.g. "awpos" or "smart-school-portal". */
-  label: string;
-  /** Inclusive lower bound of the numeric `NNN_` migration filename prefix this registry owns. */
-  rangeStart: number;
-  /** Inclusive upper bound. */
-  rangeEnd: number;
-};
-
-/**
- * SemVer of the `ModuleDescriptor`/`ApplicationModuleRegistry` TYPE SHAPE
+ * SemVer of the `ModuleDescriptor` TYPE SHAPE
  * itself — independent of `package.json` (release version) and the
  * OpenAPI/AsyncAPI `info.version` (REST/event contract version), same
  * "three independent versioning schemes" precedent ADR-0008 already
@@ -942,8 +925,16 @@ export type ModuleMigrationNamespace = {
  * change is purely additive (no field removed/retyped). This specific tightening
  * is therefore MAJOR-exempt; a future removal of the `@deprecated` fields WILL be
  * a MAJOR bump.
+ *
+ * `2.0.0` (ADR-0024 — derived application pathway removal) — REMOVED the
+ * `ApplicationModuleRegistry` and `ModuleMigrationNamespace` composition types
+ * (MAJOR: exported types removed). The derived-application seam
+ * (`src/modules/application-registry.ts`, migration namespace 900–999,
+ * `extension:check`, and the `extension.manifest.json` compatibility manifest
+ * mechanism) is deleted; the base is a template used directly. No
+ * `ModuleDescriptor` field changed — every base `module.ts` stays valid unchanged.
  */
-export const MODULE_CONTRACT_VERSION = "1.4.0";
+export const MODULE_CONTRACT_VERSION = "2.0.0";
 
 /**
  * SemVer of the SaaS COMMERCIAL CONTRACT shape (Issue #874, epic #868) — the
@@ -971,30 +962,3 @@ export const MODULE_CONTRACT_VERSION = "1.4.0";
  * number, not a stability milestone" framing `MODULE_CONTRACT_VERSION` uses).
  */
 export const SAAS_CONTRACT_VERSION = "1.0.0";
-
-/**
- * One derived/downstream repository's contribution to the final composed
- * module registry (Issue #740, epic #738 `platform-evolution`, Wave 1).
- * Supplied ONLY through the designated build-time extension point
- * (`src/modules/application-registry.ts`) — never by editing
- * `src/modules/index.ts` itself. Still 100% static, compile-time
- * TypeScript — no runtime discovery/upload/package scanning/`eval`, per
- * `docs/awcms-mini/21_module_admission_governance.md` §7 and
- * `docs/adr/0013-extension-layers-and-boundary-model.md` §9. See
- * `src/modules/module-management/domain/module-composition.ts` for the
- * validation engine that composes this against the base registry.
- */
-export type ApplicationModuleRegistry = {
-  /** Stable, human-readable identifier for the contributing repository/application — used in diagnostics and the composed inventory only, never persisted to a database or used for authorization. */
-  id: string;
-  modules: readonly ModuleDescriptor[];
-  /**
-   * This application registry's own reserved migration-number range,
-   * validated against the base's reserved range
-   * (`module-composition.ts`'s `BASE_MODULE_MIGRATION_NAMESPACE`) to catch
-   * a numbering collision before any migration file is even written.
-   * Optional: composition skips the overlap check when omitted (a
-   * documented caveat, not a silent pass).
-   */
-  migrationNamespace?: ModuleMigrationNamespace;
-};

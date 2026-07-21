@@ -1,6 +1,6 @@
 # ADR-0014 — Komposisi modul deterministik saat build-time untuk registry base dan aplikasi turunan
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0024](0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md) — jalur aplikasi-turunan (`application-registry.ts`, namespace migration 900–999, tipe `ApplicationModuleRegistry`/`ModuleMigrationNamespace`) dihapus; mesin komposisi kini memvalidasi registry base sendiri.
 - **Tanggal:** 2026-07-13
 - **Pengambil keputusan:** @ahliweb
 - **Terkait:** Issue #740 (epic #738 `platform-evolution`, Wave 1), Issue #739/ADR-0013, ADR-0011, ADR-0012, `docs/awcms-mini/21_module_admission_governance.md`, `docs/awcms-mini/derived-application-guide.md`, `src/modules/module-management/domain/module-dependency-graph.ts`, `src/modules/module-management/domain/module-composition.ts`

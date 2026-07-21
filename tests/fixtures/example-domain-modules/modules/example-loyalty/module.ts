@@ -1,20 +1,20 @@
 /**
- * Minimal fixture module (Issue #740, epic #738 `platform-evolution`,
- * Wave 1) — sibling of `example_crm`. NOT part of the base registry (see
- * that module's own header comment for the full rationale).
+ * Minimal TEST-SUPPORT example domain module (originally Issue #740, epic
+ * #738 `platform-evolution`, Wave 1; ADR-0024) — sibling of `example_crm`.
+ * NOT part of the base registry (see that module's own header comment for
+ * the full rationale).
  *
- * Declares a lifecycle dependency on `example_crm` — an
- * APPLICATION-module-to-APPLICATION-module edge — to prove composition's
- * reused `validateModuleDependencyGraph` walks the whole merged (base +
- * application) graph, not just base-to-application edges. Consumes
- * `example_crm`'s `example_crm_directory` capability as a REQUIRED (not
- * `optional: true`) binding, to prove `capability_provider_missing`
- * resolves correctly (no issue) when the provider is present in the same
- * application registry.
+ * Declares a lifecycle dependency on `example_crm` — a
+ * domain-module-to-domain-module edge — to prove the composition engine's
+ * reused `validateModuleDependencyGraph` walks the whole registry graph,
+ * not just base-to-domain edges. Consumes `example_crm`'s
+ * `example_crm_directory` capability as a REQUIRED (not `optional: true`)
+ * binding, to prove `capability_provider_missing` resolves correctly (no
+ * issue) when the provider is present in the same registry.
  *
  * Also contributes ONE feature + ONE meter + ONE quota to the SaaS commercial
- * contract registry (Issue #874) — a DUMMY derived-module contribution that
- * proves a reviewed derived module can add commercial capability metadata
+ * contract registry (Issue #874) — a DUMMY domain-module contribution that
+ * proves a reviewed domain module can add commercial capability metadata
  * WITHOUT editing any base registry file (Issue #874 AC). The meter uses
  * `correction: "signed_delta"` (loyalty points can be redeemed) to exercise the
  * negative-lower-bound path the registry validator only permits with explicit
@@ -28,9 +28,9 @@ export const exampleLoyaltyModule = defineModule({
   version: "0.1.0",
   status: "experimental",
   description:
-    "Minimal in-repo fixture derived-application module (Issue #740) — illustrates a loyalty-points feature that reads the sibling example_crm fixture module's contact directory capability. Never registered in the base repository.",
+    "Minimal in-repo test-support domain module — illustrates a loyalty-points feature that reads the sibling example_crm module's contact directory capability. Never registered in the base repository.",
   dependencies: ["tenant_admin", "identity_access", "example_crm"],
-  type: "derived",
+  type: "domain",
   capabilities: {
     consumes: [
       { capability: "example_crm_directory", providedBy: "example_crm" }

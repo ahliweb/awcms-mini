@@ -11,7 +11,6 @@ import {
 import { recordAuditEvent } from "../../../../modules/logging/application/audit-log";
 import { syncModuleDescriptors } from "../../../../modules/module-management/application/descriptor-sync";
 import { listBaseModules } from "../../../../modules";
-import { applicationModuleRegistry } from "../../../../modules/application-registry";
 import {
   composeModuleRegistry,
   formatModuleCompositionIssue
@@ -61,18 +60,14 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     // Issue #740 security follow-up (PR #769 security-auditor BLOCKED
     // finding): explicit pre-check, mirroring `scripts/modules-sync.ts`'s
-    // own composition gate, so an invalid composed registry (e.g. an
-    // application module colliding with a base module's key) fails with a
-    // clean, structured response here rather than an uncaught
-    // `ModuleCompositionInvalidError` propagating out of `withTenant`
-    // (which would otherwise misrecord this as a database circuit-breaker
-    // failure). `syncModuleDescriptors` itself ALSO refuses to write on
-    // the same condition — this is deliberately redundant defense in
-    // depth, not the only guard.
-    const compositionResult = composeModuleRegistry({
-      base: listBaseModules(),
-      application: applicationModuleRegistry
-    });
+    // own composition gate, so an invalid registry (e.g. a duplicate module
+    // key) fails with a clean, structured response here rather than an
+    // uncaught `ModuleCompositionInvalidError` propagating out of
+    // `withTenant` (which would otherwise misrecord this as a database
+    // circuit-breaker failure). `syncModuleDescriptors` itself ALSO refuses
+    // to write on the same condition — this is deliberately redundant
+    // defense in depth, not the only guard.
+    const compositionResult = composeModuleRegistry(listBaseModules());
 
     if (!compositionResult.valid) {
       return fail(

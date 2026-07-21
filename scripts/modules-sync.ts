@@ -67,7 +67,6 @@ import {
 } from "../src/modules/module-management/application/descriptor-sync";
 import { planModuleSync } from "../src/modules/module-management/domain/descriptor-diff";
 import { listBaseModules, listModules } from "../src/modules";
-import { applicationModuleRegistry } from "../src/modules/application-registry";
 import {
   formatModuleDependencyGraphIssue,
   validateModuleDependencyGraph
@@ -91,20 +90,16 @@ async function main() {
 
   // Issue #740 security follow-up (PR #769 security-auditor BLOCKED
   // finding): the DAG check above is a STRICT SUBSET of full composition
-  // validation — it never caught a duplicate/prohibited-override module
-  // key, a conflicting capability provider, an overlapping migration
-  // namespace, an incompatible deployment-profile claim, a navigation path
-  // conflict, or an invalid application module category. This explicit
+  // validation — it never caught a duplicate module key, a conflicting
+  // capability provider, an incompatible deployment-profile claim, a
+  // navigation path conflict, or an invalid job descriptor. This explicit
   // pre-check gives a fast, clean CLI failure before a DB connection is
   // even opened; `syncModuleDescriptors` itself ALSO refuses to write on
   // the same condition (defense in depth for every other real call site —
   // the live API endpoint and the four internal "sync first" callers —
   // see that function's own file header for the full reasoning), so this
   // is deliberately redundant with, not a replacement for, that guard.
-  const compositionResult = composeModuleRegistry({
-    base: listBaseModules(),
-    application: applicationModuleRegistry
-  });
+  const compositionResult = composeModuleRegistry(listBaseModules());
 
   if (!compositionResult.valid) {
     console.error("modules:sync FAILED — composition validation is invalid:");
