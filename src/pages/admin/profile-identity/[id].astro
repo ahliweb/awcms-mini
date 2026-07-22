@@ -228,7 +228,13 @@ if (CAN_READ) {
           )}
           {CAN_ADD_IDENTIFIER && (
             <form id="add-identifier-form" class="inline-form">
-              <select name="identifierType" required>
+              <select
+                name="identifierType"
+                required
+                aria-label={t(
+                  "admin.profile_identity.detail.identifier_type_label"
+                )}
+              >
                 <option value="email">email</option>
                 <option value="phone">phone</option>
                 <option value="whatsapp">whatsapp</option>
@@ -242,6 +248,9 @@ if (CAN_READ) {
                 name="value"
                 required
                 placeholder={t(
+                  "admin.profile_identity.detail.identifier_value_placeholder"
+                )}
+                aria-label={t(
                   "admin.profile_identity.detail.identifier_value_placeholder"
                 )}
               />
@@ -284,12 +293,20 @@ if (CAN_READ) {
                   "admin.profile_identity.detail.address_line_placeholder"
                 )}
               />
-              <input type="text" name="city" placeholder="City" />
+              <input
+                type="text"
+                name="city"
+                placeholder={t("admin.profile_identity.detail.city_label")}
+                aria-label={t("admin.profile_identity.detail.city_label")}
+              />
               <input
                 type="text"
                 name="countryCode"
                 placeholder="ID"
                 maxlength="2"
+                aria-label={t(
+                  "admin.profile_identity.detail.country_code_label"
+                )}
               />
               <button type="submit">
                 {t("admin.profile_identity.detail.add_button")}
@@ -323,14 +340,26 @@ if (CAN_READ) {
           )}
           {CAN_ADD_CHANNEL && identifiers.length > 0 && (
             <form id="add-channel-form" class="inline-form">
-              <select name="profileIdentifierId" required>
+              <select
+                name="profileIdentifierId"
+                required
+                aria-label={t(
+                  "admin.profile_identity.detail.channel_identifier_label"
+                )}
+              >
                 {identifiers.map((identifier) => (
                   <option value={identifier.id}>
                     {identifier.identifierType}: {identifier.maskedValue}
                   </option>
                 ))}
               </select>
-              <select name="channelType" required>
+              <select
+                name="channelType"
+                required
+                aria-label={t(
+                  "admin.profile_identity.detail.channel_type_label"
+                )}
+              >
                 <option value="email">email</option>
                 <option value="phone">phone</option>
                 <option value="whatsapp">whatsapp</option>
