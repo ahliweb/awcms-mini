@@ -48,6 +48,20 @@
      3.68:1 (light) / 2.43:1 (dark) — below the 4.5:1 this same doc-comment
      already promises. Measured: 5.36:1 against white in both themes. */
   --color-info-strong: #0e7490;
+  /*
+   * Warning is the one semantic color whose solid fill needs DARK text, not
+   * white (`--color-primary-contrast`): both themes' `--color-warning` are
+   * mid-brightness amber (#d97706 light, #f59e0b dark), so white text on it
+   * is ~2:1 — a fail — while a fixed dark navy stays >=4.5:1 against both.
+   * This is why there is no `--color-warning-strong` (white-text) sibling.
+   * `StatusBadge.astro` already pinned this exact value inline; promoted to
+   * a token so the hand-rolled `.status-pill`/`.health-pill` warning rules
+   * across the module screens can reference it too instead of inheriting
+   * `--color-text` (which flips near-white in dark mode and fails on amber).
+   * Theme-independent on purpose — the fill it sits on is amber in both
+   * themes, so the same dark text works for both (no dark-theme override).
+   */
+  --color-warning-contrast: #1a1f26;
 
   /* Font */
   --font-sans: system-ui, -apple-system, "Inter", "Segoe UI", sans-serif;

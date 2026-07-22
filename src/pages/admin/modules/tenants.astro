@@ -475,6 +475,7 @@ const statuses = [...new Set(rows.map((r) => r.status))];
   .status-pill[data-status="protected"] {
     background: var(--color-warning);
     border-color: var(--color-warning);
+    color: var(--color-warning-contrast);
   }
 
   .health-pill[data-health="healthy"] {
@@ -486,6 +487,7 @@ const statuses = [...new Set(rows.map((r) => r.status))];
   .health-pill[data-health="degraded"] {
     background: var(--color-warning);
     border-color: var(--color-warning);
+    color: var(--color-warning-contrast);
   }
 
   .health-pill[data-health="failed"] {

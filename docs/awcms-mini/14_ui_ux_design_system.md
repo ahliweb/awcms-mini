@@ -25,26 +25,32 @@ Token diimplementasikan sebagai CSS custom properties, di-scope ke `:root` dan o
 
 ### Warna semantik
 
-| Token                      | Light     | Dark      | Fungsi                  |
-| -------------------------- | --------- | --------- | ----------------------- |
-| `--color-bg`               | `#f7f8fa` | `#0e1116` | Latar aplikasi          |
-| `--color-surface`          | `#ffffff` | `#161b22` | Kartu/panel             |
-| `--color-surface-2`        | `#eef1f5` | `#1f262e` | Panel sekunder          |
-| `--color-border`           | `#d8dee6` | `#2b333c` | Garis/pembatas          |
-| `--color-text`             | `#1a1f26` | `#e6edf3` | Teks utama              |
-| `--color-text-muted`       | `#5b6672` | `#9aa7b2` | Teks sekunder           |
-| `--color-primary`          | `#2563eb` | `#3b82f6` | Aksi utama              |
-| `--color-primary-contrast` | `#ffffff` | `#ffffff` | Teks di atas primary    |
-| `--color-success`          | `#16a34a` | `#22c55e` | Sukses/posted           |
-| `--color-warning`          | `#d97706` | `#f59e0b` | Peringatan/held         |
-| `--color-danger`           | `#dc2626` | `#ef4444` | Error/stok kurang       |
-| `--color-info`             | `#0891b2` | `#06b6d4` | Info/sync               |
-| `--color-focus`            | `#2563eb` | `#60a5fa` | Cincin fokus            |
-| `--color-primary-strong`   | `#2563eb` | `#3472d8` | Fill solid + teks putih |
-| `--color-success-strong`   | `#12873d` | `#178841` | Fill solid + teks putih |
-| `--color-danger-strong`    | `#dc2626` | `#d73d3d` | Fill solid + teks putih |
+| Token                      | Light     | Dark      | Fungsi                                        |
+| -------------------------- | --------- | --------- | --------------------------------------------- |
+| `--color-bg`               | `#f7f8fa` | `#0e1116` | Latar aplikasi                                |
+| `--color-surface`          | `#ffffff` | `#161b22` | Kartu/panel                                   |
+| `--color-surface-2`        | `#eef1f5` | `#1f262e` | Panel sekunder                                |
+| `--color-border`           | `#d8dee6` | `#2b333c` | Garis/pembatas                                |
+| `--color-text`             | `#1a1f26` | `#e6edf3` | Teks utama                                    |
+| `--color-text-muted`       | `#5b6672` | `#9aa7b2` | Teks sekunder                                 |
+| `--color-primary`          | `#2563eb` | `#3b82f6` | Aksi utama                                    |
+| `--color-primary-contrast` | `#ffffff` | `#ffffff` | Teks di atas primary                          |
+| `--color-success`          | `#16a34a` | `#22c55e` | Sukses/posted                                 |
+| `--color-warning`          | `#d97706` | `#f59e0b` | Peringatan/held                               |
+| `--color-danger`           | `#dc2626` | `#ef4444` | Error/stok kurang                             |
+| `--color-info`             | `#0891b2` | `#06b6d4` | Info/sync                                     |
+| `--color-focus`            | `#2563eb` | `#60a5fa` | Cincin fokus                                  |
+| `--color-primary-strong`   | `#2563eb` | `#3472d8` | Fill solid + teks putih                       |
+| `--color-success-strong`   | `#12873d` | `#178841` | Fill solid + teks putih                       |
+| `--color-danger-strong`    | `#dc2626` | `#d73d3d` | Fill solid + teks putih                       |
+| `--color-info-strong`      | `#0e7490` | `#0e7490` | Fill solid + teks putih                       |
+| `--color-warning-contrast` | `#1a1f26` | `#1a1f26` | Teks **gelap** di atas fill `--color-warning` |
 
 > **`-strong` vs token polos** (Issue #434 — audit UX/UI): `--color-primary`/`--color-success`/`--color-danger` polos ditujukan untuk dipakai sebagai _teks/ikon/border_ di atas `--color-surface`/`--color-surface-2` — kontras yang diperlukan berbeda dari kasus _fill solid_ + `--color-primary-contrast` (putih) di atasnya (tombol CTA, banner error, status pill solid). Diukur (formula WCAG relative-luminance): token polos dengan teks putih hanya 3.19–3.76:1 di beberapa kombinasi (di bawah AA 4.5:1). Token `-strong` adalah varian yang di-gelapkan secukupnya (khusus tema gelap; tema terang sebagian sudah lulus tanpa perlu digelapkan) agar teks putih di atasnya selalu ≥4.5:1 — pakai token ini, bukan yang polos, setiap kali `--color-primary-contrast` dirender langsung di atas fill warna semantik.
+
+> **`--color-warning-contrast` — perkecualian warning** (audit UX/UI lanjutan): `--color-warning` adalah satu-satunya warna semantik yang fill solid-nya butuh teks **gelap**, bukan putih — amber mid-brightness (`#d97706`/`#f59e0b`) + teks putih hanya ~2:1. Karena itu **tidak ada** `--color-warning-strong` (varian teks-putih); sebagai gantinya pakai `--color-warning-contrast` (navy gelap tetap, sama di kedua tema) sebagai `color` di atas fill `--color-warning`. `StatusBadge.astro` variant `warning` memakainya; status/health pill hand-rolled di layar modul (`.status-pill`/`.health-pill`) juga **wajib** menyetel `color: var(--color-warning-contrast)` — kalau tidak, teks mewarisi `--color-text` yang membalik jadi near-white di tema gelap dan gagal AA di atas amber.
+
+> **Banner feedback pakai `color-mix`, bukan token tint terpisah** (audit UX/UI lanjutan): `.action-banner[data-variant="success"|"error"]` (dan `StateNotice`) memakai idiom `background: color-mix(in srgb, var(--color-success) 15%, var(--color-surface))` + `border: 1px solid var(--color-success)` dengan teks mewarisi `--color-text` — theme-aware otomatis (tint terang di light, tint gelap di dark) sehingga teks selalu kontras di kedua tema. Ini pola kanonik `ActionBanner.astro`; **jangan** membuat token tint terpisah seperti `--color-*-surface`/`--color-*-subtle` (tidak didefinisikan di `tokens.css`) — sekumpulan layar modul lama sempat memakainya dengan fallback hex hardcode yang tidak beradaptasi ke tema gelap, lalu dikonvergenkan kembali ke idiom `color-mix` ini.
 
 ### Skala lain
 

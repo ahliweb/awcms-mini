@@ -168,46 +168,63 @@ const clientStrings = {
     const invBox = document.getElementById("invoices");
     if (!subsBox || !invBox) return;
 
-    const subsRes = await fetch(
-      `${BASE}/tenants/${encodeURIComponent(tenantId)}/subscriptions`,
-      { headers: { Accept: "application/json" } }
-    );
-    if (!subsRes.ok) {
+    try {
+      const subsRes = await fetch(
+        `${BASE}/tenants/${encodeURIComponent(tenantId)}/subscriptions`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!subsRes.ok) {
+        subsBox.hidden = false;
+        subsBox.textContent =
+          subsRes.status === 404 ? strings.notFound : strings.networkError;
+        return;
+      }
+      const subs = (await subsRes.json()).data.subscriptions ?? [];
       subsBox.hidden = false;
-      subsBox.textContent =
-        subsRes.status === 404 ? strings.notFound : strings.networkError;
-      return;
-    }
-    const subs = (await subsRes.json()).data.subscriptions ?? [];
-    subsBox.hidden = false;
-    subsBox.innerHTML =
-      `<h3>${esc(strings.subscriptionsHeading)}</h3>` +
-      `<table><thead><tr><th>${esc(strings.colPlan)}</th><th>${esc(strings.colState)}</th></tr></thead><tbody>` +
-      subs
-        .map(
-          (s: Record<string, unknown>) =>
-            `<tr><td>${esc(s.offerPlanKey)}@v${esc(s.offerVersion)}</td><td>${esc(s.state)}</td></tr>`
-        )
-        .join("") +
-      `</tbody></table>`;
+      subsBox.innerHTML =
+        `<h3>${esc(strings.subscriptionsHeading)}</h3>` +
+        `<table><thead><tr><th>${esc(strings.colPlan)}</th><th>${esc(strings.colState)}</th></tr></thead><tbody>` +
+        subs
+          .map(
+            (s: Record<string, unknown>) =>
+              `<tr><td>${esc(s.offerPlanKey)}@v${esc(s.offerVersion)}</td><td>${esc(s.state)}</td></tr>`
+          )
+          .join("") +
+        `</tbody></table>`;
 
-    const invRes = await fetch(
-      `${BASE}/tenants/${encodeURIComponent(tenantId)}/invoices`,
-      { headers: { Accept: "application/json" } }
-    );
-    if (!invRes.ok) return;
-    const invoices = (await invRes.json()).data.invoices ?? [];
-    invBox.hidden = false;
-    invBox.innerHTML =
-      `<h3>${esc(strings.invoicesHeading)}</h3>` +
-      `<table><thead><tr><th>${esc(strings.colStatus)}</th><th>${esc(strings.colTotal)}</th><th>${esc(strings.colOutstanding)}</th></tr></thead><tbody>` +
-      invoices
-        .map(
-          (i: Record<string, unknown>) =>
-            `<tr><td>${esc(i.status)}</td><td>${esc(i.currency)} ${esc(i.totalMinor)}</td><td>${esc(i.outstandingMinor)}</td></tr>`
-        )
-        .join("") +
-      `</tbody></table>`;
+      const invRes = await fetch(
+        `${BASE}/tenants/${encodeURIComponent(tenantId)}/invoices`,
+        { headers: { Accept: "application/json" } }
+      );
+      // Previously `if (!invRes.ok) return;` — a failed invoices lookup left
+      // the panel blank, indistinguishable from "this tenant has no invoices".
+      // Surface it the same way the subscriptions call does (404 vs error).
+      if (!invRes.ok) {
+        invBox.hidden = false;
+        invBox.textContent =
+          invRes.status === 404 ? strings.notFound : strings.networkError;
+        return;
+      }
+      const invoices = (await invRes.json()).data.invoices ?? [];
+      invBox.hidden = false;
+      invBox.innerHTML =
+        `<h3>${esc(strings.invoicesHeading)}</h3>` +
+        `<table><thead><tr><th>${esc(strings.colStatus)}</th><th>${esc(strings.colTotal)}</th><th>${esc(strings.colOutstanding)}</th></tr></thead><tbody>` +
+        invoices
+          .map(
+            (i: Record<string, unknown>) =>
+              `<tr><td>${esc(i.status)}</td><td>${esc(i.currency)} ${esc(i.totalMinor)}</td><td>${esc(i.outstandingMinor)}</td></tr>`
+          )
+          .join("") +
+        `</tbody></table>`;
+    } catch {
+      // A rejected fetch (network throw, not a non-OK response) must not fail
+      // silently either — show the shared network-error copy in whichever
+      // panel hasn't rendered yet.
+      const target = subsBox.hidden ? subsBox : invBox;
+      target.hidden = false;
+      target.textContent = strings.networkError;
+    }
   }
 
   document
