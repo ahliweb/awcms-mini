@@ -3331,6 +3331,21 @@ msgstr "Identifiers"
 msgid "admin.profile_identity.detail.identifier_value_placeholder"
 msgstr "Identifier value"
 
+msgid "admin.profile_identity.detail.identifier_type_label"
+msgstr "Identifier type"
+
+msgid "admin.profile_identity.detail.city_label"
+msgstr "City"
+
+msgid "admin.profile_identity.detail.country_code_label"
+msgstr "Country code"
+
+msgid "admin.profile_identity.detail.channel_identifier_label"
+msgstr "Linked identifier"
+
+msgid "admin.profile_identity.detail.channel_type_label"
+msgstr "Channel type"
+
 msgid "admin.profile_identity.detail.identifier_added"
 msgstr "Identifier added."
 

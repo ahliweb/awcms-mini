@@ -3330,6 +3330,21 @@ msgstr "Identifier"
 msgid "admin.profile_identity.detail.identifier_value_placeholder"
 msgstr "Nilai identifier"
 
+msgid "admin.profile_identity.detail.identifier_type_label"
+msgstr "Jenis identifier"
+
+msgid "admin.profile_identity.detail.city_label"
+msgstr "Kota"
+
+msgid "admin.profile_identity.detail.country_code_label"
+msgstr "Kode negara"
+
+msgid "admin.profile_identity.detail.channel_identifier_label"
+msgstr "Identifier tertaut"
+
+msgid "admin.profile_identity.detail.channel_type_label"
+msgstr "Jenis kanal"
+
 msgid "admin.profile_identity.detail.identifier_added"
 msgstr "Identifier berhasil ditambahkan."
 
