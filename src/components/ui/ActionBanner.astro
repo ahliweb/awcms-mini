@@ -41,6 +41,14 @@ const { id = "action-banner" } = Astro.props;
     font-size: var(--fs-sm);
   }
 
+  /* Animate in when JS unhides it (post-mutation feedback) — the newly
+     matching `:not([hidden])` selector triggers the entrance. Motion tokens;
+     neutralised by the reduced-motion block in tokens.css. */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+
   .action-banner[data-variant="success"] {
     background: color-mix(
       in srgb,

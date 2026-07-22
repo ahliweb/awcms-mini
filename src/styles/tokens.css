@@ -100,6 +100,60 @@
   --bp-md: 768px;
   --bp-lg: 1024px;
   --bp-xl: 1280px;
+
+  /*
+   * Motion tokens (UX/UI audit lanjutan). Durasi pendek + easing "standard"
+   * (Material) untuk animasi yang terasa profesional tanpa memperlambat
+   * operator. Semua animasi/transition WAJIB memakai token ini agar konsisten
+   * dan agar blok `prefers-reduced-motion` di bawah bisa menetralkannya
+   * serempak. `--motion-duration-*` sengaja kecil: micro-interaction, bukan
+   * pertunjukan.
+   */
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-slow: 320ms;
+  /* Standard easing: cepat keluar, melambat masuk — untuk sebagian besar
+     transisi state (hover, warna, elevasi). */
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  /* Decelerate: untuk elemen yang MASUK (banner, dialog, drawer). */
+  --motion-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  /* Accelerate: untuk elemen yang KELUAR. */
+  --motion-ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/*
+ * Keyframes bersama — dipakai komponen shared (banner, dialog, konten shell).
+ * Prefiks `awcms-` agar tidak bentrok dengan keyframe milik halaman/vendor.
+ */
+@keyframes awcms-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes awcms-slide-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes awcms-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 :root[data-theme="dark"] {
@@ -192,4 +246,52 @@ a {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/*
+ * Global micro-interactions (UX/UI audit lanjutan). Interactive controls get
+ * a short, consistent transition on the properties that actually change on
+ * hover/focus/press — so state changes feel smooth instead of instant, using
+ * the shared motion tokens. Only animates properties pages already set; adds
+ * no new colors. A 1px "press" on active gives tactile feedback on buttons.
+ */
+button,
+a,
+input,
+select,
+textarea,
+summary,
+[role="button"],
+.status-badge {
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active {
+  transform: translateY(1px);
+}
+
+/*
+ * Reduced-motion: honour the OS "reduce motion" setting (WCAG 2.3.3 /
+ * accessibility). Neutralises EVERY animation/transition (including the
+ * keyframe entrances and the global transitions above) without having to
+ * touch each component — the reason all motion routes through these shared
+ * tokens/keyframes. Uses 0.01ms (not 0) so animation `*end` events still
+ * fire for any JS relying on them.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

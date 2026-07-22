@@ -72,6 +72,10 @@ const ICONS: Record<Props["kind"], string> = {
     border: 1px solid var(--color-danger);
     border-radius: var(--radius-md);
     padding: var(--sp-4);
+    /* Gentle entrance so an error/denied notice doesn't just pop in
+       (motion tokens; neutralised by the reduced-motion block in tokens.css). */
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
   }
 
   .state-notice[data-kind="error"] {

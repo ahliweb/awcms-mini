@@ -95,6 +95,17 @@ const reasonErrorId = `${id}-reason-error`;
     background: rgba(15, 23, 42, 0.5);
   }
 
+  /* Entrance when `showModal()` sets [open] — dialog scales in, backdrop
+     fades in. Motion tokens; neutralised by the reduced-motion block in
+     tokens.css. */
+  .confirm-dialog[open] {
+    animation: awcms-scale-in var(--motion-duration-base) var(--motion-ease-out);
+  }
+
+  .confirm-dialog[open]::backdrop {
+    animation: awcms-fade-in var(--motion-duration-base) var(--motion-ease-out);
+  }
+
   .confirm-dialog-title {
     margin: 0 0 var(--sp-2);
     font-size: var(--fs-md);

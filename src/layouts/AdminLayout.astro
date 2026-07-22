@@ -601,7 +601,7 @@ const isSettingsActive = pathname === "/admin/settings";
       box-shadow: var(--shadow-lg);
       overflow-y: auto;
       transform: translateX(-100%);
-      transition: transform 0.2s ease;
+      transition: transform var(--motion-duration-base) var(--motion-ease-out);
     }
 
     .admin-sidebar[data-open="true"] {
@@ -673,6 +673,10 @@ const isSettingsActive = pathname === "/admin/settings";
     flex: 1;
     padding: var(--sp-4);
     min-width: 0;
+    /* Subtle content entrance on each page load so navigation feels
+       responsive rather than a hard cut. Motion tokens; neutralised by the
+       reduced-motion block in tokens.css. */
+    animation: awcms-fade-in var(--motion-duration-slow) var(--motion-ease-out);
   }
 
   .admin-breadcrumb ol {
