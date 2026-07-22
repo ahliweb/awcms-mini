@@ -673,10 +673,13 @@ const isSettingsActive = pathname === "/admin/settings";
     flex: 1;
     padding: var(--sp-4);
     min-width: 0;
-    /* Subtle content entrance on each page load so navigation feels
-       responsive rather than a hard cut. Motion tokens; neutralised by the
-       reduced-motion block in tokens.css. */
-    animation: awcms-fade-in var(--motion-duration-slow) var(--motion-ease-out);
+    /* Deliberately NO page-load opacity animation here: fading the whole
+       content region from opacity:0 makes every text node transiently
+       low-contrast on load, which axe-core (admin-a11y-smoke E2E) correctly
+       flags as a color-contrast violation, and which real users perceive as
+       a readability dip. Motion is applied instead to discrete, interaction-
+       or state-triggered elements (dialogs on open, banners on show, table
+       row hover) that never blanket the page's static text. */
   }
 
   .admin-breadcrumb ol {
