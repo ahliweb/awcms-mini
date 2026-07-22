@@ -530,6 +530,17 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     description: "Per-identity login lockout threshold — auth/login.ts."
   },
   {
+    name: "AUTH_LOGIN_TENANT_PICKER",
+    type: "boolean",
+    required: "optional",
+    ownerModule: "identity-access",
+    sensitivity: "non-secret",
+    profiles: ALL_PROFILES,
+    default: "false",
+    description:
+      "Render /login's tenant field as a dropdown of active tenant names instead of a manual tenant-id text input. Off by default — enabling it exposes the full active-tenant list pre-auth (tenant enumeration), acceptable for single/few-tenant deployments, an info-disclosure for multi-tenant ones — login.astro."
+  },
+  {
     name: "AUTH_LOGIN_RATE_LIMIT_MAX",
     type: "integer",
     required: "optional",

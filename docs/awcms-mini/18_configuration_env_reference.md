@@ -233,6 +233,7 @@ benar-benar scale-out horizontal; lihat runbook untuk contoh perhitungan.
 | `AUTH_SESSION_TTL_MIN`                      | –              | `120`                                    | –        | Umur sesi                                                                                                                                                                        |
 | `AUTH_COOKIE_SECURE`                        | –              | `true`                                   | –        | Cookie hanya HTTPS di prod                                                                                                                                                       |
 | `AUTH_LOGIN_MAX_ATTEMPTS`                   | –              | `5`                                      | –        | Lockout login (per identitas)                                                                                                                                                    |
+| `AUTH_LOGIN_TENANT_PICKER`                  | –              | `false`                                  | –        | Dropdown nama tenant di /login (opt-in; enumerasi tenant pra-auth)                                                                                                               |
 | `AUTH_LOGIN_RATE_LIMIT_MAX`                 | –              | `20`                                     | –        | Rate limit login per sumber+tenant (Issue #437)                                                                                                                                  |
 | `AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC`          | –              | `60`                                     | –        | Jendela waktu rate limit login (detik)                                                                                                                                           |
 | `AUTH_PASSWORD_RESET_TOKEN_TTL_MIN`         | –              | `30`                                     | –        | Umur token reset password (Issue #496)                                                                                                                                           |
@@ -1126,6 +1127,7 @@ AUTH_JWT_SECRET=change-me-in-production
 AUTH_SESSION_TTL_MIN=120
 AUTH_COOKIE_SECURE=true
 AUTH_LOGIN_MAX_ATTEMPTS=5
+AUTH_LOGIN_TENANT_PICKER=false
 AUTH_LOGIN_RATE_LIMIT_MAX=20
 AUTH_LOGIN_RATE_LIMIT_WINDOW_SEC=60
 AUTH_PASSWORD_RESET_TOKEN_TTL_MIN=30

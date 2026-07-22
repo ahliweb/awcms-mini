@@ -33,6 +33,11 @@ import { createTranslator } from "../lib/i18n/translate";
 import { buildClientErrorMessages } from "../lib/i18n/error-messages";
 import { isTurnstileRequired } from "../lib/security/turnstile";
 import { isGoogleLoginRequired } from "../lib/auth/google-oidc-config";
+import {
+  isLoginTenantPickerEnabled,
+  listActiveTenantsForLogin,
+  type LoginTenantOption
+} from "../lib/auth/login-tenant-picker";
 
 const locale = Astro.locals.locale;
 const t = await createTranslator(locale);
@@ -41,6 +46,15 @@ const turnstileSiteKey = turnstileActive
   ? process.env.TURNSTILE_SITE_KEY
   : null;
 const googleLoginActive = isGoogleLoginRequired();
+
+// Opt-in tenant picker (AUTH_LOGIN_TENANT_PICKER) — renders a dropdown of
+// active tenant names instead of the manual tenant-id text field. The list
+// is only queried when the operator has opted in, since it exposes tenant
+// names pre-auth (see login-tenant-picker.ts).
+const tenantPickerActive = isLoginTenantPickerEnabled();
+const tenantOptions: LoginTenantOption[] = tenantPickerActive
+  ? await listActiveTenantsForLogin()
+  : [];
 
 const clientStrings = {
   genericError: t("auth.login.generic_error"),
@@ -64,20 +78,44 @@ const clientStrings = {
         <h1>AWCMS-Mini</h1>
         <p id="login-error" class="login-error" role="alert" hidden></p>
 
-        <label for="tenant-id">{t("auth.login.tenant_id_label")}</label>
-        <!--
-          Requiring a manual Tenant ID field is a demo simplification for
-          this base repo — a real derived app would resolve the tenant via
-          subdomain/domain mapping instead of asking the user to paste a
-          UUID (out of scope here; see doc 15 §Autentikasi dan sesi).
-        -->
-        <input
-          id="tenant-id"
-          name="tenantId"
-          type="text"
-          required
-          autocomplete="off"
-        />
+        {
+          tenantPickerActive ? (
+            <>
+              <label for="tenant-id">{t("auth.login.tenant_label")}</label>
+              {/*
+                Opt-in dropdown (AUTH_LOGIN_TENANT_PICKER) — same `name`/`id`
+                as the text field below, so both the form submit
+                (`FormData.get("tenantId")`) and the Google-login button
+                (reads `#tenant-id`'s `.value`) work unchanged. The option
+                value is still the tenant UUID; only the visible label is the
+                friendly tenant name.
+              */}
+              <select id="tenant-id" name="tenantId" required>
+                {tenantOptions.map((tenant) => (
+                  <option value={tenant.id}>{tenant.name}</option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <>
+              <label for="tenant-id">{t("auth.login.tenant_id_label")}</label>
+              {/*
+                Requiring a manual Tenant ID field is a demo simplification
+                for this base repo — a real derived app would resolve the
+                tenant via subdomain/domain mapping instead of asking the user
+                to paste a UUID (out of scope here; see doc 15 §Autentikasi dan
+                sesi). Set AUTH_LOGIN_TENANT_PICKER=true for the dropdown.
+              */}
+              <input
+                id="tenant-id"
+                name="tenantId"
+                type="text"
+                required
+                autocomplete="off"
+              />
+            </>
+          )
+        }
 
         <label for="login-identifier">{t("auth.login.identifier_label")}</label>
         <input
