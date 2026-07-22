@@ -6929,32 +6929,36 @@ msgstr ""
 msgid "admin.workflows.state_loading"
 msgstr ""
 
-#: src/pages/login.astro:46
+#: src/pages/login.astro:60
 msgid "auth.login.generic_error"
 msgstr ""
 
-#: src/pages/login.astro:113
+#: src/pages/login.astro:151
 msgid "auth.login.google_button"
 msgstr ""
 
-#: src/pages/login.astro:82
+#: src/pages/login.astro:120
 msgid "auth.login.identifier_label"
 msgstr ""
 
-#: src/pages/login.astro:59
+#: src/pages/login.astro:73
 msgid "auth.login.page_title"
 msgstr ""
 
-#: src/pages/login.astro:91
+#: src/pages/login.astro:129
 msgid "auth.login.password_label"
 msgstr ""
 
-#: src/pages/login.astro:49
+#: src/pages/login.astro:63
 msgid "auth.login.submit"
 msgstr ""
 
-#: src/pages/login.astro:67
+#: src/pages/login.astro:101
 msgid "auth.login.tenant_id_label"
+msgstr ""
+
+#: src/pages/login.astro:84
+msgid "auth.login.tenant_label"
 msgstr ""
 
 #: src/pages/admin/examples/wizard.astro:149

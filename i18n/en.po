@@ -12,6 +12,9 @@ msgstr "Sign in · AWCMS-Mini"
 msgid "auth.login.tenant_id_label"
 msgstr "Tenant ID"
 
+msgid "auth.login.tenant_label"
+msgstr "Tenant"
+
 msgid "auth.login.identifier_label"
 msgstr "Login identifier"
 
