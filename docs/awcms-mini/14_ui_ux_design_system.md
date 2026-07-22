@@ -78,6 +78,25 @@ flowchart LR
 
 Aturan: default `system`; pilihan personal per-browser disimpan di localStorage (selalu menang bila ada) dengan fallback ke preferensi tenant `awcms_mini_tenants.default_theme` (dapat diubah admin di `/admin/settings`) untuk browser yang belum pernah memilih; `data-theme` di-set pada `<html>` sebelum paint untuk mencegah flash.
 
+### Motion & animasi (UX/UI audit lanjutan)
+
+Animasi bersifat **micro-interaction** — halus, cepat, memperjelas perubahan state; bukan pertunjukan. Semua durasi & easing memakai **motion token** di `tokens.css`, dan semua keyframe memakai prefiks `awcms-`, supaya konsisten dan bisa dinetralkan serempak.
+
+| Token                                                               | Nilai                     | Fungsi                                         |
+| ------------------------------------------------------------------- | ------------------------- | ---------------------------------------------- |
+| `--motion-duration-fast/base/slow`                                  | 120 · 200 · 320 ms        | Durasi transition/animation                    |
+| `--motion-ease-standard`                                            | `cubic-bezier(0.2,0,0,1)` | Transisi state umum (hover, warna, elevasi)    |
+| `--motion-ease-out`                                                 | `cubic-bezier(0,0,0.2,1)` | Elemen yang **masuk** (banner, dialog, drawer) |
+| `--motion-ease-in`                                                  | `cubic-bezier(0.4,0,1,1)` | Elemen yang **keluar**                         |
+| `@keyframes awcms-fade-in` / `awcms-slide-up-in` / `awcms-scale-in` | —                         | Entrance bersama (konten, banner, dialog)      |
+
+Aturan wajib:
+
+- **Kontrol interaktif** (`button`/`a`/`input`/`select`/`textarea`/`summary`/`[role=button]`/`.status-badge`) mendapat transition global pendek di `tokens.css` — jangan mendeklarasikan transition warna/hover per-halaman lagi; cukup ubah nilai target (mis. `background` saat `:hover`) dan transition-nya sudah otomatis.
+- **`prefers-reduced-motion: reduce`** WAJIB dihormati — `tokens.css` sudah punya satu blok global yang menetralkan SEMUA animation/transition (0.01ms). Karena itu tiap animasi baru **harus** lewat token/keyframe di atas (bukan durasi/keyframe hardcode), supaya ikut ternetralkan tanpa menyentuh blok itu.
+- **Tanpa layout shift** — animasikan hanya `opacity`/`transform`/warna/`box-shadow`; jangan animasikan `width`/`height`/`top`/`left` yang menggeser tata letak (doc §Perceived performance).
+- Komponen shared yang sudah beranimasi: `StateNotice`/`ActionBanner` (slide-up-in saat muncul), `ConfirmDialog` (scale-in + backdrop fade saat `showModal()`), `AdminLayout` (konten fade-in per-navigasi, drawer transform pakai `--motion-ease-out`), `DataTable` (row hover). Ikuti pola ini saat menambah komponen baru.
+
 ## Component library
 
 Komponen dasar di `src/components/ui`, dipakai lintas persona.

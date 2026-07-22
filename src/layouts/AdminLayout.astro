@@ -601,7 +601,7 @@ const isSettingsActive = pathname === "/admin/settings";
       box-shadow: var(--shadow-lg);
       overflow-y: auto;
       transform: translateX(-100%);
-      transition: transform 0.2s ease;
+      transition: transform var(--motion-duration-base) var(--motion-ease-out);
     }
 
     .admin-sidebar[data-open="true"] {
@@ -673,6 +673,13 @@ const isSettingsActive = pathname === "/admin/settings";
     flex: 1;
     padding: var(--sp-4);
     min-width: 0;
+    /* Deliberately NO page-load opacity animation here: fading the whole
+       content region from opacity:0 makes every text node transiently
+       low-contrast on load, which axe-core (admin-a11y-smoke E2E) correctly
+       flags as a color-contrast violation, and which real users perceive as
+       a readability dip. Motion is applied instead to discrete, interaction-
+       or state-triggered elements (dialogs on open, banners on show, table
+       row hover) that never blanket the page's static text. */
   }
 
   .admin-breadcrumb ol {

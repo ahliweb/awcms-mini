@@ -97,6 +97,17 @@ const { id, caption, columnCount, isEmpty = false, emptyMessage } = Astro.props;
     font-weight: 600;
   }
 
+  /* Subtle row hover so wide tables are easier to scan. Transition comes
+     from the global rule in tokens.css; neutralised under reduced-motion. */
+  .data-table :global(tbody tr) {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+
+  .data-table :global(tbody tr:hover) {
+    background: var(--color-surface-2);
+  }
+
   .data-table-empty {
     color: var(--color-text-muted);
     text-align: center !important;
