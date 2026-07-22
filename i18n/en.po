@@ -30,6 +30,30 @@ msgstr "Continue with Google"
 msgid "auth.login.generic_error"
 msgstr "Login failed. Try again."
 
+msgid "auth.login.heading"
+msgstr "Sign in"
+
+msgid "auth.login.subtitle"
+msgstr "Welcome back. Sign in to your workspace."
+
+msgid "auth.login.footer"
+msgstr "Secured workspace access"
+
+msgid "auth.login.tenant_context_label"
+msgstr "Signing in to"
+
+msgid "auth.login.password_show"
+msgstr "Show"
+
+msgid "auth.login.password_hide"
+msgstr "Hide"
+
+msgid "auth.login.password_show_aria"
+msgstr "Show password"
+
+msgid "auth.login.password_hide_aria"
+msgstr "Hide password"
+
 #. common
 msgid "common.network_error"
 msgstr "Could not reach the server. Try again."
