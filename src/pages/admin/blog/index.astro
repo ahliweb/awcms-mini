@@ -400,4 +400,37 @@ if (hasAnyAccess) {
     border-color: var(--color-warning);
     color: var(--color-warning-contrast);
   }
+
+  /* --- UX polish (responsive + motion) --- */
+
+  /* Summary cards gain a gentle elevation on hover — signals the surface is
+     an interactive dashboard tile without a layout shift. Routes through the
+     shared motion tokens so the global prefers-reduced-motion reset in
+     tokens.css neutralises it. */
+  .dashboard-card {
+    transition: box-shadow var(--motion-duration-base)
+      var(--motion-ease-standard);
+  }
+
+  .dashboard-card:hover {
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Row-hover highlight on the recent-updates table, matching the shared
+     DataTable idiom (motion tokens; neutralised by reduced-motion). */
+  .blog-table tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+
+  .blog-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+
+  /* Single-column dashboard grid on very narrow screens (no 320px overflow). */
+  @media (max-width: 480px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>

@@ -410,4 +410,39 @@ function pageHref(targetPage: number): string {
       min-height: 44px;
     }
   }
+
+  /* --- UX polish (responsive + motion) --- */
+
+  /* Row-hover highlight, matching the shared DataTable idiom (motion tokens;
+     neutralised by the global prefers-reduced-motion reset in tokens.css). */
+  .blog-table tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+
+  .blog-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+
+  /* Stack the filter toolbar into one full-width column on phones so every
+     control stays tappable and the page never scrolls sideways at 320px. */
+  @media (max-width: 640px) {
+    .filter-form {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .filter-form label,
+    .filter-form input,
+    .filter-form select,
+    .filter-form button {
+      width: 100%;
+    }
+
+    .reset-link {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+    }
+  }
 </style>

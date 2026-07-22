@@ -391,6 +391,16 @@ if (CAN_READ_SETTINGS || CAN_READ_THEME) {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
+
+  /* --- UX polish (motion) --- */
+
+  /* Animate the feedback banner in when JS unhides it post-save, matching
+     ActionBanner.astro (motion tokens; neutralised by the global
+     prefers-reduced-motion reset in tokens.css). */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
 </style>
 
 <script>

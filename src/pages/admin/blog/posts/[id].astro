@@ -859,6 +859,27 @@ const canSoftDelete = data !== null && !data.post.deletedAt && CAN_DELETE;
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
+
+  /* --- UX polish (motion) --- */
+
+  /* Animate the feedback banner in when JS unhides it post-mutation, matching
+     ActionBanner.astro (motion tokens; neutralised by the global
+     prefers-reduced-motion reset in tokens.css). */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+
+  /* Row-hover highlight on the revisions table, matching the shared DataTable
+     idiom. */
+  .blog-table tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+
+  .blog-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
 </style>
 
 <script>
