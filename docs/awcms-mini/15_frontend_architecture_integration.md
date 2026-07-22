@@ -142,6 +142,7 @@ rujuk `admin-form-client.ts` di atas untuk pola nyata yang sudah dipakai.
 - `GET /auth/me` untuk hidrasi konteks (roles, default office, permission untuk filter navigasi).
 - Logout `POST /auth/logout` → invalidasi sesi + hapus cookie.
 - Token/secret **tidak pernah** disimpan di localStorage yang dapat diakses skrip pihak ketiga.
+- Halaman `/login` (`src/pages/login.astro`) = kartu auth mobile-first (doc 14 §Auth screen): brand + judul/subjudul, field tenant adaptif (readout single-tenant / `<select>` / manual sesuai `AUTH_LOGIN_TENANT_PICKER`), toggle show/hide password CSP-safe, dan submit anti-double-submit (`lockElement`). Script-nya modul yang di-bundle (bukan inline — patuh CSP `default-src 'self'`); string yang dibutuhkan client diinject via blob `<script type="application/json" id="i18n-strings">` karena katalog `.po` server-side only.
 
 ```mermaid
 sequenceDiagram

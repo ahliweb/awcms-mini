@@ -134,7 +134,10 @@ isTurnstileRequired(env)
   forgot/reset/setup — belum punya halaman UI di repo ini, baru endpoint
   API-nya) saat `isTurnstileRequired()` true; token dikirim sebagai field
   opsional `turnstileToken` di body JSON, dibaca dari hidden field
-  `cf-turnstile-response` yang otomatis diisi widget.
+  `cf-turnstile-response` yang otomatis diisi widget. UI `login.astro` sudah
+  di-redesign jadi kartu auth mobile-first (doc 14 §Auth screen) — widget
+  Turnstile render di dalam `.auth-form` (class `cf-turnstile auth-turnstile`);
+  gating `isTurnstileRequired()` dan alur token TIDAK berubah oleh redesign.
 - Error code i18n: `error.turnstile_required`/`error.turnstile_invalid`
   (`src/lib/i18n/error-messages.ts`, `i18n/en.po`+`id.po`).
 

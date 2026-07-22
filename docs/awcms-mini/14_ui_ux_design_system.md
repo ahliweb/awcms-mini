@@ -95,6 +95,7 @@ Aturan wajib:
 - **Kontrol interaktif** (`button`/`a`/`input`/`select`/`textarea`/`summary`/`[role=button]`/`.status-badge`) mendapat transition global pendek di `tokens.css` — jangan mendeklarasikan transition warna/hover per-halaman lagi; cukup ubah nilai target (mis. `background` saat `:hover`) dan transition-nya sudah otomatis.
 - **`prefers-reduced-motion: reduce`** WAJIB dihormati — `tokens.css` sudah punya satu blok global yang menetralkan SEMUA animation/transition (0.01ms). Karena itu tiap animasi baru **harus** lewat token/keyframe di atas (bukan durasi/keyframe hardcode), supaya ikut ternetralkan tanpa menyentuh blok itu.
 - **Tanpa layout shift** — animasikan hanya `opacity`/`transform`/warna/`box-shadow`; jangan animasikan `width`/`height`/`top`/`left` yang menggeser tata letak (doc §Perceived performance).
+- **Entrance konten yang sudah tampil saat SSR harus `transform`-saja — JANGAN dari `opacity: 0`.** Scan axe-core dapat membaca teks setengah-transparan di tengah animasi sebagai pelanggaran kontras (pernah terjadi pada fade `.admin-main`, sudah difix; entrance kartu login sengaja `translateY`-only via `@keyframes auth-card-rise` di `login.astro`). Fade dari `opacity: 0` hanya boleh untuk elemen yang `hidden` sampai di-reveal JS (banner/dialog pasca-aksi), bukan untuk konten utama yang langsung terlihat.
 - Komponen shared yang sudah beranimasi: `StateNotice`/`ActionBanner` (slide-up-in saat muncul), `ConfirmDialog` (scale-in + backdrop fade saat `showModal()`), `AdminLayout` (konten fade-in per-navigasi, drawer transform pakai `--motion-ease-out`), `DataTable` (row hover). Ikuti pola ini saat menambah komponen baru.
 
 ## Component library
@@ -162,6 +163,37 @@ flowchart TD
 Item menu difilter oleh permission efektif user (lihat doc 17). Menu tanpa akses disembunyikan, tetapi endpoint tetap dilindungi ABAC.
 
 ## Layout shell
+
+### Auth screen (login) — modern, mobile-first
+
+`src/pages/login.astro` adalah pola layar auth publik **kanonis** (redesign fase UI/UX, dimodelkan dari sibling `awcms` lalu diadaptasi ke token awcms-mini): kartu `.auth-card` terpusat di atas background radial-gradient halus (`--color-bg` + tint `color-mix` `--color-primary` + `--color-surface-2`), elevasi `--shadow-lg`. Layar auth publik lain (mis. reset/forgot password bila ditambah kelak) mengikuti pola yang sama.
+
+```text
+┌───────────────────────────┐
+│  [A]  AWCMS-Mini           │  ← brand: .auth-mark (badge gradient) + .auth-wordmark
+│  Sign in                   │  ← .auth-title (h1)
+│  Welcome back. Sign in…    │  ← .auth-subtitle
+│  ┌───────────────────────┐ │
+│  │ SIGNING IN TO         │ │  ← .auth-tenant-context (mode single-tenant)
+│  │ AWCMS Mini            │ │
+│  └───────────────────────┘ │
+│  Login identifier  [_____] │
+│  Password     [____] [Show]│  ← .auth-password + toggle show/hide
+│  [      Sign in         ]  │  ← .auth-submit (primary)
+│  [ Continue with Google ]  │  ← .auth-google (outline, opsional)
+│  Secured workspace access  │  ← .auth-foot
+└───────────────────────────┘
+```
+
+Aturan pola (sudah diimplementasikan — ikuti, jangan regresi):
+
+- **Kontrak DOM stabil** (jangan rename — script client bergantung padanya): `#login-form`, `#tenant-id`, `#login-identifier`, `#password`, `#login-submit`, `#login-error`. Field tenant SELALU `id="tenant-id"` + `name="tenantId"` di ketiga bentuknya sehingga submit (`FormData`) dan tombol Google (`#tenant-id`.value) tetap jalan.
+- **Field tenant adaptif** (`AUTH_LOGIN_TENANT_PICKER`, presentation-only — helper `listActiveTenantsForLogin()` tak berubah): tepat 1 tenant aktif → readout read-only "Signing in to <name>" (`.auth-tenant-context`) + `#tenant-id` hidden; ≥2 → `<select>` bergaya nama tenant; picker off / 0 baris → input teks manual.
+- **Toggle show/hide password** di-wire di script MODUL yang di-bundle (bukan `onclick` inline — patuh CSP `default-src 'self'`), `aria-pressed` + `aria-label` ter-i18n yang berubah saat state berubah.
+- **Select kustom**: caret digambar via CSS (`.auth-select::after`, trik border), bukan `data:` URI SVG — tetap CSP-safe; native `<select>` tetap dipakai.
+- **Entrance kartu** `@keyframes auth-card-rise` = `transform`-saja (translateY), TIDAK dari `opacity: 0` (lihat §Motion — hindari flag kontras axe). Ternetralkan blok `prefers-reduced-motion` global.
+- **Token adaptasi**: awcms-mini tak punya `--radius-xl`/`--color-primary-soft`/`--fw-*`; tint via `color-mix(in srgb, var(--color-primary) N%, …)`, hover primary via `color-mix(… #000)` (darkener theme-independent — `--color-primary` polos gagal AA dengan teks putih), bobot font literal (700/600/500).
+- **i18n**: semua teks lewat `t("auth.login.*")`; string yang dibutuhkan client (show/hide, error) diinject via `<script type="application/json" id="i18n-strings">` karena katalog `.po` server-side only. Turnstile/Google-OIDC gating tak berubah (lihat skill `awcms-mini-auth-online-hardening`).
 
 ### Admin shell (desktop-first, responsive drawer di bawah `--bp-md`)
 
@@ -269,6 +301,8 @@ stateDiagram-v2
 - Dialog memerangkap fokus; `Esc` menutup; fokus kembali ke pemicu.
 - Target sentuh ≥ 44px untuk portal mobile.
 - Jangan mengandalkan warna saja untuk status (tambah ikon/teks).
+- Toggle show/hide password: `aria-pressed` + `aria-label` ter-i18n yang mengikuti state, di-wire via `addEventListener` (bukan `onclick` inline — CSP `default-src 'self'`). Contoh: `login.astro` `#password-toggle`.
+- Kontrol kustom yang menyembunyikan native (mis. `<select>` bergaya): gambar afordansi (caret) via CSS `::after`, bukan `data:` URI; native `<select>` tetap dipakai agar keyboard + a11y bawaan tetap ada.
 
 ## Internationalization (i18n)
 
