@@ -376,6 +376,26 @@ function toDateTimeLocal(date: Date | null): string {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
   }
+
+  /* --- UX polish (motion) --- */
+
+  /* Animate the feedback banner in when JS unhides it post-mutation, matching
+     ActionBanner.astro (motion tokens; neutralised by the global
+     prefers-reduced-motion reset in tokens.css). */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+
+  /* Each ad card gains a gentle elevation on hover (no layout shift). */
+  .menu-card {
+    transition: box-shadow var(--motion-duration-base)
+      var(--motion-ease-standard);
+  }
+
+  .menu-card:hover {
+    box-shadow: var(--shadow-md);
+  }
 </style>
 
 <script>
