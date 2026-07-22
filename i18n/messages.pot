@@ -4268,7 +4268,7 @@ msgstr ""
 msgid "admin.profile_identity.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:256
+#: src/pages/admin/profile-identity/[id].astro:258
 msgid "admin.profile_identity.detail.add_button"
 msgstr ""
 
@@ -4280,11 +4280,11 @@ msgstr ""
 msgid "admin.profile_identity.detail.address_deleted"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:290
+#: src/pages/admin/profile-identity/[id].astro:292
 msgid "admin.profile_identity.detail.address_line_placeholder"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:263
+#: src/pages/admin/profile-identity/[id].astro:265
 msgid "admin.profile_identity.detail.addresses_title"
 msgstr ""
 
@@ -4308,27 +4308,27 @@ msgstr ""
 msgid "admin.profile_identity.detail.channel_deleted"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:344
+#: src/pages/admin/profile-identity/[id].astro:346
 msgid "admin.profile_identity.detail.channel_identifier_label"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:355
+#: src/pages/admin/profile-identity/[id].astro:359
 msgid "admin.profile_identity.detail.channel_type_label"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:317
+#: src/pages/admin/profile-identity/[id].astro:319
 msgid "admin.profile_identity.detail.channels_title"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:297
+#: src/pages/admin/profile-identity/[id].astro:299
 msgid "admin.profile_identity.detail.city_label"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:457
+#: src/pages/admin/profile-identity/[id].astro:463
 msgid "admin.profile_identity.detail.confirm_duplicate_button"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:305
+#: src/pages/admin/profile-identity/[id].astro:307
 msgid "admin.profile_identity.detail.country_code_label"
 msgstr ""
 
@@ -4340,15 +4340,15 @@ msgstr ""
 msgid "admin.profile_identity.detail.delete_reason_prompt"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:430
+#: src/pages/admin/profile-identity/[id].astro:436
 msgid "admin.profile_identity.detail.duplicate_candidates_title"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:391
+#: src/pages/admin/profile-identity/[id].astro:397
 msgid "admin.profile_identity.detail.end_relationship_button"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:419
+#: src/pages/admin/profile-identity/[id].astro:425
 msgid "admin.profile_identity.detail.field_is_representative"
 msgstr ""
 
@@ -4364,7 +4364,7 @@ msgstr ""
 msgid "admin.profile_identity.detail.identifier_type_label"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:248
+#: src/pages/admin/profile-identity/[id].astro:250
 msgid "admin.profile_identity.detail.identifier_value_placeholder"
 msgstr ""
 
@@ -4372,7 +4372,7 @@ msgstr ""
 msgid "admin.profile_identity.detail.identifiers_title"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:495
+#: src/pages/admin/profile-identity/[id].astro:501
 msgid "admin.profile_identity.detail.merge_reason_placeholder"
 msgstr ""
 
@@ -4384,7 +4384,7 @@ msgstr ""
 msgid "admin.profile_identity.detail.no_records"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:467
+#: src/pages/admin/profile-identity/[id].astro:473
 msgid "admin.profile_identity.detail.not_duplicate_button"
 msgstr ""
 
@@ -4392,7 +4392,7 @@ msgstr ""
 msgid "admin.profile_identity.detail.not_found"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:406
+#: src/pages/admin/profile-identity/[id].astro:412
 msgid "admin.profile_identity.detail.other_profile_id_placeholder"
 msgstr ""
 
@@ -4404,7 +4404,7 @@ msgstr ""
 msgid "admin.profile_identity.detail.relationship_ended"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:370
+#: src/pages/admin/profile-identity/[id].astro:376
 msgid "admin.profile_identity.detail.relationships_title"
 msgstr ""
 
@@ -4424,7 +4424,7 @@ msgstr ""
 msgid "admin.profile_identity.detail.review_success"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:434
+#: src/pages/admin/profile-identity/[id].astro:440
 msgid "admin.profile_identity.detail.scan_button"
 msgstr ""
 
@@ -4432,15 +4432,15 @@ msgstr ""
 msgid "admin.profile_identity.detail.scan_success"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:500
+#: src/pages/admin/profile-identity/[id].astro:506
 msgid "admin.profile_identity.detail.start_merge_button"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:481
+#: src/pages/admin/profile-identity/[id].astro:487
 msgid "admin.profile_identity.detail.start_merge_title"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:487
+#: src/pages/admin/profile-identity/[id].astro:493
 msgid "admin.profile_identity.detail.survivor_profile_id_placeholder"
 msgstr ""
 
@@ -4452,7 +4452,7 @@ msgstr ""
 msgid "admin.profile_identity.detail.update_success"
 msgstr ""
 
-#: src/pages/admin/profile-identity/[id].astro:505
+#: src/pages/admin/profile-identity/[id].astro:511
 msgid "admin.profile_identity.detail.view_merge_requests_link"
 msgstr ""
 
