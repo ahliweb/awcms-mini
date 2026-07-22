@@ -56,8 +56,10 @@ const { label, variant } = Astro.props;
        themes' `--color-warning` are mid-brightness amber/orange (#d97706
        light, #f59e0b dark) — a fixed dark navy stays >=4.5:1 against both,
        whereas `--color-text` flips to near-white in dark mode and would
-       fail badly against this same light-amber fill. */
-    color: #1a1f26;
+       fail badly against this same light-amber fill. Token-ised as
+       `--color-warning-contrast` (tokens.css) so the hand-rolled warning
+       pills across the module screens share the same value. */
+    color: var(--color-warning-contrast);
   }
 
   .status-badge[data-variant="danger"] {

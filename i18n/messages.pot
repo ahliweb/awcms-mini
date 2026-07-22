@@ -37,11 +37,11 @@ msgstr ""
 msgid "admin.access_users.assign_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:395
+#: src/pages/admin/access-users.astro:396
 msgid "admin.access_users.code_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:547
+#: src/pages/admin/access-users.astro:548
 msgid "admin.access_users.create_role_submit"
 msgstr ""
 
@@ -49,11 +49,11 @@ msgstr ""
 msgid "admin.access_users.create_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:495
+#: src/pages/admin/access-users.astro:496
 msgid "admin.access_users.create_role_summary"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:372
+#: src/pages/admin/access-users.astro:373
 msgid "admin.access_users.create_user_submit"
 msgstr ""
 
@@ -69,7 +69,7 @@ msgstr ""
 msgid "admin.access_users.deactivate_button"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:484
+#: src/pages/admin/access-users.astro:485
 msgid "admin.access_users.delete_button"
 msgstr ""
 
@@ -89,11 +89,11 @@ msgstr ""
 msgid "admin.access_users.delete_role_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:422
+#: src/pages/admin/access-users.astro:423
 msgid "admin.access_users.edit_summary"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:358
+#: src/pages/admin/access-users.astro:359
 msgid "admin.access_users.initial_roles_legend"
 msgstr ""
 
@@ -113,7 +113,7 @@ msgstr ""
 msgid "admin.access_users.name_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:390
+#: src/pages/admin/access-users.astro:391
 msgid "admin.access_users.no_roles"
 msgstr ""
 
@@ -125,19 +125,19 @@ msgstr ""
 msgid "admin.access_users.password_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:396
+#: src/pages/admin/access-users.astro:397
 msgid "admin.access_users.permission_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:447
+#: src/pages/admin/access-users.astro:448
 msgid "admin.access_users.permission_legend"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:499
+#: src/pages/admin/access-users.astro:500
 msgid "admin.access_users.role_code_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:500
+#: src/pages/admin/access-users.astro:501
 msgid "admin.access_users.role_code_placeholder"
 msgstr ""
 
@@ -145,15 +145,15 @@ msgstr ""
 msgid "admin.access_users.role_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:431
+#: src/pages/admin/access-users.astro:432
 msgid "admin.access_users.role_name_label"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:383
+#: src/pages/admin/access-users.astro:384
 msgid "admin.access_users.roles_title"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:474
+#: src/pages/admin/access-users.astro:475
 msgid "admin.access_users.save_button"
 msgstr ""
 
@@ -161,11 +161,11 @@ msgstr ""
 msgid "admin.access_users.status_column"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:409
+#: src/pages/admin/access-users.astro:410
 msgid "admin.access_users.system_role_badge"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:449
+#: src/pages/admin/access-users.astro:450
 msgid "admin.access_users.system_role_note"
 msgstr ""
 
@@ -185,7 +185,7 @@ msgstr ""
 msgid "admin.access_users.update_status_success"
 msgstr ""
 
-#: src/pages/admin/access-users.astro:397
+#: src/pages/admin/access-users.astro:398
 msgid "admin.access_users.users_column"
 msgstr ""
 
@@ -6533,7 +6533,7 @@ msgstr ""
 msgid "admin.tenant_provisioning.col_step"
 msgstr ""
 
-#: src/pages/admin/tenant-provisioning/index.astro:152
+#: src/pages/admin/tenant-provisioning/index.astro:153
 msgid "admin.tenant_provisioning.create_button"
 msgstr ""
 
@@ -6545,15 +6545,15 @@ msgstr ""
 msgid "admin.tenant_provisioning.create_success"
 msgstr ""
 
-#: src/pages/admin/tenant-provisioning/index.astro:148
+#: src/pages/admin/tenant-provisioning/index.astro:149
 msgid "admin.tenant_provisioning.field_locale"
 msgstr ""
 
-#: src/pages/admin/tenant-provisioning/index.astro:140
+#: src/pages/admin/tenant-provisioning/index.astro:141
 msgid "admin.tenant_provisioning.field_office_code"
 msgstr ""
 
-#: src/pages/admin/tenant-provisioning/index.astro:144
+#: src/pages/admin/tenant-provisioning/index.astro:145
 msgid "admin.tenant_provisioning.field_office_name"
 msgstr ""
 
@@ -6577,7 +6577,7 @@ msgstr ""
 msgid "admin.tenant_provisioning.field_plan_version"
 msgstr ""
 
-#: src/pages/admin/tenant-provisioning/index.astro:162
+#: src/pages/admin/tenant-provisioning/index.astro:163
 msgid "admin.tenant_provisioning.field_target_tenant"
 msgstr ""
 
@@ -6593,11 +6593,11 @@ msgstr ""
 msgid "admin.tenant_provisioning.intro"
 msgstr ""
 
-#: src/pages/admin/tenant-provisioning/index.astro:166
+#: src/pages/admin/tenant-provisioning/index.astro:167
 msgid "admin.tenant_provisioning.lookup_button"
 msgstr ""
 
-#: src/pages/admin/tenant-provisioning/index.astro:159
+#: src/pages/admin/tenant-provisioning/index.astro:160
 msgid "admin.tenant_provisioning.lookup_heading"
 msgstr ""
 

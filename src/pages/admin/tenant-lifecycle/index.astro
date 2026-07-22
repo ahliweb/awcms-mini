@@ -114,10 +114,20 @@ const clientStrings = {
     border-radius: var(--radius-md, 0.5rem);
   }
   .action-banner[data-variant="success"] {
-    background: var(--color-success-subtle, #dcfce7);
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
   }
   .action-banner[data-variant="error"] {
-    background: var(--color-danger-subtle, #fee2e2);
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
   }
   .intro {
     color: var(--color-text-muted, #71717a);

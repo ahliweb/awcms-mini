@@ -226,13 +226,21 @@ if (CAN_READ) {
   }
 
   .action-banner[data-variant="success"] {
-    background: var(--color-success-surface, #e6f4ea);
-    color: var(--color-success-strong, #1e7e34);
+    background: color-mix(
+      in srgb,
+      var(--color-success) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-success);
   }
 
   .action-banner[data-variant="error"] {
-    background: var(--color-danger-surface, #fdecea);
-    color: var(--color-danger-strong);
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 15%,
+      var(--color-surface)
+    );
+    border: 1px solid var(--color-danger);
   }
 
   .data-table {
