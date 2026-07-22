@@ -112,55 +112,59 @@ if (CAN_READ) {
             {t("admin.organization_structure.units.no_rows")}
           </p>
         ) : (
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th scope="col">
-                  {t("admin.organization_structure.units.col_code")}
-                </th>
-                <th scope="col">
-                  {t("admin.organization_structure.units.col_name")}
-                </th>
-                <th scope="col">
-                  {t("admin.organization_structure.units.col_status")}
-                </th>
-                <th scope="col">
-                  {t("admin.organization_structure.units.col_actions")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {units.map((unit) => (
-                <tr data-id={unit.id}>
-                  <td>{unit.code}</td>
-                  <td>{unit.name}</td>
-                  <td>{unit.deletedAt ? "deleted" : unit.status}</td>
-                  <td>
-                    {CAN_DELETE && !unit.deletedAt && (
-                      <button
-                        type="button"
-                        class="deactivate-button"
-                        data-id={unit.id}
-                      >
-                        {t(
-                          "admin.organization_structure.units.deactivate_button"
-                        )}
-                      </button>
-                    )}
-                    {CAN_RESTORE && unit.deletedAt && (
-                      <button
-                        type="button"
-                        class="restore-button"
-                        data-id={unit.id}
-                      >
-                        {t("admin.organization_structure.units.restore_button")}
-                      </button>
-                    )}
-                  </td>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    {t("admin.organization_structure.units.col_code")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.organization_structure.units.col_name")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.organization_structure.units.col_status")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.organization_structure.units.col_actions")}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {units.map((unit) => (
+                  <tr data-id={unit.id}>
+                    <td>{unit.code}</td>
+                    <td>{unit.name}</td>
+                    <td>{unit.deletedAt ? "deleted" : unit.status}</td>
+                    <td>
+                      {CAN_DELETE && !unit.deletedAt && (
+                        <button
+                          type="button"
+                          class="deactivate-button"
+                          data-id={unit.id}
+                        >
+                          {t(
+                            "admin.organization_structure.units.deactivate_button"
+                          )}
+                        </button>
+                      )}
+                      {CAN_RESTORE && unit.deletedAt && (
+                        <button
+                          type="button"
+                          class="restore-button"
+                          data-id={unit.id}
+                        >
+                          {t(
+                            "admin.organization_structure.units.restore_button"
+                          )}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {CAN_CREATE && (
@@ -314,6 +318,49 @@ if (CAN_READ) {
   button:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+  }
+
+  /* --- UX polish: responsive + motion (motion tokens from tokens.css;
+     the reduced-motion block there neutralises all of it). --- */
+  /* Wide table scrolls inside its own box instead of forcing the whole page
+     to scroll horizontally at 320px (doc 14 §Responsif). */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  /* Subtle row hover so the list is easier to scan. */
+  .data-table tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  .data-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+  /* Slide the post-mutation banner in when JS unhides it (matches the shared
+     ActionBanner idiom). */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Bigger disclosure hit area + hover affordance. */
+  .create-config summary {
+    padding-block: var(--sp-1);
+  }
+  .create-config summary:hover {
+    color: var(--color-primary);
+  }
+  /* Reveal the form when the user opens the disclosure — state-triggered
+     (closed by default), never a page-load fade of SSR content. */
+  .create-config[open] .create-config-form {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Touch targets >= 44px on mobile. */
+  @media (max-width: 640px) {
+    .create-config-form input,
+    .create-config-form select,
+    .create-config-form textarea {
+      min-height: 44px;
+    }
   }
 </style>
 

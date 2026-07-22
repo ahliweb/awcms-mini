@@ -147,64 +147,66 @@ if (CAN_READ) {
                 {t("admin.reference_data.tenant_codes.no_rows")}
               </p>
             ) : (
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">
-                      {t("admin.reference_data.tenant_codes.col_code")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.reference_data.tenant_codes.col_kind")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.reference_data.tenant_codes.col_label")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.reference_data.tenant_codes.col_status")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.reference_data.tenant_codes.col_actions")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tenantCodes.map((tc) => (
-                    <tr data-id={tc.id}>
-                      <td>{tc.code}</td>
-                      <td>{tc.baseCodeId ? "override" : "extension"}</td>
-                      <td>
-                        {tc.labels.find((l) => l.locale === "en")?.label ??
-                          tc.code}
-                      </td>
-                      <td>{tc.deprecatedAt ? "deprecated" : "active"}</td>
-                      <td>
-                        {CAN_DELETE && !tc.deprecatedAt && (
-                          <button
-                            type="button"
-                            class="deprecate-button"
-                            data-id={tc.id}
-                          >
-                            {t(
-                              "admin.reference_data.tenant_codes.deprecate_button"
-                            )}
-                          </button>
-                        )}
-                        {CAN_RESTORE && tc.deprecatedAt && (
-                          <button
-                            type="button"
-                            class="restore-button"
-                            data-id={tc.id}
-                          >
-                            {t(
-                              "admin.reference_data.tenant_codes.restore_button"
-                            )}
-                          </button>
-                        )}
-                      </td>
+              <div class="table-scroll">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">
+                        {t("admin.reference_data.tenant_codes.col_code")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.reference_data.tenant_codes.col_kind")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.reference_data.tenant_codes.col_label")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.reference_data.tenant_codes.col_status")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.reference_data.tenant_codes.col_actions")}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {tenantCodes.map((tc) => (
+                      <tr data-id={tc.id}>
+                        <td>{tc.code}</td>
+                        <td>{tc.baseCodeId ? "override" : "extension"}</td>
+                        <td>
+                          {tc.labels.find((l) => l.locale === "en")?.label ??
+                            tc.code}
+                        </td>
+                        <td>{tc.deprecatedAt ? "deprecated" : "active"}</td>
+                        <td>
+                          {CAN_DELETE && !tc.deprecatedAt && (
+                            <button
+                              type="button"
+                              class="deprecate-button"
+                              data-id={tc.id}
+                            >
+                              {t(
+                                "admin.reference_data.tenant_codes.deprecate_button"
+                              )}
+                            </button>
+                          )}
+                          {CAN_RESTORE && tc.deprecatedAt && (
+                            <button
+                              type="button"
+                              class="restore-button"
+                              data-id={tc.id}
+                            >
+                              {t(
+                                "admin.reference_data.tenant_codes.restore_button"
+                              )}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {CAN_CREATE && (
@@ -355,6 +357,56 @@ if (CAN_READ) {
   button:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+  }
+
+  /* --- UX polish: responsive + motion (motion tokens from tokens.css;
+     the reduced-motion block there neutralises all of it). --- */
+  /* Wide table scrolls inside its own box instead of forcing the whole page
+     to scroll horizontally at 320px (doc 14 §Responsif). */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  /* Subtle row hover so the list is easier to scan. */
+  .data-table tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  .data-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+  /* Slide the post-mutation banner in when JS unhides it (matches the shared
+     ActionBanner idiom). */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Keep the value-set filter as a compact stacked control. */
+  .select-value-set-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+    max-width: 480px;
+  }
+  /* Bigger disclosure hit area + hover affordance. */
+  .create-config summary {
+    padding-block: var(--sp-1);
+  }
+  .create-config summary:hover {
+    color: var(--color-primary);
+  }
+  /* Reveal the form when the user opens the disclosure — state-triggered
+     (closed by default), never a page-load fade of SSR content. */
+  .create-config[open] .create-config-form {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Touch targets >= 44px on mobile. */
+  @media (max-width: 640px) {
+    .create-config-form input,
+    .select-value-set-form select {
+      min-height: 44px;
+    }
   }
 </style>
 

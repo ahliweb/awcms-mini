@@ -108,28 +108,30 @@ function unitName(unitId: string | null): string {
             {t("admin.organization_structure.hierarchy.no_rows")}
           </p>
         ) : (
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th scope="col">
-                  {t("admin.organization_structure.hierarchy.col_unit")}
-                </th>
-                <th scope="col">
-                  {t("admin.organization_structure.hierarchy.col_parent")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {units.map((unit) => (
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
                 <tr>
-                  <td>
-                    {unit.name} ({unit.code})
-                  </td>
-                  <td>{unitName(edges.get(unit.id) ?? null)}</td>
+                  <th scope="col">
+                    {t("admin.organization_structure.hierarchy.col_unit")}
+                  </th>
+                  <th scope="col">
+                    {t("admin.organization_structure.hierarchy.col_parent")}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {units.map((unit) => (
+                  <tr>
+                    <td>
+                      {unit.name} ({unit.code})
+                    </td>
+                    <td>{unitName(edges.get(unit.id) ?? null)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {CAN_ASSIGN && (
@@ -257,6 +259,45 @@ function unitName(unitId: string | null): string {
   button:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+  }
+
+  /* --- UX polish: responsive + motion (motion tokens from tokens.css;
+     the reduced-motion block there neutralises all of it). --- */
+  /* Wide table scrolls inside its own box instead of forcing the whole page
+     to scroll horizontally at 320px (doc 14 §Responsif). */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  /* Subtle row hover so the list is easier to scan. */
+  .data-table tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  .data-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+  /* Slide the post-mutation banner in when JS unhides it (matches the shared
+     ActionBanner idiom). */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Bigger disclosure hit area + hover affordance. (No open-state reveal
+     animation here: this page's disclosure is `open` on load, so animating
+     it would fade SSR-visible content — deliberately omitted.) */
+  .create-config summary {
+    padding-block: var(--sp-1);
+  }
+  .create-config summary:hover {
+    color: var(--color-primary);
+  }
+  /* Touch targets >= 44px on mobile. */
+  @media (max-width: 640px) {
+    .create-config-form input,
+    .create-config-form select,
+    .create-config-form textarea {
+      min-height: 44px;
+    }
   }
 </style>
 

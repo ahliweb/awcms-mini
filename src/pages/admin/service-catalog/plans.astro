@@ -185,71 +185,75 @@ const draftContentJson = draftVersion
             </p>
 
             <h3>{t("admin.service_catalog.plans.version_history")}</h3>
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">
-                    {t("admin.service_catalog.plans.col_version")}
-                  </th>
-                  <th scope="col">
-                    {t("admin.service_catalog.plans.col_status")}
-                  </th>
-                  <th scope="col">
-                    {t("admin.service_catalog.plans.col_currency")}
-                  </th>
-                  <th scope="col">
-                    {t("admin.service_catalog.plans.col_published_at")}
-                  </th>
-                  <th scope="col">
-                    {t("admin.service_catalog.plans.col_actions")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.versions.map((v) => (
-                  <tr data-version={v.version} data-status={v.status}>
-                    <td>v{v.version}</td>
-                    <td>
-                      <StatusBadge
-                        variant={versionStatusVariant(v.status)}
-                        label={v.status}
-                      />
-                    </td>
-                    <td>{v.currency}</td>
-                    <td>{v.publishedAt ? v.publishedAt.slice(0, 10) : "—"}</td>
-                    <td class="row-actions">
-                      {v.status === "draft" && CAN_UPDATE && (
-                        <button
-                          type="button"
-                          class="validate-button ghost-button"
-                          data-version={v.version}
-                        >
-                          {t("admin.service_catalog.plans.validate_button")}
-                        </button>
-                      )}
-                      {v.status === "draft" && CAN_PUBLISH && (
-                        <button
-                          type="button"
-                          class="publish-button primary-button"
-                          data-version={v.version}
-                        >
-                          {t("admin.service_catalog.plans.publish_button")}
-                        </button>
-                      )}
-                      {v.status === "published" && CAN_RETIRE && (
-                        <button
-                          type="button"
-                          class="retire-button danger-button"
-                          data-version={v.version}
-                        >
-                          {t("admin.service_catalog.plans.retire_button")}
-                        </button>
-                      )}
-                    </td>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_version")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_status")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_currency")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_published_at")}
+                    </th>
+                    <th scope="col">
+                      {t("admin.service_catalog.plans.col_actions")}
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {detail.versions.map((v) => (
+                    <tr data-version={v.version} data-status={v.status}>
+                      <td>v{v.version}</td>
+                      <td>
+                        <StatusBadge
+                          variant={versionStatusVariant(v.status)}
+                          label={v.status}
+                        />
+                      </td>
+                      <td>{v.currency}</td>
+                      <td>
+                        {v.publishedAt ? v.publishedAt.slice(0, 10) : "—"}
+                      </td>
+                      <td class="row-actions">
+                        {v.status === "draft" && CAN_UPDATE && (
+                          <button
+                            type="button"
+                            class="validate-button ghost-button"
+                            data-version={v.version}
+                          >
+                            {t("admin.service_catalog.plans.validate_button")}
+                          </button>
+                        )}
+                        {v.status === "draft" && CAN_PUBLISH && (
+                          <button
+                            type="button"
+                            class="publish-button primary-button"
+                            data-version={v.version}
+                          >
+                            {t("admin.service_catalog.plans.publish_button")}
+                          </button>
+                        )}
+                        {v.status === "published" && CAN_RETIRE && (
+                          <button
+                            type="button"
+                            class="retire-button danger-button"
+                            data-version={v.version}
+                          >
+                            {t("admin.service_catalog.plans.retire_button")}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             {!draftVersion && CAN_UPDATE && (
               <button
@@ -291,65 +295,67 @@ const draftContentJson = draftVersion
                 {t("admin.service_catalog.plans.no_rows")}
               </p>
             ) : (
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">
-                      {t("admin.service_catalog.plans.col_key")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.service_catalog.plans.col_name")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.service_catalog.plans.col_type")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.service_catalog.plans.col_status")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.service_catalog.plans.col_latest_version")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {plans.map((plan) => (
-                    <tr data-key={plan.planKey}>
-                      <td>
-                        <a
-                          href={`/admin/service-catalog/plans?plan=${encodeURIComponent(plan.planKey)}`}
-                        >
-                          {plan.planKey}
-                        </a>
-                      </td>
-                      <td>{plan.name}</td>
-                      <td>{plan.planType}</td>
-                      <td>
-                        <StatusBadge
-                          variant={planStatusVariant(plan.status)}
-                          label={plan.status}
-                        />
-                      </td>
-                      <td>
-                        {plan.latestVersion !== null ? (
-                          <>
-                            v{plan.latestVersion}{" "}
-                            {plan.latestVersionStatus && (
-                              <StatusBadge
-                                variant={versionStatusVariant(
-                                  plan.latestVersionStatus
-                                )}
-                                label={plan.latestVersionStatus}
-                              />
-                            )}
-                          </>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
+              <div class="table-scroll">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">
+                        {t("admin.service_catalog.plans.col_key")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.service_catalog.plans.col_name")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.service_catalog.plans.col_type")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.service_catalog.plans.col_status")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.service_catalog.plans.col_latest_version")}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {plans.map((plan) => (
+                      <tr data-key={plan.planKey}>
+                        <td>
+                          <a
+                            href={`/admin/service-catalog/plans?plan=${encodeURIComponent(plan.planKey)}`}
+                          >
+                            {plan.planKey}
+                          </a>
+                        </td>
+                        <td>{plan.name}</td>
+                        <td>{plan.planType}</td>
+                        <td>
+                          <StatusBadge
+                            variant={planStatusVariant(plan.status)}
+                            label={plan.status}
+                          />
+                        </td>
+                        <td>
+                          {plan.latestVersion !== null ? (
+                            <>
+                              v{plan.latestVersion}{" "}
+                              {plan.latestVersionStatus && (
+                                <StatusBadge
+                                  variant={versionStatusVariant(
+                                    plan.latestVersionStatus
+                                  )}
+                                  label={plan.latestVersionStatus}
+                                />
+                              )}
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {CAN_CREATE && (
@@ -517,6 +523,52 @@ const draftContentJson = draftVersion
   button:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+  }
+
+  /* --- UX polish: responsive + motion (motion tokens from tokens.css;
+     the reduced-motion block there neutralises all of it). --- */
+  /* Wide tables (version history + plan list) scroll inside their own box
+     instead of forcing the whole page to scroll horizontally at 320px
+     (doc 14 §Responsif). */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  /* Subtle row hover so the tables are easier to scan. */
+  .data-table tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  .data-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+  /* Slide the post-mutation banner in when JS unhides it (matches the shared
+     ActionBanner idiom). */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Bigger disclosure hit area + hover affordance. */
+  .create-plan summary {
+    padding-block: var(--sp-1);
+  }
+  .create-plan summary:hover {
+    color: var(--color-primary);
+  }
+  /* Reveal the create form when the user opens the disclosure —
+     state-triggered (closed by default). The draft editor form is
+     deliberately NOT animated: it is SSR-visible on load whenever a draft
+     exists, and fading SSR content would risk a mid-animation contrast flag. */
+  .create-plan[open] .create-plan-form {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Touch targets >= 44px on mobile. */
+  @media (max-width: 640px) {
+    .create-plan-form input,
+    .create-plan-form select,
+    .draft-form textarea {
+      min-height: 44px;
+    }
   }
 </style>
 
