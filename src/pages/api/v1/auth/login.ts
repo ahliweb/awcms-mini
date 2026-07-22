@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { fail, ok } from "../../../../modules/_shared/api-response";
 import { evaluateLoginAttempt } from "../../../../modules/identity-access/domain/login-policy";
 import { getDatabaseClient } from "../../../../lib/database/client";
-import { UUID_PATTERN, withTenant } from "../../../../lib/database/tenant-context";
+import { withTenant } from "../../../../lib/database/tenant-context";
 import { verifyPasswordOrDummy } from "../../../../lib/auth/password";
 import {
   generateSessionToken,
@@ -237,7 +237,7 @@ export const POST: APIRoute = async ({
   clientAddress,
   locals
 }) => {
-  let tenantId = request.headers.get("x-awcms-mini-tenant-id");
+  const tenantId = request.headers.get("x-awcms-mini-tenant-id");
 
   if (!tenantId) {
     return fail(400, "TENANT_REQUIRED", "Tenant header is required.");
@@ -308,34 +308,6 @@ export const POST: APIRoute = async ({
   const sql = getDatabaseClient();
   const now = new Date();
   const auditContext = buildLoginAuditContext(request, clientIp);
-
-  // Issue: the demo login page (`login.astro`) asks the user to type a
-  // tenant identifier, but — being a human-facing field — what it actually
-  // collects is the tenant's `tenant_code` slug (e.g. "default"), not its
-  // UUID. Every other authenticated route only ever sees the real UUID
-  // (set as `TENANT_COOKIE_NAME` once login succeeds below), so this is the
-  // one call site that must accept either shape. A UUID-shaped header is
-  // used as-is (existing API contract, relied on by every other caller —
-  // tests included); anything else is resolved via `tenant_code` against
-  // the RLS-free `awcms_mini_tenants` table (safe to query directly on
-  // `sql`, before any `withTenant(...)` transaction — see
-  // `public-tenant-resolver.ts`). An unresolvable code can never reach
-  // `withTenant`, so it gets the same public response an unknown/inactive
-  // tenant already receives, without attempting an audit write no valid
-  // tenant FK could accept anyway.
-  if (!UUID_PATTERN.test(tenantId)) {
-    const tenantRow = (
-      await sql`
-        SELECT id FROM awcms_mini_tenants WHERE tenant_code = ${tenantId}
-      `
-    )[0] as { id: string } | undefined;
-
-    if (!tenantRow) {
-      return fail(403, "ACCESS_DENIED", "Tenant is not active.");
-    }
-
-    tenantId = tenantRow.id;
-  }
 
   return withTenant(sql, tenantId, async (tx) => {
     const tenantRows =
