@@ -30,6 +30,30 @@ msgstr "Lanjutkan dengan Google"
 msgid "auth.login.generic_error"
 msgstr "Login gagal. Coba lagi."
 
+msgid "auth.login.heading"
+msgstr "Masuk"
+
+msgid "auth.login.subtitle"
+msgstr "Selamat datang kembali. Masuk ke ruang kerja Anda."
+
+msgid "auth.login.footer"
+msgstr "Akses ruang kerja yang aman"
+
+msgid "auth.login.tenant_context_label"
+msgstr "Masuk ke"
+
+msgid "auth.login.password_show"
+msgstr "Tampilkan"
+
+msgid "auth.login.password_hide"
+msgstr "Sembunyikan"
+
+msgid "auth.login.password_show_aria"
+msgstr "Tampilkan kata sandi"
+
+msgid "auth.login.password_hide_aria"
+msgstr "Sembunyikan kata sandi"
+
 #. common
 msgid "common.network_error"
 msgstr "Tidak dapat menghubungi server. Coba lagi."

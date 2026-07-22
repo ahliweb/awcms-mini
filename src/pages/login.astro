@@ -1,32 +1,47 @@
 ---
 /**
- * Login page (Issue 8.1). Posts to `POST /api/v1/auth/login`, which now
- * additionally sets the two httpOnly SSR session cookies
- * (`src/pages/api/v1/auth/login.ts`) consumed by
+ * Login page (Issue 8.1; redesigned into a modern, mobile-first auth screen
+ * modelled on awcms's `login.astro`, adapted to awcms-mini's design tokens).
+ * Posts to `POST /api/v1/auth/login`, which sets the two httpOnly SSR session
+ * cookies (`src/pages/api/v1/auth/login.ts`) consumed by
  * `src/lib/auth/ssr-session.ts` / `src/layouts/AdminLayout.astro`.
  *
- * i18n (Issue #433): `Astro.locals.locale` is cookie-only resolved (no
- * tenant known yet pre-login — see `src/middleware.ts`). The client-side
- * `<script>` cannot read the `.po` catalog itself (that's server-side only,
- * via `Bun.file`), so the strings/error-code map it needs are injected as a
- * `<script type="application/json">` blob — the same pattern the admin
- * pages' action banners use.
+ * ## Stable DOM contract (do not rename — client script + any E2E depend on
+ * these): `#login-form`, `#tenant-id`, `#login-identifier`, `#password`,
+ * `#login-submit`, `#login-error`. The tenant field ALWAYS carries
+ * `name="tenantId"` and id `#tenant-id` regardless of which of the three
+ * shapes it takes (single readout / select / manual), so both
+ * `FormData.get("tenantId")` and the Google-login button (reads `#tenant-id`'s
+ * `.value`) keep working and the submit still sends the tenant header.
  *
- * Cloudflare Turnstile (Issue #588, epic: full-online auth hardening) —
- * the widget only renders when `isTurnstileRequired()` (Issue #587's
- * full-online gate AND `TURNSTILE_ENABLED=true`) is true; every local/
- * offline/LAN deployment (the default) renders this page identically to
- * before this issue. `TURNSTILE_SITE_KEY` is not a secret (Cloudflare's own
- * docs: embedded in every public Turnstile widget) — only
- * `TURNSTILE_SECRET_KEY` (server-side verification only, never sent here)
- * needs the redaction discipline `src/lib/security/turnstile.ts` applies.
+ * i18n (Issue #433): `Astro.locals.locale` is cookie-only resolved (no tenant
+ * known yet pre-login — see `src/middleware.ts`). The client-side `<script>`
+ * cannot read the `.po` catalog itself (server-side only via `Bun.file`), so
+ * the strings/error-code map it needs are injected as a
+ * `<script type="application/json">` blob — the same pattern the admin pages'
+ * action banners use.
+ *
+ * Cloudflare Turnstile (Issue #588) — the widget only renders when
+ * `isTurnstileRequired()` is true; every local/offline/LAN deployment (the
+ * default) renders this page without it. `TURNSTILE_SITE_KEY` is public.
  *
  * Google OIDC login (Issue #590) — the "Continue with Google" button only
- * renders when `isGoogleLoginRequired()` is true. It's a plain button (not
- * an `<a href>`) because the destination URL needs the Tenant ID field's
- * CURRENT value at click time (`GET /auth/providers/google/start
- * ?tenantId=...` — see that endpoint's own comment for why a query param
- * fallback exists there pre-login).
+ * renders when `isGoogleLoginRequired()` is true; the destination URL needs
+ * the Tenant ID field's CURRENT value at click time.
+ *
+ * ## Auto tenant picker (AUTH_LOGIN_TENANT_PICKER)
+ * When opted in, `listActiveTenantsForLogin()` reads the active tenant registry
+ * (id + name only) and the shape adapts to the count: exactly 1 → a read-only
+ * "Signing in to <name>" readout with a HIDDEN `#tenant-id`; 2+ → a `<select>`
+ * of tenant names (value = UUID). When the picker is off (or on but the
+ * registry read yields 0 rows) the manual Tenant ID text field is rendered.
+ * Presentation-only branching — the helper is unchanged.
+ *
+ * Motion: the card entrance animates transform ONLY (never opacity), so an
+ * axe-core contrast scan can never catch semi-transparent text mid-animation
+ * (the regression that bit the admin shell once). All motion routes through
+ * the shared motion tokens and is neutralised by the global
+ * `prefers-reduced-motion` reset in tokens.css.
  */
 import "../styles/tokens.css";
 import { createTranslator } from "../lib/i18n/translate";
@@ -47,8 +62,7 @@ const turnstileSiteKey = turnstileActive
   : null;
 const googleLoginActive = isGoogleLoginRequired();
 
-// Opt-in tenant picker (AUTH_LOGIN_TENANT_PICKER) — renders a dropdown of
-// active tenant names instead of the manual tenant-id text field. The list
+// Opt-in tenant picker (AUTH_LOGIN_TENANT_PICKER) — see file header. The list
 // is only queried when the operator has opted in, since it exposes tenant
 // names pre-auth (see login-tenant-picker.ts).
 const tenantPickerActive = isLoginTenantPickerEnabled();
@@ -56,11 +70,21 @@ const tenantOptions: LoginTenantOption[] = tenantPickerActive
   ? await listActiveTenantsForLogin()
   : [];
 
+const singleTenant =
+  tenantPickerActive && tenantOptions.length === 1 ? tenantOptions[0]! : null;
+const tenantSelect = tenantPickerActive && tenantOptions.length >= 2;
+// Picker off, or on but registry empty → keep the manual text field.
+const tenantManual = !tenantPickerActive || tenantOptions.length === 0;
+
 const clientStrings = {
   genericError: t("auth.login.generic_error"),
   networkError: t("common.network_error"),
   pleaseWait: t("common.please_wait"),
   submitLabel: t("auth.login.submit"),
+  passwordShow: t("auth.login.password_show"),
+  passwordHide: t("auth.login.password_hide"),
+  passwordShowAria: t("auth.login.password_show_aria"),
+  passwordHideAria: t("auth.login.password_hide_aria"),
   errorMessages: buildClientErrorMessages(t)
 };
 ---
@@ -70,89 +94,141 @@ const clientStrings = {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
     <title>{t("auth.login.page_title")}</title>
   </head>
-  <body>
-    <main class="login-page">
-      <form id="login-form" class="login-form" novalidate>
-        <h1>AWCMS-Mini</h1>
-        <p id="login-error" class="login-error" role="alert" hidden></p>
+  <body class="auth-body">
+    <main class="auth">
+      <div class="auth-card">
+        <div class="auth-head">
+          <div class="auth-brand">
+            <span class="auth-mark" aria-hidden="true">A</span>
+            <span class="auth-wordmark">AWCMS-Mini</span>
+          </div>
+          <h1 class="auth-title">{t("auth.login.heading")}</h1>
+          <p class="auth-subtitle">{t("auth.login.subtitle")}</p>
+        </div>
 
-        {
-          tenantPickerActive ? (
-            <>
-              <label for="tenant-id">{t("auth.login.tenant_label")}</label>
-              {/*
-                Opt-in dropdown (AUTH_LOGIN_TENANT_PICKER) — same `name`/`id`
-                as the text field below, so both the form submit
-                (`FormData.get("tenantId")`) and the Google-login button
-                (reads `#tenant-id`'s `.value`) work unchanged. The option
-                value is still the tenant UUID; only the visible label is the
-                friendly tenant name.
-              */}
-              <select id="tenant-id" name="tenantId" required>
-                {tenantOptions.map((tenant) => (
-                  <option value={tenant.id}>{tenant.name}</option>
-                ))}
-              </select>
-            </>
-          ) : (
-            <>
-              <label for="tenant-id">{t("auth.login.tenant_id_label")}</label>
-              {/*
-                Requiring a manual Tenant ID field is a demo simplification
-                for this base repo — a real derived app would resolve the
-                tenant via subdomain/domain mapping instead of asking the user
-                to paste a UUID (out of scope here; see doc 15 §Autentikasi dan
-                sesi). Set AUTH_LOGIN_TENANT_PICKER=true for the dropdown.
-              */}
+        <form id="login-form" class="auth-form" novalidate>
+          <p id="login-error" class="auth-error" role="alert" hidden></p>
+
+          {
+            singleTenant && (
+              <div class="auth-tenant-context">
+                <span class="auth-tenant-context-label">
+                  {t("auth.login.tenant_context_label")}
+                </span>
+                <span class="auth-tenant-context-name">
+                  {singleTenant.name}
+                </span>
+                <input
+                  id="tenant-id"
+                  name="tenantId"
+                  type="hidden"
+                  value={singleTenant.id}
+                />
+              </div>
+            )
+          }
+
+          {
+            tenantSelect && (
+              <div class="auth-field">
+                <label for="tenant-id">{t("auth.login.tenant_label")}</label>
+                <div class="auth-select">
+                  <select id="tenant-id" name="tenantId" required>
+                    {tenantOptions.map((tenant) => (
+                      <option value={tenant.id}>{tenant.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )
+          }
+
+          {
+            tenantManual && (
+              <div class="auth-field">
+                <label for="tenant-id">{t("auth.login.tenant_id_label")}</label>
+                <input
+                  id="tenant-id"
+                  name="tenantId"
+                  type="text"
+                  required
+                  autocomplete="off"
+                  spellcheck={false}
+                />
+              </div>
+            )
+          }
+
+          <div class="auth-field">
+            <label for="login-identifier">
+              {t("auth.login.identifier_label")}
+            </label>
+            <input
+              id="login-identifier"
+              name="loginIdentifier"
+              type="text"
+              required
+              autocomplete="username"
+              spellcheck={false}
+            />
+          </div>
+
+          <div class="auth-field">
+            <label for="password">{t("auth.login.password_label")}</label>
+            <div class="auth-password">
               <input
-                id="tenant-id"
-                name="tenantId"
-                type="text"
+                id="password"
+                name="password"
+                type="password"
                 required
-                autocomplete="off"
+                autocomplete="current-password"
               />
-            </>
-          )
-        }
+              <button
+                type="button"
+                id="password-toggle"
+                class="auth-password-toggle"
+                aria-pressed="false"
+                aria-controls="password"
+                aria-label={t("auth.login.password_show_aria")}
+              >
+                <span class="auth-password-toggle-label">
+                  {t("auth.login.password_show")}
+                </span>
+              </button>
+            </div>
+          </div>
 
-        <label for="login-identifier">{t("auth.login.identifier_label")}</label>
-        <input
-          id="login-identifier"
-          name="loginIdentifier"
-          type="text"
-          required
-          autocomplete="username"
-        />
+          {
+            turnstileActive && turnstileSiteKey && (
+              <div
+                class="cf-turnstile auth-turnstile"
+                data-sitekey={turnstileSiteKey}
+              />
+            )
+          }
 
-        <label for="password">{t("auth.login.password_label")}</label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          autocomplete="current-password"
-        />
+          <button type="submit" id="login-submit" class="auth-submit">
+            {t("auth.login.submit")}
+          </button>
 
-        {
-          turnstileActive && turnstileSiteKey && (
-            <div class="cf-turnstile" data-sitekey={turnstileSiteKey} />
-          )
-        }
+          {
+            googleLoginActive && (
+              <button
+                type="button"
+                id="google-login-button"
+                class="auth-google"
+              >
+                {t("auth.login.google_button")}
+              </button>
+            )
+          }
+        </form>
 
-        <button type="submit" id="login-submit">
-          {t("auth.login.submit")}
-        </button>
-
-        {
-          googleLoginActive && (
-            <button type="button" id="google-login-button">
-              {t("auth.login.google_button")}
-            </button>
-          )
-        }
-      </form>
+        <p class="auth-foot">{t("auth.login.footer")}</p>
+      </div>
     </main>
 
     {
@@ -181,6 +257,10 @@ const clientStrings = {
         genericError: string;
         networkError: string;
         pleaseWait: string;
+        passwordShow: string;
+        passwordHide: string;
+        passwordShowAria: string;
+        passwordHideAria: string;
         errorMessages?: Record<string, string>;
       }
 
@@ -193,6 +273,35 @@ const clientStrings = {
       ) as HTMLButtonElement | null;
       const strings = readClientStrings<LoginStrings>();
 
+      // Password visibility toggle — pure enhancement, wired here (no inline
+      // handler) so the strict CSP is respected. Absent-safe if the elements
+      // are ever removed.
+      const passwordInput = document.getElementById(
+        "password"
+      ) as HTMLInputElement | null;
+      const passwordToggle = document.getElementById(
+        "password-toggle"
+      ) as HTMLButtonElement | null;
+      const passwordToggleLabel = passwordToggle?.querySelector(
+        ".auth-password-toggle-label"
+      );
+
+      passwordToggle?.addEventListener("click", () => {
+        if (!passwordInput) return;
+        const reveal = passwordInput.type === "password";
+        passwordInput.type = reveal ? "text" : "password";
+        passwordToggle.setAttribute("aria-pressed", String(reveal));
+        passwordToggle.setAttribute(
+          "aria-label",
+          reveal ? strings.passwordHideAria : strings.passwordShowAria
+        );
+        if (passwordToggleLabel) {
+          passwordToggleLabel.textContent = reveal
+            ? strings.passwordHide
+            : strings.passwordShow;
+        }
+      });
+
       function showError(message: string): void {
         if (!errorBox) return;
         errorBox.textContent = message;
@@ -202,10 +311,10 @@ const clientStrings = {
       form?.addEventListener("submit", async (event) => {
         event.preventDefault();
 
-        // Issue #434 (UX/UI audit): guard + disable the submit button for
-        // the duration of the request — previously a fast double-click (or
-        // double Enter) could fire two login POSTs before the first
-        // redirect landed (doc 14 §Form UX "cegah double-submit").
+        // Issue #434 (UX/UI audit): guard + disable the submit button for the
+        // duration of the request — a fast double-click (or double Enter)
+        // could otherwise fire two login POSTs before the first redirect
+        // landed (doc 14 §Form UX "cegah double-submit").
         if (!submitButton || submitButton.disabled) {
           return;
         }
@@ -223,8 +332,8 @@ const clientStrings = {
         const password = String(formData.get("password") ?? "");
         // Cloudflare Turnstile (Issue #588) auto-injects a hidden
         // `cf-turnstile-response` field into this form once solved — absent
-        // entirely when the widget isn't rendered (Turnstile not required
-        // for this deployment), matching the server's own optional field.
+        // entirely when the widget isn't rendered (Turnstile not required for
+        // this deployment), matching the server's own optional field.
         const turnstileToken = formData.get("cf-turnstile-response");
 
         try {
@@ -261,11 +370,11 @@ const clientStrings = {
         }
       });
 
-      // Google OIDC login (Issue #590) — the destination needs the Tenant
-      // ID field's CURRENT value, read at click time, as a `?tenantId=`
-      // query param (this page has no tenant cookie yet pre-login, and a
-      // plain navigation can't carry the `X-AWCMS-Mini-Tenant-ID` header
-      // every fetch-based call on this page uses instead).
+      // Google OIDC login (Issue #590) — the destination needs the Tenant ID
+      // field's CURRENT value, read at click time, as a `?tenantId=` query
+      // param (this page has no tenant cookie yet pre-login, and a plain
+      // navigation can't carry the `X-AWCMS-Mini-Tenant-ID` header every
+      // fetch-based call on this page uses instead).
       const googleButton = document.getElementById(
         "google-login-button"
       ) as HTMLButtonElement | null;
@@ -288,78 +397,336 @@ const clientStrings = {
 </html>
 
 <style>
-  .login-page {
+  /*
+   * Login surface — Astro-scoped styles, tokens only (no literal colours/sizes)
+   * from tokens.css. Mobile-first: base rules target small screens; one
+   * min-width query enhances larger ones. Adapted from awcms's auth screen to
+   * awcms-mini's token set.
+   */
+  .auth-body {
+    margin: 0;
+  }
+
+  .auth {
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--color-bg);
+    padding: var(--sp-4);
+    background:
+      radial-gradient(
+        120% 90% at 15% 0%,
+        color-mix(in srgb, var(--color-primary) 12%, transparent) 0%,
+        transparent 55%
+      ),
+      radial-gradient(
+        110% 80% at 100% 100%,
+        var(--color-surface-2) 0%,
+        transparent 60%
+      ),
+      var(--color-bg);
   }
 
-  .login-form {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-2);
+  .auth-card {
     width: 100%;
-    max-width: 360px;
-    padding: var(--sp-5);
+    max-width: 400px;
+    padding: var(--sp-6) var(--sp-5);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-lg);
+    /* Transform-only entrance (never opacity — keeps text fully opaque so an
+       axe-core contrast scan can't flag it mid-animation). Neutralised by the
+       global prefers-reduced-motion reset in tokens.css. */
+    animation: auth-card-rise var(--motion-duration-base) var(--motion-ease-out);
   }
 
-  .login-form h1 {
-    margin: 0 0 var(--sp-2);
+  @keyframes auth-card-rise {
+    from {
+      transform: translateY(10px);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  .auth-head {
+    margin-bottom: var(--sp-5);
+  }
+
+  .auth-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-4);
+  }
+
+  .auth-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(
+      135deg,
+      var(--color-primary) 0%,
+      var(--color-primary-strong) 100%
+    );
+    color: var(--color-primary-contrast);
+    font-weight: 700;
     font-size: var(--fs-lg);
+    line-height: 1;
+    box-shadow: var(--shadow-sm);
   }
 
-  .login-form label {
+  .auth-wordmark {
+    font-weight: 700;
+    font-size: var(--fs-md);
+    letter-spacing: 0.02em;
+    color: var(--color-text);
+  }
+
+  .auth-title {
+    margin: 0;
+    font-size: var(--fs-2xl);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    color: var(--color-text);
+  }
+
+  .auth-subtitle {
+    margin: var(--sp-2) 0 0;
     font-size: var(--fs-sm);
+    color: var(--color-text-muted);
+    line-height: 1.4;
+  }
+
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  .auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+
+  .auth-field label {
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    color: var(--color-text);
+  }
+
+  .auth-form input[type="text"],
+  .auth-form input[type="password"],
+  .auth-form select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 var(--sp-3);
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--fs-base);
+    transition:
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .auth-form input::placeholder {
     color: var(--color-text-muted);
   }
 
-  .login-form input {
-    padding: var(--sp-2) var(--sp-3);
+  .auth-form input[type="text"]:hover,
+  .auth-form input[type="password"]:hover,
+  .auth-form select:hover {
+    border-color: var(--color-text-muted);
+  }
+
+  .auth-form input[type="text"]:focus-visible,
+  .auth-form input[type="password"]:focus-visible,
+  .auth-form select:focus-visible {
+    outline: none;
+    border-color: var(--color-focus);
+    box-shadow: 0 0 0 3px
+      color-mix(in srgb, var(--color-primary) 30%, transparent);
+  }
+
+  /* Tenant readout (single-tenant deployment). */
+  .auth-tenant-context {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--sp-3);
+    background: color-mix(
+      in srgb,
+      var(--color-primary) 10%,
+      var(--color-surface)
+    );
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-surface);
+    border-radius: var(--radius-md);
+  }
+
+  .auth-tenant-context-label {
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+  }
+
+  .auth-tenant-context-name {
+    font-size: var(--fs-base);
+    font-weight: 600;
     color: var(--color-text);
   }
 
-  .login-form button {
-    margin-top: var(--sp-3);
-    padding: var(--sp-2) var(--sp-3);
-    min-height: 44px;
+  /* Select wrapper — CSS-drawn caret (no data: URI, CSP-safe). */
+  .auth-select {
+    position: relative;
+  }
+
+  .auth-select select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: var(--sp-6);
+    cursor: pointer;
+  }
+
+  .auth-select::after {
+    content: "";
+    position: absolute;
+    right: var(--sp-3);
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--color-text-muted);
+    border-bottom: 2px solid var(--color-text-muted);
+    transform: translateY(-70%) rotate(45deg);
+    pointer-events: none;
+  }
+
+  /* Password field with inline show/hide toggle. */
+  .auth-password {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .auth-password input {
+    padding-right: 72px;
+  }
+
+  .auth-password-toggle {
+    position: absolute;
+    right: var(--sp-1);
+    top: 50%;
+    transform: translateY(-50%);
+    min-height: 36px;
+    min-width: 56px;
+    padding: 0 var(--sp-2);
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--color-primary);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .auth-password-toggle:hover {
+    background: var(--color-surface-2);
+  }
+
+  .auth-error {
+    margin: 0;
+    padding: var(--sp-3);
+    background: var(--color-danger-strong);
+    color: var(--color-primary-contrast);
+    border-radius: var(--radius-md);
+    font-size: var(--fs-sm);
+    line-height: 1.4;
+  }
+
+  .auth-turnstile {
+    min-height: 65px;
+  }
+
+  .auth-submit {
+    margin-top: var(--sp-1);
+    min-height: 48px;
+    padding: 0 var(--sp-4);
     background: var(--color-primary-strong);
     color: var(--color-primary-contrast);
     border: none;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
+    border-radius: var(--radius-md);
+    font-size: var(--fs-base);
     font-weight: 600;
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      transform var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
-  .login-form button:disabled {
+  .auth-submit:hover {
+    background: color-mix(in srgb, var(--color-primary-strong) 88%, #000);
+  }
+
+  .auth-submit:active {
+    transform: translateY(1px);
+  }
+
+  .auth-submit:disabled {
     cursor: not-allowed;
-    opacity: 0.75;
+    opacity: 0.7;
   }
 
-  #google-login-button {
-    margin-top: var(--sp-2);
+  /* Secondary (Google) button — outline style, distinct from the primary. */
+  .auth-google {
+    min-height: 48px;
+    padding: 0 var(--sp-4);
     background: var(--color-surface);
     color: var(--color-text);
     border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--fs-base);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard);
   }
 
-  .login-form input {
-    min-height: 44px;
+  .auth-google:hover {
+    background: var(--color-surface-2);
+    border-color: var(--color-text-muted);
   }
 
-  .login-error {
-    color: var(--color-primary-contrast);
-    background: var(--color-danger-strong);
-    border-radius: var(--radius-sm);
-    padding: var(--sp-2) var(--sp-3);
-    font-size: var(--fs-sm);
+  .auth-foot {
+    margin: var(--sp-5) 0 0;
+    text-align: center;
+    font-size: var(--fs-xs);
+    color: var(--color-text-muted);
+  }
+
+  @media (min-width: 640px) {
+    .auth-card {
+      padding: var(--sp-7) var(--sp-6);
+    }
+  }
+
+  /*
+   * The submit's active-nudge is decorative. The global prefers-reduced-motion
+   * block in tokens.css already neutralises the card entrance and all
+   * transitions; kill the active transform too so nothing moves.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .auth-submit:active {
+      transform: none;
+    }
   }
 </style>
