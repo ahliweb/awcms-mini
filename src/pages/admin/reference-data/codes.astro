@@ -169,62 +169,66 @@ if (CAN_READ) {
                 {t("admin.reference_data.codes.no_rows")}
               </p>
             ) : (
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">
-                      {t("admin.reference_data.codes.col_code")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.reference_data.codes.col_label")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.reference_data.codes.col_provenance")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.reference_data.codes.col_status")}
-                    </th>
-                    <th scope="col">
-                      {t("admin.reference_data.codes.col_actions")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {codes.map((code) => (
-                    <tr data-code={code.code}>
-                      <td>{code.code}</td>
-                      <td>
-                        {code.labels.find((l) => l.locale === "en")?.label ??
-                          code.code}
-                      </td>
-                      <td>{code.provenance}</td>
-                      <td>{code.deprecatedAt ? "deprecated" : "active"}</td>
-                      <td>
-                        {CAN_DELETE &&
-                          !code.deprecatedAt &&
-                          !code.managedByDescriptor && (
+              <div class="table-scroll">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">
+                        {t("admin.reference_data.codes.col_code")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.reference_data.codes.col_label")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.reference_data.codes.col_provenance")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.reference_data.codes.col_status")}
+                      </th>
+                      <th scope="col">
+                        {t("admin.reference_data.codes.col_actions")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {codes.map((code) => (
+                      <tr data-code={code.code}>
+                        <td>{code.code}</td>
+                        <td>
+                          {code.labels.find((l) => l.locale === "en")?.label ??
+                            code.code}
+                        </td>
+                        <td>{code.provenance}</td>
+                        <td>{code.deprecatedAt ? "deprecated" : "active"}</td>
+                        <td>
+                          {CAN_DELETE &&
+                            !code.deprecatedAt &&
+                            !code.managedByDescriptor && (
+                              <button
+                                type="button"
+                                class="deprecate-button"
+                                data-code={code.code}
+                              >
+                                {t(
+                                  "admin.reference_data.codes.deprecate_button"
+                                )}
+                              </button>
+                            )}
+                          {CAN_RESTORE && code.deprecatedAt && (
                             <button
                               type="button"
-                              class="deprecate-button"
+                              class="restore-button"
                               data-code={code.code}
                             >
-                              {t("admin.reference_data.codes.deprecate_button")}
+                              {t("admin.reference_data.codes.restore_button")}
                             </button>
                           )}
-                        {CAN_RESTORE && code.deprecatedAt && (
-                          <button
-                            type="button"
-                            class="restore-button"
-                            data-code={code.code}
-                          >
-                            {t("admin.reference_data.codes.restore_button")}
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
 
             {CAN_CREATE && (
@@ -292,43 +296,51 @@ if (CAN_READ) {
                     <h3>
                       {t("admin.reference_data.codes.import_history_title")}
                     </h3>
-                    <table class="data-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">
-                            {t("admin.reference_data.codes.import_col_status")}
-                          </th>
-                          <th scope="col">
-                            {t("admin.reference_data.codes.import_col_created")}
-                          </th>
-                          <th scope="col">
-                            {t("admin.reference_data.codes.import_col_actions")}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {imports.map((importBatch) => (
-                          <tr data-import-id={importBatch.id}>
-                            <td>{importBatch.status}</td>
-                            <td>{importBatch.createdAt.toISOString()}</td>
-                            <td>
-                              {CAN_ROLLBACK &&
-                                importBatch.status === "committed" && (
-                                  <button
-                                    type="button"
-                                    class="import-rollback-button"
-                                    data-import-id={importBatch.id}
-                                  >
-                                    {t(
-                                      "admin.reference_data.codes.import_rollback_button"
-                                    )}
-                                  </button>
-                                )}
-                            </td>
+                    <div class="table-scroll">
+                      <table class="data-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">
+                              {t(
+                                "admin.reference_data.codes.import_col_status"
+                              )}
+                            </th>
+                            <th scope="col">
+                              {t(
+                                "admin.reference_data.codes.import_col_created"
+                              )}
+                            </th>
+                            <th scope="col">
+                              {t(
+                                "admin.reference_data.codes.import_col_actions"
+                              )}
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {imports.map((importBatch) => (
+                            <tr data-import-id={importBatch.id}>
+                              <td>{importBatch.status}</td>
+                              <td>{importBatch.createdAt.toISOString()}</td>
+                              <td>
+                                {CAN_ROLLBACK &&
+                                  importBatch.status === "committed" && (
+                                    <button
+                                      type="button"
+                                      class="import-rollback-button"
+                                      data-import-id={importBatch.id}
+                                    >
+                                      {t(
+                                        "admin.reference_data.codes.import_rollback_button"
+                                      )}
+                                    </button>
+                                  )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </>
                 )}
               </details>
@@ -449,6 +461,62 @@ if (CAN_READ) {
   button:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
+  }
+
+  /* --- UX polish: responsive + motion (motion tokens from tokens.css;
+     the reduced-motion block there neutralises all of it). --- */
+  /* Wide tables scroll inside their own box instead of forcing the whole page
+     to scroll horizontally at 320px (doc 14 §Responsif). */
+  .table-scroll {
+    overflow-x: auto;
+  }
+  /* Subtle row hover so the tables are easier to scan. */
+  .data-table tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  .data-table tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+  /* Slide the post-mutation banner in when JS unhides it (matches the shared
+     ActionBanner idiom). */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Reveal the dry-run diff preview when JS unhides it (user-triggered). */
+  #import-diff-preview:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Keep the value-set filter as a compact stacked control. */
+  .select-value-set-form label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+    max-width: 480px;
+  }
+  /* Bigger disclosure hit area + hover affordance. */
+  .create-config summary {
+    padding-block: var(--sp-1);
+  }
+  .create-config summary:hover {
+    color: var(--color-primary);
+  }
+  /* Reveal the form when the user opens the disclosure — state-triggered
+     (closed by default), never a page-load fade of SSR content. */
+  .create-config[open] .create-config-form {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  /* Touch targets >= 44px on mobile. */
+  @media (max-width: 640px) {
+    .create-config-form input,
+    .create-config-form textarea,
+    .select-value-set-form select {
+      min-height: 44px;
+    }
   }
 </style>
 

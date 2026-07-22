@@ -1,0 +1,5 @@
+---
+"awcms-mini": patch
+---
+
+Per-page UI/UX polish (responsive mobile-first + accessible micro-motion) for the organization-structure, reference-data, and service-catalog admin screens, on top of the shared motion foundation. Hand-rolled data tables now scroll inside their own `overflow-x:auto` container so no page scrolls horizontally at 320px; table rows get a subtle hover, the post-mutation `action-banner` slides in when unhidden (matching the shared `ActionBanner`), disclosure summaries get a larger hit area + hover affordance, closed-by-default create forms reveal on open, and the reference-data import dry-run diff preview animates in when shown. Touch targets on form controls are >=44px on mobile. All motion routes through the existing `--motion-*` tokens/`awcms-*` keyframes (theme- and reduced-motion-safe, opacity/transform/colour only) — no SSR-visible primary content is faded from opacity:0 (the `hierarchy` open-by-default disclosure and the `plans` SSR-visible draft editor are deliberately left unanimated). CSS/markup only; no behaviour, logic, or permission-gate changes.
