@@ -102,16 +102,29 @@ const clientStrings = {
   .lifecycle-manager {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6, 1.5rem);
+    gap: var(--sp-5);
   }
   .panel {
-    border: 1px solid var(--color-border, #d4d4d8);
-    border-radius: var(--radius-md, 0.5rem);
-    padding: var(--space-4, 1rem);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    box-shadow: var(--shadow-sm);
+  }
+  .panel h2 {
+    margin-top: 0;
   }
   .action-banner {
-    padding: var(--space-3, 0.75rem);
-    border-radius: var(--radius-md, 0.5rem);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+  /* State-triggered entrance: the banner is `hidden` on SSR load and only
+     revealed by `showBanner` after a mutation — never SSR-visible content, so
+     the opacity fade is safe. Motion tokens; neutralised under reduced-motion. */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
   }
   .action-banner[data-variant="success"] {
     background: color-mix(
@@ -130,44 +143,116 @@ const clientStrings = {
     border: 1px solid var(--color-danger);
   }
   .intro {
-    color: var(--color-text-muted, #71717a);
+    color: var(--color-text-muted);
   }
   .inline-form {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3, 0.75rem);
+    gap: var(--sp-3);
     align-items: end;
   }
   label {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.85rem;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+    min-width: 0;
+  }
+  .inline-form label {
+    flex: 1 1 240px;
+  }
+  .inline-form input,
+  .commands select {
+    width: 100%;
+    min-width: 0;
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .inline-form button[type="submit"] {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .inline-form button[type="submit"]:hover:not(:disabled) {
+    box-shadow: var(--shadow-md);
+  }
+  /* State + timeline are `hidden` until a lookup fills them client-side, so
+     their reveal animates from hidden (not SSR content). Motion tokens. */
+  .state-panel:not([hidden]),
+  .timeline:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  .state-panel {
+    margin-top: var(--sp-3);
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: var(--space-2, 0.5rem);
+    margin-top: var(--sp-2);
   }
   th,
   td {
     text-align: left;
-    padding: var(--space-2, 0.5rem);
-    border-bottom: 1px solid var(--color-border, #e4e4e7);
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
     vertical-align: top;
   }
+  th {
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+  tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  tbody tr:hover {
+    background: var(--color-surface-2);
+  }
   .timeline {
-    margin-top: var(--space-3, 0.75rem);
+    margin-top: var(--sp-3);
     overflow-x: auto;
   }
   .commands {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2, 0.5rem);
-    margin-top: var(--space-3, 0.75rem);
+    align-items: end;
+    gap: var(--sp-2);
+    margin-top: var(--sp-3);
+  }
+  .commands button {
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+  .commands button:hover:not(:disabled) {
+    border-color: var(--color-primary);
   }
   button.danger {
-    color: var(--color-danger, #b91c1c);
+    color: var(--color-danger);
+  }
+  .commands button.danger:hover:not(:disabled) {
+    border-color: var(--color-danger-strong);
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
   input:focus-visible,
   select:focus-visible,

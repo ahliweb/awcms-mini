@@ -192,35 +192,37 @@ function reconStatusVariant(s: string): StatusBadgeVariant {
           {aggregates.length === 0 ? (
             <p class="empty">{t("admin.usage_metering.none")}</p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("admin.usage_metering.col_meter")}</th>
-                  <th>{t("admin.usage_metering.col_window")}</th>
-                  <th>{t("admin.usage_metering.col_value")}</th>
-                  <th>{t("admin.usage_metering.col_freshness")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {aggregates.map((row) => (
+            <div class="table-scroll">
+              <table>
+                <thead>
                   <tr>
-                    <td>
-                      <code>{row.meterKey}</code>
-                    </td>
-                    <td>
-                      {row.windowType} · {row.windowStart}
-                    </td>
-                    <td>{row.value}</td>
-                    <td>
-                      <StatusBadge
-                        label={row.freshness}
-                        variant={freshnessVariant(row.freshness)}
-                      />
-                    </td>
+                    <th>{t("admin.usage_metering.col_meter")}</th>
+                    <th>{t("admin.usage_metering.col_window")}</th>
+                    <th>{t("admin.usage_metering.col_value")}</th>
+                    <th>{t("admin.usage_metering.col_freshness")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {aggregates.map((row) => (
+                    <tr>
+                      <td>
+                        <code>{row.meterKey}</code>
+                      </td>
+                      <td>
+                        {row.windowType} · {row.windowStart}
+                      </td>
+                      <td>{row.value}</td>
+                      <td>
+                        <StatusBadge
+                          label={row.freshness}
+                          variant={freshnessVariant(row.freshness)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 
@@ -230,28 +232,30 @@ function reconStatusVariant(s: string): StatusBadgeVariant {
           {events.length === 0 ? (
             <p class="empty">{t("admin.usage_metering.none")}</p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("admin.usage_metering.col_meter")}</th>
-                  <th>{t("admin.usage_metering.col_producer")}</th>
-                  <th>{t("admin.usage_metering.col_quantity")}</th>
-                  <th>{t("admin.usage_metering.col_event_time")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((row) => (
+            <div class="table-scroll">
+              <table>
+                <thead>
                   <tr>
-                    <td>
-                      <code>{row.meterKey}</code>
-                    </td>
-                    <td>{row.producer}</td>
-                    <td>{row.quantity}</td>
-                    <td>{row.eventTime}</td>
+                    <th>{t("admin.usage_metering.col_meter")}</th>
+                    <th>{t("admin.usage_metering.col_producer")}</th>
+                    <th>{t("admin.usage_metering.col_quantity")}</th>
+                    <th>{t("admin.usage_metering.col_event_time")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {events.map((row) => (
+                    <tr>
+                      <td>
+                        <code>{row.meterKey}</code>
+                      </td>
+                      <td>{row.producer}</td>
+                      <td>{row.quantity}</td>
+                      <td>{row.eventTime}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 
@@ -288,28 +292,30 @@ function reconStatusVariant(s: string): StatusBadgeVariant {
             {corrections.length === 0 ? (
               <p class="empty">{t("admin.usage_metering.none")}</p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t("admin.usage_metering.col_meter")}</th>
-                    <th>{t("admin.usage_metering.col_type")}</th>
-                    <th>{t("admin.usage_metering.col_delta")}</th>
-                    <th>{t("admin.usage_metering.col_event_time")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {corrections.map((row) => (
+              <div class="table-scroll">
+                <table>
+                  <thead>
                     <tr>
-                      <td>
-                        <code>{row.meterKey}</code>
-                      </td>
-                      <td>{row.correctionType}</td>
-                      <td>{row.deltaQuantity}</td>
-                      <td>{row.eventTime}</td>
+                      <th>{t("admin.usage_metering.col_meter")}</th>
+                      <th>{t("admin.usage_metering.col_type")}</th>
+                      <th>{t("admin.usage_metering.col_delta")}</th>
+                      <th>{t("admin.usage_metering.col_event_time")}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {corrections.map((row) => (
+                      <tr>
+                        <td>
+                          <code>{row.meterKey}</code>
+                        </td>
+                        <td>{row.correctionType}</td>
+                        <td>{row.deltaQuantity}</td>
+                        <td>{row.eventTime}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         )}
@@ -348,33 +354,35 @@ function reconStatusVariant(s: string): StatusBadgeVariant {
             {runs.length === 0 ? (
               <p class="empty">{t("admin.usage_metering.none")}</p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t("admin.usage_metering.col_window")}</th>
-                    <th>{t("admin.usage_metering.col_status")}</th>
-                    <th>{t("admin.usage_metering.col_drift")}</th>
-                    <th>{t("admin.usage_metering.col_started")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runs.map((row) => (
+              <div class="table-scroll">
+                <table>
+                  <thead>
                     <tr>
-                      <td>{row.windowType}</td>
-                      <td>
-                        <StatusBadge
-                          label={row.status}
-                          variant={reconStatusVariant(row.status)}
-                        />
-                      </td>
-                      <td>
-                        {row.driftCount} / {row.missingCount}
-                      </td>
-                      <td>{row.startedAt}</td>
+                      <th>{t("admin.usage_metering.col_window")}</th>
+                      <th>{t("admin.usage_metering.col_status")}</th>
+                      <th>{t("admin.usage_metering.col_drift")}</th>
+                      <th>{t("admin.usage_metering.col_started")}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {runs.map((row) => (
+                      <tr>
+                        <td>{row.windowType}</td>
+                        <td>
+                          <StatusBadge
+                            label={row.status}
+                            variant={reconStatusVariant(row.status)}
+                          />
+                        </td>
+                        <td>
+                          {row.driftCount} / {row.missingCount}
+                        </td>
+                        <td>{row.startedAt}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         )}
@@ -387,16 +395,29 @@ function reconStatusVariant(s: string): StatusBadgeVariant {
   .usage-manager {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6, 1.5rem);
+    gap: var(--sp-5);
   }
   .panel {
-    border: 1px solid var(--color-border, #d4d4d8);
-    border-radius: var(--radius-md, 0.5rem);
-    padding: var(--space-4, 1rem);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    box-shadow: var(--shadow-sm);
+  }
+  .panel h2 {
+    margin-top: 0;
   }
   .action-banner {
-    padding: var(--space-3, 0.75rem);
-    border-radius: var(--radius-md, 0.5rem);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+  /* State-triggered entrance: the banner is `hidden` on SSR load and only
+     revealed by `showBanner` after a mutation — never SSR-visible content, so
+     the opacity fade is safe. Motion tokens; neutralised under reduced-motion. */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
   }
   .action-banner[data-variant="success"] {
     background: color-mix(
@@ -414,34 +435,99 @@ function reconStatusVariant(s: string): StatusBadgeVariant {
     );
     border: 1px solid var(--color-danger);
   }
+  /* Wide tables scroll inside their own container instead of forcing the whole
+     page to scroll horizontally at 320px (doc 14 §Responsif). */
+  .table-scroll {
+    overflow-x: auto;
+  }
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: var(--space-2, 0.5rem);
+    margin-top: var(--sp-2);
   }
   th,
   td {
     text-align: left;
-    padding: var(--space-2, 0.5rem);
-    border-bottom: 1px solid var(--color-border, #e4e4e7);
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
     vertical-align: top;
+  }
+  th {
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+  /* Subtle row hover so wide tables are easier to scan (transition via motion
+     tokens; neutralised under reduced-motion). */
+  tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  tbody tr:hover {
+    background: var(--color-surface-2);
   }
   .inline-form {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3, 0.75rem);
+    gap: var(--sp-3);
     align-items: end;
-    margin-bottom: var(--space-3, 0.75rem);
+    margin-bottom: var(--sp-3);
   }
   .inline-form label {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.85rem;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+  .inline-form input,
+  .inline-form select {
+    width: 100%;
+    min-width: 0;
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .inline-form button[type="submit"] {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .inline-form button[type="submit"]:hover:not(:disabled) {
+    box-shadow: var(--shadow-md);
+  }
+  #rebuild-button {
+    min-height: 44px;
+    margin-top: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #rebuild-button:hover:not(:disabled) {
+    border-color: var(--color-primary);
   }
   .empty {
-    color: var(--color-text-muted, #71717a);
+    color: var(--color-text-muted);
     font-style: italic;
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
   input:focus-visible,
   select:focus-visible,

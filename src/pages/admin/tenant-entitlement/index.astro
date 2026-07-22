@@ -199,99 +199,105 @@ const quotaRows = entitlement
           {featureRows.length === 0 ? (
             <p class="empty">{t("admin.tenant_entitlement.none")}</p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("admin.tenant_entitlement.col_key")}</th>
-                  <th>{t("admin.tenant_entitlement.col_allowed")}</th>
-                  <th>{t("admin.tenant_entitlement.col_source")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {featureRows.map((row) => (
+            <div class="table-scroll">
+              <table>
+                <thead>
                   <tr>
-                    <td>
-                      <code>{row.key}</code>
-                    </td>
-                    <td>
-                      <StatusBadge
-                        label={String(row.allowed)}
-                        variant={decisionVariant(row.allowed)}
-                      />
-                    </td>
-                    <td>{row.sourceKind}</td>
+                    <th>{t("admin.tenant_entitlement.col_key")}</th>
+                    <th>{t("admin.tenant_entitlement.col_allowed")}</th>
+                    <th>{t("admin.tenant_entitlement.col_source")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {featureRows.map((row) => (
+                    <tr>
+                      <td>
+                        <code>{row.key}</code>
+                      </td>
+                      <td>
+                        <StatusBadge
+                          label={String(row.allowed)}
+                          variant={decisionVariant(row.allowed)}
+                        />
+                      </td>
+                      <td>{row.sourceKind}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           <h3>{t("admin.tenant_entitlement.modules_heading")}</h3>
           {moduleRows.length === 0 ? (
             <p class="empty">{t("admin.tenant_entitlement.none")}</p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("admin.tenant_entitlement.col_key")}</th>
-                  <th>{t("admin.tenant_entitlement.col_allowed")}</th>
-                  <th>{t("admin.tenant_entitlement.col_source")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {moduleRows.map((row) => (
+            <div class="table-scroll">
+              <table>
+                <thead>
                   <tr>
-                    <td>
-                      <code>{row.key}</code>
-                    </td>
-                    <td>
-                      <StatusBadge
-                        label={String(row.allowed)}
-                        variant={decisionVariant(row.allowed)}
-                      />
-                    </td>
-                    <td>{row.sourceKind}</td>
+                    <th>{t("admin.tenant_entitlement.col_key")}</th>
+                    <th>{t("admin.tenant_entitlement.col_allowed")}</th>
+                    <th>{t("admin.tenant_entitlement.col_source")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {moduleRows.map((row) => (
+                    <tr>
+                      <td>
+                        <code>{row.key}</code>
+                      </td>
+                      <td>
+                        <StatusBadge
+                          label={String(row.allowed)}
+                          variant={decisionVariant(row.allowed)}
+                        />
+                      </td>
+                      <td>{row.sourceKind}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
           <h3>{t("admin.tenant_entitlement.quotas_heading")}</h3>
           {quotaRows.length === 0 ? (
             <p class="empty">{t("admin.tenant_entitlement.none")}</p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>{t("admin.tenant_entitlement.col_key")}</th>
-                  <th>{t("admin.tenant_entitlement.col_allowed")}</th>
-                  <th>{t("admin.tenant_entitlement.col_limit")}</th>
-                  <th>{t("admin.tenant_entitlement.col_source")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quotaRows.map((row) => (
+            <div class="table-scroll">
+              <table>
+                <thead>
                   <tr>
-                    <td>
-                      <code>{row.key}</code>
-                    </td>
-                    <td>
-                      <StatusBadge
-                        label={String(row.allowed)}
-                        variant={decisionVariant(row.allowed)}
-                      />
-                    </td>
-                    <td>
-                      {row.isUnlimited
-                        ? t("admin.tenant_entitlement.unlimited")
-                        : `${row.limit ?? 0} ${row.unit ?? ""}`}
-                    </td>
-                    <td>{row.source.kind}</td>
+                    <th>{t("admin.tenant_entitlement.col_key")}</th>
+                    <th>{t("admin.tenant_entitlement.col_allowed")}</th>
+                    <th>{t("admin.tenant_entitlement.col_limit")}</th>
+                    <th>{t("admin.tenant_entitlement.col_source")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {quotaRows.map((row) => (
+                    <tr>
+                      <td>
+                        <code>{row.key}</code>
+                      </td>
+                      <td>
+                        <StatusBadge
+                          label={String(row.allowed)}
+                          variant={decisionVariant(row.allowed)}
+                        />
+                      </td>
+                      <td>
+                        {row.isUnlimited
+                          ? t("admin.tenant_entitlement.unlimited")
+                          : `${row.limit ?? 0} ${row.unit ?? ""}`}
+                      </td>
+                      <td>{row.source.kind}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 
@@ -321,65 +327,67 @@ const quotaRows = entitlement
             {assignments.length === 0 ? (
               <p class="empty">{t("admin.tenant_entitlement.none")}</p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t("admin.tenant_entitlement.col_plan")}</th>
-                    <th>{t("admin.tenant_entitlement.col_status")}</th>
-                    <th>{t("admin.tenant_entitlement.col_current")}</th>
-                    <th>{t("admin.tenant_entitlement.col_actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assignments.map((assignment) => (
-                    <tr data-assignment-id={assignment.id}>
-                      <td>
-                        <code>{assignment.planKey}</code> v
-                        {assignment.offerVersion}
-                      </td>
-                      <td>
-                        <StatusBadge
-                          label={assignment.status}
-                          variant={assignmentStatusVariant(assignment.status)}
-                        />
-                      </td>
-                      <td>{assignment.isCurrent ? "✓" : ""}</td>
-                      <td class="actions">
-                        {CAN_UPDATE_ASSIGNMENT &&
-                          assignment.status === "active" && (
-                            <button
-                              class="transition-button"
-                              data-to="suspended"
-                              type="button"
-                            >
-                              {t("admin.tenant_entitlement.suspend_button")}
-                            </button>
-                          )}
-                        {CAN_UPDATE_ASSIGNMENT &&
-                          assignment.status === "suspended" && (
-                            <button
-                              class="transition-button"
-                              data-to="active"
-                              type="button"
-                            >
-                              {t("admin.tenant_entitlement.resume_button")}
-                            </button>
-                          )}
-                        {CAN_REVOKE_ASSIGNMENT &&
-                          assignment.status !== "canceled" && (
-                            <button
-                              class="transition-button danger"
-                              data-to="canceled"
-                              type="button"
-                            >
-                              {t("admin.tenant_entitlement.cancel_button")}
-                            </button>
-                          )}
-                      </td>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t("admin.tenant_entitlement.col_plan")}</th>
+                      <th>{t("admin.tenant_entitlement.col_status")}</th>
+                      <th>{t("admin.tenant_entitlement.col_current")}</th>
+                      <th>{t("admin.tenant_entitlement.col_actions")}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {assignments.map((assignment) => (
+                      <tr data-assignment-id={assignment.id}>
+                        <td>
+                          <code>{assignment.planKey}</code> v
+                          {assignment.offerVersion}
+                        </td>
+                        <td>
+                          <StatusBadge
+                            label={assignment.status}
+                            variant={assignmentStatusVariant(assignment.status)}
+                          />
+                        </td>
+                        <td>{assignment.isCurrent ? "✓" : ""}</td>
+                        <td class="actions">
+                          {CAN_UPDATE_ASSIGNMENT &&
+                            assignment.status === "active" && (
+                              <button
+                                class="transition-button"
+                                data-to="suspended"
+                                type="button"
+                              >
+                                {t("admin.tenant_entitlement.suspend_button")}
+                              </button>
+                            )}
+                          {CAN_UPDATE_ASSIGNMENT &&
+                            assignment.status === "suspended" && (
+                              <button
+                                class="transition-button"
+                                data-to="active"
+                                type="button"
+                              >
+                                {t("admin.tenant_entitlement.resume_button")}
+                              </button>
+                            )}
+                          {CAN_REVOKE_ASSIGNMENT &&
+                            assignment.status !== "canceled" && (
+                              <button
+                                class="transition-button danger"
+                                data-to="canceled"
+                                type="button"
+                              >
+                                {t("admin.tenant_entitlement.cancel_button")}
+                              </button>
+                            )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         )}
@@ -425,48 +433,51 @@ const quotaRows = entitlement
             {overrides.length === 0 ? (
               <p class="empty">{t("admin.tenant_entitlement.none")}</p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t("admin.tenant_entitlement.col_target")}</th>
-                    <th>{t("admin.tenant_entitlement.col_effect")}</th>
-                    <th>{t("admin.tenant_entitlement.col_effective_to")}</th>
-                    <th>{t("admin.tenant_entitlement.col_status")}</th>
-                    <th>{t("admin.tenant_entitlement.col_actions")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {overrides.map((override) => (
-                    <tr data-override-id={override.id}>
-                      <td>
-                        {override.targetKind}:<code>{override.targetKey}</code>
-                      </td>
-                      <td>{override.effect}</td>
-                      <td>{override.effectiveTo ?? "—"}</td>
-                      <td>
-                        <StatusBadge
-                          label={
-                            override.isActive
-                              ? t("admin.tenant_entitlement.active")
-                              : t("admin.tenant_entitlement.revoked")
-                          }
-                          variant={override.isActive ? "success" : "neutral"}
-                        />
-                      </td>
-                      <td class="actions">
-                        {CAN_REVOKE_OVERRIDE && override.isActive && (
-                          <button
-                            class="revoke-override-button danger"
-                            type="button"
-                          >
-                            {t("admin.tenant_entitlement.revoke_button")}
-                          </button>
-                        )}
-                      </td>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t("admin.tenant_entitlement.col_target")}</th>
+                      <th>{t("admin.tenant_entitlement.col_effect")}</th>
+                      <th>{t("admin.tenant_entitlement.col_effective_to")}</th>
+                      <th>{t("admin.tenant_entitlement.col_status")}</th>
+                      <th>{t("admin.tenant_entitlement.col_actions")}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {overrides.map((override) => (
+                      <tr data-override-id={override.id}>
+                        <td>
+                          {override.targetKind}:
+                          <code>{override.targetKey}</code>
+                        </td>
+                        <td>{override.effect}</td>
+                        <td>{override.effectiveTo ?? "—"}</td>
+                        <td>
+                          <StatusBadge
+                            label={
+                              override.isActive
+                                ? t("admin.tenant_entitlement.active")
+                                : t("admin.tenant_entitlement.revoked")
+                            }
+                            variant={override.isActive ? "success" : "neutral"}
+                          />
+                        </td>
+                        <td class="actions">
+                          {CAN_REVOKE_OVERRIDE && override.isActive && (
+                            <button
+                              class="revoke-override-button danger"
+                              type="button"
+                            >
+                              {t("admin.tenant_entitlement.revoke_button")}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         )}
@@ -479,16 +490,29 @@ const quotaRows = entitlement
   .entitlement-manager {
     display: flex;
     flex-direction: column;
-    gap: var(--space-6, 1.5rem);
+    gap: var(--sp-5);
   }
   .panel {
-    border: 1px solid var(--color-border, #d4d4d8);
-    border-radius: var(--radius-md, 0.5rem);
-    padding: var(--space-4, 1rem);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    box-shadow: var(--shadow-sm);
+  }
+  .panel h2 {
+    margin-top: 0;
   }
   .action-banner {
-    padding: var(--space-3, 0.75rem);
-    border-radius: var(--radius-md, 0.5rem);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-sm);
+  }
+  /* State-triggered entrance: the banner is `hidden` on SSR load and only
+     revealed by `showBanner` after a mutation — never SSR-visible content, so
+     the opacity fade is safe. Motion tokens; neutralised under reduced-motion. */
+  .action-banner:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
   }
   .action-banner[data-variant="success"] {
     background: color-mix(
@@ -506,41 +530,108 @@ const quotaRows = entitlement
     );
     border: 1px solid var(--color-danger);
   }
+  /* Wide tables scroll inside their own container instead of forcing the whole
+     page to scroll horizontally at 320px (doc 14 §Responsif). */
+  .table-scroll {
+    overflow-x: auto;
+  }
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: var(--space-2, 0.5rem);
+    margin-top: var(--sp-2);
   }
   th,
   td {
     text-align: left;
-    padding: var(--space-2, 0.5rem);
-    border-bottom: 1px solid var(--color-border, #e4e4e7);
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
     vertical-align: top;
+  }
+  th {
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+  /* Subtle row hover so wide tables are easier to scan (transition via motion
+     tokens; neutralised under reduced-motion). */
+  tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  tbody tr:hover {
+    background: var(--color-surface-2);
   }
   .inline-form {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-3, 0.75rem);
+    gap: var(--sp-3);
     align-items: end;
-    margin-bottom: var(--space-3, 0.75rem);
+    margin-bottom: var(--sp-3);
   }
   .inline-form label {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    font-size: 0.85rem;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+  .inline-form input,
+  .inline-form select {
+    width: 100%;
+    min-width: 0;
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .inline-form button[type="submit"] {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .inline-form button[type="submit"]:hover:not(:disabled) {
+    box-shadow: var(--shadow-md);
   }
   .actions {
     display: flex;
-    gap: var(--space-2, 0.5rem);
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+  .actions button {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+  .actions button:hover:not(:disabled) {
+    border-color: var(--color-primary);
   }
   .empty {
-    color: var(--color-text-muted, #71717a);
+    color: var(--color-text-muted);
     font-style: italic;
   }
   button.danger {
-    color: var(--color-danger, #b91c1c);
+    color: var(--color-danger);
+  }
+  .actions button.danger:hover:not(:disabled) {
+    border-color: var(--color-danger-strong);
+  }
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
   }
   input:focus-visible,
   select:focus-visible,
