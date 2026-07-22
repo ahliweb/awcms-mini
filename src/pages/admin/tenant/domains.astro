@@ -637,6 +637,12 @@ function hasVerificationRecord(domain: {
     font-size: var(--fs-xs);
   }
 
+  /* Hover feedback routes through the global control transition in tokens.css
+     (neutralised under reduced-motion) — just give it a target to animate to. */
+  .copy-record-button:hover {
+    border-color: var(--color-primary);
+  }
+
   .actions-cell {
     display: flex;
     flex-direction: column;
@@ -662,9 +668,27 @@ function hasVerificationRecord(domain: {
     width: 100%;
   }
 
+  /* Give the row-action controls a hover target so the global control
+     transition (tokens.css) animates on hover — and so a button stops
+     blending into the DataTable's own row-hover tint. */
+  .actions-cell button:hover,
+  .actions-cell .preview-link:hover {
+    background: var(--color-surface);
+    border-color: var(--color-primary);
+  }
+
   .delete-domain-button {
     color: var(--color-danger-strong);
     border-color: var(--color-danger-strong);
+  }
+
+  .delete-domain-button:hover {
+    border-color: var(--color-danger-strong);
+    background: color-mix(
+      in srgb,
+      var(--color-danger) 8%,
+      var(--color-surface)
+    );
   }
 
   .preview-link {
@@ -718,9 +742,11 @@ function hasVerificationRecord(domain: {
   }
 
   .create-domain {
+    background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: var(--sp-3);
+    box-shadow: var(--shadow-sm);
   }
 
   .create-domain summary,
@@ -728,6 +754,16 @@ function hasVerificationRecord(domain: {
   details summary {
     cursor: pointer;
     font-weight: 600;
+  }
+
+  /* State-triggered reveal: a `<details>` is collapsed on SSR load (its form is
+     not rendered visible, so the load-time a11y scan never sees it) and only
+     expands on user click — animating that expansion is safe. Motion tokens;
+     neutralised under reduced-motion. */
+  .create-domain[open] > .create-domain-form,
+  .edit-domain[open] > .edit-domain-form {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
   }
 
   button:disabled {

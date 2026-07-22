@@ -6261,11 +6261,11 @@ msgstr ""
 msgid "admin.tenant_entitlement.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:450
+#: src/pages/admin/tenant-entitlement/index.astro:460
 msgid "admin.tenant_entitlement.active"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:317
+#: src/pages/admin/tenant-entitlement/index.astro:323
 msgid "admin.tenant_entitlement.assign_button"
 msgstr ""
 
@@ -6273,55 +6273,55 @@ msgstr ""
 msgid "admin.tenant_entitlement.assign_success"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:301
+#: src/pages/admin/tenant-entitlement/index.astro:307
 msgid "admin.tenant_entitlement.assignments_heading"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:375
+#: src/pages/admin/tenant-entitlement/index.astro:382
 msgid "admin.tenant_entitlement.cancel_button"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:330
+#: src/pages/admin/tenant-entitlement/index.astro:337
 msgid "admin.tenant_entitlement.col_actions"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:206
+#: src/pages/admin/tenant-entitlement/index.astro:207
 msgid "admin.tenant_entitlement.col_allowed"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:329
+#: src/pages/admin/tenant-entitlement/index.astro:336
 msgid "admin.tenant_entitlement.col_current"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:432
+#: src/pages/admin/tenant-entitlement/index.astro:441
 msgid "admin.tenant_entitlement.col_effect"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:433
+#: src/pages/admin/tenant-entitlement/index.astro:442
 msgid "admin.tenant_entitlement.col_effective_to"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:205
+#: src/pages/admin/tenant-entitlement/index.astro:206
 msgid "admin.tenant_entitlement.col_key"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:269
+#: src/pages/admin/tenant-entitlement/index.astro:274
 msgid "admin.tenant_entitlement.col_limit"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:327
+#: src/pages/admin/tenant-entitlement/index.astro:334
 msgid "admin.tenant_entitlement.col_plan"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:207
+#: src/pages/admin/tenant-entitlement/index.astro:208
 msgid "admin.tenant_entitlement.col_source"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:328
+#: src/pages/admin/tenant-entitlement/index.astro:335
 msgid "admin.tenant_entitlement.col_status"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:431
+#: src/pages/admin/tenant-entitlement/index.astro:440
 msgid "admin.tenant_entitlement.col_target"
 msgstr ""
 
@@ -6333,35 +6333,35 @@ msgstr ""
 msgid "admin.tenant_entitlement.features_heading"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:406
+#: src/pages/admin/tenant-entitlement/index.astro:414
 msgid "admin.tenant_entitlement.field_effect"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:313
+#: src/pages/admin/tenant-entitlement/index.astro:319
 msgid "admin.tenant_entitlement.field_effective_to"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:309
+#: src/pages/admin/tenant-entitlement/index.astro:315
 msgid "admin.tenant_entitlement.field_offer_version"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:305
+#: src/pages/admin/tenant-entitlement/index.astro:311
 msgid "admin.tenant_entitlement.field_plan_key"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:413
+#: src/pages/admin/tenant-entitlement/index.astro:421
 msgid "admin.tenant_entitlement.field_reason"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:402
+#: src/pages/admin/tenant-entitlement/index.astro:410
 msgid "admin.tenant_entitlement.field_target_key"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:394
+#: src/pages/admin/tenant-entitlement/index.astro:402
 msgid "admin.tenant_entitlement.field_target_kind"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:229
+#: src/pages/admin/tenant-entitlement/index.astro:231
 msgid "admin.tenant_entitlement.modules_heading"
 msgstr ""
 
@@ -6369,7 +6369,7 @@ msgstr ""
 msgid "admin.tenant_entitlement.none"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:421
+#: src/pages/admin/tenant-entitlement/index.astro:429
 msgid "admin.tenant_entitlement.override_button"
 msgstr ""
 
@@ -6377,11 +6377,11 @@ msgstr ""
 msgid "admin.tenant_entitlement.override_success"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:390
+#: src/pages/admin/tenant-entitlement/index.astro:398
 msgid "admin.tenant_entitlement.overrides_heading"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:260
+#: src/pages/admin/tenant-entitlement/index.astro:264
 msgid "admin.tenant_entitlement.quotas_heading"
 msgstr ""
 
@@ -6389,11 +6389,11 @@ msgstr ""
 msgid "admin.tenant_entitlement.reason_prompt"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:365
+#: src/pages/admin/tenant-entitlement/index.astro:372
 msgid "admin.tenant_entitlement.resume_button"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:462
+#: src/pages/admin/tenant-entitlement/index.astro:472
 msgid "admin.tenant_entitlement.revoke_button"
 msgstr ""
 
@@ -6401,7 +6401,7 @@ msgstr ""
 msgid "admin.tenant_entitlement.revoke_success"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:451
+#: src/pages/admin/tenant-entitlement/index.astro:461
 msgid "admin.tenant_entitlement.revoked"
 msgstr ""
 
@@ -6413,7 +6413,7 @@ msgstr ""
 msgid "admin.tenant_entitlement.status_label"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:355
+#: src/pages/admin/tenant-entitlement/index.astro:362
 msgid "admin.tenant_entitlement.suspend_button"
 msgstr ""
 
@@ -6425,7 +6425,7 @@ msgstr ""
 msgid "admin.tenant_entitlement.transition_success"
 msgstr ""
 
-#: src/pages/admin/tenant-entitlement/index.astro:287
+#: src/pages/admin/tenant-entitlement/index.astro:292
 msgid "admin.tenant_entitlement.unlimited"
 msgstr ""
 
@@ -6645,55 +6645,55 @@ msgstr ""
 msgid "admin.usage_metering.checkpoint_label"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:296
+#: src/pages/admin/usage-metering/index.astro:301
 msgid "admin.usage_metering.col_delta"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:356
+#: src/pages/admin/usage-metering/index.astro:363
 msgid "admin.usage_metering.col_drift"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:239
+#: src/pages/admin/usage-metering/index.astro:242
 msgid "admin.usage_metering.col_event_time"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:201
+#: src/pages/admin/usage-metering/index.astro:202
 msgid "admin.usage_metering.col_freshness"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:198
+#: src/pages/admin/usage-metering/index.astro:199
 msgid "admin.usage_metering.col_meter"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:237
+#: src/pages/admin/usage-metering/index.astro:240
 msgid "admin.usage_metering.col_producer"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:238
+#: src/pages/admin/usage-metering/index.astro:241
 msgid "admin.usage_metering.col_quantity"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:357
+#: src/pages/admin/usage-metering/index.astro:364
 msgid "admin.usage_metering.col_started"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:355
+#: src/pages/admin/usage-metering/index.astro:362
 msgid "admin.usage_metering.col_status"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:295
+#: src/pages/admin/usage-metering/index.astro:300
 msgid "admin.usage_metering.col_type"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:200
+#: src/pages/admin/usage-metering/index.astro:201
 msgid "admin.usage_metering.col_value"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:199
+#: src/pages/admin/usage-metering/index.astro:200
 msgid "admin.usage_metering.col_window"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:284
+#: src/pages/admin/usage-metering/index.astro:288
 msgid "admin.usage_metering.correct_button"
 msgstr ""
 
@@ -6701,43 +6701,43 @@ msgstr ""
 msgid "admin.usage_metering.correct_success"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:261
+#: src/pages/admin/usage-metering/index.astro:265
 msgid "admin.usage_metering.corrections_heading"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:229
+#: src/pages/admin/usage-metering/index.astro:231
 msgid "admin.usage_metering.events_heading"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:269
+#: src/pages/admin/usage-metering/index.astro:273
 msgid "admin.usage_metering.field_correction_type"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:276
+#: src/pages/admin/usage-metering/index.astro:280
 msgid "admin.usage_metering.field_delta_quantity"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:324
+#: src/pages/admin/usage-metering/index.astro:330
 msgid "admin.usage_metering.field_meter_key"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:265
+#: src/pages/admin/usage-metering/index.astro:269
 msgid "admin.usage_metering.field_original_event_id"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:336
+#: src/pages/admin/usage-metering/index.astro:342
 msgid "admin.usage_metering.field_range_from"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:340
+#: src/pages/admin/usage-metering/index.astro:346
 msgid "admin.usage_metering.field_range_to"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:280
+#: src/pages/admin/usage-metering/index.astro:284
 msgid "admin.usage_metering.field_reason"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:328
+#: src/pages/admin/usage-metering/index.astro:334
 msgid "admin.usage_metering.field_window_type"
 msgstr ""
 
@@ -6761,7 +6761,7 @@ msgstr ""
 msgid "admin.usage_metering.rebuild_success"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:344
+#: src/pages/admin/usage-metering/index.astro:350
 msgid "admin.usage_metering.reconcile_button"
 msgstr ""
 
@@ -6769,7 +6769,7 @@ msgstr ""
 msgid "admin.usage_metering.reconcile_success"
 msgstr ""
 
-#: src/pages/admin/usage-metering/index.astro:320
+#: src/pages/admin/usage-metering/index.astro:326
 msgid "admin.usage_metering.reconciliation_heading"
 msgstr ""
 
