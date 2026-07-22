@@ -71,6 +71,13 @@ WORKDIR /app
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package.json ./package.json
+# Read at request time via process.cwd()-relative paths (i18n catalogs,
+# module-management's health checks for migration/OpenAPI/AsyncAPI docs) —
+# not bundled into dist/ by `astro build`, so they must be copied explicitly.
+COPY --from=build /app/i18n ./i18n
+COPY --from=build /app/sql ./sql
+COPY --from=build /app/openapi ./openapi
+COPY --from=build /app/asyncapi ./asyncapi
 
 # `oven/bun:1` ships a built-in non-root `bun` user (uid 1000) for exactly
 # this purpose — never run the server as root.
