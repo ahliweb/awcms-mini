@@ -10,7 +10,7 @@ import {
   type WorkClass
 } from "./work-class";
 
-const UUID_PATTERN =
+export const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const DEFAULT_QUEUE_TIMEOUT_MS = 2000;
