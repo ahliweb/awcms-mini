@@ -168,6 +168,14 @@ const clientStrings = {
     const invBox = document.getElementById("invoices");
     if (!subsBox || !invBox) return;
 
+    // Reset both panels up front so a re-lookup never mixes the previous
+    // tenant's rendered table with an error/result for the current one, and so
+    // the catch below can trust `hidden` to tell which panel THIS run rendered.
+    subsBox.hidden = true;
+    subsBox.innerHTML = "";
+    invBox.hidden = true;
+    invBox.innerHTML = "";
+
     try {
       const subsRes = await fetch(
         `${BASE}/tenants/${encodeURIComponent(tenantId)}/subscriptions`,
