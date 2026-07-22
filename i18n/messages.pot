@@ -3880,23 +3880,23 @@ msgstr ""
 msgid "admin.organization_structure.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:128
+#: src/pages/admin/organization-structure/assignments.astro:129
 msgid "admin.organization_structure.assignments.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:122
+#: src/pages/admin/organization-structure/assignments.astro:123
 msgid "admin.organization_structure.assignments.col_position"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:125
+#: src/pages/admin/organization-structure/assignments.astro:126
 msgid "admin.organization_structure.assignments.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:119
+#: src/pages/admin/organization-structure/assignments.astro:120
 msgid "admin.organization_structure.assignments.col_unit"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:189
+#: src/pages/admin/organization-structure/assignments.astro:191
 msgid "admin.organization_structure.assignments.create_submit"
 msgstr ""
 
@@ -3904,11 +3904,11 @@ msgstr ""
 msgid "admin.organization_structure.assignments.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:160
+#: src/pages/admin/organization-structure/assignments.astro:162
 msgid "admin.organization_structure.assignments.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:145
+#: src/pages/admin/organization-structure/assignments.astro:146
 msgid "admin.organization_structure.assignments.end_button"
 msgstr ""
 
@@ -3920,15 +3920,15 @@ msgstr ""
 msgid "admin.organization_structure.assignments.end_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:185
+#: src/pages/admin/organization-structure/assignments.astro:187
 msgid "admin.organization_structure.assignments.field_position"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:174
+#: src/pages/admin/organization-structure/assignments.astro:176
 msgid "admin.organization_structure.assignments.field_tenant_user"
 msgstr ""
 
-#: src/pages/admin/organization-structure/assignments.astro:164
+#: src/pages/admin/organization-structure/assignments.astro:166
 msgid "admin.organization_structure.assignments.field_unit"
 msgstr ""
 
@@ -3940,23 +3940,23 @@ msgstr ""
 msgid "admin.organization_structure.assignments.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:118
+#: src/pages/admin/organization-structure/hierarchy.astro:119
 msgid "admin.organization_structure.hierarchy.col_parent"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:115
+#: src/pages/admin/organization-structure/hierarchy.astro:116
 msgid "admin.organization_structure.hierarchy.col_unit"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:152
+#: src/pages/admin/organization-structure/hierarchy.astro:154
 msgid "admin.organization_structure.hierarchy.field_parent"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:165
+#: src/pages/admin/organization-structure/hierarchy.astro:167
 msgid "admin.organization_structure.hierarchy.field_reason"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:142
+#: src/pages/admin/organization-structure/hierarchy.astro:144
 msgid "admin.organization_structure.hierarchy.field_unit"
 msgstr ""
 
@@ -3964,7 +3964,7 @@ msgstr ""
 msgid "admin.organization_structure.hierarchy.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:169
+#: src/pages/admin/organization-structure/hierarchy.astro:171
 msgid "admin.organization_structure.hierarchy.reparent_submit"
 msgstr ""
 
@@ -3972,7 +3972,7 @@ msgstr ""
 msgid "admin.organization_structure.hierarchy.reparent_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/hierarchy.astro:138
+#: src/pages/admin/organization-structure/hierarchy.astro:140
 msgid "admin.organization_structure.hierarchy.reparent_summary"
 msgstr ""
 
@@ -3984,23 +3984,23 @@ msgstr ""
 msgid "admin.organization_structure.hierarchy.top_level"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:131
+#: src/pages/admin/organization-structure/legal-entities.astro:134
 msgid "admin.organization_structure.legal_entities.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:123
+#: src/pages/admin/organization-structure/legal-entities.astro:124
 msgid "admin.organization_structure.legal_entities.col_identifier"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:120
+#: src/pages/admin/organization-structure/legal-entities.astro:121
 msgid "admin.organization_structure.legal_entities.col_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:128
+#: src/pages/admin/organization-structure/legal-entities.astro:129
 msgid "admin.organization_structure.legal_entities.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:206
+#: src/pages/admin/organization-structure/legal-entities.astro:212
 msgid "admin.organization_structure.legal_entities.create_submit"
 msgstr ""
 
@@ -4008,11 +4008,11 @@ msgstr ""
 msgid "admin.organization_structure.legal_entities.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:178
+#: src/pages/admin/organization-structure/legal-entities.astro:184
 msgid "admin.organization_structure.legal_entities.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:152
+#: src/pages/admin/organization-structure/legal-entities.astro:157
 msgid "admin.organization_structure.legal_entities.deactivate_button"
 msgstr ""
 
@@ -4024,15 +4024,15 @@ msgstr ""
 msgid "admin.organization_structure.legal_entities.deactivate_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:196
+#: src/pages/admin/organization-structure/legal-entities.astro:202
 msgid "admin.organization_structure.legal_entities.field_identifier"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:186
+#: src/pages/admin/organization-structure/legal-entities.astro:192
 msgid "admin.organization_structure.legal_entities.field_identifier_label"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:182
+#: src/pages/admin/organization-structure/legal-entities.astro:188
 msgid "admin.organization_structure.legal_entities.field_name"
 msgstr ""
 
@@ -4040,7 +4040,7 @@ msgstr ""
 msgid "admin.organization_structure.legal_entities.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/legal-entities.astro:163
+#: src/pages/admin/organization-structure/legal-entities.astro:168
 msgid "admin.organization_structure.legal_entities.restore_button"
 msgstr ""
 
@@ -4052,23 +4052,23 @@ msgstr ""
 msgid "admin.organization_structure.legal_entities.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:120
+#: src/pages/admin/organization-structure/locations.astro:121
 msgid "admin.organization_structure.locations.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:114
+#: src/pages/admin/organization-structure/locations.astro:115
 msgid "admin.organization_structure.locations.col_city"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:111
+#: src/pages/admin/organization-structure/locations.astro:112
 msgid "admin.organization_structure.locations.col_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:117
+#: src/pages/admin/organization-structure/locations.astro:118
 msgid "admin.organization_structure.locations.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:195
+#: src/pages/admin/organization-structure/locations.astro:197
 msgid "admin.organization_structure.locations.create_submit"
 msgstr ""
 
@@ -4076,11 +4076,11 @@ msgstr ""
 msgid "admin.organization_structure.locations.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:163
+#: src/pages/admin/organization-structure/locations.astro:165
 msgid "admin.organization_structure.locations.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:137
+#: src/pages/admin/organization-structure/locations.astro:138
 msgid "admin.organization_structure.locations.delete_button"
 msgstr ""
 
@@ -4088,19 +4088,19 @@ msgstr ""
 msgid "admin.organization_structure.locations.delete_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:171
+#: src/pages/admin/organization-structure/locations.astro:173
 msgid "admin.organization_structure.locations.field_city"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:175
+#: src/pages/admin/organization-structure/locations.astro:177
 msgid "admin.organization_structure.locations.field_latitude"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:185
+#: src/pages/admin/organization-structure/locations.astro:187
 msgid "admin.organization_structure.locations.field_longitude"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:167
+#: src/pages/admin/organization-structure/locations.astro:169
 msgid "admin.organization_structure.locations.field_name"
 msgstr ""
 
@@ -4108,7 +4108,7 @@ msgstr ""
 msgid "admin.organization_structure.locations.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/locations.astro:148
+#: src/pages/admin/organization-structure/locations.astro:149
 msgid "admin.organization_structure.locations.restore_button"
 msgstr ""
 
@@ -4120,23 +4120,23 @@ msgstr ""
 msgid "admin.organization_structure.locations.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:122
+#: src/pages/admin/organization-structure/unit-types.astro:123
 msgid "admin.organization_structure.unit_types.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:113
+#: src/pages/admin/organization-structure/unit-types.astro:114
 msgid "admin.organization_structure.unit_types.col_code"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:116
+#: src/pages/admin/organization-structure/unit-types.astro:117
 msgid "admin.organization_structure.unit_types.col_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:119
+#: src/pages/admin/organization-structure/unit-types.astro:120
 msgid "admin.organization_structure.unit_types.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:191
+#: src/pages/admin/organization-structure/unit-types.astro:193
 msgid "admin.organization_structure.unit_types.create_submit"
 msgstr ""
 
@@ -4144,11 +4144,11 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:165
+#: src/pages/admin/organization-structure/unit-types.astro:167
 msgid "admin.organization_structure.unit_types.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:139
+#: src/pages/admin/organization-structure/unit-types.astro:140
 msgid "admin.organization_structure.unit_types.delete_button"
 msgstr ""
 
@@ -4156,15 +4156,15 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.delete_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:173
+#: src/pages/admin/organization-structure/unit-types.astro:175
 msgid "admin.organization_structure.unit_types.field_code"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:187
+#: src/pages/admin/organization-structure/unit-types.astro:189
 msgid "admin.organization_structure.unit_types.field_description"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:183
+#: src/pages/admin/organization-structure/unit-types.astro:185
 msgid "admin.organization_structure.unit_types.field_name"
 msgstr ""
 
@@ -4172,7 +4172,7 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:150
+#: src/pages/admin/organization-structure/unit-types.astro:151
 msgid "admin.organization_structure.unit_types.restore_button"
 msgstr ""
 
@@ -4180,7 +4180,7 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.restore_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/unit-types.astro:168
+#: src/pages/admin/organization-structure/unit-types.astro:170
 msgid "admin.organization_structure.unit_types.suggested_codes"
 msgstr ""
 
@@ -4188,23 +4188,23 @@ msgstr ""
 msgid "admin.organization_structure.unit_types.title"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:128
+#: src/pages/admin/organization-structure/units.astro:129
 msgid "admin.organization_structure.units.col_actions"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:119
+#: src/pages/admin/organization-structure/units.astro:120
 msgid "admin.organization_structure.units.col_code"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:122
+#: src/pages/admin/organization-structure/units.astro:123
 msgid "admin.organization_structure.units.col_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:125
+#: src/pages/admin/organization-structure/units.astro:126
 msgid "admin.organization_structure.units.col_status"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:209
+#: src/pages/admin/organization-structure/units.astro:213
 msgid "admin.organization_structure.units.create_submit"
 msgstr ""
 
@@ -4212,11 +4212,11 @@ msgstr ""
 msgid "admin.organization_structure.units.create_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:169
+#: src/pages/admin/organization-structure/units.astro:173
 msgid "admin.organization_structure.units.create_summary"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:145
+#: src/pages/admin/organization-structure/units.astro:146
 msgid "admin.organization_structure.units.deactivate_button"
 msgstr ""
 
@@ -4224,19 +4224,19 @@ msgstr ""
 msgid "admin.organization_structure.units.deactivate_success"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:173
+#: src/pages/admin/organization-structure/units.astro:177
 msgid "admin.organization_structure.units.field_code"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:187
+#: src/pages/admin/organization-structure/units.astro:191
 msgid "admin.organization_structure.units.field_legal_entity"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:183
+#: src/pages/admin/organization-structure/units.astro:187
 msgid "admin.organization_structure.units.field_name"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:198
+#: src/pages/admin/organization-structure/units.astro:202
 msgid "admin.organization_structure.units.field_unit_type"
 msgstr ""
 
@@ -4244,11 +4244,11 @@ msgstr ""
 msgid "admin.organization_structure.units.no_rows"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:190
+#: src/pages/admin/organization-structure/units.astro:194
 msgid "admin.organization_structure.units.none_option"
 msgstr ""
 
-#: src/pages/admin/organization-structure/units.astro:156
+#: src/pages/admin/organization-structure/units.astro:157
 msgid "admin.organization_structure.units.restore_button"
 msgstr ""
 
@@ -4556,27 +4556,27 @@ msgstr ""
 msgid "admin.reference_data.access_denied_title"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:188
+#: src/pages/admin/reference-data/codes.astro:189
 msgid "admin.reference_data.codes.col_actions"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:176
+#: src/pages/admin/reference-data/codes.astro:177
 msgid "admin.reference_data.codes.col_code"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:179
+#: src/pages/admin/reference-data/codes.astro:180
 msgid "admin.reference_data.codes.col_label"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:182
+#: src/pages/admin/reference-data/codes.astro:183
 msgid "admin.reference_data.codes.col_provenance"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:185
+#: src/pages/admin/reference-data/codes.astro:186
 msgid "admin.reference_data.codes.col_status"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:254
+#: src/pages/admin/reference-data/codes.astro:258
 msgid "admin.reference_data.codes.create_submit"
 msgstr ""
 
@@ -4584,11 +4584,11 @@ msgstr ""
 msgid "admin.reference_data.codes.create_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:233
+#: src/pages/admin/reference-data/codes.astro:237
 msgid "admin.reference_data.codes.create_summary"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:211
+#: src/pages/admin/reference-data/codes.astro:212
 msgid "admin.reference_data.codes.deprecate_button"
 msgstr ""
 
@@ -4600,31 +4600,31 @@ msgstr ""
 msgid "admin.reference_data.codes.deprecate_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:237
+#: src/pages/admin/reference-data/codes.astro:241
 msgid "admin.reference_data.codes.field_code"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:241
+#: src/pages/admin/reference-data/codes.astro:245
 msgid "admin.reference_data.codes.field_label_en"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:250
+#: src/pages/admin/reference-data/codes.astro:254
 msgid "admin.reference_data.codes.field_label_id"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:305
+#: src/pages/admin/reference-data/codes.astro:314
 msgid "admin.reference_data.codes.import_col_actions"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:302
+#: src/pages/admin/reference-data/codes.astro:309
 msgid "admin.reference_data.codes.import_col_created"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:299
+#: src/pages/admin/reference-data/codes.astro:304
 msgid "admin.reference_data.codes.import_col_status"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:285
+#: src/pages/admin/reference-data/codes.astro:289
 msgid "admin.reference_data.codes.import_commit_submit"
 msgstr ""
 
@@ -4632,7 +4632,7 @@ msgstr ""
 msgid "admin.reference_data.codes.import_commit_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:278
+#: src/pages/admin/reference-data/codes.astro:282
 msgid "admin.reference_data.codes.import_dry_run_submit"
 msgstr ""
 
@@ -4640,7 +4640,7 @@ msgstr ""
 msgid "admin.reference_data.codes.import_dry_run_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:293
+#: src/pages/admin/reference-data/codes.astro:297
 msgid "admin.reference_data.codes.import_history_title"
 msgstr ""
 
@@ -4648,11 +4648,11 @@ msgstr ""
 msgid "admin.reference_data.codes.import_invalid_json"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:267
+#: src/pages/admin/reference-data/codes.astro:271
 msgid "admin.reference_data.codes.import_payload_label"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:322
+#: src/pages/admin/reference-data/codes.astro:333
 msgid "admin.reference_data.codes.import_rollback_button"
 msgstr ""
 
@@ -4660,7 +4660,7 @@ msgstr ""
 msgid "admin.reference_data.codes.import_rollback_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:263
+#: src/pages/admin/reference-data/codes.astro:267
 msgid "admin.reference_data.codes.import_section_title"
 msgstr ""
 
@@ -4668,7 +4668,7 @@ msgstr ""
 msgid "admin.reference_data.codes.no_rows"
 msgstr ""
 
-#: src/pages/admin/reference-data/codes.astro:220
+#: src/pages/admin/reference-data/codes.astro:223
 msgid "admin.reference_data.codes.restore_button"
 msgstr ""
 
@@ -4684,27 +4684,27 @@ msgstr ""
 msgid "admin.reference_data.codes.title"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:166
+#: src/pages/admin/reference-data/tenant-codes.astro:167
 msgid "admin.reference_data.tenant_codes.col_actions"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:154
+#: src/pages/admin/reference-data/tenant-codes.astro:155
 msgid "admin.reference_data.tenant_codes.col_code"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:157
+#: src/pages/admin/reference-data/tenant-codes.astro:158
 msgid "admin.reference_data.tenant_codes.col_kind"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:160
+#: src/pages/admin/reference-data/tenant-codes.astro:161
 msgid "admin.reference_data.tenant_codes.col_label"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:163
+#: src/pages/admin/reference-data/tenant-codes.astro:164
 msgid "admin.reference_data.tenant_codes.col_status"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:244
+#: src/pages/admin/reference-data/tenant-codes.astro:246
 msgid "admin.reference_data.tenant_codes.create_submit"
 msgstr ""
 
@@ -4712,11 +4712,11 @@ msgstr ""
 msgid "admin.reference_data.tenant_codes.create_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:213
+#: src/pages/admin/reference-data/tenant-codes.astro:215
 msgid "admin.reference_data.tenant_codes.create_summary"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:187
+#: src/pages/admin/reference-data/tenant-codes.astro:188
 msgid "admin.reference_data.tenant_codes.deprecate_button"
 msgstr ""
 
@@ -4728,23 +4728,23 @@ msgstr ""
 msgid "admin.reference_data.tenant_codes.deprecate_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:217
+#: src/pages/admin/reference-data/tenant-codes.astro:219
 msgid "admin.reference_data.tenant_codes.field_base_code"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:221
+#: src/pages/admin/reference-data/tenant-codes.astro:223
 msgid "admin.reference_data.tenant_codes.field_base_code_placeholder"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:227
+#: src/pages/admin/reference-data/tenant-codes.astro:229
 msgid "admin.reference_data.tenant_codes.field_code"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:231
+#: src/pages/admin/reference-data/tenant-codes.astro:233
 msgid "admin.reference_data.tenant_codes.field_label_en"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:240
+#: src/pages/admin/reference-data/tenant-codes.astro:242
 msgid "admin.reference_data.tenant_codes.field_label_id"
 msgstr ""
 
@@ -4752,7 +4752,7 @@ msgstr ""
 msgid "admin.reference_data.tenant_codes.no_rows"
 msgstr ""
 
-#: src/pages/admin/reference-data/tenant-codes.astro:198
+#: src/pages/admin/reference-data/tenant-codes.astro:199
 msgid "admin.reference_data.tenant_codes.restore_button"
 msgstr ""
 
@@ -4768,27 +4768,27 @@ msgstr ""
 msgid "admin.reference_data.tenant_codes.title"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:125
+#: src/pages/admin/reference-data/value-sets.astro:126
 msgid "admin.reference_data.value_sets.col_actions"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:113
+#: src/pages/admin/reference-data/value-sets.astro:114
 msgid "admin.reference_data.value_sets.col_key"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:116
+#: src/pages/admin/reference-data/value-sets.astro:117
 msgid "admin.reference_data.value_sets.col_name"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:119
+#: src/pages/admin/reference-data/value-sets.astro:120
 msgid "admin.reference_data.value_sets.col_scope"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:122
+#: src/pages/admin/reference-data/value-sets.astro:123
 msgid "admin.reference_data.value_sets.col_status"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:204
+#: src/pages/admin/reference-data/value-sets.astro:208
 msgid "admin.reference_data.value_sets.create_submit"
 msgstr ""
 
@@ -4796,11 +4796,11 @@ msgstr ""
 msgid "admin.reference_data.value_sets.create_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:171
+#: src/pages/admin/reference-data/value-sets.astro:175
 msgid "admin.reference_data.value_sets.create_summary"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:149
+#: src/pages/admin/reference-data/value-sets.astro:150
 msgid "admin.reference_data.value_sets.deprecate_button"
 msgstr ""
 
@@ -4812,19 +4812,19 @@ msgstr ""
 msgid "admin.reference_data.value_sets.deprecate_success"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:189
+#: src/pages/admin/reference-data/value-sets.astro:193
 msgid "admin.reference_data.value_sets.field_description"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:175
+#: src/pages/admin/reference-data/value-sets.astro:179
 msgid "admin.reference_data.value_sets.field_key"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:185
+#: src/pages/admin/reference-data/value-sets.astro:189
 msgid "admin.reference_data.value_sets.field_name"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:193
+#: src/pages/admin/reference-data/value-sets.astro:197
 msgid "admin.reference_data.value_sets.field_override_policy"
 msgstr ""
 
@@ -4832,7 +4832,7 @@ msgstr ""
 msgid "admin.reference_data.value_sets.no_rows"
 msgstr ""
 
-#: src/pages/admin/reference-data/value-sets.astro:158
+#: src/pages/admin/reference-data/value-sets.astro:161
 msgid "admin.reference_data.value_sets.restore_button"
 msgstr ""
 
@@ -5329,43 +5329,43 @@ msgstr ""
 msgid "admin.service_catalog.plans.back_to_list"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:204
+#: src/pages/admin/service-catalog/plans.astro:205
 msgid "admin.service_catalog.plans.col_actions"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:198
+#: src/pages/admin/service-catalog/plans.astro:199
 msgid "admin.service_catalog.plans.col_currency"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:298
+#: src/pages/admin/service-catalog/plans.astro:303
 msgid "admin.service_catalog.plans.col_key"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:310
+#: src/pages/admin/service-catalog/plans.astro:315
 msgid "admin.service_catalog.plans.col_latest_version"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:301
+#: src/pages/admin/service-catalog/plans.astro:306
 msgid "admin.service_catalog.plans.col_name"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:201
+#: src/pages/admin/service-catalog/plans.astro:202
 msgid "admin.service_catalog.plans.col_published_at"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:195
+#: src/pages/admin/service-catalog/plans.astro:196
 msgid "admin.service_catalog.plans.col_status"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:304
+#: src/pages/admin/service-catalog/plans.astro:309
 msgid "admin.service_catalog.plans.col_type"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:192
+#: src/pages/admin/service-catalog/plans.astro:193
 msgid "admin.service_catalog.plans.col_version"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:396
+#: src/pages/admin/service-catalog/plans.astro:402
 msgid "admin.service_catalog.plans.create_submit"
 msgstr ""
 
@@ -5373,31 +5373,31 @@ msgstr ""
 msgid "admin.service_catalog.plans.create_success"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:358
+#: src/pages/admin/service-catalog/plans.astro:364
 msgid "admin.service_catalog.plans.create_summary"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:266
+#: src/pages/admin/service-catalog/plans.astro:270
 msgid "admin.service_catalog.plans.edit_draft"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:268
+#: src/pages/admin/service-catalog/plans.astro:272
 msgid "admin.service_catalog.plans.field_content"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:385
+#: src/pages/admin/service-catalog/plans.astro:391
 msgid "admin.service_catalog.plans.field_currency"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:362
+#: src/pages/admin/service-catalog/plans.astro:368
 msgid "admin.service_catalog.plans.field_key"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:372
+#: src/pages/admin/service-catalog/plans.astro:378
 msgid "admin.service_catalog.plans.field_name"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:376
+#: src/pages/admin/service-catalog/plans.astro:382
 msgid "admin.service_catalog.plans.field_type"
 msgstr ""
 
@@ -5405,7 +5405,7 @@ msgstr ""
 msgid "admin.service_catalog.plans.invalid_json"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:260
+#: src/pages/admin/service-catalog/plans.astro:264
 msgid "admin.service_catalog.plans.new_version_button"
 msgstr ""
 
@@ -5413,7 +5413,7 @@ msgstr ""
 msgid "admin.service_catalog.plans.new_version_success"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:291
+#: src/pages/admin/service-catalog/plans.astro:295
 msgid "admin.service_catalog.plans.no_rows"
 msgstr ""
 
@@ -5425,7 +5425,7 @@ msgstr ""
 msgid "admin.service_catalog.plans.not_found_title"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:236
+#: src/pages/admin/service-catalog/plans.astro:239
 msgid "admin.service_catalog.plans.publish_button"
 msgstr ""
 
@@ -5433,7 +5433,7 @@ msgstr ""
 msgid "admin.service_catalog.plans.publish_success"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:245
+#: src/pages/admin/service-catalog/plans.astro:248
 msgid "admin.service_catalog.plans.retire_button"
 msgstr ""
 
@@ -5441,7 +5441,7 @@ msgstr ""
 msgid "admin.service_catalog.plans.retire_success"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:279
+#: src/pages/admin/service-catalog/plans.astro:283
 msgid "admin.service_catalog.plans.save_draft_button"
 msgstr ""
 
@@ -5453,7 +5453,7 @@ msgstr ""
 msgid "admin.service_catalog.plans.title"
 msgstr ""
 
-#: src/pages/admin/service-catalog/plans.astro:227
+#: src/pages/admin/service-catalog/plans.astro:230
 msgid "admin.service_catalog.plans.validate_button"
 msgstr ""
 
