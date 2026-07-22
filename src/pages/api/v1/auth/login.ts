@@ -2,7 +2,10 @@ import type { APIRoute } from "astro";
 import { fail, ok } from "../../../../modules/_shared/api-response";
 import { evaluateLoginAttempt } from "../../../../modules/identity-access/domain/login-policy";
 import { getDatabaseClient } from "../../../../lib/database/client";
-import { UUID_PATTERN, withTenant } from "../../../../lib/database/tenant-context";
+import {
+  UUID_PATTERN,
+  withTenant
+} from "../../../../lib/database/tenant-context";
 import { verifyPasswordOrDummy } from "../../../../lib/auth/password";
 import {
   generateSessionToken,
