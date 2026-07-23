@@ -43,9 +43,10 @@ replays the winning row. Corrections carry their own idempotency identity.
   immutable events+corrections (a rebuild reproduces the stored value +
   `content_hash`). Window identity is frozen; `source_watermark` only advances;
   `window_closed` is one-way; never hard-deleted.
-- **usage_aggregation_cursors** — the worker LEASE + write-once checkpoint
-  (`checkpoint_seq` only advances forward — a crashed/replayed run re-processes the
-  same page and, because aggregation is recompute-from-source, never double-counts).
+- **usage_aggregation_cursors** — the worker LEASE + write-once checkpoint. The
+  commit-order floor `checkpoint_xid8` (and the informational `checkpoint_seq`)
+  only advance forward — a crashed/replayed run re-processes the same page and,
+  because aggregation is recompute-from-source, never double-counts.
 - **usage_reconciliation_runs** — append-only immutable evidence.
 
 Enforced by BEFORE triggers (`sql/087`) beneath the application guards AND
@@ -64,35 +65,45 @@ recompute their (possibly already closed) window deterministically and bump a
 late counter, a rebuild reproduces stored aggregates byte-for-byte, and
 reconciliation flags any stored aggregate that drifts.
 
-## Reconciliation is a REQUIRED operational backstop (not optional)
+## Commit-order safe watermark + reconciliation backstop
 
 `ingest_seq` is **not commit-ordered** — `nextval` is drawn at INSERT time, not
-at COMMIT — so a transaction that drew a lower `ingest_seq` can commit _after_
-the aggregation cursor (`checkpoint_seq`, which advances strictly forward) has
-already passed it. The cursor guarantees forward progress and resumability, **not
-exactly-once completeness**. Absent a backstop, a late-committing lower-seq event
-that lands in a window with no later event to re-touch it could be permanently
-under-counted by cursor-driven aggregation.
+at COMMIT — so a transaction that drew a lower `ingest_seq` can commit _after_ a
+higher one. A cursor keyed on `ingest_seq` could advance past the higher-seq row
+and permanently under-count the lower-seq event's window (a billing-input revenue
+leak) if no later event re-touched that window and no reconciliation ran.
 
-Two backstops make this safe, and the second is a hard operational requirement:
+Since **issue #900** the cursor is keyed on a **commit-ordered `xid8`**, not
+`ingest_seq`. Each event/correction is stamped with `ingest_xid8`
+(`pg_current_xact_id()`, `sql/099`), and each aggregation pass reads
+`safe = pg_snapshot_xmin(pg_current_snapshot())` and drains **only settled rows**
+(`ingest_xid8 < safe`) from the floor `checkpoint_xid8` upward. Because no
+in-flight or future transaction can ever have an `xid8` below `safe`, a
+lower-order producer that commits late is always still at/above the floor and is
+picked up on a later pass — the cursor **structurally** never skips it.
+`checkpoint_seq` is kept as an informational high-water only. A long-running
+transaction merely delays newer rows behind it (conservative — never an
+under-count). See `application/aggregation-engine.ts`.
+
+Two further backstops remain as defence-in-depth, and the second is still a hard
+operational requirement:
 
 1. **Recompute-from-source** — a window is never incrementally accumulated;
    `recomputeWindow` re-reads the _entire_ window by `event_time`, so any later
-   event/correction touching the same window pulls the late-committed row back in
+   event/correction touching the same window pulls a late-committed row back in
    and corrects the value.
 2. **Scheduled reconciliation (REQUIRED)** — `runReconciliation`
    (`POST /api/v1/usage-metering/reconciliation`, or an operator schedule)
    independently recomputes each window from the immutable source and records
    `missing_count` / `drift_count` on `awcms_mini_usage_reconciliation_runs`.
-   This is the authoritative safety net for a window the cursor advanced past
-   that no later event re-touched. **Deployments MUST run reconciliation on a
-   schedule (e.g. hourly for `hour`/`day` windows, daily for `month`) and MUST
-   alarm on `missing_count > 0` or `drift_count > 0`** — a persistent non-zero
-   count means a window is under-counted and needs a rebuild
+   This is the authoritative safety net for any residual drift (e.g. a manual
+   data fix). **Deployments MUST run reconciliation on a schedule (e.g. hourly
+   for `hour`/`day` windows, daily for `month`) and MUST alarm on
+   `missing_count > 0` or `drift_count > 0`** — a persistent non-zero count means
+   a window is under-counted and needs a rebuild
    (`POST /api/v1/usage-metering/aggregation/rebuild`). Billing must not be
    finalized (#876) from windows a recent reconciliation has not confirmed
-   consistent. (A true safe-watermark cursor is a tracked follow-up; today's
-   completeness guarantee is recompute-from-source + this reconciliation alarm.)
+   consistent.
 
 ## Fail-closed quota decision (ADR-0022 §4)
 

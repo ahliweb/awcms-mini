@@ -9,9 +9,15 @@
  *     an expired-reclaimable predicate (`lease_holder IS NULL OR lease_expires_at
  *     < now`) so a crashed worker's lease is reclaimed on restart, and two
  *     workers never process the same tenant at once.
- *   - CHECKPOINT: `checkpoint_seq` (the merged event+correction ingest cursor)
- *     only advances forward past a boundary BOTH streams have been fully read up
- *     to (never skipping an unread row of a full batch).
+ *   - CHECKPOINT (commit-order safe watermark, issue #900): the cursor floor is
+ *     `checkpoint_xid8`, a COMMIT-ordered `xid8` — NOT the INSERT-ordered
+ *     `ingest_seq` (which a lower-order producer committing late could sneak
+ *     under, permanently under-counting a window: the sql/087 hazard). Each pass
+ *     reads `pg_snapshot_xmin(pg_current_snapshot())` and drains only SETTLED
+ *     rows (`ingest_xid8 < safe`) from the floor upward, never advancing INTO a
+ *     truncated transaction. `checkpoint_seq` is kept as an informational
+ *     high-water only. Recompute-from-source + REQUIRED reconciliation remain as
+ *     defence-in-depth backstops (see README + sql/099).
  *   - BOUNDED BATCH: at most `batchLimit` rows per stream per pass.
  *   - RETRY: on any error the whole transaction rolls back — the lease is never
  *     committed and the checkpoint never advances, so the next run retries from
@@ -138,11 +144,15 @@ export type AggregateTenantResult = {
 type CursorRow = {
   id: string;
   checkpoint_seq: number | string;
+  /** Commit-order safe-watermark floor (xid8 as a decimal string via Bun.SQL). */
+  checkpoint_xid8: string;
   rebuild_requested_at: Date | null;
   rebuild_count: number | string;
 };
 
 type BatchRow = {
+  /** Commit-order transaction id (xid8 as a decimal string via Bun.SQL). */
+  ingest_xid8: string;
   ingest_seq: number | string;
   meter_key: string;
   event_time: Date;
@@ -172,7 +182,8 @@ export async function aggregateTenant(
     ON CONFLICT (tenant_id, shard_key) DO NOTHING
   `;
   const claimed = (await tx`
-    SELECT id, checkpoint_seq, rebuild_requested_at, rebuild_count
+    SELECT id, checkpoint_seq, checkpoint_xid8::text AS checkpoint_xid8,
+           rebuild_requested_at, rebuild_count
     FROM awcms_mini_usage_aggregation_cursors
     WHERE tenant_id = ${tenantId} AND shard_key = 'default'
       AND (lease_holder IS NULL OR lease_expires_at IS NULL OR lease_expires_at < ${now})
@@ -182,7 +193,10 @@ export async function aggregateTenant(
     return { skipped: true, processed: 0, windowsTouched: 0, rebuilt: false };
   }
   const cursor = claimed[0];
-  const checkpoint = Number(cursor.checkpoint_seq);
+  // The commit-order floor: rows are (re)scanned from `checkpointXid8` upward.
+  // `checkpoint_seq` is kept only as an informational high-water (sql/099) and
+  // no longer drives batching.
+  const checkpointXid8 = BigInt(cursor.checkpoint_xid8);
   const rebuilt = cursor.rebuild_requested_at !== null;
 
   await tx`
@@ -193,41 +207,125 @@ export async function aggregateTenant(
     WHERE id = ${cursor.id}
   `;
 
-  // Read the next bounded batch of BOTH streams.
+  // COMMIT-ORDER SAFE WATERMARK (issue #900): compute the oldest still-in-flight
+  // transaction id ONCE per pass. Every xid8 STRICTLY BELOW `safe` belongs to a
+  // settled (committed/aborted) transaction, and no in-flight or future
+  // transaction can ever have an xid8 below `safe` — so draining only
+  // `ingest_xid8 < safe` guarantees the floor never passes a lower-order row
+  // that commits late (the under-count hazard sql/087 documented). A
+  // long-running txn holding `safe` back only DELAYS newer rows (conservative,
+  // never an under-count); the reconciliation backstop still covers the gap.
+  const safeRow = (await tx`
+    SELECT pg_snapshot_xmin(pg_current_snapshot())::text AS safe
+  `) as { safe: string }[];
+  const safe = BigInt(safeRow[0]!.safe);
+
+  // Read the next bounded batch of BOTH streams in COMMIT order (xid8, then
+  // ingest_seq within a transaction), only settled rows (`< safe`), re-scanning
+  // from the floor (`>= checkpointXid8`).
   const eventBatch = (await tx`
-    SELECT ingest_seq, meter_key, event_time
+    SELECT ingest_xid8::text AS ingest_xid8, ingest_seq, meter_key, event_time
     FROM awcms_mini_usage_events
-    WHERE tenant_id = ${tenantId} AND ingest_seq > ${checkpoint}
-    ORDER BY ingest_seq ASC
+    WHERE tenant_id = ${tenantId}
+      AND ingest_xid8 >= ${cursor.checkpoint_xid8}::xid8
+      AND ingest_xid8 < ${safeRow[0]!.safe}::xid8
+    ORDER BY ingest_xid8 ASC, ingest_seq ASC
     LIMIT ${batchLimit}
   `) as BatchRow[];
   const correctionBatch = (await tx`
-    SELECT ingest_seq, meter_key, event_time
+    SELECT ingest_xid8::text AS ingest_xid8, ingest_seq, meter_key, event_time
     FROM awcms_mini_usage_corrections
-    WHERE tenant_id = ${tenantId} AND ingest_seq > ${checkpoint}
-    ORDER BY ingest_seq ASC
+    WHERE tenant_id = ${tenantId}
+      AND ingest_xid8 >= ${cursor.checkpoint_xid8}::xid8
+      AND ingest_xid8 < ${safeRow[0]!.safe}::xid8
+    ORDER BY ingest_xid8 ASC, ingest_seq ASC
     LIMIT ${batchLimit}
   `) as BatchRow[];
 
-  // Advance only past a boundary BOTH streams have been fully read up to (a full
-  // batch may have more rows beyond its max — never skip them).
+  // A single transaction (one xid8) can span many rows, so — unlike the old
+  // per-row-seq boundary — we must never advance the floor INTO a truncated
+  // xid8. `boundary` is an EXCLUSIVE upper bound: this pass processes rows with
+  // `ingest_xid8 < boundary` and the floor advances to `boundary`. A FULL stream
+  // may have cut off its last xid8 mid-transaction, so we cap `boundary` below
+  // that xid8; a DRAINED stream contributes `safe` (everything `< safe` is
+  // complete).
   const eventFull = eventBatch.length === batchLimit;
   const correctionFull = correctionBatch.length === batchLimit;
-  const eventMax = eventBatch.length
-    ? Number(eventBatch[eventBatch.length - 1]!.ingest_seq)
-    : checkpoint;
-  const correctionMax = correctionBatch.length
-    ? Number(correctionBatch[correctionBatch.length - 1]!.ingest_seq)
-    : checkpoint;
-  let boundary = Number.POSITIVE_INFINITY;
-  if (eventFull) boundary = Math.min(boundary, eventMax);
-  if (correctionFull) boundary = Math.min(boundary, correctionMax);
+  const eventMaxXid = eventBatch.length
+    ? BigInt(eventBatch[eventBatch.length - 1]!.ingest_xid8)
+    : null;
+  const correctionMaxXid = correctionBatch.length
+    ? BigInt(correctionBatch[correctionBatch.length - 1]!.ingest_xid8)
+    : null;
+  let boundary = safe;
+  if (eventFull && eventMaxXid !== null && eventMaxXid < boundary) {
+    boundary = eventMaxXid;
+  }
+  if (
+    correctionFull &&
+    correctionMaxXid !== null &&
+    correctionMaxXid < boundary
+  ) {
+    boundary = correctionMaxXid;
+  }
 
-  const withinBoundary = (row: BatchRow): boolean =>
-    !Number.isFinite(boundary) || Number(row.ingest_seq) <= boundary;
-  const events = eventBatch.filter(withinBoundary);
-  const corrections = correctionBatch.filter(withinBoundary);
+  let events: BatchRow[];
+  let corrections: BatchRow[];
+  let newFloor: bigint;
+
+  if (
+    boundary <= checkpointXid8 &&
+    (eventBatch.length || correctionBatch.length)
+  ) {
+    // LIVENESS FALLBACK: a single SETTLED transaction (xid8 === checkpointXid8)
+    // alone fills a full stream — the per-xid8 boundary rule can't split it, so
+    // without this the cursor would live-lock on that one transaction. Because
+    // it is `< safe` (committed & complete) there is no reorder hazard: process
+    // its ENTIRE window set (re-read ALL of its rows so no window is missed —
+    // the batch held only `batchLimit` of them) and advance the floor to the
+    // next higher xid8. Bounded by that one transaction's own row count.
+    events = (await tx`
+      SELECT ingest_xid8::text AS ingest_xid8, ingest_seq, meter_key, event_time
+      FROM awcms_mini_usage_events
+      WHERE tenant_id = ${tenantId} AND ingest_xid8 = ${cursor.checkpoint_xid8}::xid8
+    `) as BatchRow[];
+    corrections = (await tx`
+      SELECT ingest_xid8::text AS ingest_xid8, ingest_seq, meter_key, event_time
+      FROM awcms_mini_usage_corrections
+      WHERE tenant_id = ${tenantId} AND ingest_xid8 = ${cursor.checkpoint_xid8}::xid8
+    `) as BatchRow[];
+    const nextRow = (await tx`
+      SELECT LEAST(
+        (SELECT min(ingest_xid8) FROM awcms_mini_usage_events
+           WHERE tenant_id = ${tenantId}
+             AND ingest_xid8 > ${cursor.checkpoint_xid8}::xid8
+             AND ingest_xid8 < ${safeRow[0]!.safe}::xid8),
+        (SELECT min(ingest_xid8) FROM awcms_mini_usage_corrections
+           WHERE tenant_id = ${tenantId}
+             AND ingest_xid8 > ${cursor.checkpoint_xid8}::xid8
+             AND ingest_xid8 < ${safeRow[0]!.safe}::xid8)
+      )::text AS next_floor
+    `) as { next_floor: string | null }[];
+    newFloor = nextRow[0]?.next_floor ? BigInt(nextRow[0].next_floor) : safe;
+  } else {
+    const withinBoundary = (row: BatchRow): boolean =>
+      BigInt(row.ingest_xid8) < boundary;
+    events = eventBatch.filter(withinBoundary);
+    corrections = correctionBatch.filter(withinBoundary);
+    newFloor = boundary;
+  }
   const processed = events.length + corrections.length;
+
+  // The floor is monotonic forward (guarded by the sql/099 trigger); never rewind.
+  if (newFloor < checkpointXid8) newFloor = checkpointXid8;
+
+  // Informational high-water only (no longer drives batching): the max ingest_seq
+  // among the rows processed this pass.
+  let maxProcessedSeq = Number(cursor.checkpoint_seq);
+  for (const row of [...events, ...corrections]) {
+    const seq = Number(row.ingest_seq);
+    if (seq > maxProcessedSeq) maxProcessedSeq = seq;
+  }
 
   // Collect the distinct (meter, windowType, windowStart) windows the batch touched.
   const touched = new Map<string, TouchedWindow>();
@@ -277,17 +375,12 @@ export async function aggregateTenant(
     }
   }
 
-  const newCheckpoint =
-    processed === 0
-      ? checkpoint
-      : Number.isFinite(boundary)
-        ? boundary
-        : Math.max(eventMax, correctionMax);
-
-  // Advance the checkpoint, release the lease, clear a consumed rebuild request.
+  // Advance the commit-order floor + informational seq high-water, release the
+  // lease, clear a consumed rebuild request.
   await tx`
     UPDATE awcms_mini_usage_aggregation_cursors
-    SET checkpoint_seq = GREATEST(checkpoint_seq, ${newCheckpoint}),
+    SET checkpoint_xid8 = ${newFloor.toString()}::xid8,
+        checkpoint_seq = GREATEST(checkpoint_seq, ${maxProcessedSeq}),
         lease_holder = NULL, lease_expires_at = NULL, status = 'idle',
         last_run_at = ${now}, last_error = NULL, consecutive_failures = 0,
         processed_event_total = processed_event_total + ${processed},
