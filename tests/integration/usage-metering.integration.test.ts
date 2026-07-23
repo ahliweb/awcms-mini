@@ -41,10 +41,24 @@ import {
   listUsageEvents
 } from "../../src/modules/usage-metering/application/usage-read-query";
 import { requestAggregateRebuild } from "../../src/modules/usage-metering/application/rebuild-directory";
+import {
+  computeBoundedQuotaUsage,
+  subWindowTypeFor
+} from "../../src/modules/usage-metering/application/quota-usage-recompute";
+import { readWindowSources } from "../../src/modules/usage-metering/application/usage-source-query";
+import {
+  computeWindowAggregate,
+  windowBoundsFor
+} from "../../src/modules/usage-metering/domain/meter-semantics";
+import { resolveMeter } from "../../src/modules/usage-metering/application/meter-registry";
+import type { EffectiveEntitlementPort } from "../../src/modules/_shared/ports/effective-entitlement-port";
 
 const registry = buildContractRegistry(listModules());
 const ACTOR = "00000000-0000-0000-0000-0000000000aa";
 const METER = "usage_metering.sample_actions"; // sum + signed_delta
+const MAX_METER = "usage_metering.sample_peak"; // max
+const LAST_METER = "usage_metering.sample_level"; // last
+const UNIQUE_METER = "usage_metering.sample_actors"; // unique_count
 const appendPort = createUsageAppendPort(registry);
 
 async function seedTenant(prefix: string): Promise<string> {
@@ -87,6 +101,80 @@ async function aggregate(tenantId: string, now?: Date) {
       }),
     { workClass: "maintenance" }
   );
+}
+
+/** Append to any meter (optional `uniqueDimension` for unique_count meters). */
+async function appendMeter(
+  tenantId: string,
+  meterKey: string,
+  sourceEventId: string,
+  quantity: number,
+  eventTime: string,
+  uniqueDimension?: string
+) {
+  const sql = getTestSql();
+  return withTenant(sql, tenantId, (tx) =>
+    appendPort(tx, tenantId, {
+      meterKey,
+      producer: "billing",
+      sourceEventId,
+      quantity,
+      eventTime,
+      uniqueDimension
+    })
+  );
+}
+
+/** The Issue #901 BOUNDED recompute (settled sub-aggregates + live open tail). */
+async function boundedUsed(
+  tenantId: string,
+  meterKey: string,
+  start: Date,
+  end: Date,
+  now: Date,
+  opts?: { maxSourceRows?: number }
+): Promise<number> {
+  return withTenant(getTestSql(), tenantId, (tx) => {
+    const meter = resolveMeter(registry, meterKey)!;
+    return computeBoundedQuotaUsage(
+      tx,
+      tenantId,
+      meterKey,
+      meter.aggregation,
+      meter.valueType,
+      "month",
+      start,
+      end,
+      now,
+      opts
+    );
+  });
+}
+
+/** The OLD unbounded full-window recompute — the equivalence oracle. */
+async function fullRecomputeUsed(
+  tenantId: string,
+  meterKey: string,
+  start: Date,
+  end: Date
+): Promise<number> {
+  return withTenant(getTestSql(), tenantId, async (tx) => {
+    const meter = resolveMeter(registry, meterKey)!;
+    const src = await readWindowSources(
+      tx,
+      tenantId,
+      meterKey,
+      start,
+      end,
+      null
+    );
+    return computeWindowAggregate(
+      meter.aggregation,
+      meter.valueType,
+      src.events,
+      src.corrections
+    ).value;
+  });
 }
 
 async function windowValue(
@@ -456,5 +544,287 @@ suite("usage_metering — integration", () => {
     // No entitlement assignment + tenant_entitlement disabled -> deny (fail-closed).
     expect(decision.allowed).toBe(false);
     expect(decision.status).toBe("not_entitled");
+  });
+
+  // -------------------------------------------------------------------------
+  // Issue #901 — the BOUNDED authoritative quota recompute (decomposition into
+  // settled materialized sub-aggregates + a live open tail), which must stay
+  // EXACTLY equivalent to the old unbounded full recompute AND fail closed.
+  // -------------------------------------------------------------------------
+
+  // The reset window (a full calendar month) + a `now` that puts every day
+  // before the 20th SETTLED (day_end + 1h grace <= now) and the 20th's day the
+  // OPEN tail. Shared by the #901 tests below.
+  const MONTH_AT = new Date("2026-05-10T00:00:00Z");
+  const NOW_20TH = new Date("2026-05-20T12:00:00Z");
+
+  test("#901 sanity: month decomposes into day sub-windows", () => {
+    expect(subWindowTypeFor("month")).toBe("day");
+    expect(subWindowTypeFor("day")).toBe("hour");
+    expect(subWindowTypeFor("hour")).toBe(null);
+  });
+
+  test("#901 equivalence: bounded usage == full recompute for sum/max/last across many days + open tail (incl. a correction on a settled day)", async () => {
+    const tenantId = await seedTenant("um901eq");
+    const { start, end } = windowBoundsFor("month", MONTH_AT);
+
+    // sum meter — events on 3 settled days + 2 open-tail (05-20) events.
+    const s1 = await appendMeter(
+      tenantId,
+      METER,
+      "s1",
+      2,
+      "2026-05-03T08:00:00Z"
+    );
+    await appendMeter(tenantId, METER, "s2", 3, "2026-05-10T09:00:00Z");
+    await appendMeter(tenantId, METER, "s3", 5, "2026-05-19T10:00:00Z");
+    await appendMeter(tenantId, METER, "s4", 7, "2026-05-20T09:00:00Z");
+    await appendMeter(tenantId, METER, "s5", 11, "2026-05-20T11:30:00Z");
+
+    // max meter — settled peak (9 on 05-10) higher than the open-tail value (6).
+    await appendMeter(tenantId, MAX_METER, "p1", 4, "2026-05-03T08:00:00Z");
+    await appendMeter(tenantId, MAX_METER, "p2", 9, "2026-05-10T09:00:00Z");
+    await appendMeter(tenantId, MAX_METER, "p3", 6, "2026-05-20T09:00:00Z");
+
+    // last meter — the globally latest event is in the OPEN tail (300 on 05-20).
+    await appendMeter(tenantId, LAST_METER, "l1", 100, "2026-05-03T08:00:00Z");
+    await appendMeter(tenantId, LAST_METER, "l2", 200, "2026-05-19T10:00:00Z");
+    await appendMeter(tenantId, LAST_METER, "l3", 300, "2026-05-20T09:00:00Z");
+
+    // A signed correction on a SETTLED day (05-03) — the day sub-aggregate must
+    // carry it (so summing settled sub-aggregates matches the full recompute).
+    const originalEventId = s1.ok ? s1.eventId : "";
+    await withTenant(getTestSql(), tenantId, (tx) =>
+      applyCorrection(tx, tenantId, ACTOR, registry, {
+        originalEventId,
+        correctionType: "reversal",
+        deltaQuantity: null,
+        reason: "dup",
+        producer: "billing",
+        sourceEventId: "s1-rev",
+        sourceVersion: 1
+      })
+    );
+
+    // Materialize hour/day/month sub-aggregates for every touched settled day.
+    await aggregate(tenantId);
+
+    for (const meterKey of [METER, MAX_METER, LAST_METER]) {
+      const bounded = await boundedUsed(
+        tenantId,
+        meterKey,
+        start,
+        end,
+        NOW_20TH
+      );
+      const full = await fullRecomputeUsed(tenantId, meterKey, start, end);
+      expect(bounded).toBe(full);
+    }
+    // Concrete oracles: sum = (2-2)+3+5+7+11 = 26; max = 9; last = 300.
+    expect(await boundedUsed(tenantId, METER, start, end, NOW_20TH)).toBe(26);
+    expect(await boundedUsed(tenantId, MAX_METER, start, end, NOW_20TH)).toBe(
+      9
+    );
+    expect(await boundedUsed(tenantId, LAST_METER, start, end, NOW_20TH)).toBe(
+      300
+    );
+  });
+
+  test("#901 worker-lag over-admit guard: a SETTLED day with events but NO materialized aggregate is recomputed from source (never under-counts)", async () => {
+    const tenantId = await seedTenant("um901lag");
+    const { start, end } = windowBoundsFor("month", MONTH_AT);
+
+    await appendMeter(tenantId, METER, "s1", 40, "2026-05-05T08:00:00Z"); // settled day
+    await appendMeter(tenantId, METER, "s2", 2, "2026-05-20T09:00:00Z"); // open tail
+
+    // Deliberately DO NOT run the worker — no day/month aggregate exists yet.
+    const dayAggCount = await withTenant(getTestSql(), tenantId, async (tx) => {
+      const rows = (await tx`
+        SELECT count(*)::int AS n FROM awcms_mini_usage_aggregates
+        WHERE tenant_id = ${tenantId} AND meter_key = ${METER} AND window_type = 'day'
+      `) as { n: number }[];
+      return rows[0]!.n;
+    });
+    expect(dayAggCount).toBe(0);
+
+    // The settled day's 40 MUST be recovered from source, not assumed 0.
+    const bounded = await boundedUsed(tenantId, METER, start, end, NOW_20TH);
+    expect(bounded).toBe(42);
+    expect(bounded).toBe(await fullRecomputeUsed(tenantId, METER, start, end));
+  });
+
+  test("#901 open-tail freshness: a late event in the OPEN sub-window is counted LIVE even before it is aggregated", async () => {
+    const tenantId = await seedTenant("um901tail");
+    const { start, end } = windowBoundsFor("month", MONTH_AT);
+
+    await appendMeter(tenantId, METER, "base", 10, "2026-05-05T08:00:00Z"); // settled
+    await aggregate(tenantId); // materialize the settled day; open tail still empty
+
+    // A brand-new OPEN-tail event that the worker has NOT processed yet.
+    await appendMeter(tenantId, METER, "tail", 5, "2026-05-20T11:45:00Z");
+
+    // 10 (from the settled sub-aggregate) + 5 (live open-tail recompute) = 15.
+    expect(await boundedUsed(tenantId, METER, start, end, NOW_20TH)).toBe(15);
+  });
+
+  test("#901 unique_count is NOT decomposed: full recompute de-duplicates a subject seen across days (no double count)", async () => {
+    const tenantId = await seedTenant("um901uniq");
+    const { start, end } = windowBoundsFor("month", MONTH_AT);
+
+    // subject-A appears on TWO different days — a naive per-day decomposition
+    // would sum two distinct-counts and report it twice.
+    await appendMeter(
+      tenantId,
+      UNIQUE_METER,
+      "u1",
+      1,
+      "2026-05-03T08:00:00Z",
+      "subject-A"
+    );
+    await appendMeter(
+      tenantId,
+      UNIQUE_METER,
+      "u2",
+      1,
+      "2026-05-10T09:00:00Z",
+      "subject-A"
+    );
+    await appendMeter(
+      tenantId,
+      UNIQUE_METER,
+      "u3",
+      1,
+      "2026-05-19T10:00:00Z",
+      "subject-B"
+    );
+    await appendMeter(
+      tenantId,
+      UNIQUE_METER,
+      "u4",
+      1,
+      "2026-05-20T09:00:00Z",
+      "subject-C"
+    );
+    await aggregate(tenantId);
+
+    // Distinct subjects = {A, B, C} = 3, NOT 4.
+    const bounded = await boundedUsed(
+      tenantId,
+      UNIQUE_METER,
+      start,
+      end,
+      NOW_20TH
+    );
+    expect(bounded).toBe(3);
+    expect(bounded).toBe(
+      await fullRecomputeUsed(tenantId, UNIQUE_METER, start, end)
+    );
+  });
+
+  test("#901 budget: a recompute that would exceed the source row budget THROWS (fail-closed) instead of an unbounded scan", async () => {
+    const tenantId = await seedTenant("um901budget");
+    const { start, end } = windowBoundsFor("month", MONTH_AT);
+
+    // Three OPEN-tail events; a tiny injected budget of 2 must trip.
+    await appendMeter(tenantId, METER, "b1", 1, "2026-05-20T09:00:00Z");
+    await appendMeter(tenantId, METER, "b2", 1, "2026-05-20T09:01:00Z");
+    await appendMeter(tenantId, METER, "b3", 1, "2026-05-20T09:02:00Z");
+
+    let threwName = "";
+    try {
+      await boundedUsed(tenantId, METER, start, end, NOW_20TH, {
+        maxSourceRows: 2
+      });
+    } catch (error) {
+      threwName = error instanceof Error ? error.name : "unknown";
+    }
+    expect(threwName).toBe("QuotaSourceBudgetExceededError");
+  });
+
+  test("#901 port fail-closed: a budget-exceeded recompute makes an ENTITLED hard quota DENY (usage_unavailable)", async () => {
+    const tenantId = await seedTenant("um901port");
+    // Open-tail events beyond a tiny injected budget of 2.
+    await appendMeter(tenantId, METER, "q1", 1, "2026-05-20T09:00:00Z");
+    await appendMeter(tenantId, METER, "q2", 1, "2026-05-20T09:01:00Z");
+    await appendMeter(tenantId, METER, "q3", 1, "2026-05-20T09:02:00Z");
+
+    // Stub an ENTITLED allowance so the fail-closed branch (usage_unavailable),
+    // not not_entitled, is what the decision exercises.
+    const entitledStub: EffectiveEntitlementPort = {
+      isFeatureAllowed: async () => true,
+      isModuleEntitled: async () => true,
+      getQuota: async () => ({
+        allowed: true,
+        isUnlimited: false,
+        limit: 100,
+        unit: "action"
+      }),
+      snapshot: async () => ({
+        tenantId,
+        resolvedAt: NOW_20TH.toISOString(),
+        status: "resolved",
+        snapshotHash: "stub",
+        features: {},
+        modules: {},
+        quotas: {}
+      })
+    };
+
+    const decision = await withTenant(getTestSql(), tenantId, (tx) => {
+      const port = createUsageAggregatePort(
+        tx,
+        tenantId,
+        registry,
+        entitledStub,
+        () => NOW_20TH,
+        { quotaMaxSourceRows: 2 }
+      );
+      return port.getQuotaDecision(METER);
+    });
+    expect(decision.enforcement).toBe("hard");
+    expect(decision.status).toBe("usage_unavailable");
+    expect(decision.allowed).toBe(false);
+  });
+
+  test("#901 port happy path: an ENTITLED tenant within limit is allowed with bounded LIVE usage", async () => {
+    const tenantId = await seedTenant("um901ok");
+    await appendMeter(tenantId, METER, "h1", 4, "2026-05-05T08:00:00Z"); // settled
+    await appendMeter(tenantId, METER, "h2", 3, "2026-05-20T09:00:00Z"); // open tail
+    await aggregate(tenantId);
+
+    const entitledStub: EffectiveEntitlementPort = {
+      isFeatureAllowed: async () => true,
+      isModuleEntitled: async () => true,
+      getQuota: async () => ({
+        allowed: true,
+        isUnlimited: false,
+        limit: 100,
+        unit: "action"
+      }),
+      snapshot: async () => ({
+        tenantId,
+        resolvedAt: NOW_20TH.toISOString(),
+        status: "resolved",
+        snapshotHash: "stub",
+        features: {},
+        modules: {},
+        quotas: {}
+      })
+    };
+
+    const decision = await withTenant(getTestSql(), tenantId, (tx) => {
+      const port = createUsageAggregatePort(
+        tx,
+        tenantId,
+        registry,
+        entitledStub,
+        () => NOW_20TH
+      );
+      return port.getQuotaDecision(METER);
+    });
+    expect(decision.status).toBe("within");
+    expect(decision.allowed).toBe(true);
+    expect(decision.used).toBe(7); // 4 settled + 3 open tail
+    expect(decision.remaining).toBe(93);
   });
 });

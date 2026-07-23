@@ -8,10 +8,13 @@
  * according to descriptor policy").
  *
  * NOT solely a cache: the application adapter feeds `used` from an AUTHORITATIVE
- * live recompute of the current window over the immutable events (not the
- * materialized aggregate), so a lagging aggregation worker can never let a hard
- * quota over-admit. `freshness: "unavailable"` is reserved for the case the
- * recompute itself could not run — where a HARD quota fails CLOSED (deny).
+ * recompute of the current reset window — bounded by decomposition into indexed
+ * SETTLED sub-aggregates plus a LIVE open-tail read of the immutable events
+ * (Issue #901), never trusting a stale whole-window aggregate — so a lagging
+ * aggregation worker can never let a hard quota over-admit. `freshness:
+ * "unavailable"` is reserved for the case that recompute itself could not run
+ * (a query error or the source-row budget was exceeded) — where a HARD quota
+ * fails CLOSED (deny).
  *
  * ENTITLEMENT != PERMISSION (ADR-0022 §4): a positive quota decision is a
  * COMMERCIAL fact, never an authorization — the consumer still passes its own
