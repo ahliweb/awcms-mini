@@ -827,4 +827,83 @@ suite("usage_metering — integration", () => {
     expect(decision.used).toBe(7); // 4 settled + 3 open tail
     expect(decision.remaining).toBe(93);
   });
+
+  test("#901 M1 over-admit guard: a PRESENT-but-STALE settled sub-aggregate (late-beyond-grace arrival after computed_at) is recomputed — a hard quota at limit DENIES, never ALLOWS", async () => {
+    const tenantId = await seedTenant("um901stale");
+    const { start, end } = windowBoundsFor("month", MONTH_AT);
+
+    // Materialize a SETTLED day (05-05) with value V = 10. `now` for the worker
+    // is fixed at 05-07 (past the day + 1h grace) so the day aggregate's
+    // computed_at = 05-07, deterministically BEFORE any real-clock received_at.
+    await appendMeter(tenantId, METER, "orig", 10, "2026-05-05T08:00:00Z");
+    await aggregate(tenantId, new Date("2026-05-07T00:00:00Z"));
+    // The materialized settled day currently reads 10.
+    const materialized = await withTenant(
+      getTestSql(),
+      tenantId,
+      async (tx) => {
+        const rows = (await tx`
+        SELECT aggregate_value::text AS v FROM awcms_mini_usage_aggregates
+        WHERE tenant_id = ${tenantId} AND meter_key = ${METER}
+          AND window_type = 'day' AND window_start = '2026-05-05T00:00:00Z'
+      `) as { v: string }[];
+        return rows[0] ? Number(rows[0].v) : null;
+      }
+    );
+    expect(materialized).toBe(10);
+
+    // A LATE-BEYOND-GRACE event lands in the already-settled 05-05 window
+    // (event_time inside it, received_at = real clock >> computed_at 05-07),
+    // Q = 7, and the worker is DELIBERATELY NOT re-run — the stored aggregate
+    // now UNDER-counts (10 instead of 17).
+    await appendMeter(
+      tenantId,
+      METER,
+      "late-beyond-grace",
+      7,
+      "2026-05-05T09:00:00Z"
+    );
+
+    // The stale materialized value (10) must NOT be trusted: the bounded recompute
+    // detects the post-materialization arrival and re-reads 05-05 from source -> 17.
+    expect(await boundedUsed(tenantId, METER, start, end, NOW_20TH)).toBe(17);
+    expect(await boundedUsed(tenantId, METER, start, end, NOW_20TH)).toBe(
+      await fullRecomputeUsed(tenantId, METER, start, end)
+    );
+
+    // End-to-end at the port with a hard quota whose limit (15) sits BETWEEN the
+    // stale value (10 -> would ALLOW) and the true value (17 -> must DENY).
+    const entitledStub: EffectiveEntitlementPort = {
+      isFeatureAllowed: async () => true,
+      isModuleEntitled: async () => true,
+      getQuota: async () => ({
+        allowed: true,
+        isUnlimited: false,
+        limit: 15,
+        unit: "action"
+      }),
+      snapshot: async () => ({
+        tenantId,
+        resolvedAt: NOW_20TH.toISOString(),
+        status: "resolved",
+        snapshotHash: "stub",
+        features: {},
+        modules: {},
+        quotas: {}
+      })
+    };
+    const decision = await withTenant(getTestSql(), tenantId, (tx) => {
+      const port = createUsageAggregatePort(
+        tx,
+        tenantId,
+        registry,
+        entitledStub,
+        () => NOW_20TH
+      );
+      return port.getQuotaDecision(METER);
+    });
+    expect(decision.used).toBe(17); // true committed usage, not the stale 10
+    expect(decision.status).toBe("exceeded");
+    expect(decision.allowed).toBe(false); // hard quota DENIES — no over-admit
+  });
 });

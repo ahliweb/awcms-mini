@@ -18,7 +18,15 @@
  *     O(sub-windows) (<= 31 day rows for a month), never O(events). A settled
  *     sub-window MISSING its aggregate (worker lag) is NOT assumed 0 (that would
  *     under-count -> over-admit); it is recomputed from source, bounded to that
- *     one sub-window (or fails closed if it alone blows the budget).
+ *     one sub-window (or fails closed if it alone blows the budget). A settled
+ *     sub-aggregate that is PRESENT but STALE — a late-beyond-grace event or
+ *     correction landed in its window with an `ingest_seq` above the aggregate's
+ *     folded `source_watermark`, which the worker has not yet re-folded — is
+ *     detected by one BATCHED index-only existence query over the whole settled
+ *     prefix and treated like a MISSING one (recomputed from source). The
+ *     healthy path (no newer row) returns nothing, so it adds ZERO extra source
+ *     reads. Aggregates whose stored aggregation/value_type no longer match the
+ *     meter descriptor are likewise treated as missing (descriptor-drift guard).
  *   - OPEN tail (`sub_end + grace > now` — can still receive late events,
  *     including the current sub-window): ALWAYS recomputed LIVE from source (a
  *     single bounded read over the contiguous open suffix). This keeps the
@@ -33,13 +41,18 @@
  * NEVER a silent truncation (truncation under-counts). Exceeding it throws
  * `QuotaSourceBudgetExceededError` -> the adapter maps it to
  * `freshness: "unavailable"` -> `decideQuota` makes a HARD quota DENY (fail
- * closed). Reconciliation remains the defence-in-depth backstop for the residual
- * "settled sub-aggregate present but stale beyond the grace window" case (the
- * same accepted tradeoff the aggregation engine documents).
+ * closed). Reconciliation + the #900 commit-order worker cursor remain the
+ * defence-in-depth backstop for the ONE residual the inline probe cannot see (a
+ * lower-`ingest_seq` row that commits after materialization); every other stale
+ * case is detected and recomputed inline (see above).
  *
- * SECURITY INVARIANT (adversarially tested): usage returned here is NEVER lower
- * than the true committed usage — worker lag falls back to a bounded live
- * recompute or fails closed; budget/error fail closed. All reads run inside the
+ * SECURITY INVARIANT (adversarially tested): except when it fails closed (budget
+ * exceeded or a query error -> a hard quota DENIES) or during the transient
+ * commit-reorder window the worker/reconciliation close, usage returned here is
+ * NEVER lower than the true committed usage — a missing OR stale settled
+ * sub-aggregate falls back to a bounded live recompute, and the open tail is
+ * always live. So a lagging worker (including a late-beyond-grace arrival in a
+ * settled window) can never let a hard quota over-admit. All reads run inside the
  * caller's tenant-scoped `tx` (RLS = the acting tenant): no cross-tenant read.
  * Deterministic — the value depends on event_time + quantity, never receive
  * order.
@@ -177,11 +190,17 @@ export async function computeBoundedQuotaUsage(
 
   // SETTLED prefix — one indexed lookup of the materialized sub-aggregates.
   if (settledEnd > start) {
+    // Only aggregates computed under the meter's CURRENT semantics are trusted
+    // (L1 descriptor-drift guard): a row whose stored `aggregation`/`value_type`
+    // no longer matches the descriptor is treated as MISSING -> recomputed from
+    // source, so a post-materialization descriptor change can never surface a
+    // value under stale semantics.
     const rows = (await tx`
       SELECT window_start, aggregate_value, event_count, last_event_time
       FROM awcms_mini_usage_aggregates
       WHERE tenant_id = ${tenantId} AND meter_key = ${meterKey}
         AND window_type = ${subType}
+        AND aggregation = ${aggregation} AND value_type = ${valueType}
         AND window_start >= ${start} AND window_start < ${settledEnd}
     `) as StoredSubAggregateRow[];
     const byStart = new Map<number, Contribution>();
@@ -193,15 +212,60 @@ export async function computeBoundedQuotaUsage(
         lastEventTime: row.last_event_time
       });
     }
-    // Walk every settled sub-window; a MISSING one is recomputed from source
-    // (bounded to that one sub-window) — never assumed 0 (would over-admit).
+
+    // M1 over-admit guard: a settled sub-aggregate is trusted ONLY if no source
+    // row has arrived in its window SINCE it was materialized. The aggregate's
+    // `source_watermark` is the max `ingest_seq` folded into it (monotonic, DB-
+    // enforced); a later event/correction lands with a strictly higher
+    // `ingest_seq`. A late-beyond-grace row in an already-settled window that the
+    // worker has not yet re-folded would make the stored value UNDER-count -> a
+    // hard quota could ALLOW past its limit. One BATCHED existence query over the
+    // whole settled prefix flags every such stale sub-window as an INDEX-ONLY
+    // correlated scan on `..._window_idx (tenant_id, meter_key, event_time,
+    // ingest_seq)`; the healthy path (no newer row) returns EMPTY and reads no
+    // source rows into the recompute. A flagged sub-window is treated like a
+    // MISSING one — recomputed from source, bounded, under the shared budget.
+    // (A `received_at`-vs-`computed_at` predicate is equivalent in detection but
+    // needs a heap fetch per row and a fragile join plan — measured far more
+    // expensive; see the PR EXPLAIN.) The residual commit-reorder case — a
+    // LOWER-`ingest_seq` row that COMMITS after materialization, which neither an
+    // `ingest_seq` nor a `received_at` probe can see (sql/087 note) — is the
+    // aggregation worker's job: its #900 commit-order (`xid8`) cursor re-folds it
+    // and reconciliation flags any residual drift.
+    const staleRows = (await tx`
+      SELECT a.window_start
+      FROM awcms_mini_usage_aggregates a
+      WHERE a.tenant_id = ${tenantId} AND a.meter_key = ${meterKey}
+        AND a.window_type = ${subType}
+        AND a.window_start >= ${start} AND a.window_start < ${settledEnd}
+        AND (
+          EXISTS (
+            SELECT 1 FROM awcms_mini_usage_events e
+            WHERE e.tenant_id = a.tenant_id AND e.meter_key = a.meter_key
+              AND e.event_time >= a.window_start AND e.event_time < a.window_end
+              AND e.ingest_seq > a.source_watermark
+          )
+          OR EXISTS (
+            SELECT 1 FROM awcms_mini_usage_corrections c
+            WHERE c.tenant_id = a.tenant_id AND c.meter_key = a.meter_key
+              AND c.event_time >= a.window_start AND c.event_time < a.window_end
+              AND c.ingest_seq > a.source_watermark
+          )
+        )
+    `) as { window_start: Date }[];
+    const stale = new Set<number>();
+    for (const row of staleRows) stale.add(row.window_start.getTime());
+
+    // Walk every settled sub-window; a MISSING or STALE one is recomputed from
+    // source (bounded to that one sub-window) — never assumed 0 or trusted
+    // stale (either would over-admit).
     for (
       let subStart = start;
       subStart < settledEnd;
       subStart = windowEndFor(subType, subStart)
     ) {
       const hit = byStart.get(subStart.getTime());
-      if (hit) {
+      if (hit && !stale.has(subStart.getTime())) {
         contributions.push(hit);
       } else {
         contributions.push(

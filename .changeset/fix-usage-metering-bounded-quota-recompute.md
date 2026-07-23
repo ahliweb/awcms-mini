@@ -17,7 +17,13 @@ over-admitting a hard quota:
   worker's indexed materialized sub-aggregates — `O(sub-windows)` (≤ 31 day
   rows), never `O(events)`. A settled sub-window whose aggregate is **missing**
   (worker lag) is recomputed from source bounded to that one sub-window, never
-  assumed `0`.
+  assumed `0`. A settled sub-aggregate that is **present but stale** — a
+  late-beyond-grace event/correction landed in its window with an `ingest_seq`
+  above the aggregate's folded `source_watermark` and the worker has not
+  re-folded it — is detected by one **index-only** existence probe over the
+  settled prefix and recomputed from source too (the healthy path finds nothing
+  → zero extra source reads). Without this a hard quota could transiently
+  OVER-ADMIT past its limit on worker lag.
 - The **open tail** is always recomputed live from source (one bounded read), so
   a late event in the hot period counts immediately.
 - `unique_count` stays a full source recompute (distinct sets across sub-windows
@@ -27,6 +33,9 @@ over-admitting a hard quota:
   a hard quota denies) rather than running an unbounded scan; it is never
   silently truncated.
 
-Internal only — no API/response-shape, migration, or event change (the settled
-lookup rides the existing `awcms_mini_usage_aggregates_lookup_idx`). Tenant
-isolation (RLS) and determinism are preserved.
+One index-only migration (sql/100) extends the usage-events/corrections
+`..._window_idx` with `ingest_seq` so the staleness probe is served straight
+from the index (an `Index Only Scan`, no heap fetch); it replaces the 3-column
+window index (a strict superset) rather than adding a redundant one. No
+API/response-shape or event change; tenant isolation (RLS) and determinism
+preserved.
