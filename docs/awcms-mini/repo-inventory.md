@@ -43,7 +43,7 @@
 
 ## Migrations
 
-98 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `098_awcms_mini_control_plane_support_access_and_step_up.sql`).
+99 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `099_awcms_mini_usage_metering_safe_watermark_cursor.sql`).
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -145,6 +145,7 @@
 | 096 | `096_awcms_mini_subscription_billing_credit_approval.sql`                |
 | 097 | `097_awcms_mini_service_catalog_commercial_approval.sql`                 |
 | 098 | `098_awcms_mini_control_plane_support_access_and_step_up.sql`            |
+| 099 | `099_awcms_mini_usage_metering_safe_watermark_cursor.sql`                |
 
 ## Tables & Row-Level Security
 

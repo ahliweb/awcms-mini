@@ -33,8 +33,9 @@ DO NOTHING RETURNING` lalu replay row pemenang. Route high-risk pakai
    `idempotency-hash-missing-resource-id-recurring`.
 3. **Append-only + immutability (§9).** events/corrections/reconciliation_runs
    append-only; aggregates di-recompute in place (identity beku, `source_watermark`
-   monotonik, `window_closed` one-way); cursor `checkpoint_seq` maju saja. Ditegakkan
-   trigger BEFORE (`sql/087`) + REVOKE least-privilege (`sql/088`). JANGAN hard-delete
+   monotonik, `window_closed` one-way); cursor floor `checkpoint_xid8` (commit-order
+   safe-watermark, `sql/099` #900) + informational `checkpoint_seq` maju saja. Ditegakkan
+   trigger BEFORE (`sql/087`+`sql/099`) + REVOKE least-privilege (`sql/088`). JANGAN hard-delete
    data tenant; DELETE hanya jalur purge retention (worker-only, hormati legal hold).
 4. **Determinisme aggregation.** Nilai window = fungsi MURNI dari event+koreksi yang
    `event_time`-nya jatuh di window — BUKAN urutan ingest/terima. Maka rebuild

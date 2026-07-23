@@ -340,6 +340,101 @@ suite("usage_metering — integration", () => {
     expect(triggerThrew).toBe(true);
   });
 
+  test("commit-reorder safe watermark (#900): a lower-seq event that COMMITS LATE is never skipped, and the cursor never passes an in-flight xid", async () => {
+    const tenantId = await seedTenant("umreorder");
+    const admin = getAdminSql();
+
+    // Two OVERLAPPING transactions on dedicated connections. C1 opens first and
+    // inserts the LOWER `ingest_seq` event (an EARLIER hour window, 09:00); C2
+    // opens second and inserts the HIGHER `ingest_seq` event (a LATER window,
+    // 10:00). C2 COMMITS FIRST; C1 commits LATER. The two windows are DISJOINT,
+    // so recompute-from-source of one can never pull the other's event in — the
+    // exact shape that makes an INSERT-order cursor permanently under-count.
+    const c1 = await admin.reserve();
+    const c2 = await admin.reserve();
+    let xidLow = "";
+    let xidHigh = "";
+    try {
+      await c1`BEGIN`;
+      await c1`INSERT INTO awcms_mini_usage_events
+        (tenant_id, meter_key, producer, source_event_id, value_type, aggregation, quantity, event_time)
+        VALUES (${tenantId}, ${METER}, 'billing', 'reorder-low', 'count', 'sum', 4, '2026-07-19T09:15:00Z')`;
+      xidLow = (
+        (await c1`SELECT pg_current_xact_id()::text AS x`) as { x: string }[]
+      )[0]!.x;
+
+      await c2`BEGIN`;
+      await c2`INSERT INTO awcms_mini_usage_events
+        (tenant_id, meter_key, producer, source_event_id, value_type, aggregation, quantity, event_time)
+        VALUES (${tenantId}, ${METER}, 'billing', 'reorder-high', 'count', 'sum', 6, '2026-07-19T10:20:00Z')`;
+      xidHigh = (
+        (await c2`SELECT pg_current_xact_id()::text AS x`) as { x: string }[]
+      )[0]!.x;
+
+      // The lower-seq producer drew the lower xid; the higher-seq one the higher xid.
+      expect(BigInt(xidLow) < BigInt(xidHigh)).toBe(true);
+
+      // C2 (higher seq/xid) commits; C1 (lower seq/xid) stays IN-FLIGHT.
+      await c2`COMMIT`;
+
+      // PASS 1 while C1 is in-flight: `safe = xmin` is pinned at C1's xid, so the
+      // already-committed HIGHER-seq event is intentionally HELD BACK (never
+      // processed ahead of the older in-flight transaction). An INSERT-order
+      // cursor would instead process it and advance past it here.
+      const r1 = await aggregate(tenantId);
+      expect(r1.skipped).toBe(false);
+      expect(r1.processed).toBe(0);
+    } finally {
+      // Ensure C1 commits even if an assertion above threw.
+      if (xidLow) await c1`COMMIT`;
+    }
+    c1.release();
+    c2.release();
+
+    // Value of a specific hour window by its UTC start (tz-text-independent).
+    async function hourWindowValue(startIso: string): Promise<number | null> {
+      const rows = (await admin`
+        SELECT aggregate_value::text AS v
+        FROM awcms_mini_usage_aggregates
+        WHERE tenant_id = ${tenantId} AND meter_key = ${METER}
+          AND window_type = 'hour' AND window_start = ${startIso}
+      `) as { v: string }[];
+      return rows[0] ? Number(rows[0].v) : null;
+    }
+    async function hourWindowCount(): Promise<number> {
+      const rows = (await admin`
+        SELECT count(*)::int AS n FROM awcms_mini_usage_aggregates
+        WHERE tenant_id = ${tenantId} AND meter_key = ${METER} AND window_type = 'hour'
+      `) as { n: number }[];
+      return rows[0]!.n;
+    }
+
+    // After PASS 1 the cursor floor must NOT have passed the in-flight xid (it
+    // sits at/below the lower xid), and NEITHER window is materialized yet.
+    const cursorAfter1 = (await admin`
+      SELECT checkpoint_xid8::text AS x FROM awcms_mini_usage_aggregation_cursors
+      WHERE tenant_id = ${tenantId} AND shard_key = 'default'
+    `) as { x: string }[];
+    expect(BigInt(cursorAfter1[0]!.x) < BigInt(xidHigh)).toBe(true);
+    expect(await hourWindowCount()).toBe(0);
+
+    // PASS 2 after C1 has committed: `safe` now clears both xids, so BOTH events
+    // are drained. The LOWER-seq late-committing event's window is materialized —
+    // it is NOT skipped (the regression). Both windows carry their exact value.
+    const r2 = await aggregate(tenantId);
+    expect(r2.processed).toBe(2);
+    expect(await hourWindowValue("2026-07-19T09:00:00Z")).toBe(4); // late lower-seq event
+    expect(await hourWindowValue("2026-07-19T10:00:00Z")).toBe(6); // higher-seq event
+    expect(await hourWindowCount()).toBe(2);
+
+    // The floor has now advanced past both settled transactions.
+    const cursorAfter2 = (await admin`
+      SELECT checkpoint_xid8::text AS x FROM awcms_mini_usage_aggregation_cursors
+      WHERE tenant_id = ${tenantId} AND shard_key = 'default'
+    `) as { x: string }[];
+    expect(BigInt(cursorAfter2[0]!.x) > BigInt(xidHigh)).toBe(true);
+  });
+
   test("the quota decision is fail-closed when the tenant has no entitlement", async () => {
     const tenantId = await seedTenant("umq");
     await append(tenantId, "e1", 5, "2026-07-19T10:10:00Z");
