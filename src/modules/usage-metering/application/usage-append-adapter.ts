@@ -20,6 +20,7 @@ import type {
 } from "../../_shared/ports/usage-append-port";
 import { validateUsageEventDraft } from "../domain/usage-event";
 import { resolveMeter, type SaasContractRegistry } from "./meter-registry";
+import { pseudonymizeUniqueDimension } from "./unique-dimension-pseudonym";
 
 function coerceEventTime(value: string | Date): Date | null {
   if (value instanceof Date) {
@@ -69,13 +70,27 @@ export function createUsageAppendPort(
     }
     const event = validation.normalized;
 
+    // PII pseudonymization (Issue #902 L2): for a privacy-classified meter
+    // (`pseudonymous`/`personal`), replace the caller-supplied distinct key with
+    // a cardinality-preserving HMAC digest BEFORE persistence, so a raw
+    // email/handle is never stored verbatim (nor leaked through the read DTO).
+    // A `non_personal` meter stores the (charset-restricted) key as-is. The
+    // digest is deterministic, so the distinct-count the meter measures is
+    // unchanged. This lives here — where the meter is resolved and its
+    // `privacyClassification` known — not in the pure domain validator.
+    const persistedUniqueDimension =
+      event.uniqueDimension !== null &&
+      meter.privacyClassification !== "non_personal"
+        ? pseudonymizeUniqueDimension(event.uniqueDimension)
+        : event.uniqueDimension;
+
     const inserted = (await tx`
       INSERT INTO awcms_mini_usage_events
         (tenant_id, meter_key, producer, source_event_id, source_version, value_type, aggregation,
          quantity, unique_dimension, dimensions, event_time, correlation_id, created_by)
       VALUES (
         ${tenantId}, ${event.meterKey}, ${event.producer}, ${event.sourceEventId}, ${event.sourceVersion},
-        ${event.valueType}, ${event.aggregation}, ${event.quantity}, ${event.uniqueDimension},
+        ${event.valueType}, ${event.aggregation}, ${event.quantity}, ${persistedUniqueDimension},
         ${event.dimensions}::jsonb, ${event.eventTime}, ${input.correlationId ?? null},
         ${input.actorTenantUserId ?? null}
       )

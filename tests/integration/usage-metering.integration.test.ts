@@ -14,18 +14,26 @@ import { beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import {
   applyMigrations,
+  createCookieJar,
   getAdminSql,
   getTestSql,
   getWorkerTestSql,
   integrationEnabled,
+  invoke,
   provisionAppRole,
   provisionWorkerRole,
   resetDatabase
 } from "./harness";
 
+import { POST as setupInitialize } from "../../src/pages/api/v1/setup/initialize";
+import { POST as authLogin } from "../../src/pages/api/v1/auth/login";
+import { POST as correctionsRoute } from "../../src/pages/api/v1/usage-metering/corrections";
+
 import { withTenant } from "../../src/lib/database/tenant-context";
 import { listModules } from "../../src/modules";
+import { syncModuleDescriptors } from "../../src/modules/module-management/application/descriptor-sync";
 import { createUsageAppendPort } from "../../src/modules/usage-metering/application/usage-append-adapter";
+import { pseudonymizeUniqueDimension } from "../../src/modules/usage-metering/application/unique-dimension-pseudonym";
 import { buildContractRegistry } from "../../src/modules/usage-metering/application/meter-registry";
 import { createUsageAggregatePort } from "../../src/modules/usage-metering/application/usage-aggregate-adapter";
 import { createEffectiveEntitlementPort } from "../../src/modules/tenant-entitlement/application/effective-entitlement-port-adapter";
@@ -35,7 +43,10 @@ import {
   applyCorrection,
   listCorrections
 } from "../../src/modules/usage-metering/application/correction-directory";
-import { runReconciliation } from "../../src/modules/usage-metering/application/reconciliation";
+import {
+  listReconciliationRuns,
+  runReconciliation
+} from "../../src/modules/usage-metering/application/reconciliation";
 import {
   listAggregates,
   listUsageEvents
@@ -905,5 +916,370 @@ suite("usage_metering — integration", () => {
     expect(decision.used).toBe(17); // true committed usage, not the stale 10
     expect(decision.status).toBe("exceeded");
     expect(decision.allowed).toBe(false); // hard quota DENIES — no over-admit
+  });
+
+  // -------------------------------------------------------------------------
+  // Issue #902 L2 — unique_dimension PII pseudonymization at the write path.
+  // -------------------------------------------------------------------------
+
+  test("#902 L2: a pseudonymous unique_count meter stores an HMAC pseudonym (not the raw distinct key); cardinality is preserved", async () => {
+    const tenantId = await seedTenant("um902pii");
+    // subject-A appears twice, subject-B once — a raw email-shaped handle too.
+    await appendMeter(
+      tenantId,
+      UNIQUE_METER,
+      "p1",
+      1,
+      "2026-07-19T10:00:00Z",
+      "subject-A"
+    );
+    await appendMeter(
+      tenantId,
+      UNIQUE_METER,
+      "p2",
+      1,
+      "2026-07-19T10:05:00Z",
+      "subject-A"
+    );
+    await appendMeter(
+      tenantId,
+      UNIQUE_METER,
+      "p3",
+      1,
+      "2026-07-19T10:10:00Z",
+      "user@example.com"
+    );
+
+    const stored = await withTenant(getTestSql(), tenantId, async (tx) => {
+      const rows = (await tx`
+        SELECT DISTINCT unique_dimension FROM awcms_mini_usage_events
+        WHERE tenant_id = ${tenantId} AND meter_key = ${UNIQUE_METER}
+        ORDER BY unique_dimension
+      `) as { unique_dimension: string }[];
+      return rows.map((r) => r.unique_dimension);
+    });
+
+    // Two distinct pseudonyms (subject-A collapses to one). The RAW keys are
+    // never persisted verbatim (the leak the fix closes).
+    expect(stored).toHaveLength(2);
+    expect(stored).not.toContain("subject-A");
+    expect(stored).not.toContain("user@example.com");
+    for (const digest of stored) expect(digest).toMatch(/^[0-9a-f]{64}$/);
+    // The stored value is exactly the deterministic keyed HMAC of the raw key.
+    expect(stored).toContain(pseudonymizeUniqueDimension("subject-A"));
+    expect(stored).toContain(pseudonymizeUniqueDimension("user@example.com"));
+
+    // Cardinality preserved end-to-end: distinct count = 2 (subject-A counted once).
+    await aggregate(tenantId);
+    const agg = await withTenant(getTestSql(), tenantId, (tx) =>
+      listAggregates(tx, tenantId, UNIQUE_METER, "hour", new Date())
+    );
+    expect(agg[0]!.distinctCount).toBe(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // Issue #902 L3 — reconciliation source-row discovery is keyset-paged (no
+  // silent single-cap gap), pages BOTH streams, and flags the hard bound.
+  // -------------------------------------------------------------------------
+
+  test("#902 L3: discovery keyset-pages across many pages — every source-event window is found (no single-cap completeness gap)", async () => {
+    const tenantId = await seedTenant("um902pg");
+    // Three events in three DISTINCT hour windows; no aggregate materialized.
+    await append(tenantId, "w1", 1, "2026-07-19T08:30:00Z");
+    await append(tenantId, "w2", 1, "2026-07-19T09:30:00Z");
+    await append(tenantId, "w3", 1, "2026-07-19T10:30:00Z");
+
+    const run = await withTenant(getTestSql(), tenantId, (tx) =>
+      runReconciliation(
+        tx,
+        tenantId,
+        ACTOR,
+        registry,
+        {
+          meterKey: METER,
+          windowType: "hour",
+          rangeFrom: new Date("2026-07-19T00:00:00Z"),
+          rangeTo: new Date("2026-07-20T00:00:00Z")
+        },
+        undefined,
+        // One row per page forces multi-page paging; all three must still be found.
+        { discoveryPageRows: 1 }
+      )
+    );
+    expect(run.ok).toBe(true);
+    if (run.ok) {
+      expect(run.run.discoveryIncomplete).toBe(false);
+      expect(run.run.windowsChecked).toBe(3);
+      expect(run.run.missingCount).toBe(3);
+    }
+  });
+
+  test("#902 L3: hitting the hard discovery bound marks the run discoveryIncomplete (durably) — never a silent truncation", async () => {
+    const tenantId = await seedTenant("um902cap");
+    await append(tenantId, "c1", 1, "2026-07-19T08:30:00Z");
+    await append(tenantId, "c2", 1, "2026-07-19T09:30:00Z");
+    await append(tenantId, "c3", 1, "2026-07-19T10:30:00Z");
+
+    const run = await withTenant(getTestSql(), tenantId, (tx) =>
+      runReconciliation(
+        tx,
+        tenantId,
+        ACTOR,
+        registry,
+        {
+          meterKey: METER,
+          windowType: "hour",
+          rangeFrom: new Date("2026-07-19T00:00:00Z"),
+          rangeTo: new Date("2026-07-20T00:00:00Z")
+        },
+        undefined,
+        { maxDiscoveryRows: 2 } // hard bound below the 3 rows present -> incomplete
+      )
+    );
+    expect(run.ok).toBe(true);
+    if (run.ok) {
+      expect(run.run.discoveryIncomplete).toBe(true);
+      expect(
+        run.run.report.some((e) => e.kind === "discovery_incomplete")
+      ).toBe(true);
+    }
+
+    // Durable: a re-read via the list still reflects the incomplete flag (it is
+    // persisted as a report sentinel, not a transient computed field).
+    const listed = await withTenant(getTestSql(), tenantId, (tx) =>
+      listReconciliationRuns(tx, tenantId)
+    );
+    expect(listed[0]!.discoveryIncomplete).toBe(true);
+  });
+
+  test("#902 L3: discovery pages the CORRECTIONS stream too — a window whose only evidence is a correction is discovered", async () => {
+    const tenantId = await seedTenant("um902corr");
+    const admin = getAdminSql();
+
+    // An original event in the 10:00 window (a valid FK target for the correction).
+    const orig = await append(tenantId, "orig", 5, "2026-07-19T10:30:00Z");
+    const originalEventId = orig.ok ? orig.eventId : "";
+
+    // A correction whose OWN event_time is in a DIFFERENT (08:00) window that has
+    // NO event and NO stored aggregate — discoverable ONLY by paging corrections.
+    await admin`
+      INSERT INTO awcms_mini_usage_corrections
+        (tenant_id, original_event_id, meter_key, correction_type, delta_quantity,
+         reason, producer, source_event_id, source_version, event_time)
+      VALUES (${tenantId}, ${originalEventId}, ${METER}, 'adjustment', -2,
+         'backfilled window', 'billing', 'corr-w08', 1, '2026-07-19T08:30:00Z')
+    `;
+
+    const run = await withTenant(getTestSql(), tenantId, (tx) =>
+      runReconciliation(tx, tenantId, ACTOR, registry, {
+        meterKey: METER,
+        windowType: "hour",
+        rangeFrom: new Date("2026-07-19T00:00:00Z"),
+        rangeTo: new Date("2026-07-20T00:00:00Z")
+      })
+    );
+    expect(run.ok).toBe(true);
+    if (run.ok) {
+      // The 08:00 correction-only window is found and flagged missing (no stored
+      // aggregate). Before the corrections stream was paged it was invisible.
+      const found = run.run.report.some(
+        (e) =>
+          e.kind === "missing" && e.windowStart === "2026-07-19T08:00:00.000Z"
+      );
+      expect(found).toBe(true);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Issue #902 L4b — route-level Idempotency-Key replay (HTTP layer).
+  // -------------------------------------------------------------------------
+
+  const OPERATOR_PASSWORD = "um-902-operator-password";
+
+  async function bootstrapUsageOperator(
+    tenantCode: string
+  ): Promise<{ tenantId: string; token: string }> {
+    const loginIdentifier = `${tenantCode}-owner@example.com`;
+    const setup = await invoke<{ data: { tenantId: string } }>(
+      setupInitialize,
+      {
+        method: "POST",
+        path: "/api/v1/setup/initialize",
+        headers: { "content-type": "application/json" },
+        body: {
+          tenantName: `UM ${tenantCode}`,
+          tenantCode,
+          officeCode: "hq",
+          officeName: "HQ",
+          ownerLoginIdentifier: loginIdentifier,
+          ownerPassword: OPERATOR_PASSWORD,
+          ownerDisplayName: "Owner"
+        }
+      }
+    );
+    const tenantId = setup.body.data.tenantId;
+
+    const login = await invoke<{ data: { token: string } }>(authLogin, {
+      method: "POST",
+      path: "/api/v1/auth/login",
+      headers: {
+        "content-type": "application/json",
+        "x-awcms-mini-tenant-id": tenantId
+      },
+      body: { loginIdentifier, password: OPERATOR_PASSWORD },
+      cookies: createCookieJar()
+    });
+
+    // The setup wizard grants the owner ALL permissions (incl. usage_metering.*);
+    // the control-plane module is default-disabled, so enable it for the tenant.
+    const admin = getAdminSql();
+    await admin.begin((tx) => syncModuleDescriptors(tx as unknown as Bun.SQL));
+    await admin`
+      INSERT INTO awcms_mini_tenant_modules (tenant_id, module_key, enabled, enabled_at)
+      VALUES (${tenantId}, 'usage_metering', true, now())
+      ON CONFLICT (tenant_id, module_key) DO UPDATE SET enabled = true, enabled_at = now()
+    `;
+
+    return { tenantId, token: login.body.data.token };
+  }
+
+  test("#902 L4b: two POSTs to the corrections ROUTE with the same Idempotency-Key apply exactly one correction (replay is consistent)", async () => {
+    const { tenantId, token } = await bootstrapUsageOperator("um902idem");
+
+    // An original event to correct (the sum + signed_delta sample meter).
+    const appended = await withTenant(getTestSql(), tenantId, (tx) =>
+      appendPort(tx, tenantId, {
+        meterKey: METER,
+        producer: "billing",
+        sourceEventId: "orig-idem",
+        quantity: 10,
+        eventTime: "2026-07-19T10:10:00Z"
+      })
+    );
+    const originalEventId = appended.ok ? appended.eventId : "";
+
+    const key = crypto.randomUUID();
+    const body = {
+      originalEventId,
+      correctionType: "reversal",
+      deltaQuantity: null,
+      reason: "duplicate charge",
+      producer: "billing",
+      sourceEventId: "corr-idem",
+      sourceVersion: 1
+    };
+    const call = () =>
+      invoke<{ data: { correction: { id: string; deltaQuantity: number } } }>(
+        correctionsRoute,
+        {
+          method: "POST",
+          path: "/api/v1/usage-metering/corrections",
+          headers: {
+            "content-type": "application/json",
+            "x-awcms-mini-tenant-id": tenantId,
+            authorization: `Bearer ${token}`,
+            "idempotency-key": key
+          },
+          body,
+          cookies: createCookieJar()
+        }
+      );
+
+    const first = await call();
+    const second = await call();
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    // Replay returns the SAME correction (same id + delta), never a new row/409.
+    expect(second.body.data.correction.id).toBe(first.body.data.correction.id);
+    expect(second.body.data.correction.deltaQuantity).toBe(-10);
+
+    // Exactly ONE correction row, ONE usage.corrected event, ONE audit.
+    const corrections = await withTenant(getTestSql(), tenantId, (tx) =>
+      listCorrections(tx, tenantId, METER)
+    );
+    expect(corrections).toHaveLength(1);
+
+    const admin = getAdminSql();
+    const events = (await admin`
+      SELECT count(*)::int AS c FROM awcms_mini_domain_events
+      WHERE tenant_id = ${tenantId}
+        AND event_type = 'awcms-mini.usage-metering.usage.corrected'
+    `) as { c: number }[];
+    expect(events[0]!.c).toBe(1);
+    const audits = (await admin`
+      SELECT count(*)::int AS c FROM awcms_mini_audit_events
+      WHERE tenant_id = ${tenantId} AND action = 'correct'
+        AND resource_type = 'usage_correction'
+    `) as { c: number }[];
+    expect(audits[0]!.c).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Issue #902 L4c — two concurrent workers on the same tenant: FOR UPDATE SKIP
+  // LOCKED gives the lease to exactly one; the other skips (no double-process).
+  // -------------------------------------------------------------------------
+
+  test("#902 L4c: while one worker holds the tenant's lease, a concurrent aggregateTenant on the SAME tenant SKIPS (FOR UPDATE SKIP LOCKED) — it never blocks and never double-processes", async () => {
+    const tenantId = await seedTenant("um902lease");
+
+    // Pre-create the committed cursor row (an empty pass) so the contended pass
+    // races on the LEASE row lock, not on the cursor INSERT.
+    await aggregate(tenantId);
+
+    // A backlog that must be processed EXACTLY ONCE across the whole scenario.
+    await append(tenantId, "l1", 2, "2026-07-19T10:10:00Z");
+    await append(tenantId, "l2", 3, "2026-07-19T10:20:00Z");
+
+    // A dedicated connection (like the commit-reorder test) that holds worker-1's
+    // LEASE: aggregateTenant claims the cursor row with `FOR UPDATE SKIP LOCKED`,
+    // so replaying that exact claim in an open transaction faithfully reproduces
+    // "worker-1 is mid-pass, holding the lease". (Holding only the FOR UPDATE row
+    // lock — not the lease-bookkeeping UPDATE — is deliberate: an uncommitted
+    // UPDATE would make worker-2's cursor `INSERT ... ON CONFLICT DO NOTHING`
+    // block on the index tuple, which is a brief, expected serialization in
+    // production but would mask the SKIP LOCKED behavior under test here.)
+    const admin = getAdminSql();
+    const holder = await admin.reserve();
+    let secondResult: Awaited<ReturnType<typeof aggregateTenant>> | undefined;
+    try {
+      await holder`BEGIN`;
+      const claimed = (await holder`
+        SELECT id
+        FROM awcms_mini_usage_aggregation_cursors
+        WHERE tenant_id = ${tenantId} AND shard_key = 'default'
+          AND (lease_holder IS NULL OR lease_expires_at IS NULL OR lease_expires_at < now())
+        FOR UPDATE SKIP LOCKED
+      `) as { id: string }[];
+      // worker-1 got the lease row lock.
+      expect(claimed).toHaveLength(1);
+
+      // worker-2 runs a REAL aggregateTenant while worker-1 holds the lease: its
+      // own claim's SKIP LOCKED must skip the locked row -> skipped, no block.
+      secondResult = await withTenant(
+        getWorkerTestSql(),
+        tenantId,
+        (tx) =>
+          aggregateTenant(tx, tenantId, registry, { leaseHolder: "worker-2" }),
+        { workClass: "maintenance" }
+      );
+
+      // worker-2 skipped: it did not acquire the lease, process, or double-count.
+      expect(secondResult.skipped).toBe(true);
+      expect(secondResult.processed).toBe(0);
+      // The backlog is still unmaterialized (worker-2 correctly did nothing).
+      expect(await windowValue(tenantId, "hour")).toBe(null);
+
+      await holder`COMMIT`;
+    } finally {
+      holder.release();
+    }
+
+    // Once the lease frees, a normal pass materializes the backlog EXACTLY once
+    // (5 = 2 + 3) — proving worker-2's skip left the work intact, not lost/doubled.
+    const done = await aggregate(tenantId);
+    expect(done.skipped).toBe(false);
+    expect(done.processed).toBe(2);
+    expect(await windowValue(tenantId, "hour")).toBe(5);
   });
 });

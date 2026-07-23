@@ -37247,6 +37247,7 @@ components:
           enum:
             - drift
             - missing
+            - discovery_incomplete
         expectedValue:
           type: integer
         storedValue:
@@ -37295,6 +37296,7 @@ components:
         - windowsChecked
         - driftCount
         - missingCount
+        - discoveryIncomplete
         - report
         - startedAt
         - finishedAt
@@ -37329,6 +37331,9 @@ components:
           type: integer
         missingCount:
           type: integer
+        discoveryIncomplete:
+          type: boolean
+          description: 'True when source-row discovery hit its hard row bound before draining a stream (Issue #902 L3): windows beyond that point may be unverified, so the run must not be trusted as fully consistent even if status is "consistent". A durable `discovery_incomplete` report entry records it.'
         report:
           type: array
           items:
