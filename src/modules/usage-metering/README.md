@@ -27,6 +27,35 @@ or arbitrary JSON. Meter keys, aggregation semantics, bounds, and signed-correct
 admissibility all resolve against the **#874 single source**
 (`_shared/saas-contract-registry.ts`); an unknown meter fails closed.
 
+### `unique_dimension` — charset-restricted + pseudonymized (Issue #902 L2)
+
+A `unique_count` meter's distinct key (`unique_dimension`) is the one free-form
+string a producer supplies, so it gets two layers of defence:
+
+1. **Charset gate (pure domain, `domain/usage-event.ts`)** — the key must match
+   `^[A-Za-z0-9._:@-]{1,200}$`: an id/uuid/email-shaped token only. Whitespace,
+   control bytes, and structural characters (`{}[]"…`) are rejected **fail-closed**
+   (never silently dropped), so a raw request body / structured payload can never
+   become a distinct key. Mirrors `dimension-admission.ts`'s categorical-label
+   discipline; the column's `length(unique_dimension) BETWEEN 1 AND 200` CHECK
+   (`sql/087`) is the DB size backstop (as with dimensions — a charset CHECK is
+   deliberately **not** added: the pseudonym below, not a raw value, is what a
+   privacy meter persists, and it must be applied in the application layer anyway).
+2. **Pseudonymization at the write path (`application/unique-dimension-pseudonym.ts`)**
+   — for a meter whose #874 `privacyClassification` is **not** `non_personal`
+   (i.e. `pseudonymous` or `personal`), the append port replaces the key with a
+   **cardinality-preserving HMAC-SHA256 hex digest** _before_ it is persisted, so
+   an email/handle a producer used as the distinct key is never stored verbatim
+   (nor leaked through the `listUsageEvents` DTO). Same input → same digest, so the
+   distinct-count the meter measures is unchanged. A `non_personal` meter stores
+   the (charset-restricted) key as-is. The HMAC is keyed with `AUTH_JWT_SECRET`
+   (the same required, non-default-enforced secret `client-fingerprint.ts` keys
+   the audit `ipHash` with) and **domain-separated** by an input context prefix so
+   the two derived values never share an output space; the secret is read per call
+   and fail-closed (throws on a missing/placeholder secret rather than degrading to
+   an unkeyed, reversible digest). The response contract is unchanged — the field
+   stays a string.
+
 ## Idempotency identity (counted once)
 
 A producer event's identity binds `(tenant, producer, meter, source_event_id,
@@ -104,6 +133,19 @@ operational requirement:
    (`POST /api/v1/usage-metering/aggregation/rebuild`). Billing must not be
    finalized (#876) from windows a recent reconciliation has not confirmed
    consistent.
+
+**Discovery is keyset-paged, never silently capped (Issue #902 L3).** A
+reconciliation checks the UNION of windows that have a stored aggregate and
+windows that have source evidence (events **and** corrections) in range. Source
+discovery keyset-pages **both** streams by `ingest_seq` (bucketing each row with
+the same UTC `windowStartFor` the worker uses), so a window whose only evidence
+lies beyond any single-query row limit is still found — no silent completeness
+gap. A high, configurable **hard bound** guards a pathological range; if a stream
+hits it, discovery **stops and flags the run** `discoveryIncomplete` (a durable
+`discovery_incomplete` report sentinel + a `discoveryIncomplete` field on the run
+DTO + a logged warning + a warning-severity audit) rather than silently dropping
+windows — an incompletely-verified range can never be trusted as fully
+`consistent`.
 
 ## Fail-closed quota decision (ADR-0022 §4)
 

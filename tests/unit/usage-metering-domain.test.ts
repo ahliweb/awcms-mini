@@ -266,6 +266,41 @@ describe("usage-event validation", () => {
     );
     expect(forbidden.ok).toBe(false);
   });
+
+  test("Issue #902 L2: a unique_count distinct key is charset-restricted — a raw/structured payload is rejected, an id/uuid/email-shaped token is accepted", () => {
+    const uniqueMeter = sumMeter({
+      aggregation: "unique_count",
+      correction: "none",
+      privacyClassification: "pseudonymous"
+    });
+    const withKey = (uniqueDimension: string) =>
+      validateUsageEventDraft(
+        uniqueMeter,
+        {
+          meterKey: "m",
+          producer: "p",
+          sourceEventId: "e",
+          sourceVersion: 1,
+          quantity: 1,
+          uniqueDimension,
+          dimensions: {},
+          eventTime: NOW
+        },
+        NOW
+      );
+
+    // Safe categorical tokens (id / uuid / email-shaped / a 64-hex pseudonym).
+    expect(withKey("subject-A").ok).toBe(true);
+    expect(withKey("user@example.com").ok).toBe(true);
+    expect(withKey("3f2504e0-4f89-41d3-9a0c-0305e82c3301").ok).toBe(true);
+    expect(withKey("a".repeat(64)).ok).toBe(true);
+
+    // A raw payload / structured or whitespaced value is rejected (fail-closed).
+    expect(withKey('{"email":"a@b.com"}').ok).toBe(false); // JSON structure
+    expect(withKey("has space").ok).toBe(false); // whitespace
+    expect(withKey("line\nbreak").ok).toBe(false); // control character
+    expect(withKey("a".repeat(201)).ok).toBe(false); // over length
+  });
 });
 
 describe("correction validation", () => {

@@ -35,6 +35,21 @@ export const MAX_FUTURE_SKEW_MS = 300_000; // 5 minutes
 
 const PRODUCER_FORMAT = /^[a-z][a-z0-9_]*$/;
 
+/**
+ * The distinct key of a `unique_count` meter (`uniqueDimension`) must be a
+ * SHORT, SAFE CATEGORICAL TOKEN — an id / uuid / email-shaped handle — never a
+ * raw payload. Mirroring `dimension-admission`'s categorical-label discipline
+ * (structural characters and whitespace/control bytes are rejected fail-closed,
+ * never silently dropped), this charset admits letters/digits and the handful of
+ * id/uuid/email punctuation (`. _ : @ -`) and NOTHING else: no whitespace, no
+ * control characters, no `{}[]"` that could smuggle JSON/structure. A
+ * privacy-classified meter's key is additionally pseudonymized (HMAC) at the
+ * write path BEFORE persistence — see `application/unique-dimension-pseudonym.ts`
+ * — and a 64-char hex digest trivially satisfies this charset, so the same rule
+ * covers both the raw `non_personal` key and the hashed pseudonym.
+ */
+const UNIQUE_DIMENSION_FORMAT = /^[A-Za-z0-9._:@-]{1,200}$/;
+
 export type UsageEventDraft = {
   meterKey: string;
   producer: string;
@@ -150,6 +165,17 @@ export function validateUsageEventDraft(
         field: "uniqueDimension",
         message:
           "a unique_count meter requires a 1..200 char uniqueDimension (the distinct key)."
+      });
+    } else if (!UNIQUE_DIMENSION_FORMAT.test(draft.uniqueDimension)) {
+      // Charset gate (Issue #902 L2): reject a RAW payload as the distinct key.
+      // Structural characters / whitespace / control bytes are rejected here
+      // (fail-closed) so a producer cannot smuggle an unbounded or structured
+      // value; a privacy-classified meter's key is additionally HMAC-hashed at
+      // the write path before it is ever persisted.
+      errors.push({
+        field: "uniqueDimension",
+        message:
+          "uniqueDimension must be a short safe categorical token matching ^[A-Za-z0-9._:@-]{1,200}$ (no whitespace / control characters / structural separators — it is not a payload)."
       });
     }
   } else if (draft.uniqueDimension !== null) {
