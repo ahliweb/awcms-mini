@@ -115,6 +115,50 @@ recompute cannot run, a hard quota **denies** (`usage_unavailable`). Entitlement
 is not permission: a positive decision is a commercial fact, never an
 authorization.
 
+**Bounded recompute (Issue #901).** A naive live recompute reads the _entire_
+reset window from source on every call — `O(events-per-reset-window)`, i.e.
+`O(events-per-month)` for a `monthly` reset on a high-volume meter. Instead the
+reset window is **decomposed** one calendar level finer (`month`→`day`,
+`day`→`hour`; an `hour` reset is already small):
+
+- **Settled prefix** (`sub_end + 1h grace ≤ now`, so no in-grace late event can
+  still land): read the worker's **materialized sub-aggregates** — an indexed
+  `O(sub-windows)` lookup (≤ 31 day rows), never `O(events)`. A settled
+  sub-window whose aggregate is **missing** (worker lag) is never assumed `0`
+  (that would under-count → over-admit); it is recomputed from source, bounded
+  to that one sub-window, or fails closed. A settled sub-aggregate that is
+  **present but stale** — a late-beyond-grace event/correction landed in its
+  window with an `ingest_seq` above the aggregate's folded `source_watermark`
+  and the worker has not re-folded it — is caught by one batched **index-only**
+  existence probe over the settled prefix (on the `ingest_seq`-extended
+  `..._window_idx`, sql/100) and recomputed from source too (the healthy path
+  returns nothing → **zero** extra source reads). The one residual the probe
+  cannot see — a lower-`ingest_seq` row that _commits_ after materialization —
+  is the #900 commit-order worker cursor's job (it re-folds it) with
+  reconciliation as the drift backstop. Aggregates whose stored
+  aggregation/value_type no longer match the descriptor are likewise treated as
+  missing.
+- **Open tail** (`sub_end + grace > now`): **always** recomputed live from
+  source (one bounded read over the contiguous open suffix), so a late event in
+  the hot period counts immediately even before it is aggregated.
+- **`unique_count`** cannot be decomposed (distinct sets across sub-windows
+  overlap → summing double-counts), so it stays a **full** source recompute
+  under the same budget. HLL sketches are out of scope.
+- **Row budget** `QUOTA_MAX_SOURCE_ROWS` (100 000): every source read (open tail
+  - settled-missing fallback + full `unique_count`) is capped via a `LIMIT
+budget+1` tripwire — never silently truncated (truncation under-counts).
+    Exceeding it fails closed (`usage_unavailable` → a hard quota denies).
+
+The settled sub-aggregate lookup rides the existing
+`awcms_mini_usage_aggregates_lookup_idx (tenant_id, meter_key, window_type,
+window_start)`; the staleness probe rides the `ingest_seq`-extended
+`..._window_idx` (sql/100). `combine` merges sub-window contributions per
+aggregation: `sum` adds, `max` peaks over non-empty windows, `last` picks the
+contribution with the greatest `last_event_time` (event times are disjoint
+across sub-windows, so the globally-latest event's window carries its value).
+Reconciliation remains a defence-in-depth backstop, but correctness does not
+depend on it — a stale settled sub-aggregate is detected and recomputed inline.
+
 ## API (operator-only, current-tenant context)
 
 - `GET  /api/v1/usage-metering/events` — immutable usage-event timeline (`?meterKey=`).

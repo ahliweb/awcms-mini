@@ -809,7 +809,8 @@ describe("database migration runner helpers", () => {
       "096_awcms_mini_subscription_billing_credit_approval.sql",
       "097_awcms_mini_service_catalog_commercial_approval.sql",
       "098_awcms_mini_control_plane_support_access_and_step_up.sql",
-      "099_awcms_mini_usage_metering_safe_watermark_cursor.sql"
+      "099_awcms_mini_usage_metering_safe_watermark_cursor.sql",
+      "100_awcms_mini_usage_metering_stale_watermark_index.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
