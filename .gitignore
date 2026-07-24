@@ -47,3 +47,11 @@ blob-report/
 # jadi tanpa aturan ini `git add -A` bisa meng-commit seluruh checkout agent.
 # Terungkap saat epic #818 gelombang 1 menjalankan 6 agent paralel.
 .claude/worktrees/
+
+# Cache inkremental graphify (AST + embedding semantic per file, ratusan file
+# kecil yang di-regenerate otomatis saat sumbernya berubah). Hasil akhir graph
+# (graph.json/graph.html/GRAPH_REPORT.md/manifest.json) TETAP di-commit.
+graphify-out/cache/
+# Penanda lokal per-mesin (absolute path checkout + interpreter uv), bukan hasil.
+graphify-out/.graphify_root
+graphify-out/.graphify_python

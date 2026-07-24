@@ -9,3 +9,6 @@ CHANGELOG.md
 # memformat ulang header-nya sehingga `memory:docs:check` selalu gagal setelah
 # lint, dan reformat isi memory = kehilangan fidelitas round-trip `restore`.
 docs/awcms-mini/agent-memory.md
+# Output generated graphify (graph.json 20 MB + HTML bundel). Diformat ulang
+# Prettier = diff raksasa tiap regenerate dan `lint` jadi lambat.
+graphify-out/
