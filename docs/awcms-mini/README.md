@@ -153,7 +153,6 @@ Dokumen dikelompokkan mengikuti alur pengembangan agar mudah diimplementasi.
 |   – | `api-reference.md`                                    | Referensi API & event GENERATED (`bun run api:docs:generate`) dari kontrak OpenAPI/AsyncAPI ter-bundle — auth, tenant context, pagination, idempotency, error schema, seluruh operation/event, dan kebijakan deprecation (Issue #700, epic #679)                                 |
 |   – | `repo-inventory.md`                                   | Inventory repo GENERATED (`bun run repo:inventory:generate`): modul, migration, tabel/RLS, test, dan route — sumber kebenaran mekanis, dicek `repo:inventory:check` (Issue #688, epic #679)                                                                                      |
 |   – | `agent-memory.md`                                     | Snapshot memory agent GENERATED (`bun run memory:docs:sync`): memory Claude Code hidup di luar repo (`~/.claude/projects/<slug>/memory/`) sehingga hilang saat pindah device — dokumen ini membuatnya bisa dipulihkan (`bun run memory:docs:restore`), dicek `memory:docs:check` |
-|   – | `../Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf` | Pedoman penggunaan AI agent lintas keluarga produk AWCMS (AWCMS, AWCMS-Mini, AWCMS-Micro, software turunan) — AWCMS-Mini menjadi sumber utama (baseline) pedoman ini                                                                                                             |
 
 ### Architecture Decision Records
 
@@ -207,8 +206,6 @@ AWCMS-Mini sengaja disusun agar bisa dipakai sebagai **template/contoh** untuk m
 | Standar commit/roadmap/preflight (09, 07)                          | —                                             |
 
 Untuk membangun aplikasi baru di atas AWCMS-Mini: pertahankan lapisan reusable, ganti lapisan spesifik domain dengan kebutuhan aplikasi Anda, dan ikuti alur dokumen 01 → 20 (plus ADR di [`../adr/`](../adr/README.md)). Panduan langkah-demi-langkah (9 langkah berbasis skill nyata + 5 contoh aplikasi turunan + checklist keamanan): [`derived-application-guide.md`](derived-application-guide.md).
-
-Kontrak repository AWCMS-Mini (AGENTS.md, README.md, CONTRIBUTING.md, `derived-application-guide.md`, skill proyek) juga menjadi **sumber utama** bagi [`../Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf`](../Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf) — pedoman penggunaan agent yang menggeneralisasi pola AWCMS-Mini agar berlaku lintas keluarga produk (AWCMS, AWCMS-Mini, AWCMS-Micro, dan software turunannya). Repo ini tetap sumber kebenaran paling spesifik ketika ada perbedaan.
 
 ## Versioning
 
