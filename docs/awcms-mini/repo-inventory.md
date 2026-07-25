@@ -43,7 +43,7 @@
 
 ## Migrations
 
-104 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `104_awcms_mini_tenant_entitlement_expiry.sql`).
+105 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `105_awcms_mini_control_plane_reconciliation_grants.sql`).
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -151,6 +151,7 @@
 | 102 | `102_awcms_mini_payment_gateway_retention.sql`                           |
 | 103 | `103_awcms_mini_control_plane_fleet_sweep_grants.sql`                    |
 | 104 | `104_awcms_mini_tenant_entitlement_expiry.sql`                           |
+| 105 | `105_awcms_mini_control_plane_reconciliation_grants.sql`                 |
 
 ## Tables & Row-Level Security
 
@@ -180,15 +181,15 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-399 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+401 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 49         |
 | `e2e`         | 11         |
-| `integration` | 121        |
+| `integration` | 122        |
 | `modules`     | 5          |
-| `unit`        | 213        |
+| `unit`        | 214        |
 
 ## Routes / Operations (summary)
 

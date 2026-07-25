@@ -125,6 +125,7 @@ describe("fetchModuleJobs", () => {
         "bun run sync:objects:dispatch",
         "bun run tenant-entitlement:expiry-sweep",
         "bun run tenant-lifecycle:run-scheduled",
+        "bun run tenant-provisioning:fleet-reconcile",
         "bun run tenant-provisioning:reconcile",
         "bun run usage-metering:aggregate",
         "bun run usage-metering:purge",

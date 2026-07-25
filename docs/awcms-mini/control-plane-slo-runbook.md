@@ -117,6 +117,66 @@ Kalau usia naik terus sementara kedalaman stabil: ada satu attempt yang
 tidak pernah maju, bukan beban tinggi. Cari attempt tertua dan periksa
 langkah mana yang tidak selesai.
 
+## tenant-provisioning-fleet-reconcile
+
+`bun run tenant-provisioning:fleet-reconcile`
+(`scripts/tenant-provisioning-fleet-reconcile.ts`, jadwal disarankan harian).
+Rekonsiliasi desired-vs-actual untuk **setiap** tenant yang sudah
+`provisioned`, memakai cross-tenant read model yang sama dengan fleet sweep.
+
+Sebelum ini, rekonsiliasi hanya ada per-tenant dan hanya jalan kalau ada
+manusia yang ingat menjalankannya, satu per satu, dengan tenant id — yang
+bukan kontrol yang bisa diandalkan begitu jumlah tenant lewat segelintir.
+
+**Melaporkan drift, tidak pernah memperbaikinya** (ADR-0022 §9). Remediasi
+tetap tindakan operator yang teraudit; job terjadwal yang diam-diam
+memperbaiki drift provisioning justru menghapus bukti bahwa pernah ada yang
+salah.
+
+Tapi job ini **bukan read-only**, dan bedanya penting: setiap pass mencatat
+dirinya sendiri (transisi status, baris rekonsiliasi berisi drift yang
+terlihat, `last_reconciled_at`). Tanpa itu operator tidak bisa membedakan
+"sudah direkonsiliasi, tidak ada drift" dari "belum pernah direkonsiliasi".
+
+### Dua fase, dan kenapa urutannya yang jadi desainnya
+
+1. **Probe** — baca request tiap tenant (read-only, transaksi pendek
+   sendiri). Tenant yang tidak `provisioned` dihitung sebagai
+   `tenantsNotProvisioned`; yang baru direkonsiliasi < 20 jam dihitung
+   sebagai `tenantsStillFresh`.
+2. **Belanja budget ke yang PALING BASI** — maksimal 200 tenant per pass,
+   diurutkan dari yang paling lama tidak direkonsiliasi (yang belum pernah
+   sama sekali menang lebih dulu). Sisanya dilaporkan `tenantsDeferred`.
+
+Bentuk yang tampak lebih sederhana — jalan berurutan lalu berhenti saat
+budget habis — **membuat ekor daftar kelaparan permanen**. Tenant
+dienumerasi dalam urutan stabil, dan dengan interval kesegaran 20 jam pada
+jadwal harian, setiap tenant yang disentuh pass sebelumnya sudah basi lagi
+di tick berikutnya: kepala daftar yang sama menang budget selamanya dan
+tenant setelahnya **tidak pernah** tersentuh. Bukan "terlambat" — tidak
+pernah. Versi pertama job ini memang punya bug itu;
+`tests/unit/tenant-provisioning-fleet-reconciliation.test.ts` mereproduksi
+kegagalannya pada bentuk yang ditolak, bukan sekadar meng-assert perbaikannya.
+
+Interval 20 jam (bukan 24) juga disengaja: cron tick bergeser, dan run yang
+mulai beberapa menit lebih lambat dari sebelumnya tidak boleh melewatkan
+tenant yang baru saja dikerjakan kurang dari 24 jam lalu — itu diam-diam
+membuat cadence efektifnya jadi 48 jam.
+
+### Grant, dan batasnya
+
+Job jalan sebagai `awcms_mini_worker` dengan grant dari migration `105`:
+`UPDATE` pada requests (juga syarat `SELECT ... FOR UPDATE`), `SELECT` +
+`INSERT` pada reconciliations, `SELECT` pada steps/results. Sengaja **tidak**
+ada: INSERT/DELETE pada requests (job terjadwal tidak boleh bisa mendaftarkan
+atau menghapus tenant), dan tidak ada write apa pun pada steps/results —
+reconciler yang bisa menulis inputnya sendiri hanya bisa menyembunyikan
+drift, tidak bisa mendeteksinya.
+
+Integration test menulis sebagai role worker sungguhan, dan mencabut salah
+satu dari ketiga grant itu membuat suite-nya merah — jadi grant-nya terbukti
+load-bearing, bukan hiasan.
+
 ## tenant-entitlement-expiry-sweep
 
 **Objective** `tenant_entitlement.expired_entitlements_swept` — assignment yang

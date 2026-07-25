@@ -129,6 +129,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       'Fleet-wide READ-ONLY observation sweep (control-plane:fleet-sweep, Issue #930) — walks every active tenant and aggregates each control-plane module\'s signals. "reporting" rather than "maintenance": it is an analytical read across many tenants whose latency profile matches the projection refresh worker, and unlike a retention purge it is not merely tolerant of delay — stale gauges silently under-report an ongoing incident. Every withTenant call inside the sweep already passes workClass: "reporting" explicitly.'
   },
+  "scripts/tenant-provisioning-fleet-reconcile.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Fleet-wide provisioning reconciliation (tenant-provisioning:fleet-reconcile, Issue #930) — the pass tenant_provisioning\'s own descriptor deferred for want of a cross-tenant read model. "maintenance" rather than "reporting": drift that has already happened does not become more urgent while the pass waits, and unlike the observation sweep this one WRITES (status transition + reconciliation record), so it belongs in the same bucket as other bounded scheduled writers. The due-ness probe passes workClass: "maintenance" explicitly; the reconcile itself delegates to reconcileProvisioning, which opens its own transaction directly (a pre-existing property of the engine the REST endpoint and per-tenant CLI also use, not introduced here).'
+  },
   "scripts/tenant-entitlement-expiry-sweep.ts": {
     workClass: "maintenance",
     rationale:
