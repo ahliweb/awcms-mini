@@ -5,6 +5,7 @@ import { resolveSsrContext } from "./lib/auth/ssr-session";
 import { resolveRequestLocale } from "./lib/i18n/request-locale";
 import { LOCALE_COOKIE_NAME, resolveLocale } from "./lib/i18n/locale";
 import { buildSecurityHeaders } from "./lib/security/security-headers";
+import { ensureDefaultCachePolicy } from "./lib/http/cache-policy";
 import {
   isApiJsonResponseCandidate,
   mergeCorrelationIdIntoApiPayload
@@ -381,6 +382,14 @@ function applyResponseHeaders(
   })) {
     response.headers.set(name, value);
   }
+
+  // Default-deny caching. Until this existed the app emitted no Cache-Control
+  // at all, which is safe only while nothing sits in front of it — any shared
+  // cache (Varnish, a CDN, a corporate proxy) would fall back to its own
+  // heuristics and happily store a tenant- or user-scoped page. A route that
+  // wants to be cached says so explicitly via `applyCachePolicy`; everything
+  // else gets `no-store` here, by omission.
+  ensureDefaultCachePolicy(response);
 
   return response;
 }

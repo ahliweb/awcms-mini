@@ -1034,6 +1034,9 @@ health endpoint.
 - [`18_configuration_env_reference.md`](18_configuration_env_reference.md)
   — referensi environment variable lengkap dan topologi LAN-first.
 - [`database-pooling.md`](database-pooling.md) — kapan PgBouncer relevan.
+- [`http-cache-varnish.md`](http-cache-varnish.md) — edge cache Varnish untuk
+  profil staging/production: default-deny cacheability, bentuk cache key
+  (tenant/sesi/locale), dan `bun run varnish:cache:check`.
 - [`database-capacity-runbook.md`](database-capacity-runbook.md) — model
   kapasitas koneksi lintas-instance, kalkulator, dan SOP incident saturasi
   (Issue #743, epic #738 platform-evolution).
