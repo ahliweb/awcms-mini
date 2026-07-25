@@ -125,6 +125,63 @@ metrics are:
   failure), `pool-saturation`'s `backpressureLatencyMs` (bounded queueing
   under load).
 
+## Cakupan control plane (Issue #930 Wave 5)
+
+Sampai #930 Wave 5, drill restore membuktikan tiga hal — ledger migration,
+satu baris tenant contoh, dan isolasi RLS di `awcms_mini_offices` — dan
+ketiganya **base platform**. Tidak ada satu pun pemeriksaan yang menyentuh
+control plane, sehingga sebuah restore bisa melaporkan `pass` sementara
+seluruh provisioning run, entitlement, invoice, envelope pembayaran,
+grant support-access, dan cursor projection hilang. Itu persis bentuk
+"centang hijau di atas bukti yang tidak lengkap".
+
+`deploy/backup/restore-drill.sh` sekarang menambahkan check `control_plane`
+atas tujuh tabel: provisioning requests, entitlement assignments, billing
+invoices, payment webhook inbox, support-access grants, serta
+`reporting_projection_state` dan `reporting_projection_cursors` (dua yang
+terakhir adalah "jobs/projections" dalam kriteria #930 — tanpa cursor-nya,
+projection diam-diam mulai dari nol setelah restore).
+
+Dua kegagalan dibedakan karena artinya berlawanan:
+
+- **Tabel control-plane TIDAK ADA di schema hasil restore → `fail`, selalu.**
+  Artinya dump atau restore kehilangan sebagian schema, dan itu benar
+  terlepas dari apakah deployment-nya memakai control plane.
+- **Tabel ada tapi KOSONG → `skip`, bukan pass.** Deployment LAN/offline
+  memang tidak pernah mengaktifkan control plane, dan setiap modulnya
+  `defaultTenantState: "disabled"` per tenant (ADR-0022 §7).
+
+Perhatikan asimetri dengan `tenant_isolation`: `skip` pada control plane
+**tidak** memaksa verdict jadi `incomplete`, sedangkan `skip` pada
+tenant_isolation memaksa. Itu disengaja, bukan celah. Isolasi RLS dimiliki
+SETIAP deployment dan justru itu alasan drill ini ada, jadi yang tak
+terbukti adalah lubang. Data control-plane adalah sesuatu yang sebagian
+besar deployment memang sah untuk tidak punya; menuntutnya akan membuat
+`incomplete` jadi hasil normal — dan verdict yang selalu kuning adalah
+verdict yang berhenti dibaca orang.
+
+### RTO/RPO untuk control plane
+
+Angkanya sama dengan basis data secara keseluruhan (`restoreRtoSeconds` /
+`restoreRpoSeconds` di atas), karena control plane tidak punya artefak
+backup terpisah: ia hidup di database yang sama dan ikut di dump yang sama.
+Yang berbeda adalah **apa yang harus dijalankan ulang setelah restore**:
+
+| Setelah restore                                  | Konsekuensi                                                                                 | Pemulihan                                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Projection cursor tertinggal                     | Angka operator/komersial stale, bukan salah                                                 | `bun run reporting:projections:refresh` (incremental, aman diulang)                                        |
+| Entitlement `active` yang jendelanya sudah lewat | Drift pembukuan, BUKAN akses berlebih (`assignmentActive()` sudah menolak jendela tertutup) | `bun run tenant-entitlement:expiry-sweep`                                                                  |
+| Provisioning drift vs rencana                    | Terdeteksi, tidak pernah diperbaiki otomatis (ADR-0022 §9)                                  | `bun run tenant-provisioning:fleet-reconcile`, lalu tindakan operator                                      |
+| Outbox pembayaran berisi perintah non-terminal   | Perintah akan di-retry dispatcher — ini benar, bukan bug                                    | biarkan dispatcher jalan; jangan hapus baris non-terminal (lihat [`data-lifecycle.md`](data-lifecycle.md)) |
+
+### Degraded mode saat provider tidak tersedia
+
+Sudah dibuktikan oleh skenario `provider-outage-*` di atas dan tidak
+diulang di sini: kegagalan provider dibatasi waktunya, retry tidak pernah
+menggandakan efek samping, dan status pembayaran TIDAK PERNAH dipercaya
+dari redirect browser — hanya dari webhook bertanda tangan atau hasil
+rekonsiliasi.
+
 ## Retry/idempotency evidence
 
 `provider-outage-email` is the concrete proof that a retried operation
