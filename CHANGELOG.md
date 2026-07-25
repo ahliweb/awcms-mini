@@ -1,5 +1,789 @@
 # Changelog
 
+## 1.1.0
+
+### Minor Changes
+
+- cde1ee0: feat(control-plane): add the bounded, masked, audited operator evidence export (#930)
+
+  `GET /api/v1/control-plane/tenants/{tenantId}/evidence` closes #930's
+  "operator evidence/export is bounded, masked, and audited" criterion. An
+  operator investigating a tenant's control-plane health gets shape and timing —
+  counts, statuses, timestamps, plan keys — and nothing customer-identifying.
+
+  **Two gates, because the permission alone would be a standing key to the
+  fleet.** The obvious design grants an `identity_access.support_access.export`
+  permission and stops. That would make every tenant's control-plane history
+  readable by any holder of it, at any time, with no record that anyone decided
+  the access was warranted. So the route requires that permission (evaluated in
+  the operator's own platform tenant) **and** an approved, unrevoked, unexpired
+  support-access grant for that specific target tenant. #879 already built grants
+  as maker/checker with a second approver, a recorded reason, and auto-expiry, so
+  the export inherits all of it and cannot outlive the authority that permitted
+  it. Without a live grant the answer is 403 — and the refusal is audited too,
+  because "who tried to read a tenant they had no grant for" is the more
+  interesting line in an investigation.
+
+  **Masked by construction, not by redaction.** The collector's row types have no
+  field capable of carrying a provider reference, envelope, token, secret, or
+  email address, so a careless `SELECT *` later has nowhere to put one.
+  Concretely: `last_error_class` (a bounded enum) is selected;
+  `last_error_message` in the adjacent column is not, because free text is where
+  identifiers end up. The integration test plants a customer email in exactly
+  that column and walks the whole package recursively — adding the field to the
+  output turns it red, which was verified by doing it.
+
+  **Bounded, and the bounding is reported.** The window is clamped to 90 days and
+  each section to 100 rows, with `clamped`/`truncated` in the response. "You
+  asked for a year and got 90 days" and "this tenant had no activity before then"
+  look identical in the data and mean opposite things. Sections use `LIMIT n + 1`
+  so overflow is observed rather than inferred.
+
+  Reads happen inside the target tenant's own RLS context (ADR-0022 §6b) —
+  authorization in the platform tenant, data in the target tenant, no query ever
+  seeing two tenants at once. Migration 107 seeds the permission on the existing
+  `support_access` activity rather than inventing a new one, so the existing SoD
+  rule keeps applying unchanged.
+
+- 881a7cf: Control plane: add the fleet-wide observation sweep that feeds the SLO
+  metrics (Issue #930, second wave).
+
+  `tenant-provisioning:reconcile` had documented this gap explicitly — a
+  fleet-wide batch "would need a purpose-built cross-tenant read-model (ADR-0022
+  §6b — a platform operator is NOT a soft super-tenant and never scans all
+  tenants' RLS tables ad hoc)". `bun run control-plane:fleet-sweep` is that read
+  model, and its shape is the whole point: enumerate tenants from the global
+  tenant directory, read each tenant's own rows inside that tenant's own RLS
+  context, then aggregate in application memory. No query ever sees two tenants'
+  rows at once, and nothing needs `BYPASSRLS` or a platform claim in a policy
+  predicate.
+
+  Each control-plane module contributes its own per-tenant collector
+  (`<module>/application/control-plane-signals.ts`) reading only its own tables;
+  the composition-root script is the only place that imports several at once, and
+  the aggregation itself takes plain data and imports no module, so it stays
+  unit-testable without a database. The sweep is read-only — it never reconciles,
+  revokes, retries, or advances anything, because a job that both observes and
+  mutates makes "the metric moved" ambiguous between "the fleet changed" and "the
+  sweep changed it".
+
+  Two behaviours are deliberate and easy to get wrong. Every gauge is emitted
+  **even at zero**: a gauge that simply stops being reported is indistinguishable
+  from a dead collector in any time-series backend, and "no data" usually renders
+  as a gap rather than an alarm, so writing 0 explicitly is what lets an operator
+  tell "nothing is wrong" from "nothing is watching". And a sweep cancelled
+  part-way **publishes nothing**: fleet totals built from a subset of tenants read
+  as a fleet-wide drop — exactly the shape of a recovery — which would silently
+  clear alerts that should still be firing.
+
+  Migration `103` grants the least-privilege `awcms_mini_worker` role SELECT on
+  the provisioning, entitlement, and billing tables it now reads (payment-gateway
+  and reporting were already granted by `093`/`101`), plus three retention-scan
+  indexes. This was found the hard way: the first smoke run passed against a
+  superuser `DATABASE_URL`, and a superuser bypasses both grants and RLS — so the
+  job looked perfect while being unable to read four tables in any real
+  deployment, and while silently reading every tenant at once. The collector
+  integration tests therefore run as the real `awcms_mini_worker` role, which was
+  verified to fail when a grant is revoked.
+
+  The billing collector uses a `LATERAL` join to the latest dunning attempt
+  rather than a plain join: the obvious phrasing multiplies one invoice by its
+  retry count, so the overdue metric would climb as dunning worked _harder_.
+
+- 1aec0ad: SaaS control-plane observability (Issue #880, epic #868 Wave 3): the six
+  tenant-scoped control-plane modules now contribute their own `reporting`
+  read-model projections, so operational state is visible without opening each
+  transactional table one REST call at a time.
+
+  Each owning module declares one `ProjectionDescriptor` in its own `module.ts`
+  over an append-only source it owns, materialized by the existing generic
+  cursor engine (no new engine, no new projection table):
+  `tenant_provisioning.provisioning_outcomes` (step-attempt outcomes — is
+  provisioning progressing, retrying, or waiting on manual intervention?),
+  `tenant_lifecycle.lifecycle_transitions` (lifecycle churn by event kind and
+  destination state), `tenant_entitlement.entitlement_evaluations` (did
+  entitlement propagation run, and why), `usage_metering.usage_reconciliation_outcomes`
+  (drift/failed reconciliation runs), `subscription_billing.invoice_lifecycle`
+  (invoice transition counts — issued versus paid backlog, void churn), and
+  `payment_gateway.payment_processing_outcomes` (webhook pipeline health —
+  applied versus ignored provider events). Counts only: no money amount,
+  provider reference, webhook envelope, or PII is ever projected.
+  `service_catalog` owns no tenant-scoped append-only table and contributes
+  none — a decision now gated, with its rationale, by
+  `tests/unit/control-plane-observability-coverage.test.ts`, which fails if any
+  control-plane module has neither a projection nor a written reason.
+
+  Projection accessibility is now decided in ONE place
+  (`reporting/application/projection-access.ts`): the owning module's per-tenant
+  enabled state first, then the descriptor's own `requiredPermission`. Every
+  control-plane module is default-disabled (ADR-0022 §7) while
+  `fetchGrantedPermissionKeys` keeps a disabled module's permission keys, so
+  without this a tenant that never opted into the control plane would still see
+  `subscription_billing`/`payment_gateway` projections listed with live counts.
+  The gate covers the list, detail, reconcile, rebuild/cancel, export
+  create/trigger, the admin screen, and both unattended workers — a disabled
+  module's projection is now omitted from the list, answers 403 on direct
+  access, produces no scheduled export artifact, and is skipped by the refresh
+  worker without advancing any cursor (so enabling the module later loses
+  nothing). A structural test fails if a future call site reaches past that
+  chokepoint. Export create/trigger additionally now require the descriptor's
+  own read permission, which the coarse `reporting.exports.*` gate did not
+  imply once projections stopped being `reporting`-owned.
+
+  Also: a projection's reported metrics now always include every DECLARED
+  metric, defaulting to 0 (previously a discriminator that had never occurred
+  was absent before a rebuild and present-as-0 after one).
+
+  Migration `101_awcms_mini_control_plane_projection_sources.sql` grants the
+  least-privilege `awcms_mini_worker` role SELECT on the newly declared source
+  tables plus `awcms_mini_tenant_modules`, and adds the `(tenant_id, created_at)`
+  index each cursor scan needs. No table, column, policy, or trigger changes.
+
+- 7a70592: Control plane: add the module-contributed SLO/alert registry, control-plane
+  metrics, and the operator objective catalog (Issue #930, first wave).
+
+  The SaaS control plane is the one subsystem whose stall is invisible to
+  everybody: the tenants still waiting on a provisioning queue cannot see it, the
+  tenants already provisioned are unaffected, and no tenant-scoped report covers
+  it because the tenant does not exist yet. Nothing was watching it, so this adds
+  something that does.
+
+  **Registry.** `ModuleDescriptor.serviceLevelObjectives` (module contract bumped
+  to `2.1.0`, purely additive) lets a module declare its own objectives and alert
+  thresholds in its own `module.ts`, aggregated and validated centrally by
+  `logging/domain/slo-registry.ts` — the same "module declares, central engine
+  reads `listModules()`" shape `dataLifecycle` and `reportingProjections` already
+  use. Eight objectives ship across `tenant_provisioning`, `tenant_entitlement`,
+  `subscription_billing`, `payment_gateway`, and `reporting`.
+
+  **The gate** (`bun run slo:registry:check`, wired into `bun run check`) enforces
+  two rules that carry real weight. `metricName` must be declared in
+  `METRIC_DEFINITIONS` — an objective measured against a metric nothing emits is
+  permanently silent, which looks like coverage on a dashboard and pages nobody.
+  And `dimension` must be one of that metric's own `allowedLabelKeys`, which makes
+  the "alerts use low-cardinality dimensions" requirement true by construction
+  rather than by review: an objective cannot introduce a label, so it cannot
+  smuggle a tenant id or resource id into an alert. The gate additionally verifies
+  each `runbookPath` exists on disk, because a dead runbook link found at 3am
+  costs the responder the time they spent trusting it.
+
+  It also rejects incoherent thresholds: a critical tier less severe than its
+  warning tier, a threshold pointing the opposite way from its objective (which
+  describes the healthy state and would fire permanently), a `below` threshold on
+  a counter (which can never recover, so the alert latches forever), a ratio
+  objective written as a percentage, and an unactionable `operatorAction`.
+
+  **Metrics.** Eight `control_plane_*` definitions (provisioning backlog and
+  oldest-pending age, unswept expired entitlements, overdue invoices by dunning
+  stage, payment DLQ depth, webhook backlog, stale projections, manual-intervention
+  queue). Every one is unlabeled or labelled only by a fixed code-defined enum —
+  never per-tenant, per-resource, or per-provider-reference.
+
+  **Operator surface.** `GET /api/v1/logs/observability/slo`
+  (`logging.observability.read`) serves the objective catalog. Its response is
+  built from an explicit field allow-list in `logging/domain/slo-safe-view.ts`,
+  never by spreading a descriptor: numeric thresholds, dwell times, and metric
+  names are withheld, since they are exactly the calibration data needed to stay
+  just under an alarm. A test asserts a descriptor carrying an unknown extra field
+  does not leak it, so a future field cannot become public by default.
+
+  Live objective state — which objectives are currently in breach — is not served
+  yet; the fleet-wide collectors that compute those signals land with the
+  scheduled control-plane jobs in the next wave. `docs/awcms-mini/control-plane-slo-runbook.md`
+  carries the per-objective response guidance.
+
+- 625aca8: feat(tenant-entitlement): add the expiry sweep, and correct the SLO that alerted on a queue with no consumer (#930)
+
+  Wave 1 of #930 shipped the `control_plane_entitlement_expired_unswept` gauge and
+  an SLO on top of it. Nothing ever drained that backlog — no expiry sweep existed
+  anywhere in the repo — so the alert watched a queue with no consumer and could
+  only climb. `bun run tenant-entitlement:expiry-sweep` is that consumer:
+  fleet-wide, bounded per tenant, and running inside each tenant's own RLS context
+  (ADR-0022 §6b).
+
+  **The SLO was also wrong about what it measured, and that mattered more than the
+  missing job.** It described an unswept backlog as an authorization gap — "the
+  tenant keeps access it is no longer entitled to" — and paged on it as an
+  access-control incident. Both halves are false:
+
+  - `domain/resolution.ts`'s `assignmentActive()` already returns null once
+    `now >= effectiveTo`, so an expired assignment contributes **no grants**
+    whether or not a sweep has run. No access is retained.
+  - `assignOffer` supersedes the incumbent row inside its own transaction, so an
+    unswept row does not block re-subscribing to the same plan either.
+
+  What it actually measures is bookkeeping drift: operator listings, commercial
+  reporting, and the entitlement projections all read `status`. Severities are
+  lowered to `info`/`warning` accordingly, and the descriptor, the signal
+  docstring, and the runbook section now say what the number means. A false
+  severity is not harmless exaggeration — it files routine bookkeeping beside real
+  breaches, which is how genuine pages start being ignored.
+
+  Migration 104 adds the `expired` status and its `expired_at` timestamp with a
+  both-directions consistency CHECK, extends the transition whitelist from
+  migration 081 (adding the status alone is not enough — the guard trigger rejects
+  `active -> expired`, which the integration test caught), makes expiry provenance
+  write-once, and grants `awcms_mini_worker` UPDATE (never INSERT/DELETE) on the
+  assignments table.
+
+  Two bugs the tests caught before merge, both invisible to review:
+
+  - The transition guard rejected `active -> expired`, so the sweep could not have
+    worked at all.
+  - `WHERE id IN (SELECT ... LIMIT n FOR UPDATE SKIP LOCKED)` does **not** bound
+    an UPDATE. Postgres chose a nested-loop semi-join with the LIMIT subquery on
+    the inner side, re-evaluating it per candidate row, so a batch limit of 2
+    against 3 expirable rows updated all 3. Since the batch limit is a
+    lock-footprint control, a tenant with thousands of expired rows would have
+    taken one enormous lock. Replaced with a `MATERIALIZED` CTE joined into the
+    UPDATE.
+
+  The sweep is proven not to change anyone's effective access: the integration
+  test captures the set of grant-contributing assignments before and after and
+  requires it to be identical. Writes run as the real `awcms_mini_worker` role,
+  so a missing grant fails the suite rather than production.
+
+- 0c6fc48: feat(tenant-provisioning): add the fleet-wide reconciliation pass (#930)
+
+  `tenant_provisioning`'s own job descriptor documented this gap in its own
+  words: a fleet-wide batch "is intentionally DEFERRED to #880 (it needs a
+  purpose-built cross-tenant read-model — a platform operator is not a soft
+  super-tenant, ADR-0022 §6b); until then reconcile on-demand, one tenant at a
+  time". So reconciliation existed, but nothing ran it unless a human remembered
+  to — per tenant, by id. Wave 2 of #930 built the cross-tenant read model that
+  deferral was waiting on, and `bun run tenant-provisioning:fleet-reconcile`
+  reuses its exact shape: enumerate tenants from the global directory, then read
+  and write each tenant's rows inside THAT tenant's own RLS context. No query
+  ever sees two tenants at once and nothing needs `BYPASSRLS`.
+
+  It reports drift and never auto-fixes (ADR-0022 §9) — remediation stays a
+  deliberate, audited operator action, because a scheduled job that silently
+  repaired provisioning drift would erase the evidence anything was ever wrong.
+  It is not, however, read-only: each pass records itself (status transition,
+  reconciliation row, `last_reconciled_at`), without which an operator cannot
+  tell "reconciled, no drift" from "never reconciled".
+
+  **A design bug the tests caught before merge.** The first version selected
+  tenants by walking the enumeration and stopping at a per-run budget. That
+  starves the tail permanently: tenants enumerate in a stable order, and with a
+  20h freshness interval on a daily schedule every tenant the previous pass
+  touched is due again by the next tick — so the same head wins the budget
+  forever and everything after it is never reconciled. Not "reconciled late";
+  never. The pass now probes every tenant first, then spends its budget on the
+  STALEST due tenants (never-reconciled first), so the bound can only delay a
+  tenant, never strand one. The unit test reproduces the failure against the
+  rejected shape rather than merely asserting the fix.
+
+  Migration 105 grants the worker exactly what the pass needs and stops there:
+  `UPDATE` on requests (also what `SELECT ... FOR UPDATE` requires), `SELECT` +
+  `INSERT` on reconciliations, `SELECT` on steps/results. Deliberately absent:
+  INSERT/DELETE on requests — a scheduled job must not be able to enrol tenants
+  nobody asked for, nor destroy the provenance of what was provisioned — and any
+  write at all on steps/results, since a reconciler that can edit its own inputs
+  can only hide drift, not detect it. Reconciliation records are append-only to
+  it for the same reason.
+
+  The integration tests write as the real `awcms_mini_worker` role, and revoking
+  any one of the three grants turns the suite red — the grants are proven
+  load-bearing rather than assumed.
+
+- 0ce20a4: Payment gateway: make the webhook evidence tables retainable (Issue #932).
+
+  Four `payment_gateway` tables — `webhook_inbox`, `normalized_events`,
+  `processing_attempts`, `reconciliations` — could never have a row deleted at
+  runtime. Their `BEFORE UPDATE OR DELETE` triggers raised unconditionally, so
+  the effective boundary was not "the app role may not delete" (which is the
+  intended one) but "no role may delete, including the migration owner" —
+  verified empirically on a fresh database. The consequence was that no retention
+  period could be enforced on stored provider webhook evidence, a legal hold had
+  nothing to override, no contractual or data-subject erasure was possible, and
+  the module's highest-volume table grew with provider traffic and could never
+  shrink.
+
+  Migration `102` narrows those four triggers to `BEFORE UPDATE`. Every
+  in-place-edit protection is unchanged: the webhook inbox still permits exactly
+  one `received -> normalized` forward advance and freezes every other column,
+  and the three append-only tables still reject any UPDATE whatsoever. The DELETE
+  boundary moves from "impossible" to grants, which is the shape `usage_metering`
+  already uses for the identical tension (migration `087`): `awcms_mini_app` — the
+  role every HTTP request runs as — keeps no DELETE rights, and only
+  `awcms_mini_worker` gains them.
+
+  `payment-gateway/application/retention-purge.ts` becomes the single delete
+  path: bounded batches, FK-safe ordering, legal-hold aware, audited. Because a
+  parent row is always older than the child derived from it, age alone is not a
+  safe cutoff — each level deletes only rows with no surviving child, so evidence
+  ages out as a whole chain rather than in fragments that would leave an inbox row
+  with no outcome. A legal hold on any link of the chain blocks all three of its
+  tables (fail-closed); `reconciliations` is independent and held separately.
+
+  Also adds four `dataLifecycle` descriptors (400-day default, 180–2555 bounds),
+  retention-scan and child-FK indexes, the `bun run payment-gateway:purge` job,
+  and PostgreSQL integration tests covering FK-safe ordering, the
+  surviving-child guard, batch bounding, both legal-hold groupings, the unchanged
+  UPDATE protections, and the grant boundary — the last asserting SQLSTATE
+  `42501` specifically, since a bare "it threw" assertion is also satisfied by the
+  `23503` a seeded chain produces and stays green against a wrongly widened grant.
+
+  The stale descriptor tables in `docs/awcms-mini/data-lifecycle.md` are brought
+  up to date at the same time; they listed 4 of what are now 13 descriptors.
+
+- d564cd5: Add the payment-gateway operator screen and gate the whole class of broken
+  sidebar links (Issue #878, epic #868).
+
+  `payment_gateway` shipped in #877 declaring a sidebar entry for
+  `/admin/payment-gateway` with no page behind it: an operator holding
+  `payment_gateway.intents.read` on a tenant that had enabled the module saw the
+  link and got a 404, and the module's entire read surface — provider health,
+  account bindings, intent status — was reachable only by calling the API by
+  hand. It was the only control-plane module with no admin screen at all.
+
+  The new screen is a read surface with three independently permission-gated
+  sections (`health.read`, `provider_accounts.read`, `intents.read`), looked up
+  per target tenant like the other control-plane panels. A caller holding only
+  one permission sees only that section, and a denied read, an empty result, and
+  a network failure each render distinctly rather than as the same blank panel.
+  Provider references (`provider_account_ref`, `provider_session_ref`) are masked
+  to their last four characters; signing secrets cannot appear at all, since they
+  are `env:` pointers the API never returns. Read-only by design — checkout,
+  cancel, refund request/approve, and outbox retry are high-risk mutations
+  requiring a reason and an idempotency key, several under maker/checker SoD and
+  step-up, so they stay on the API. English and Indonesian strings both added.
+
+  `tests/unit/module-navigation-path-resolves.test.ts` now fails if ANY module
+  declares a navigation path with no page behind it (verified red against the
+  missing page before it was written). No existing gate covered this:
+  `modules:compose:check` validates descriptor shape, the nav-registry tests
+  validate filtering, and the build does not care that a descriptor string looks
+  like a route.
+
+- 63268ae: feat(payment-gateway): make the outbound command queue purgeable (#930)
+
+  Issue #932 made the webhook EVIDENCE chain purgeable and left the outbox
+  behind, with the same defect in a purer form. `awcms_mini_payment_gateway_outbox`
+  had a `BEFORE DELETE` trigger that raised unconditionally — so no role could
+  delete a row, not the app role, not the worker, not even the migration owner —
+  plus no `DELETE` grant anywhere, and no `DELETE` statement anywhere in `src/`
+  or `scripts/`. It grew without bound, forever.
+
+  It is not a small table. One row per outbound provider command
+  (`create_checkout`, `request_refund`, `query_status`, `cancel_session`) with a
+  `payload jsonb` of up to 8000 characters, and `query_status` polls — the
+  highest-volume write path in the module. #930's Wave 5 named it explicitly.
+
+  Migration 106 drops the trigger rather than narrowing it: unlike #932's
+  tables it guarded only DELETE, so there was nothing left to narrow to. The
+  boundary moves to grants, exactly where #932 put it — `awcms_mini_app` is
+  explicitly revoked and keeps `SELECT, UPDATE` only, so a request handler still
+  cannot delete a queued command whatever SQL it issues, and the worker's new
+  `DELETE` makes the retention purge the single real delete path and therefore
+  the single enforcement point for legal hold.
+
+  **Two predicates, and the status one is the load-bearing half.** A command
+  that has not reached a terminal state is work that still owes a customer
+  something: deleting a `pending`/`in_flight`/`failed` row would silently drop a
+  checkout, refund, or cancellation, with the retry loop simply never seeing it
+  again and no error anywhere. `failed` is protected despite the name — it is
+  retryable and shares the due index with `pending`. The retention index is
+  PARTIAL on `status IN ('succeeded','dead')` so the safe predicate is also the
+  fast one: a purge that forgot the status filter would be wrong _and_ slow
+  rather than quietly wrong.
+
+  The cursor is `updated_at`, not `created_at` like every other descriptor in
+  this module. A command queued three months ago that only reached `dead` today
+  has been finished for zero days; ageing on `created_at` would purge it
+  immediately.
+
+  The outbox is legal-held independently of both the evidence chain and the
+  reconciliation log — the chain is what a provider told us, the outbox is what
+  we asked a provider to do, and neither references the other.
+
+  Both non-obvious decisions are mutation-verified: removing the status filter
+  fails "a LIVE command is never eligible", and switching the cursor to
+  `created_at` fails "age is measured from when the command stopped being live".
+  The `IN (SELECT … LIMIT n)` batching was also verified to genuinely bound a
+  DELETE on this schema (10 candidates, limit 2, exactly 2 deleted) — with a
+  comment warning against "improving" it with `FOR UPDATE SKIP LOCKED`, which
+  would push the LIMIT onto a semi-join's inner side and silently unbound the
+  batch, the exact regression that forced a MATERIALIZED CTE in the entitlement
+  expiry sweep.
+
+- 029c99c: feat(deploy): add a Varnish edge cache for the staging/production profile, with default-deny cacheability
+
+  Repeated reads no longer have to reach the database. `docker-compose.prod.yml`
+  gains an always-on `cache` service in front of `app`; the LAN-first/offline
+  profile (`docker-compose.yml`) is deliberately unchanged, since one tenant on
+  one box gains nothing from an extra hop.
+
+  **The cacheability decision lives in the application, not in VCL.** Before this
+  change the app emitted no `Cache-Control` header at all — safe only while
+  nothing sat in front of it, because any shared cache (Varnish, a CDN, a
+  corporate proxy) then falls back to its own heuristics, which for a 200 GET
+  generally means "store it". In an app that resolves the tenant from the request
+  Host and authorizes per session, that is exactly how one tenant's page reaches
+  another. `src/lib/http/cache-policy.ts` now stamps `private, no-store` on every
+  response that did not explicitly opt in, from the single middleware chokepoint
+  every response passes through. That protects every intermediary, not just our
+  own edge.
+
+  Two cacheable classes:
+
+  - `public` — anonymous and shareable, plain `Cache-Control: public, max-age=N`,
+    ceiling 300 s.
+  - `session` — authenticated and user-scoped. Sent as `Cache-Control: private,
+no-store` for every generic cache, plus a private `X-AWCMS-Edge-Cache` header
+    that only our Varnish reads and which it strips before delivery. Ceiling 60 s,
+    with zero grace and keep: a stale _authorized_ page after a role change,
+    suspension, or entitlement expiry is a security problem, not a freshness one.
+
+  The cache key always mixes in Host, the locale cookie, and — whenever a session
+  cookie is present — the session and tenant cookies. A logged-in visitor
+  therefore gets their own copy of an otherwise-public page. That duplication is
+  deliberate: the alternative is a key that is correct only if the backend
+  classification is correct, and a bug there leaks one user's page to another.
+
+  Never cached regardless of what the app says: non-GET/HEAD, anything with an
+  `Authorization` header, `/api/v1/auth/*`, `/login`, `/logout`, `/api/v1/health`,
+  `/metrics`, and any response carrying `Set-Cookie`.
+
+  `bun run varnish:cache:check` starts a real Varnish against a stub backend and
+  proves the isolation over HTTP — compiling the VCL only proves it parses. Every
+  assertion was mutation-verified: removing the session component from `vcl_hash`
+  makes the per-user case fail with user B receiving user A's cached page. It is
+  not part of `bun run check` because it needs Docker, the same reason the
+  Playwright suite is separate.
+
+  Note for operators: `docker-compose.prod.yml` no longer publishes `app`'s host
+  port. The edge is the only ingress — publishing both would let a request bypass
+  the edge and its tenant/session keying entirely.
+
+- 7e8b586: feat(database): flag an undeclared worker instance count, and gate the worker inventory that drifted twice (#930)
+
+  Wave 4 of #930 asked for capacity/preflight coverage of control-plane
+  workloads. Checking what was actually missing turned up something narrower and
+  more concrete than the issue text implied.
+
+  **The worker inventory had gone stale in five places at once.** The capacity
+  runbook described the `worker` process class as "the 9 unattended background
+  scripts"; `capacity-config.ts` listed all nine by name; `client.ts`,
+  `config/registry.ts` (twice), and `work-class-registry.ts` each repeated the
+  count. The registry actually holds 24. `config/registry.ts` even carried the
+  annotation "(count corrected by Issue #743)" — so the number had already been
+  corrected once and drifted again, with nothing failing either time.
+
+  That is worse than an ordinary stale doc, because the runbook's advice on
+  sizing `DATABASE_CAPACITY_WORKER_INSTANCES_MAX` is stated in terms of "N
+  distinct scripts". A stale N is advice to under-budget connections.
+
+  All five now defer to `JOB_WORK_CLASS_REGISTRY` via a new
+  `countRegisteredWorkerJobs()`, and `tests/unit/capacity-worker-inventory-drift.test.ts`
+  fails if a literal count reappears in any of them. The gate found two of the
+  five itself — the first, narrower regex missed
+  `"9 already-shipped scripts"` sitting three lines from a phrasing it caught,
+  and the broadened version then found a fourth copy in `config/registry.ts`
+  that manual grepping had missed. The test asserts the pattern still matches
+  the exact phrasings that went stale, so it cannot be quietly weakened into a
+  gate that can never fail.
+
+  **New finding: `worker_instances_max_undeclared` (severity `warning`).**
+  `job-runner.ts`'s advisory lock guarantees no single job name overlaps itself,
+  which is what makes the default of `1` look safe. It says nothing about two
+  different scripts firing in the same cron minute, each opening its own
+  worker-role pool. The runbook always said so in prose, and nothing enforced it.
+
+  The finding deliberately does **not** demand a larger number — a deployment
+  whose cron is staggered is correct at 1. It demands that the number be
+  _declared_: an undeclared 1 means nobody has considered job overlap, and that
+  is the only case worth reporting. Declaring 1 silences it. To make that
+  distinction possible, `CapacityConfig` now carries `instanceCountsDeclared`,
+  and a malformed value (`MAX=tree`) counts as undeclared — it falls back to the
+  default, so treating it as a declaration would let a typo silence the warning
+  it should trigger.
+
+  It is a `warning`, never a `fail`: preflight must not start refusing to run
+  for every existing deployment, most of which are fine.
+
+- 2044b56: Add opt-in login tenant picker (`AUTH_LOGIN_TENANT_PICKER`). When enabled, `/login` renders the tenant field as a dropdown of active tenant names instead of a manual Tenant ID text input — the option value stays the tenant UUID, so form submit and Google-login wiring are unchanged. Off by default: enabling it lists every active tenant's name pre-auth (tenant enumeration), acceptable for single/few-tenant deployments but an info-disclosure for a multi-tenant one. Ported from the same feature in awcms-micro.
+- 0a2d960: Add a shared motion foundation for professional, accessible micro-animations. New `--motion-duration-*`/`--motion-ease-*` tokens and `awcms-fade-in`/`slide-up-in`/`scale-in` keyframes in `tokens.css`, a global short transition on interactive controls (+1px active press), and a global `prefers-reduced-motion: reduce` block that neutralises all motion. Shared components animate their entrances: `StateNotice`/`ActionBanner` (slide-up), `ConfirmDialog` (scale-in + backdrop fade), `AdminLayout` (per-navigation content fade-in, drawer easing), `DataTable` (row hover). All motion routes through the tokens so it is theme- and reduced-motion-safe, animates only opacity/transform/colour (no layout shift), and lifts every screen via the shared layer.
+
+### Patch Changes
+
+- cd050a0: Accessibility: give the compact "add identifier / address / channel" inline
+  forms on the profile-identity detail screen (`admin/profile-identity/[id].astro`)
+  programmatic labels. These `<select>`/`<input>` controls previously had no
+  associated `<label>` (WCAG 2.2 AA 1.3.1 / 4.1.2 — a screen reader announced
+  them only by their surrounding text), and the city field used a hardcoded
+  English `placeholder="City"` that bypassed i18n. Each control now carries an
+  `aria-label` sourced from the message catalog, and the city placeholder is
+  translated. Five new keys added to `en.po`/`id.po` (identifier type, city,
+  country code, linked identifier, channel type). Markup/i18n only — no behavior
+  or validation change.
+- 7301f2a: Gate the observability metrics documentation table against drift.
+
+  `docs/awcms-mini/observability-metrics.md` §"Cardinality and privacy review"
+  describes itself as an acceptance criterion: every metric the codebase emits is
+  supposed to be listed there with its label set and cardinality bound, so that
+  adding a metric forces a deliberate privacy decision. Nothing verified it, and
+  it had drifted to 19 of 48 declared metrics — entire families (domain events,
+  business scope, SoD, workflow, profile identity, organization structure, and the
+  new control-plane metrics) had no entry at all.
+
+  A hand-maintained table that nothing checks is a guarantee on paper only, which
+  is worse than no guarantee because reviewers cite it. The table is regenerated
+  from `METRIC_DEFINITIONS`, and `tests/unit/observability-metrics-doc-coverage.test.ts`
+  now enforces coverage in both directions: a declared metric with no row fails,
+  and a row naming a metric that no longer exists fails.
+
+  The gate deliberately checks coverage only, not prose quality — the
+  cardinality and privacy reasoning stays human-written. The point is that a new
+  metric cannot silently skip having that reasoning recorded.
+
+  Documentation and skill files are also brought back in sync with what shipped in
+  #932 and #930; those changes carry no runtime effect.
+
+- 91901da: chore: commit output knowledge-graph graphify (`graphify-out/`) sebagai artefak repo — `graph.json` (10.940 node / 38.983 edge, dibangun dari commit `59405c48`), `graph.html`, `GRAPH_REPORT.md`, `manifest.json`, `cost.json`, dan `.graphify_labels.json`. Cache inkremental (`graphify-out/cache/`) serta penanda lokal per-mesin (`.graphify_root`, `.graphify_python`) di-ignore, dan `graphify-out/` ditambahkan ke `.prettierignore` supaya `bun run lint` tidak memformat ulang blob 20 MB tiap regenerate. Tidak ada perubahan runtime.
+- e46d64e: chore: refresh the graphify knowledge graph and stop committing `graph.html`
+
+  Graph rebuilt incrementally from commit `fed9be22` (was `59405c48`, stale by the
+  eight PRs of #937–#944): **11.130 node / 38.515 edge / 442 community**, 99%
+  EXTRACTED. 99 file kode di-ekstrak ulang, 1916 tak berubah, 124 berkas terhapus
+  dipangkas (123 node). Dijalankan `--code-only` — sama seperti build sebelumnya,
+  yang `cost.json`-nya mencatat **0 token**; 66 berkas dokumen butuh backend LLM
+  dan sengaja dilewati agar artefak ini tetap gratis dan deterministik.
+
+  **`graph.html` tidak lagi di-commit.** Graph sudah melewati batas visualisasi
+  default graphify (11.130 node > 5.000), jadi graphify melewatinya diam-diam —
+  yang berarti berkas 620 KB yang ter-commit sebelumnya kini menggambarkan graph
+  yang **berbeda** dari `graph.json` di sebelahnya. Visualisasi yang tidak cocok
+  dengan datanya lebih buruk daripada tidak ada. Menaikkan
+  `GRAPHIFY_VIZ_NODE_LIMIT` memang menghasilkannya, tapi bundelnya ~16 MB dan
+  praktis tak bisa dibuka pada ukuran itu, sekaligus menggandakan blob terbesar
+  repo setiap regenerate. Perintah regenerate lokal dicatat di `.gitignore`.
+
+  Ikut di-ignore: direktori backup bertanggal yang ditulis graphify tiap recluster
+  (masing-masing berisi salinan PENUH `graph.json`, ~21 MB) serta dua turunan run
+  terakhir (`.graphify_analysis.json`, `.graphify_labels.json.sig`).
+
+  Tidak ada perubahan runtime.
+
+- 9178b30: Fix `Dockerfile.production` runtime image missing `i18n/`, `sql/`, `openapi/`, `asyncapi/` — caused HTTP 500 on any page needing translation (e.g. `/login`) when deployed via this Dockerfile.
+- 019a893: Fix `POST /api/v1/auth/login` throwing `Expected a UUID, received: <slug>` when the `x-awcms-mini-tenant-id` header carries a tenant_code slug (as the demo login page collects) instead of a UUID — every real login failed with a stream of `auth.login.audit_write_failed` warnings. A non-UUID header is now resolved to its tenant UUID via `tenant_code`; an unresolvable code returns `403 ACCESS_DENIED` (never a 500). UUID headers are unchanged.
+- e2eed6e: security(tenant-provisioning): key the owner-secret commitment that feeds `inputs_hash` (CodeQL #63/#64)
+
+  `computeProvisioningInputsHash` folded a bare `sha256(owner password)` into the
+  provisioning `inputs_hash`, which is persisted twice — on
+  `awcms_mini_tenant_provisioning_requests` and as the generic idempotency store's
+  `request_hash`. Every other field feeding that digest is recoverable by the same
+  reader (`tenantCode`/`tenantName`/`options` sit in the adjacent `inputs` jsonb;
+  the owner login identifier, legal name, and office code/name are readable from
+  the tables the same run wrote), so anyone with database READ access could
+  enumerate password guesses at two unsalted SHA-256 per guess and confirm a hit
+  against a stored column — an offline cracking oracle for a tenant's initial
+  administrator password.
+
+  The password is now represented by a scrypt derivation
+  (`owner-secret-commitment.ts`) salted with the domain-separated process pepper
+  (`AUTH_JWT_SECRET`). That buys both properties at once: the pepper lives in the
+  environment rather than a column, so a database reader cannot reproduce a digest
+  from a guess; and each guess costs a full scrypt derivation, so even a leaked
+  pepper degrades to a slow attack rather than an instant one. Argon2id cannot be
+  used here — the value must be deterministic and recomputable from the request
+  body on every replay, and argon2id salts per call. Real credentials are
+  unaffected; they were already stored with `Bun.password.hash` (argon2id).
+
+  Measured at ~30 ms per derivation; the request route derives twice, so ~60 ms
+  against an operation that already runs an argon2id hash and writes a tenant,
+  owner, office, settings, and every step row in one transaction.
+
+  Behaviour notes:
+
+  - The password still participates in the hash, so a retry that reuses an
+    `Idempotency-Key` with a DIFFERENT owner password remains a clean 409 rather
+    than a replay of the original success.
+  - `POST /api/v1/tenant-provisioning/requests` now fails closed when
+    `AUTH_JWT_SECRET` is unset or still the published `.env.example` placeholder,
+    matching the audit `ipHash` and usage-metering pseudonym.
+  - Hashes computed before this change no longer match a recomputation, so an
+    in-flight provisioning `Idempotency-Key` replayed across the upgrade returns
+    409 instead of the stored response. This is fail-safe (never a second tenant)
+    and self-clears as keys age out.
+
+- ed210db: fix(backup): make the restore drill actually look at the control plane (#930)
+
+  `deploy/backup/restore-drill.sh` proved three things: the migration ledger came
+  back, a sample tenant row exists, and RLS still isolates tenants on
+  `awcms_mini_offices`. All three are base platform. **Nothing looked at the
+  control plane at all**, so a restore could report `overall: "pass"` with every
+  provisioning run, entitlement, invoice, payment envelope, support-access grant,
+  and projection cursor missing — a green verdict on incomplete evidence, which
+  is worse than no verdict.
+
+  The drill now checks seven control-plane tables, including
+  `reporting_projection_state` and `reporting_projection_cursors` — the
+  "projections and jobs" half of #930's criterion. Without the cursors a restore
+  looks fine and then silently reprocesses projections from zero.
+
+  Two failures are distinguished because they mean opposite things:
+
+  - A control-plane table **absent from the restored schema** is always a `fail`:
+    the dump or restore lost part of the schema, and that is true whether or not
+    the deployment uses the control plane.
+  - Tables present but **empty** is a `skip`, not a pass. A LAN/offline
+    deployment never enables the control plane, and every control-plane module is
+    `defaultTenantState: "disabled"` per tenant (ADR-0022 §7).
+
+  A control-plane `skip` deliberately does NOT force the overall verdict to
+  `incomplete`, while a `tenant_isolation` skip still does. That asymmetry is
+  reasoned, not a loophole: RLS isolation is something every deployment has and
+  the drill exists to prove, so an unproven one is a real gap; control-plane data
+  is something most deployments legitimately lack, and demanding it would make
+  `incomplete` the normal result — and a verdict that is always amber is a
+  verdict people stop reading.
+
+  `docs/awcms-mini/resilience-dr-verification.md` gains the control-plane RTO/RPO
+  section: the numbers are the same as the database as a whole (there is no
+  separate control-plane backup artifact), but what must be RE-RUN after a
+  restore is not, so each follow-up job is listed with what its absence actually
+  costs — including that an unswept expired entitlement is bookkeeping drift and
+  not retained access, and that non-terminal payment outbox rows must be left for
+  the dispatcher rather than cleaned up.
+
+- bc167bc: Performance (usage_metering, Issue #901): the fail-closed quota decision no
+  longer does an unbounded live recompute of the whole reset window on every
+  call. `getQuotaDecision` previously read every event + correction whose
+  `event_time` fell in the reset window and summed them in memory — for a
+  `monthly` reset on a high-volume meter that is `O(events-per-month)` per quota
+  check.
+
+  The recompute is now **bounded by decomposition** into one-calendar-level-finer
+  sub-windows (`month`→`day`, `day`→`hour`), still fail-closed and still never
+  over-admitting a hard quota:
+
+  - The **settled** prefix (`sub_end + 1h grace ≤ now`) is served from the
+    worker's indexed materialized sub-aggregates — `O(sub-windows)` (≤ 31 day
+    rows), never `O(events)`. A settled sub-window whose aggregate is **missing**
+    (worker lag) is recomputed from source bounded to that one sub-window, never
+    assumed `0`. A settled sub-aggregate that is **present but stale** — a
+    late-beyond-grace event/correction landed in its window with an `ingest_seq`
+    above the aggregate's folded `source_watermark` and the worker has not
+    re-folded it — is detected by one **index-only** existence probe over the
+    settled prefix and recomputed from source too (the healthy path finds nothing
+    → zero extra source reads). Without this a hard quota could transiently
+    OVER-ADMIT past its limit on worker lag.
+  - The **open tail** is always recomputed live from source (one bounded read), so
+    a late event in the hot period counts immediately.
+  - `unique_count` stays a full source recompute (distinct sets across sub-windows
+    overlap and cannot be summed).
+  - A `QUOTA_MAX_SOURCE_ROWS` (100 000) budget caps every source read via a
+    `LIMIT budget+1` tripwire — exceeding it fails closed (`usage_unavailable` →
+    a hard quota denies) rather than running an unbounded scan; it is never
+    silently truncated.
+
+  One index-only migration (sql/100) extends the usage-events/corrections
+  `..._window_idx` with `ingest_seq` so the staleness probe is served straight
+  from the index (an `Index Only Scan`, no heap fetch); it replaces the 3-column
+  window index (a strict superset) rather than adding a redundant one. No
+  API/response-shape or event change; tenant isolation (RLS) and determinism
+  preserved.
+
+- 1999fbf: usage_metering (#900): key the aggregation cursor on a **commit-ordered `xid8`**
+  safe-watermark instead of the INSERT-ordered `ingest_seq`, closing a
+  commit-reorder under-count hazard (a billing-input revenue leak). `ingest_seq`
+  (`nextval`) is drawn at INSERT time, not COMMIT, so a producer that drew a lower
+  seq could commit _after_ a higher one and slip under a strictly-ascending
+  `checkpoint_seq` — permanently under-counting its window when no later event
+  re-touched it and no reconciliation ran.
+
+  Migration `099_awcms_mini_usage_metering_safe_watermark_cursor.sql` adds
+  `ingest_xid8` (`pg_current_xact_id()`) to `awcms_mini_usage_events` /
+  `awcms_mini_usage_corrections`, a `checkpoint_xid8` floor to
+  `awcms_mini_usage_aggregation_cursors` (guarded monotonic-forward by an extended
+  immutability trigger), and drain-order indexes. The aggregation worker now
+  computes `safe = pg_snapshot_xmin(pg_current_snapshot())` once per pass and
+  drains only settled rows (`ingest_xid8 < safe`) from the floor upward, never
+  advancing into a truncated transaction — so a late-committing lower-order event
+  is structurally never skipped. `checkpoint_seq` is retained as an informational
+  high-water. Recompute-from-source and the REQUIRED scheduled reconciliation
+  remain as defence-in-depth backstops (unchanged). Adds a real-Postgres
+  commit-reorder regression test. Internal fix — no API/event change.
+
+- d7b0d65: Redesign the login screen into a modern, mobile-first auth card (modelled on
+  awcms's login, adapted to awcms-mini's design tokens). Adds a brand header
+  (gradient mark + wordmark), a "Sign in" title + subtitle, a subtle gradient
+  background, a single-tenant "Signing in to <name>" readout (when the tenant
+  picker resolves exactly one active tenant), a styled `<select>` with a
+  CSS-drawn caret, an accessible password show/hide toggle (CSP-safe, wired in
+  the bundled script), a distinct outline style for the Google button, and a
+  transform-only card entrance (never `opacity:0`, so an axe contrast scan can't
+  flag mid-animation text). The stable DOM contract (`#login-form`, `#tenant-id`,
+  `#login-identifier`, `#password`, `#login-submit`, `#login-error`), the
+  tenant-picker/Turnstile/Google-OIDC logic, and the `X-AWCMS-Mini-Tenant-ID`
+  submit flow are unchanged. Eight new i18n keys (heading, subtitle, footer,
+  tenant-context label, password show/hide + their aria labels) in en.po/id.po.
+- c7dc217: security(tooling): jangan terbitkan detail infrastruktur produksi lewat snapshot memory
+
+  `docs/awcms-mini/agent-memory.md` terbit ke repo **publik**, tapi `sanitize()` hanya menangani `originSessionId`, homedir, dan placeholder berbentuk-password — detail infrastruktur lolos utuh. Dua memory dikecualikan di level file (`EXCLUDE`): `dinkes-prod-multi-app-coolify-onboarding.md` (IP publik server produksi, alias ssh, username admin + konfigurasi sudo, topologi IP internal pada bridge Docker, detail hardening) dan `pasted-secret-in-chat-treat-as-compromised.md` (menautkan server itu ke insiden kredensial konkret; tidak memuat nilai secret apa pun).
+
+  Mengecualikan file saja ternyata setengah jalan: `MEMORY.md` memuat hook satu baris per memory yang **merangkum** isinya, sehingga baris indeks tetap membocorkan hal yang sama — termasuk username admin server tersebut. `dropExcludedIndexLines()` kini membuang baris indeks yang menunjuk memory ter-`EXCLUDE`, beserta heading yang seluruh entrinya terbuang (judul tersisa tanpa entri tidak memberi informasi apa pun tapi tetap menyebut nama servernya). `[[wikilink]]` di tengah prosa sengaja dibiarkan menggantung — perilaku lama yang sudah didokumentasikan.
+
+  `main()` kini dijaga `import.meta.main` agar fungsinya bisa diimpor, dan `tests/unit/sync-agent-memory-index-exclusion.test.ts` mengunci perilaku di atas.
+
+- 59405c4: Security/hardening (usage_metering, Issue #902 follow-ups from PR #899 review):
+
+  - **PII pseudonymization of unique-count distinct keys (L2).** A `unique_count`
+    meter's `unique_dimension` is now charset-restricted in the pure domain
+    (`^[A-Za-z0-9._:@-]{1,200}$` — an id/uuid/email-shaped token; whitespace /
+    control bytes / structural payload rejected fail-closed), and — for a meter
+    whose #874 `privacyClassification` is `pseudonymous` or `personal` — replaced
+    at the write path with a cardinality-preserving HMAC-SHA256 pseudonym before it
+    is persisted, so a raw email/handle a producer used as the distinct key is no
+    longer stored verbatim in `awcms_mini_usage_events.unique_dimension` (nor leaked
+    through the read DTO). The HMAC reuses `AUTH_JWT_SECRET` (the audit-`ipHash`
+    key) with input domain-separation and is read per call / fail-closed. Distinct
+    counts are unchanged (same input → same digest). No API contract change — the
+    field stays a string.
+  - **Reconciliation discovery no longer silently capped (L3).** Source-row
+    discovery keyset-pages both the events and corrections streams instead of a
+    single `LIMIT 50_000`, so a window whose only evidence lies beyond that limit is
+    still flagged `missing`/`drift` (completeness gap closed). A high configurable
+    hard bound now marks the run `discoveryIncomplete` (a durable report sentinel +
+    a new `discoveryIncomplete` run field + a logged warning + a warning-severity
+    audit) rather than truncating silently.
+  - **Tests.** Added a route-level `Idempotency-Key` replay test for the corrections
+    endpoint (L4b) and a two-worker `FOR UPDATE SKIP LOCKED` lease-contention test
+    for the aggregation worker (L4c), plus domain/unit coverage for the charset gate
+    and the pseudonym, and integration coverage for the pseudonymization and the
+    paged/flagged discovery.
+
+  No schema migration (the existing `unique_dimension` length CHECK is the DB
+  backstop; the pseudonym is necessarily an application-layer control). OpenAPI:
+  `UsageReconciliationRun` gains a `discoveryIncomplete` boolean and the drift-entry
+  `kind` gains `discovery_incomplete`.
+
+- 8346980: UX polish for the admin blog screens (`src/pages/admin/blog/**`): responsive mobile-first refinements and subtle, professional motion — no behavior or logic changes.
+
+  - **Motion (via the shared `tokens.css` motion tokens/keyframes, so `prefers-reduced-motion` still neutralises everything):** post-mutation feedback banners now slide in when unhidden (matching `ActionBanner.astro`); list/table rows get a subtle hover highlight matching the shared `DataTable` idiom; dashboard/menu/ad cards gain a gentle hover elevation (box-shadow only, no layout shift). No SSR-visible primary content is animated from `opacity: 0`.
+  - **Responsive:** filter toolbars on the post/page list screens stack into a single full-width, tappable column on phones; the dashboard summary grid and the internal-tag-links deployment grid collapse to one column on very narrow screens, avoiding horizontal scroll at 320px.
+
+  Token-only CSS/markup changes; every value uses existing design tokens.
+
+- fa2d383: Per-page UI/UX polish (responsive mobile-first + accessible micro-motion) for the organization-structure, reference-data, and service-catalog admin screens, on top of the shared motion foundation. Hand-rolled data tables now scroll inside their own `overflow-x:auto` container so no page scrolls horizontally at 320px; table rows get a subtle hover, the post-mutation `action-banner` slides in when unhidden (matching the shared `ActionBanner`), disclosure summaries get a larger hit area + hover affordance, closed-by-default create forms reveal on open, and the reference-data import dry-run diff preview animates in when shown. Touch targets on form controls are >=44px on mobile. All motion routes through the existing `--motion-*` tokens/`awcms-*` keyframes (theme- and reduced-motion-safe, opacity/transform/colour only) — no SSR-visible primary content is faded from opacity:0 (the `hierarchy` open-by-default disclosure and the `plans` SSR-visible draft editor are deliberately left unanimated). CSS/markup only; no behaviour, logic, or permission-gate changes.
+- 52f0a66: UX polish: responsive mobile-first layout + professional micro-interactions for the six tenant/billing SaaS-control-plane admin screens, on top of the shared motion/design-token foundation.
+
+  - **Design-token convergence**: the five newer screens (tenant-entitlement, tenant-lifecycle, tenant-provisioning, usage-metering, subscription-billing) referenced never-defined `--space-*` tokens with hardcoded rem fallbacks (`1.5rem`/`1rem`/`0.75rem`/`0.5rem`/`0.25rem`), `0.85rem` font sizes, and hardcoded colour fallbacks (`#d4d4d8`/`#e4e4e7`/`#71717a`/`#b91c1c`). All now route through the real `--sp-*`/`--fs-*`/`--color-*` tokens, so they finally adapt to theme and stay consistent with the rest of the admin surface.
+  - **Cards**: panels now use `--color-surface` + `--shadow-sm` instead of a bare border, lifting each section visually.
+  - **Responsive (doc 14 §Responsif)**: inputs/selects are `width: 100%; min-width: 0` and their labels flex-wrap, so `size="40"` fields no longer force horizontal page scroll at 320px; the hand-rolled SSR tables in tenant-entitlement and usage-metering are wrapped in an `overflow-x: auto` scroll container; primary/secondary buttons get `min-height: 44px` touch targets.
+  - **Motion (through the shared tokens/keyframes only)**: hand-rolled action banners and the client-filled result panels (state/timeline/subscriptions/invoices) animate in with `awcms-slide-up-in` on reveal — all state-triggered on elements that are `hidden` at SSR load (or a collapsed `<details>`), so no SSR-visible primary content is ever animated from `opacity: 0`. Table rows and row-action buttons/links get subtle hover feedback via the global control transition. Everything is neutralised by the existing `prefers-reduced-motion` block.
+
+  CSS/markup only — no behaviour, data-fetch, auth, or i18n changes.
+
+- faa6d17: UX/a11y: fix dark-mode contrast failures and converge module screens onto the canonical design-token idioms.
+
+  - **Warning status/health pills**: the 7 hand-rolled `.status-pill`/`.health-pill` warning rules across the module + blog screens set no text `color`, inheriting `--color-text` which flips near-white in dark mode over amber (WCAG AA fail, measured 1.82:1). Added a shared `--color-warning-contrast` token (also adopted by `StatusBadge.astro`) — now 7.71:1 dark / 5.20:1 light.
+  - **Feedback banners**: 24 SaaS-control-plane / platform-evolution screens referenced never-defined `--color-*-surface`/`--color-*-subtle` tokens, so their hardcoded light-tint fallbacks rendered unconditionally and never adapted to dark mode (the `-subtle` ones had no text color → 1.08:1 in dark). Converged all of them onto the canonical `color-mix(... 15%, --color-surface)` + semantic border idiom used by `ActionBanner.astro` (11+:1 in both themes).
+  - **subscription-billing**: a failed invoices lookup returned silently (blank panel, indistinguishable from "no invoices") and the whole client `load()` had no try/catch. Now surfaces network/not-found errors like the sibling subscriptions call.
+  - **autocomplete**: added `autocomplete="new-password"` to the create-user and tenant-provisioning owner-password fields (an admin setting someone else's password should not autofill the admin's own credentials).
+
 ## 1.0.0
 
 ### Major Changes
