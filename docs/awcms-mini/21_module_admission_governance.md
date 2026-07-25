@@ -52,7 +52,7 @@ yang dipetakan ke kategori di atas sebagai berikut: `base`→Core,
 Integration (jika suatu hari perlu jadi modul top-level tersendiri, bukan
 sub-komponen), dan `derived`→Derived Application. Nilai `"derived"` kini
 adalah **legacy yang tidak dipakai modul mana pun**: sejak ADR-0024
-(jalur aplikasi-turunan repo terpisah dihapus, `MODULE_CONTRACT_VERSION`
+(jalur aplikasi-turunan repo terpisah dihapus pada `MODULE_CONTRACT_VERSION`
 2.0.0) modul domain spesifik-bisnis ditambahkan **langsung di `src/modules/`**
 dengan `type: "domain"`, bukan lewat tipe `derived` di repo eksternal. Lihat
 §8 untuk gap saat ini antara nilai `type` yang benar-benar di-set di kode vs

@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 109.**
+**Jumlah memory saat snapshot terakhir: 111.**
 
 ## Sengaja TIDAK disertakan
 
@@ -64,6 +64,7 @@ Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikec
 ## Menilai issue & klaim
 
 - [Oracle issue: timing dimension](oracle-issue-check-timing-dimension.md) — #840: TIMING tak disebut; body-only fix = security theater
+- [Superuser DB_URL masks grant+RLS bugs](superuser-db-url-masks-grant-and-rls-bugs.md) — dev DATABASE_URL superuser LEWATI grant DAN RLS; job baru "sukses" palsu; test pakai role worker asli
 - [Crude verification breaks setup](my-crude-verification-breaks-setup.md) — alat verifikasi kasar SENDIRI merusak setup; anomali 0/0 = cacat sendiri
 - [Grep marker ≠ prove absence](grep-for-marker-cannot-prove-absence.md) — grep penanda hanya buktikan file yang PUNYA penanda; bandingkan `git diff --stat` vs harapan
 - [Audit issue numbers unreliable](audit-issue-numbers-unreliable.md) — #818 struktural kuat tapi ANGKA & RESEP salah; pisahkan terverifikasi vs hipotesis
@@ -141,6 +142,7 @@ Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikec
 - [PR conflict blocks CI trigger](pr-branch-conflict-blocks-ci-trigger.md) — mergeStateStatus CONFLICTING hentikan SEMUA run pull_request; merge/rebase base untuk pulih
 - [PR body missing Closes](pr-body-missing-closes-keyword.md) — PR merged sering tak auto-close; cross-check `gh pr list --merged`
 - [gh pr merge transient fail](gh-pr-merge-transient-502.md) — bisa gagal klien tapi sukses server; cek `mergedAt`. "Head out of date"+UNKNOWN = lag head basi → poll+retry
+- [New gate must be added to ci.yml](registry-gate-new-check-must-be-added-to-ci-yml.md) — gate baru di `check` tak otomatis jalan di CI; ada test yang menuntut step eksplisit
 - [changesets:policy false negative](changeset-policy-check-false-negative.md) — PASS palsu bila jalan SEBELUM commit (tak lihat untracked); jalankan setelah commit
 - [Prettier on docs-only PRs](prettier-check-docs-only-prs.md) — `bun run lint` wajib sebelum push bahkan untuk .md murni
 - [Release tag trigger #825](release-tag-trigger-align-825.md) — #825/PR#854: trigger `awcms-mini@*`, `normalizeTagVersion` strip prefix. SLSA attest OK
@@ -167,7 +169,7 @@ Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikec
 
 ## Riwayat epic (semua CLOSED kecuali disebut)
 
-- [SaaS Control Plane epic #868](saas-control-plane-epic-868.md) — ⏸️ **PAUSED 2026-07-21** (aturan "no derivatif di repo awcms" → klarifikasi, mungkin sentuh #881). Wave-1 SELESAI (30 modul/94 migr; #869-#877+#874). #879 CLOSED PR#907. PELAJARAN: stream ADVERSARIAL independen WAJIB; `bun run check` ≠ CI; modul-add SERIALKAN. Sisa Wave-2: #878/#880/#881
+- [SaaS Control Plane epic #868](saas-control-plane-epic-868.md) — ▶️ **RESUMED 2026-07-25** (aturan derivatif RESOLVED via ADR-0024). #880 CLOSED (PR #929) · #878 sebagian (PR #931) · sisa: #930 ops, #878 UI, **#932 WIP di branch `feat/932-payment-evidence-retention` commit `1e7b0f33` — bukti webhook TAK BISA dihapus role mana pun; belum jalankan test/docs/PR**. SEMUA PR sesi ini MERGED TANPA review independen (Codex habis kuota, subagent dilarang)
 - [Post-audit hardening #818](post-audit-hardening-epic-818.md) — AKTIF: audit 2026-07-17 v0.24.0. Wave final SELESAI (#837/#849/#851/#845). Sisa open: #825, #858, #859
 - [Platform-evolution #738](platform-evolution-epic-738-survey.md) — #739-755 CLOSED; 6/6 PR Wave-3 hasilkan Critical/High di review pertama
 - [Platform hardening #679](platform-hardening-epic-progress.md) — CLOSED (PR #701-#722, 22/22)
@@ -6175,6 +6177,46 @@ Satu koneksi Postgres melayani **satu query pada satu waktu**. `Promise.all([q1(
 - **`Promise.all` di client script `.astro` aman** — mis. `admin/analytics.astro:839/:970` itu `fetchJson` HTTP di dalam `<script>` browser; file itu **nol akses DB** (tanpa `tx`/`withTenant`/`getDatabaseClient`). Tiap request HTTP dapat koneksi sendiri. Bukan temuan, jangan "diperbaiki".
 `````
 
+<!-- memory-file: registry-gate-new-check-must-be-added-to-ci-yml.md -->
+
+`````markdown
+---
+name: registry-gate-new-check-must-be-added-to-ci-yml
+description: "Gate baru di `bun run check` TIDAK otomatis jalan di CI; ada test yang menuntut langkah eksplisit di ci.yml"
+metadata: 
+  node_type: memory
+  type: project
+  modified: 2026-07-25T07:28:46.806Z
+---
+
+Menambah gate baru ke script `check` di `package.json` **tidak cukup**.
+Ada test yang membandingkan daftar langkah `check` dengan langkah eksplisit
+di `.github/workflows/ci.yml`, dan gagal dengan:
+
+```
+error: ci.yml tidak menjalankan langkah `check` berikut: <nama-gate>.
+```
+
+Alasannya didokumentasikan di ci.yml sendiri: CI sengaja menjalankan tiap
+registry check sebagai **step terpisah** supaya kegagalan langsung terlihat
+namanya, bukan tenggelam di dalam satu `bun run check` raksasa — dan supaya
+CI tidak diam-diam menjalankan SUBSET dari `check`.
+
+**How to apply:** setiap kali menambah `foo:registry:check` (atau gate apa
+pun) ke `package.json` `check`, tambahkan juga step bernama di
+`.github/workflows/ci.yml` di dekat registry check lain (sekitar
+`reporting:projections:registry:check`). Kejadian di #930 Wave 1
+(`slo:registry:check`) — test-nya yang menangkap, bukan review.
+
+Daftar artefak turunan yang juga wajib di-regenerate setelah perubahan
+serupa: `repo:inventory:generate`, `modules:composition:inventory:generate`,
+`db:work-class:generate`, `i18n:extract` (TERAKHIR, lihat
+[[pot-line-refs-drift-on-astro-reflow]]), lalu `bun run format`.
+
+Terkait: [[wip-finalize-full-gate-chain-and-squash-cleanup]],
+[[skill-doc-drift-recurring]].
+`````
+
 <!-- memory-file: release-pipeline-format-defects-825.md -->
 
 `````markdown
@@ -6524,7 +6566,7 @@ description: "Epic #868 SaaS control plane — 7 modul opt-in in-repo default-di
 metadata: 
   node_type: memory
   type: project
-  modified: 2026-07-21T08:47:15.627Z
+  modified: 2026-07-25T07:29:32.486Z
 ---
 
 # Epic #868 — SaaS Control Plane (opt-in, in-repo, default-disabled)
@@ -6534,7 +6576,129 @@ roadmap platform-evolution: kemampuan SaaS reusable (service catalog,
 entitlement, provisioning, lifecycle, usage metering, subscription billing,
 payment gateway) untuk aplikasi turunan.
 
-## ⏸️ RESUME CHECKPOINT (paused 2026-07-21 — owner "simpan proses & hentikan; ada perubahan aturan")
+## ▶️ RESUME 2026-07-25 — pause SELESAI, aturan derivatif sudah terjawab
+
+**Aturan "tidak ada repo derivatif" SUDAH RESOLVED (bukan blocker lagi):** owner menutup **#881 COMPLETED**
+(2026-07-21) dengan alasan premisnya dibatalkan **ADR-0024** (mirror awcms ADR-0034) — keluarga AWCMS = tiga
+template dipakai-langsung, TIDAK ada repo/aplikasi turunan; jalur derived (application-registry, `extension:check`,
+namespace 900–999) sudah dihapus di #908. Jadi #878 & #880 = kerja BASE biasa, boleh dilanjut.
+
+**Sisa backlog epic hanya DUA issue:** #880 saas-operations (SEBAGIAN terkirim, lihat bawah) dan #878 saas-admin
+(BELUM DISENTUH). Urutan: #880 dulu — body #878 sendiri bilang "operational indicators are finalized by #880".
+
+### ✅ #932 CLOSED — PR #933 MERGED (squash `0ce20a4a`, 2026-07-25). CI 8/8 hijau.
+
+Selesai dari WIP: 12 integration test HIJAU, docs (data-lifecycle matrix — yang ternyata BASI
+independen: cuma 4 dari 13 descriptor terdaftar; doc 13; README modul; skill), changeset, work-class
+entry, gate chain penuh (5653 pass), squash 1 commit.
+**DUA mutation run membuktikan test tidak vacuous:** (1) kembalikan trigger DELETE pra-102 → 6 MERAH.
+(2) `GRANT DELETE` keliru ke app role → **tetap HIJAU** — rantai ter-seed bikin DELETE induk gagal
+`23503` (FK), jadi assertion "pokoknya throw" membuktikan FOREIGN KEY, bukan GRANT. Diperbaiki jadi
+assert SQLSTATE **`42501`** pada keempat tabel (Postgres cek privilege tabel SEBELUM constraint baris).
+**Pelajaran umum: "it threw" tidak pernah cukup untuk uji batas grant — assert SQLSTATE-nya.**
+
+### ▶️ #930 SEDANG BERJALAN 2026-07-25 — dikerjakan per GELOMBANG (owner pilih "waves, deepest first")
+
+**Wave 1 ✅ PR #934 MERGED (`7a705925`) — registry SLO/alert + metrik control-plane.**
+`ModuleDescriptor.serviceLevelObjectives` (contract 2.0.0→**2.1.0**), validator
+`logging/domain/slo-registry.ts`, gate `bun run slo:registry:check`, 8 objective di 5 modul,
+8 metrik `control_plane_*`, runbook `docs/awcms-mini/control-plane-slo-runbook.md`, endpoint
+`GET /api/v1/logs/observability/slo`. **Dua aturan gate yang menahan beban:** `metricName` wajib ada
+di `METRIC_DEFINITIONS` (objective atas metrik yang tak pernah di-emit = DIAM PERMANEN, terlihat
+seperti coverage tapi tak memanggil siapa pun) dan `dimension` wajib salah satu `allowedLabelKeys`
+metrik itu (bikin "low-cardinality" benar SECARA KONSTRUKSI — objective tak bisa memperkenalkan label,
+jadi tak bisa menyelundupkan tenant id). Gate juga cek `runbookPath` ADA di disk. Respons endpoint
+dibangun dari **allow-list field eksplisit** (`slo-safe-view.ts`) — ambang/dwell/nama metrik DITAHAN
+(itu data kalibrasi untuk bertahan tepat di bawah alarm); ada test yang menyuapkan field asing dan
+memastikan tidak bocor.
+
+**Wave 2 ✅ PR #935 MERGED (`881a7cf6`) — fleet sweep + cross-tenant read model.**
+`bun run control-plane:fleet-sweep`: inilah read model yang dulu jadi utang tertulis di
+`tenant-provisioning:reconcile`. Bentuk: enumerasi tenant dari direktori GLOBAL → baca tiap tenant
+DI DALAM konteks RLS-nya → agregasi di memori. Kolektor per modul (`<modul>/application/
+control-plane-signals.ts`) baca hanya tabel sendiri; `scripts/` = satu-satunya composition root;
+file agregasi terima DATA, tak import modul → unit-testable tanpa DB. READ-ONLY.
+Migration **103** = GRANT SELECT worker + 3 index.
+**Ditemukan lewat kegagalan verifikasi sendiri → lihat [[superuser-db-url-masks-grant-and-rls-bugs]]:**
+smoke run pertama "sukses" padahal worker tak punya SELECT di 4 tabel, karena DATABASE_URL superuser
+melewati grant DAN RLS.
+Perilaku yang sengaja: **emit gauge WALAU NOL** (gauge yang berhenti dilaporkan tak terbedakan dari
+kolektor mati; "no data" = celah, bukan alarm) dan **sweep dibatalkan di tengah TIDAK publish apa pun**
+(total dari sebagian tenant terbaca sebagai penurunan fleet-wide = bentuk pemulihan → memadamkan alert
+yang masih harus menyala). Umur = MAX fleet bukan SUM; `failed` masuk backlog tapi TIDAK menua.
+Billing pakai LATERAL ke attempt TERAKHIR — join biasa menggandakan invoice sebanyak retry, jadi metrik
+naik justru saat dunning bekerja lebih keras.
+Semantik schema yang mahal ditemukan: provisioning **1:1 per tenant** (UNIQUE `tenant_id`);
+entitlement **satu yang hidup per (tenant, plan_key)** (partial unique).
+
+**SISA #930 (belum dikerjakan):** job REMEDIASI fleet (reconcile/expiry/renewal/dunning eksekusi —
+Wave 2 baru separuh OBSERVASI), kapasitas + production preflight untuk beban control-plane, export
+bukti operator (bounded/masked/audited), dokumen RTO/RPO + rehearsal backup/restore + degraded-mode
+provider. Sesudah itu baru **#878** (body-nya bilang "operational indicators are finalized by #880").
+
+### (arsip) #932 saat masih WIP (branch `feat/932-payment-evidence-retention`, commit `1e7b0f33`)
+
+**Temuan (terbukti EMPIRIS, bukan dibaca dari SQL):** 4 tabel `payment_gateway`
+(`webhook_inbox`, `normalized_events`, `processing_attempts`, `reconciliations`) TAK BISA di-DELETE oleh
+**role mana pun, termasuk pemilik tabel** — trigger `BEFORE UPDATE OR DELETE` RAISE tanpa syarat. Jadi
+"append-only" = "disimpan SELAMANYA": tak ada retensi, legal hold tak ada gunanya, tak ada jalur erasure,
+dan tabel tersibuk modul tumbuh tanpa batas. Bukti: `DELETE` sebagai superuser → `ERROR: payment_gateway:
+webhook inbox is append-only (no DELETE)`. Kontras: `usage_metering` pakai trigger `BEFORE UPDATE` SAJA
+(`awcms_mini_usage_events_no_update`) + batas DELETE lewat GRANT — itu preseden yang benar di repo ini.
+Difilekan sebagai **#932**; owner memilih **Opsi A** (persempit trigger ke UPDATE, DELETE hanya untuk worker).
+
+**Sudah selesai (di WIP commit):** migration **102** (persempit 4 trigger → `BEFORE UPDATE`, `GRANT DELETE`
+hanya ke `awcms_mini_worker` + `REVOKE` app dipertegas, index retensi + index FK anak),
+`payment-gateway/application/retention-purge.ts` (urutan FK-safe attempts→normalized→inbox dengan probe
+`NOT EXISTS` anak-yang-masih-hidup, legal hold PER-descriptor: hold di link mana pun blokir SELURUH rantai,
+`reconciliations` terpisah), `purge-job.ts` fleet-wide, `scripts/payment-gateway-purge.ts` + entri
+package.json + job descriptor, 4 descriptor `dataLifecycle`, dan
+`tests/integration/payment-gateway-retention.integration.test.ts` (12 test).
+
+**BELUM (lanjutkan dari sini):** (1) JALANKAN suite integration itu — belum pernah dieksekusi sekali pun;
+(2) docs: `docs/awcms-mini/data-lifecycle.md` matrix, doc 13 (migration 102 = lintas-modul? TIDAK — ini milik
+payment_gateway, taruh di baris modulnya), README modul, skill `awcms-mini-payment-gateway`; (3) changeset;
+(4) `repo:inventory:generate`; (5) rantai gate penuh + `bun test` di DB terisolasi + build; (6) PR.
+
+**⚠️ TRADE-OFF yang WAJIB disebut di PR (jangan disembunyikan):** proyeksi
+`payment_gateway.payment_processing_outcomes` (#929) bersumber dari `processing_attempts` yang KINI di-purge
+→ counter all-time akan selamanya beda dari total kontrol rekonsiliasi setelah 400 hari. Ini persis jebakan
+yang aku sendiri dokumentasikan di #929 ("JANGAN pakai tabel yang di-purge"). Sudah dicatat di `retentionClass`
+descriptor-nya, TAPI perlu keputusan reviewer: (a) terima + dokumentasikan, (b) rekonsiliasi jadi sadar-purge,
+atau (c) pensiunkan proyeksi itu. JANGAN diam-diam dilewatkan.
+
+### #880 — PR #929 MERGED (squash `1aec0add`, 2026-07-25). CI 8/8 hijau saat merge.
+
+Separuh pertama: **read-model + access control**. Enam modul control-plane tenant-scoped mendeklarasikan
+`reportingProjections` sendiri di atas tabel append-only miliknya (engine cursor #753 dipakai apa adanya — tak ada
+engine/tabel proyeksi baru): provisioning_outcomes, lifecycle_transitions, entitlement_evaluations,
+usage_reconciliation_outcomes, invoice_lifecycle, payment_processing_outcomes. COUNTS-ONLY (nol uang/provider ref/
+envelope/PII). `service_catalog` sengaja NOL proyeksi (tak punya tabel tenant-scoped append-only) — keputusan itu
+DI-GATE + beralasan tertulis di `tests/unit/control-plane-observability-coverage.test.ts`.
+Plus temuan keamanan nyata → gate modul-pemilik (lihat [[ssr-admin-pages-skip-module-enabled]] varian ketiga).
+Migration **101** = GRANT-only (worker SELECT 5 tabel sumber + `awcms_mini_tenant_modules`) + index
+`(tenant_id, created_at)`; tak ada perubahan tabel/kolom/policy/trigger.
+
+**⚠️ PR #929 BELUM DI-REVIEW SIAPA PUN:** sesi ini DILARANG spawn subagent (tak ada reviewer/security-auditor/
+adversarial stream) DAN **Codex kehabisan kuota** ("You have reached your Codex usage limits for code reviews").
+Jadi CI hijau ≠ sudah ditinjau — pelajaran epic ini justru "jangan berhenti pada 2 approve". JANGAN merge tanpa
+menjalankan minimal reviewer + security-auditor + 1 stream adversarial saat sesi mengizinkan agent.
+
+**Sisa scope #880 yang SENGAJA tidak dikerjakan** (ditawarkan ke owner: issue susulan vs branch yang sama):
+job rekonsiliasi fleet-wide, registry SLO/alert + runbook, metrik low-cardinality, kapasitas work-class/pool di
+production preflight, deskriptor data-lifecycle untuk sisa tabel high-volume (mis. payment webhook inbox),
+export bukti operator, dokumen RTO/RPO + provider-outage.
+
+**Detail teknis yang mahal ditemukan (pakai ulang untuk descriptor proyeksi berikutnya):** sumber WAJIB append-only
+(trigger + REVOKE UPDATE,DELETE — keenamnya sudah); cursor = `created_at`, JANGAN timestamp bisnis
+(`effective_at`/`resolved_at`/`started_at` bisa backdate → tak monoton → baris terlewat permanen); JANGAN pakai tabel
+yang di-purge retensi (`usage_events`) karena counter all-time akan lapor "drift" padahal itu retensi; worker refresh
+jalan sebagai `awcms_mini_worker` → butuh GRANT eksplisit (ALTER DEFAULT PRIVILEGES hanya untuk `awcms_mini_app`),
+dan test ber-role admin TIDAK akan menangkapnya → pakai `getWorkerTestSql()`; skip modul-disabled TIDAK memajukan
+cursor (jadi lossless saat modul di-enable); rebuild memateralisasi metrik nol sedangkan incremental tidak → read
+surface sekarang default-0 untuk semua metrik terdeklarasi.
+
+## (arsip) ⏸️ RESUME CHECKPOINT (paused 2026-07-21 — owner "simpan proses & hentikan; ada perubahan aturan")
 
 **⚠️ ATURAN BARU (owner, saat pause):** "tidak ada repo derivatif yang sedang dikerjakan pada repo awcms" —
 KLARIFIKASI ke owner saat resume. Kemungkinan menyentuh **#881 (derived-app pilot)** — jangan kerjakan
@@ -8397,6 +8561,7 @@ description: "54 dari 55 halaman admin SSR TIDAK memeriksa module-enabled — ro
 metadata: 
   node_type: memory
   type: project
+  modified: 2026-07-25T01:37:13.923Z
 ---
 
 **CLOSED 2026-07-18** (branch `fix/841-835-ssr-gate-nplus1`, bareng #835 §1/§2/§6/§7). Solusi struktural yang dipilih: **filter di helper SSR**, bukan opsi 1 (filter di `fetchGrantedPermissionKeys`) dan bukan per-halaman. Alasan opsi 1 DITOLAK: audit pemanggil `fetchGrantedPermissionKeys` menemukan `descriptor-authorization.ts` + `business-scope-facts.ts` + `access/evaluate` **mengandalkan** fungsi itu untuk TIDAK memfilter modul disabled (ada komentar eksplisit di `descriptor-authorization.ts:56`). Mengubahnya global = merusak jalur lain. Jadi `resolveSsrContext`/`loadSsrSessionData` (`src/lib/auth/ssr-session.ts`) yang membuang key modul-disabled dari `context.permissions`; ke-54 halaman (semua `withTenant`-query pakai `context.permissions.has`, DIVERIFIKASI 54/54) ikut tergerbang tanpa satu pun edit halaman. Test: `tests/integration/ssr-session-module-gate.integration.test.ts` — assert MEKANISME (key tetap granted oleh `fetchGrantedPermissionKeys`, hilang dari set SSR) + kedua sisi (modul lain tetap ada). Terbukti RED tanpa filter. Verifikasi bukan lewat dev-server tapi integration test + grep wiring: **pendekatan ini tak menambah `await` di .astro** (gate murni di helper yang sudah di-await middleware), jadi risiko fail-open per-halaman yang jadi alasan syarat dev-server itu tidak berlaku di sini.
@@ -8415,6 +8580,17 @@ Akibat: modul di-disable untuk tenant → semua route-nya 403, **halaman admin-n
 - Taruh gate **di dalam helper**, bukan di call site. Pola yang benar (PR #839): helper menerima `(tx, tenantId, permissions, permissionKey)` dan memanggil `resolveModuleEnabled` sendiri — **modul dulu, baru RBAC**, urutan sama dengan `authorizeInTransaction`. Menerima flag yang sudah dihitung dari pemanggil mengulang cacatnya: intinya justru call site yang lupa satu sumbu.
 - Perbaikan struktural yang mungkin untuk #841: filter modul disabled **di dalam `fetchGrantedPermissionKeys`** — satu perubahan, paritas otomatis karena route memakai fungsi yang sama. Butuh audit pemanggil dulu.
 - `await` yang hilang di gate `.astro` = fail-**open** senyap (Promise tak di-await itu truthy), dan `tsc` tidak memeriksa `.astro` (lih. [[astro-files-escape-typecheck]]). **Verifikasi lewat dev server nyata.**
+
+**VARIAN KETIGA — registry descriptor (2026-07-25, #880/PR #929).** Sumbu yang sama muncul lagi bukan di halaman/route,
+tapi di **surface yang di-drive descriptor**: `reporting` proyeksi (`ProjectionDescriptor.requiredPermission`). Selama semua
+descriptor dimiliki modul BASE, "punya permission?" = keputusan lengkap. Begitu modul control-plane (`defaultTenantState:
+"disabled"`) mengontribusikan descriptor sendiri, permission-only BOCOR: tenant yang tak pernah opt-in tetap melihat
+proyeksi `subscription_billing`/`payment_gateway` beserta angkanya di list + bisa meng-EXPORT nilainya, padahal tiap route
+modulnya menjawab 403. **How to apply:** tiap kali sebuah registry descriptor (`reportingProjections`, `dataLifecycle`,
+`ExchangeDescriptor`, `sodRules`, …) mulai dikontribusikan modul default-disabled, sapu SEMUA konsumen descriptor itu —
+route baca, route mutasi, halaman SSR, **dan worker tak berpenjaga** — lalu taruh keputusan di SATU file
+(`reporting/application/projection-access.ts`) + test struktural yang GAGAL bila ada file lain mengimpor helper
+permission-only. Jangan lupa: surface EXPORT membocorkan nilai proyeksi, jadi gate ekspor = gate baca, bukan gate ekspor kasar.
 
 **Pelajaran metodologis (mahal):** test paritas SSR-vs-route versi pertama **lolos padahal celahnya ada** — ia membandingkan satu sumbu (apakah pemanggil memegang key?), sehingga secara struktural **tak mungkin gagal** pada sumbu lain. Test paritas harus meng-assert **mekanismenya** (permission tetap granted setelah modul di-disable, tapi keputusan tetap deny), bukan sekadar hasilnya. Terkait: [[validator-exists-but-unwired-critical-pattern]].
 `````
@@ -8440,6 +8616,57 @@ Discovered 2026-07-12 while running a second parallel wave (#624/#693/#698, 3 co
 - If a resumed agent reports "I'm waiting for my own background task," immediately resume it again with an explicit instruction to check process state directly (`ps aux | grep bun`) rather than wait passively — it will otherwise sit idle indefinitely, consuming a stalled turn every time it's resumed.
 - Before running your OWN `bun run check` in the shared dev Postgres, check `ps aux` for ANY other `bun run check`/`bun test` process — including ones using a different `DATABASE_URL`/database name on the SAME Postgres server, since the connection-count ceiling is server-wide. A different database name does not mean it's safe to run concurrently; see [[concurrent-check-db-contention]] for the general pattern this compounds.
 - If a large/inconsistent failure count reappears even after confirming `ps aux` was clear moments earlier, check `docker logs --since <window> <container>` for `"too many clients already"` — this confirms a genuine connection-exhaustion event (not just slow queries) happened during the run, from a process that started and finished within the gap between your checks.
+`````
+
+<!-- memory-file: superuser-db-url-masks-grant-and-rls-bugs.md -->
+
+`````markdown
+---
+name: superuser-db-url-masks-grant-and-rls-bugs
+description: "DATABASE_URL dev = superuser → LEWATI grant DAN RLS; job/collector baru tampak jalan padahal grant kurang & baca semua tenant"
+metadata: 
+  node_type: memory
+  type: feedback
+  modified: 2026-07-25T07:28:36.999Z
+---
+
+`DATABASE_URL` lokal di repo ini adalah **superuser** (`awcms-mini`), dan
+superuser Postgres **melewati GRANT sekaligus RLS** (`FORCE ROW LEVEL
+SECURITY` pun tidak berlaku untuknya).
+
+Akibatnya, job/kolektor baru yang berjalan sebagai `awcms_mini_worker` atau
+`awcms_mini_app` bisa **lolos smoke test lokal dengan sempurna** padahal:
+
+1. **Grant-nya kurang** → gagal `permission denied for table` di tenant
+   pertama saat deploy.
+2. **Tidak ada isolasi tenant** → query tanpa predikat `tenant_id` eksplisit
+   (yang mengandalkan RLS) diam-diam membaca SEMUA tenant sekaligus, dan
+   assertion per-tenant lolos/gagal secara acak.
+
+Nyata di #930: `control-plane:fleet-sweep` smoke run "sukses" (exit 0, output
+wajar) padahal `awcms_mini_worker` TIDAK punya SELECT pada 4 dari 8 tabel
+(provisioning/entitlement/invoices/dunning) → butuh migration 103.
+
+**Why:** verifikasi dengan koneksi yang lebih berkuasa daripada runtime
+sebenarnya tidak memverifikasi apa pun tentang batas kuasa itu — varian
+[[my-crude-verification-breaks-setup]].
+
+**How to apply:**
+
+- Integration test kolektor/job WAJIB pakai `getWorkerTestSql()` /
+  `getTestSql()` + `provisionWorkerRole()`/`provisionAppRole()` dari
+  `tests/integration/harness.ts`, BUKAN `getAdminSql()`. Seeding boleh admin;
+  **pembacaan yang diuji harus role sebenarnya**.
+- Red-verify: `REVOKE SELECT ... FROM awcms_mini_worker` → suite HARUS merah.
+  Kalau tetap hijau, test-nya memakai koneksi yang salah.
+- Cek cepat grant sebelum menulis job:
+  `SELECT privilege_type FROM information_schema.role_table_grants
+   WHERE grantee='awcms_mini_worker' AND table_name='<t>'`.
+- Job fleet-wide baru hampir selalu butuh migration GRANT SELECT tersendiri —
+  pola migration 101 (#880) dan 103 (#930).
+
+Terkait: [[validator-exists-but-unwired-critical-pattern]],
+[[local-postgres-connection-details]].
 `````
 
 <!-- memory-file: tenant-domain-routing-epic-progress.md -->

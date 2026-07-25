@@ -5,10 +5,10 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 | Metadata     | Nilai                            |
 | ------------ | -------------------------------- |
 | Repository   | `ahliweb/awcms-mini`             |
-| Snapshot     | 2026-07-15T16:41:33.367Z         |
-| Total issue  | 219                              |
-| Open issue   | 1                                |
-| Closed issue | 218                              |
+| Snapshot     | 2026-07-25T07:37:45.085Z         |
+| Total issue  | 276                              |
+| Open issue   | 3                                |
+| Closed issue | 273                              |
 | Labels       | 100 (25 doc 06 + 74 peninggalan) |
 | Milestones   | 25 (6 doc 06 + 19 peninggalan)   |
 
@@ -16,8 +16,8 @@ Dokumen ini mencatat snapshot live repository GitHub `ahliweb/awcms-mini`. Folde
 
 | State           | File                                         |                                         Jumlah issue |
 | --------------- | -------------------------------------------- | ---------------------------------------------------: |
-| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    1 |
-| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                  218 |
+| OPEN            | [issues-open-001.md](issues-open-001.md)     |                                                    3 |
+| CLOSED          | [issues-closed-001.md](issues-closed-001.md) |                                                  273 |
 | LABEL/MILESTONE | [labels-milestones.md](labels-milestones.md) |                            100 labels, 25 milestones |
 | SECURITY        | [security.md](security.md)                   | Security policy, Dependabot, secret scanning, CodeQL |
 

@@ -138,6 +138,23 @@ Full check FRESH DB (`awcms-mini-verify871b`): 5151 pass/0 fail/build Complete
 setelah 7 fix. Pelajaran meta #872+: audit front-load (5-lensa + reviewer +
 security-auditor) SEBELUM Codex + tutup semua dalam satu push.
 
+## Sinyal control-plane fleet-wide (#930)
+
+`application/control-plane-signals.ts` — `collectEntitlementSignals(tx, now)`:
+assignment `status='active'` yang `effective_to` sudah lewat (belum tersapu).
+Ini masalah KOMERSIAL dan OTORISASI sekaligus — tenant masih memegang akses
+yang seharusnya dicabut — karena itu objective-nya ketat (satu interval sweep),
+bukan sekadar eventual.
+
+- **`effective_to IS NULL` = open-ended, TIDAK PERNAH kedaluwarsa.** Cek NULL
+  harus eksplisit: `NULL < now()` bernilai NULL (bukan false), jadi predikat
+  yang dinegasikan akan menjatuhkan baris open-ended ke bukan-cabang-mana-pun.
+- **Partial unique `(tenant_id, plan_key) WHERE superseded_at IS NULL AND
+canceled_at IS NULL`** — satu entitlement hidup per PLAN, bukan satu per
+  tenant. Fixture test butuh `plan_key` berbeda per baris (dan `plan_key`
+  punya CHECK format snake_case — tanda hubung ditolak).
+- Worker butuh GRANT SELECT eksplisit (migration `103`).
+
 ## Verifikasi (JANGAN skip DB)
 
 `bun run check` PENUH dengan PostgreSQL nyata (DB terisolasi FRESH, lihat memory

@@ -29,6 +29,27 @@ Ikuti `docs/awcms-mini/12_generator_prompt.md` (Prompt Review PR), `docs/awcms-m
 - Endpoint ↔ OpenAPI ↔ tabel error/header (doc 05).
 - Event ↔ AsyncAPI ↔ `module.ts` publishes/subscribes.
 - Soft delete ↔ ERD kolom/index ↔ OpenAPI DELETE/restore/includeDeleted ↔ audit event.
+- Gate baru di script `check` ↔ **step tersendiri di `.github/workflows/ci.yml`**.
+- Job baru ↔ descriptor `jobs` di `module.ts` ↔ `JOB_WORK_CLASS_REGISTRY` ↔ dua test daftar job.
+- Descriptor family baru ↔ bump `MODULE_CONTRACT_VERSION` ↔ validator + gate.
+- OpenAPI diedit di `openapi/modules/*.yaml` (BUKAN file bundle) lalu `openapi:bundle`.
+
+## Cara test lolos padahal salah (tanyakan ini tiap review)
+
+- **Assertion "pokoknya throw" pada batas GRANT.** Pada baris ter-seed, DELETE
+  induk juga gagal `23503` (FK) — jadi test-nya membuktikan foreign key, bukan
+  izin. Minta assert SQLSTATE `42501`. (Nyata: #932 mutation tetap hijau.)
+- **Test DB yang memakai koneksi admin/superuser.** Superuser melewati GRANT
+  DAN RLS → grant yang hilang dan kebocoran lintas-tenant sama-sama tak
+  terdeteksi. Operasi yang diuji harus jalan sebagai `getTestSql()`/
+  `getWorkerTestSql()`. (Nyata: #930, worker kurang SELECT di 4 tabel.)
+- **Gate/validator yang cuma menegaskan "state sekarang valid".** Tetap hijau
+  di hadapan validator yang selalu `{valid:true}` atau graf input tak lengkap.
+  Minta bukti mutasi: satu hal dirusak → MERAH.
+- **Assertion count non-diskriminatif** (`0 vs 0` karena nama action karangan).
+- **Job/kolektor fleet-wide** yang tidak menerbitkan apa pun saat dibatalkan
+  separuh jalan — total dari sebagian tenant terbaca sebagai penurunan
+  fleet-wide dan memadamkan alert yang masih harus menyala.
 
 ## Output
 

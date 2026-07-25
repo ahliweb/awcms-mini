@@ -85,6 +85,45 @@ operasional + pemetaan kepatuhan), ADR-0013 §6 (data ownership matrix —
 
 5. `bun run changeset`.
 
+## "Append-only" ≠ "simpan selamanya" (#932 — kelas bug, jangan diulang)
+
+Sebelum mendaftarkan descriptor untuk tabel yang dijaga trigger immutability,
+**cek dulu apakah barisnya benar-benar BISA dihapus oleh role mana pun.**
+
+`payment_gateway` punya 4 tabel dengan trigger `BEFORE UPDATE OR DELETE` yang
+`RAISE` tanpa syarat. Efeknya bukan "role app tidak boleh menghapus" (itu batas
+yang memang diinginkan) melainkan **TIDAK ADA role yang bisa menghapus,
+termasuk pemilik tabel** — jadi retensi mustahil, legal hold tak punya objek
+untuk di-override, dan tak ada jalur erasure sama sekali. Descriptor yang
+didaftarkan di atas tabel seperti itu adalah kepatuhan di atas kertas.
+
+**Pola yang benar** (`usage_metering` migration `087`, lalu `payment_gateway`
+migration `102`): trigger immutability hanya `BEFORE UPDATE`; batas DELETE ada
+di **GRANT** — `awcms_mini_app` tidak pernah, `awcms_mini_worker` ya — dengan
+satu fungsi purge teraudit sebagai satu-satunya jalur hapus.
+
+Cek cepat:
+
+```sql
+SELECT tgname, pg_get_triggerdef(oid) FROM pg_trigger
+WHERE tgrelid = 'awcms_mini_<tabel>'::regclass AND NOT tgisinternal;
+```
+
+Kalau definisinya memuat `OR DELETE`, retensi belum mungkin — perbaiki
+trigger-nya dulu, jangan hanya menambah descriptor.
+
+## Rantai FK: umur saja BUKAN cutoff yang aman
+
+Kalau tabel yang di-purge punya anak dengan FK NOT NULL, induk **selalu lebih
+tua** dari anaknya — purge murni berbasis umur akan mencoba menghapus induk
+sementara anak yang belum menua masih mereferensinya, lalu gagal di FK.
+
+Tiap tingkat harus hanya menghapus baris **tanpa anak yang masih hidup**
+(`NOT EXISTS`), daun lebih dulu. Efeknya: bukti menua sebagai satu rantai utuh,
+bukan pecahan yang menyisakan induk tanpa outcome. Legal hold di satu mata
+rantai memblokir SELURUH rantai (fail-closed) — bukti yang di-purge separuh
+tidak bisa ditafsirkan. Lihat `payment-gateway/application/retention-purge.ts`.
+
 ## Legal hold — precedence dan default-deny (kritis, jangan dilonggarkan)
 
 - Hold aktif (tenant-wide `descriptorKey: null`, atau menyasar descriptor

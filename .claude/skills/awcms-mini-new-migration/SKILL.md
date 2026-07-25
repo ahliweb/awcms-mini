@@ -15,7 +15,9 @@ sql/NNN_awcms_mini_<area>_<description>.sql
 
 - `NNN` berurutan, nol di depan (mis. `023`).
 - **Jangan** me-rename migration yang sudah rilis; koreksi = migration baru.
-- Cek nomor terakhir di `sql/` sebelum menambah.
+- Cek nomor terakhir di `sql/` sebelum menambah (pola tabrakan penomoran sama seperti ADR — dua branch paralel mudah memilih nomor sama; diff `sql/` manual sebelum push).
+- **Migration GRANT-only itu sah dan sering perlu.** Job/worker baru yang membaca tabel modul lain butuh `GRANT SELECT ... TO awcms_mini_worker` eksplisit — `ALTER DEFAULT PRIVILEGES` hanya menjangkau `awcms_mini_app`. Pola: `101` (#880), `103` (#930): murni GRANT + index, tanpa perubahan schema/policy/trigger. Di doc 13 masuk baris `_(Foundation, lintas-modul)_` bila menyentuh tabel milik beberapa modul.
+- **Jangan verifikasi grant dengan koneksi superuser** — superuser melewati GRANT dan RLS, jadi migration yang grant-nya kurang tetap terlihat berhasil. Uji lewat role sebenarnya (`getWorkerTestSql()`/`getTestSql()`).
 
 ## Aturan wajib
 
