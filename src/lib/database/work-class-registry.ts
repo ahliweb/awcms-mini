@@ -129,6 +129,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       'Fleet-wide READ-ONLY observation sweep (control-plane:fleet-sweep, Issue #930) — walks every active tenant and aggregates each control-plane module\'s signals. "reporting" rather than "maintenance": it is an analytical read across many tenants whose latency profile matches the projection refresh worker, and unlike a retention purge it is not merely tolerant of delay — stale gauges silently under-report an ongoing incident. Every withTenant call inside the sweep already passes workClass: "reporting" explicitly.'
   },
+  "scripts/tenant-entitlement-expiry-sweep.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Scheduled bounded bookkeeping sweep (tenant-entitlement:expiry-sweep, Issue #930) closing out assignments whose validity window elapsed. "maintenance" rather than "reporting": unlike control-plane-fleet-sweep this is genuinely tolerant of delay, because an unswept row grants nothing (resolution already ignores a closed window) — only the recorded commercial state lags. Every withTenant call in the job passes workClass: "maintenance" explicitly. Runs as awcms_mini_worker, the only role migration 104 grants UPDATE on the assignments table.'
+  },
   "scripts/payment-gateway-purge.ts": {
     workClass: "maintenance",
     rationale:

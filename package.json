@@ -72,6 +72,7 @@
     "slo:registry:check": "bun scripts/slo-registry-check.ts",
     "control-plane:fleet-sweep": "bun scripts/control-plane-fleet-sweep.ts",
     "varnish:cache:check": "bun scripts/varnish-cache-check.ts",
+    "tenant-entitlement:expiry-sweep": "bun scripts/tenant-entitlement-expiry-sweep.ts",
     "reporting:exports:dispatch": "bun scripts/reporting-exports-dispatch.ts",
     "identity-access:business-scope:expiry": "bun scripts/identity-access-business-scope-expiry.ts",
     "identity-access:sod-registry:check": "bun scripts/identity-access-sod-registry-check.ts",

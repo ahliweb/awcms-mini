@@ -123,6 +123,7 @@ describe("fetchModuleJobs", () => {
         "bun run subscription-billing:run-dunning",
         "bun run subscription-billing:run-renewal",
         "bun run sync:objects:dispatch",
+        "bun run tenant-entitlement:expiry-sweep",
         "bun run tenant-lifecycle:run-scheduled",
         "bun run tenant-provisioning:reconcile",
         "bun run usage-metering:aggregate",
