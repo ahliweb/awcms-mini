@@ -82,6 +82,39 @@ Validasi registry: `domain/projection-registry.ts`'s
 `validateProjectionRegistry`, tersambung ke `bun run check` lewat
 `bun run reporting:projections:registry:check`.
 
+**Sembilan descriptor terdaftar (Issue #880):** tiga milik `reporting` sendiri
+(#753) + ENAM milik modul control-plane — `tenant_provisioning.provisioning_outcomes`,
+`tenant_lifecycle.lifecycle_transitions`, `tenant_entitlement.entitlement_evaluations`,
+`usage_metering.usage_reconciliation_outcomes`, `subscription_billing.invoice_lifecycle`,
+`payment_gateway.payment_processing_outcomes`. Katalog lengkap +
+tabel sumber ada di `src/modules/reporting/README.md` §Registered projections.
+Tiap modul mendeklarasikan miliknya di `module.ts` + `domain/projection-keys.ts`
+sendiri — JANGAN tambahkan descriptor modul lain ke `reporting/module.ts`.
+
+**Pola yang WAJIB diikuti saat menambah descriptor control-plane baru:**
+
+1. Sumber harus tabel **append-only** milik modul itu sendiri, dijaga
+   trigger `BEFORE UPDATE OR DELETE` **dan** `REVOKE UPDATE, DELETE`. Kolom
+   diskriminator (`matchColumn`) harus immutable — kalau statusnya bisa berubah
+   setelah kursor lewat, counter-nya salah selamanya.
+2. `cursorColumn` = `created_at` (insert-time), BUKAN timestamp bisnis
+   (`effective_at`/`resolved_at`/`started_at`) yang bisa backdate → tidak
+   monoton dalam urutan insert → baris terlewat permanen.
+3. JANGAN pilih tabel yang di-purge retensi (mis. `awcms_mini_usage_events`):
+   counter all-time atas tabel yang barisnya dihapus akan selamanya "drift" di
+   rekonsiliasi padahal itu retensi bekerja normal.
+4. JANGAN proyeksikan uang, referensi provider, envelope webhook, atau PII —
+   hanya metric key + integer (ADR-0022 Medium-2).
+5. `source` dan `rebuildSource` pakai SATU konstanta stream yang sama (jangan
+   dua literal kembar) supaya rebuild tak pernah beda dari steady state.
+6. Tambahkan GRANT `SELECT ... TO awcms_mini_worker` + index
+   `(tenant_id, created_at)` di migration — worker refresh berjalan sebagai role
+   least-privilege, dan `ALTER DEFAULT PRIVILEGES` hanya menutupi `awcms_mini_app`.
+   Tanpa itu proyeksi diam-diam melapor 0 selamanya di produksi (tak terlihat
+   oleh test ber-role admin — pakai `getWorkerTestSql()`).
+7. Daftarkan keputusannya di `tests/unit/control-plane-observability-coverage.test.ts`
+   (punya proyeksi ATAU alasan tertulis kenapa tidak).
+
 ## CRITICAL — dua strategi update, dan kapan `cursor_table` TIDAK aman
 
 - **`cursor_table`** — poll berbatas dan ber-urutan-kursor atas satu/lebih tabel
@@ -226,11 +259,20 @@ Gate `authorizeInTransaction` kasar milik route (`reporting.projections.read`/
 key) — pola sama dengan `filterVisibleNavigationEntries` di
 `module-management/domain/navigation-registry.ts`.
 
-Ketiga descriptor yang terdaftar hari ini kebetulan memakai `requiredPermission`
-yang sama, jadi lapis kedua ini **belum bisa dibedakan** dari lapis pertama untuk
-descriptor NYATA mana pun — tapi justru itulah yang menghentikan caller yang
-hanya memegang permission kasar dari melihat proyeksi ber-permission lebih sempit
-yang didaftarkan modul turunan di MASA DEPAN (temuan reviewer PR #781). **Jangan
+Sejak Issue #880 lapis kedua ini **load-bearing untuk descriptor NYATA**: enam
+proyeksi control-plane memakai permission baca modul pemiliknya sendiri
+(`tenant_lifecycle.states.read`, `subscription_billing.invoices.read`, dst.),
+bukan permission `reporting` yang kasar (temuan awal reviewer PR #781).
+
+**Lapis KETIGA (Issue #880) — status modul pemilik per tenant.** Semua modul
+control-plane `defaultTenantState: "disabled"` (ADR-0022 §7), sementara
+`fetchGrantedPermissionKeys` TIDAK membuang permission key modul yang dimatikan
+→ permission saja bukan keputusan lengkap. Keputusan gabungan ada di SATU file,
+`application/projection-access.ts` (modul dulu, baru RBAC — urutan yang sama
+dengan `authorizeInTransaction`), dipakai list/detail/reconcile/rebuild/cancel/
+export create+trigger/halaman admin/DUA worker. `tests/unit/reporting-projection-
+access-chokepoint.test.ts` GAGAL kalau ada file lain yang memanggil helper
+permission-only langsung — jangan tambahkan cek per-route (pelajaran #841). **Jangan
 hapus lapis kedua karena "redundan hari ini"** — ini persis pola "validator ada
 tapi tak tersambung" terbalik: di sini validator-nya sudah tersambung, jangan
 diputus.

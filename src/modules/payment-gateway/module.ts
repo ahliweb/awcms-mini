@@ -1,4 +1,62 @@
-import { defineModule } from "../_shared/module-contract";
+import {
+  defineModule,
+  type ProjectionCursorStream
+} from "../_shared/module-contract";
+import {
+  PAYMENT_PROCESSING_METRIC_KEYS,
+  PAYMENT_PROCESSING_PROJECTION_KEY
+} from "./domain/projection-keys";
+
+/**
+ * ONE stream shared by this projection's `source` and `rebuildSource` — see
+ * `tenant-provisioning/module.ts`'s matching constant for the rationale.
+ *
+ * `created_at` is the cursor on a table kept append-only by both a trigger
+ * and `REVOKE UPDATE, DELETE` (migration 093). Only the metric key and an
+ * integer are ever stored — no provider reference, envelope, or token can
+ * reach the projection through this contract (ADR-0022 Medium-2).
+ */
+const PAYMENT_PROCESSING_STREAM: ProjectionCursorStream = {
+  streamKey: "payment_processing_attempts",
+  tableName: "awcms_mini_payment_gateway_processing_attempts",
+  cursorColumn: "created_at",
+  metrics: [
+    {
+      metricKey: PAYMENT_PROCESSING_METRIC_KEYS.attemptTotal,
+      effect: "increment"
+    },
+    {
+      metricKey: PAYMENT_PROCESSING_METRIC_KEYS.appliedCount,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "applied"
+    },
+    {
+      metricKey: PAYMENT_PROCESSING_METRIC_KEYS.ignoredOutOfOrderCount,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "ignored_out_of_order"
+    },
+    {
+      metricKey: PAYMENT_PROCESSING_METRIC_KEYS.ignoredDuplicateCount,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "ignored_duplicate"
+    },
+    {
+      metricKey: PAYMENT_PROCESSING_METRIC_KEYS.ignoredTerminalCount,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "ignored_terminal"
+    },
+    {
+      metricKey: PAYMENT_PROCESSING_METRIC_KEYS.ignoredUnknownIntentCount,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "ignored_unknown_intent"
+    }
+  ]
+};
 
 /**
  * `payment_gateway` — the SIXTH and LAST SaaS control-plane module (Issue #877,
@@ -252,6 +310,45 @@ export const paymentGatewayModule = defineModule({
     hasHealthCheck: true,
     hasReadinessCheck: true
   },
+  // Issue #880 — see `tenant-provisioning/module.ts`'s matching block.
+  reportingProjections: [
+    {
+      key: PAYMENT_PROCESSING_PROJECTION_KEY,
+      version: 1,
+      ownerModuleKey: "payment_gateway",
+      scope: "tenant",
+      description:
+        "Outcomes of applying normalized provider events to this tenant's payment intents (applied, or ignored as out-of-order/duplicate/terminal/unknown intent), incrementally derived from the append-only awcms_mini_payment_gateway_processing_attempts. This is the webhook-pipeline health signal: signature-verified events that keep arriving but cannot be absorbed (out-of-order, unknown intent) are invisible in intent state alone, and a flat applied_count while provider activity continues means payment status has stopped tracking the provider. Provider references, envelopes, and tokens are never projected — only a metric key and an integer are stored (ADR-0022 Medium-2). Payment status remains authoritative only in the intents themselves, updated exclusively by signed webhook or reconciliation.",
+      source: {
+        strategy: "cursor_table",
+        streams: [PAYMENT_PROCESSING_STREAM]
+      },
+      rebuildSource: { streams: [PAYMENT_PROCESSING_STREAM] },
+      metricLabels: {
+        [PAYMENT_PROCESSING_METRIC_KEYS.attemptTotal]:
+          "Provider event applications attempted",
+        [PAYMENT_PROCESSING_METRIC_KEYS.appliedCount]: "Applied",
+        [PAYMENT_PROCESSING_METRIC_KEYS.ignoredOutOfOrderCount]:
+          "Ignored (out of order)",
+        [PAYMENT_PROCESSING_METRIC_KEYS.ignoredDuplicateCount]:
+          "Ignored (duplicate)",
+        [PAYMENT_PROCESSING_METRIC_KEYS.ignoredTerminalCount]:
+          "Ignored (terminal state)",
+        [PAYMENT_PROCESSING_METRIC_KEYS.ignoredUnknownIntentCount]:
+          "Ignored (unknown intent)"
+      },
+      requiredPermission: "payment_gateway.reconciliation.read",
+      freshness: {
+        targetSeconds: 300,
+        staleAfterSeconds: 900,
+        errorAfterConsecutiveFailures: 3
+      },
+      drillDownPath: "/api/v1/payment-gateway/tenants/{tenantId}/health",
+      retentionClass:
+        "Not separately registered in data_lifecycle: one row per normalized provider event application, bounded by real provider traffic for this tenant rather than by request volume. The module's genuinely envelope-bearing table (awcms_mini_payment_gateway_webhook_inbox) is a candidate for a lifecycle descriptor and is deliberately not this projection's source — see domain/projection-keys.ts.",
+      batchLimit: 1000
+    }
+  ],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/payment-gateway"

@@ -1,4 +1,58 @@
-import { defineModule } from "../_shared/module-contract";
+import {
+  defineModule,
+  type ProjectionCursorStream
+} from "../_shared/module-contract";
+import {
+  PROVISIONING_OUTCOMES_METRIC_KEYS,
+  PROVISIONING_OUTCOMES_PROJECTION_KEY
+} from "./domain/projection-keys";
+
+/**
+ * ONE stream definition shared by this projection's `source` (steady-state
+ * incremental updates) and its `rebuildSource` (full re-scan) — deliberately
+ * the same object rather than two copies of the same literal, so a rebuild
+ * can never silently disagree with the steady state about which rows count
+ * as which metric.
+ *
+ * `created_at` is the cursor: insert-time only, never updated (the table is
+ * append-only under both a trigger and `REVOKE UPDATE, DELETE`, migration
+ * 085), which is the append-only-source rule the cursor engine requires.
+ */
+const PROVISIONING_OUTCOMES_STREAM: ProjectionCursorStream = {
+  streamKey: "provisioning_step_attempts",
+  tableName: "awcms_mini_tenant_provisioning_step_attempts",
+  cursorColumn: "created_at",
+  metrics: [
+    {
+      metricKey: PROVISIONING_OUTCOMES_METRIC_KEYS.attemptTotal,
+      effect: "increment"
+    },
+    {
+      metricKey: PROVISIONING_OUTCOMES_METRIC_KEYS.attemptSucceeded,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "succeeded"
+    },
+    {
+      metricKey: PROVISIONING_OUTCOMES_METRIC_KEYS.attemptFailed,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "failed"
+    },
+    {
+      metricKey: PROVISIONING_OUTCOMES_METRIC_KEYS.attemptWaiting,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "waiting"
+    },
+    {
+      metricKey: PROVISIONING_OUTCOMES_METRIC_KEYS.attemptSkipped,
+      effect: "increment",
+      matchColumn: "outcome",
+      matchValue: "skipped"
+    }
+  ]
+};
 
 /**
  * `tenant_provisioning` — the THIRD SaaS control-plane module (Issue #872,
@@ -121,6 +175,50 @@ export const tenantProvisioningModule = defineModule({
       action: "check",
       description:
         "Run a non-destructive desired-vs-actual reconciliation of a provisioned tenant"
+    }
+  ],
+  // Issue #880 (epic #868 Wave 3 operations) — this module's own read-model
+  // projection, declared here and materialized by `reporting`'s generic
+  // engine (Issue #753). `reporting` reads this source table through the
+  // cursor contract declared below and writes ONLY its own
+  // `awcms_mini_reporting_projection_*` tables; this module never writes a
+  // `reporting` table either. Registry-validated by
+  // `bun run reporting:projections:registry:check`.
+  reportingProjections: [
+    {
+      key: PROVISIONING_OUTCOMES_PROJECTION_KEY,
+      version: 1,
+      ownerModuleKey: "tenant_provisioning",
+      scope: "tenant",
+      description:
+        "Provisioning step-attempt outcomes (succeeded/failed/waiting/skipped) for this tenant, incrementally derived from awcms_mini_tenant_provisioning_step_attempts — the append-only attempt log every resumable provisioning run writes one row to per step attempt. Answers 'is provisioning progressing, retrying, or stuck?' without opening each run: a rising attempt_failed with a flat attempt_succeeded is a blocked run, and attempt_waiting is the manual-intervention backlog. The authoritative per-run status/readiness stays in the run itself (drill down), which this projection never replaces and is never an authorization source for.",
+      source: {
+        strategy: "cursor_table",
+        streams: [PROVISIONING_OUTCOMES_STREAM]
+      },
+      rebuildSource: { streams: [PROVISIONING_OUTCOMES_STREAM] },
+      metricLabels: {
+        [PROVISIONING_OUTCOMES_METRIC_KEYS.attemptTotal]:
+          "Provisioning step attempts",
+        [PROVISIONING_OUTCOMES_METRIC_KEYS.attemptSucceeded]: "Succeeded",
+        [PROVISIONING_OUTCOMES_METRIC_KEYS.attemptFailed]: "Failed",
+        [PROVISIONING_OUTCOMES_METRIC_KEYS.attemptWaiting]:
+          "Waiting (manual intervention)",
+        [PROVISIONING_OUTCOMES_METRIC_KEYS.attemptSkipped]: "Skipped"
+      },
+      requiredPermission: "tenant_provisioning.requests.read",
+      freshness: {
+        // The refresh worker runs every 2 minutes (see `reporting`'s own job
+        // descriptor), so one missed cycle is still "current" and roughly
+        // five consecutive misses read as "stale".
+        targetSeconds: 300,
+        staleAfterSeconds: 900,
+        errorAfterConsecutiveFailures: 3
+      },
+      drillDownPath: "/api/v1/tenant-provisioning/requests",
+      retentionClass:
+        "Not separately registered in data_lifecycle: one row per provisioning step attempt, bounded by the module's own bounded-retry policy (a run has a fixed step list and a max attempt count), so this table does not grow with tenant activity the way an event/telemetry table does.",
+      batchLimit: 1000
     }
   ],
   api: {

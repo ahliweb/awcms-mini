@@ -94,3 +94,16 @@ race). No `Promise.all` on a single transaction.
 or `/domain`; downstream consumers use the `tenant_restrictions` /
 `lifecycle_transition` ports wired at their own composition root.
 Gated by `tests/unit/module-boundary.test.ts`.
+
+## Reporting projection (Issue #880)
+
+This module declares `tenant_lifecycle.lifecycle_transitions` in its own
+`module.ts` (keys/labels in `domain/projection-keys.ts`): lifecycle event
+counts by event kind and by destination state, counted incrementally from the
+append-only `awcms_mini_tenant_lifecycle_history`. It surfaces churn a
+current-state view cannot (repeated entries into `past_due`/`grace`/
+`suspended`, schedules set versus canceled, reconciliation corrections). The
+CURRENT state and the fail-closed restriction profile remain server-derived at
+the auth chokepoint — this projection never gates anything. Read under
+`tenant_lifecycle.states.read`; invisible and inert for a tenant that has not
+enabled this module.

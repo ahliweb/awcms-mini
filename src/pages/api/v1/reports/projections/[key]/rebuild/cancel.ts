@@ -18,6 +18,7 @@ import {
 } from "../../../../../../../modules/_shared/idempotency";
 import { recordAuditEvent } from "../../../../../../../modules/logging/application/audit-log";
 import { findProjectionDescriptor } from "../../../../../../../modules/reporting/application/projection-directory";
+import { isProjectionOwnerModuleEnabled } from "../../../../../../../modules/reporting/application/projection-access";
 import {
   requestRebuildCancellation,
   findRunningRebuild
@@ -81,6 +82,16 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
 
     if (!auth.allowed) {
       return auth.denied;
+    }
+
+    // Issue #880 — same module gate as the rebuild route this cancels; see
+    // that file's own comment for why only the module half applies here.
+    if (!(await isProjectionOwnerModuleEnabled(tx, tenantId, descriptor))) {
+      return fail(
+        403,
+        "MODULE_DISABLED",
+        `Projection "${key}" belongs to a module that is not enabled for this tenant.`
+      );
     }
 
     const existingIdempotency = await findIdempotencyRecord(

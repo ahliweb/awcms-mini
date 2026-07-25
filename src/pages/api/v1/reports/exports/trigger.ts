@@ -18,6 +18,7 @@ import {
 } from "../../../../../modules/_shared/idempotency";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import { findProjectionDescriptor } from "../../../../../modules/reporting/application/projection-directory";
+import { isProjectionAccessibleForTenant } from "../../../../../modules/reporting/application/projection-access";
 import { generateProjectionExport } from "../../../../../modules/reporting/application/export-generation";
 
 const IDEMPOTENCY_SCOPE = "reporting_export_trigger";
@@ -106,6 +107,29 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     if (!auth.allowed) {
       return { ok: false as const, response: auth.denied };
+    }
+
+    // Issue #880 — the generated artifact contains this projection's metric
+    // values, so triggering an export is a read of its content: descriptor
+    // permission AND owning-module enablement, not just the coarse
+    // `reporting.exports.export` gate (see `exports/index.ts`'s matching
+    // comment and `reporting/application/projection-access.ts`).
+    if (
+      !(await isProjectionAccessibleForTenant(
+        tx,
+        tenantId,
+        descriptor,
+        auth.grantedPermissionKeys
+      ))
+    ) {
+      return {
+        ok: false as const,
+        response: fail(
+          403,
+          "ACCESS_DENIED",
+          `Missing the required permission to export projection "${projectionKey}".`
+        )
+      };
     }
 
     const existingIdempotency = await findIdempotencyRecord(

@@ -78,3 +78,14 @@ batches so a crashed worker's lease expires for another to resume.
   `bun run subscription-billing:run-dunning` — DB-only, offline/LAN safe.
 
 See the `awcms-mini-subscription-billing` skill for the full playbook.
+
+## Reporting projection (Issue #880)
+
+This module declares `subscription_billing.invoice_lifecycle` in its own
+`module.ts` (keys/labels in `domain/projection-keys.ts`): invoice status
+transition counts (draft / issued / paid / void), counted incrementally from
+the append-only `awcms_mini_subscription_billing_invoice_status_history`.
+COUNTS ONLY, never amounts — this is not a general ledger, AR-AP, or aged
+receivable report (ADR-0013 §3, ADR-0022 §11), and exact minor-unit money must
+never live in an increment-only counter that cannot be corrected downward.
+Read under `subscription_billing.invoices.read`.

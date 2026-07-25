@@ -3257,7 +3257,7 @@ msgid "admin.layout.nav_organization_structure_units"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/payment-gateway/module.ts:113
+#: src/modules/payment-gateway/module.ts:171
 msgid "admin.layout.nav_payment_gateway"
 msgstr ""
 
@@ -3321,7 +3321,7 @@ msgid "admin.layout.nav_social_publishing_rules"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/subscription-billing/module.ts:111
+#: src/modules/subscription-billing/module.ts:164
 msgid "admin.layout.nav_subscription_billing"
 msgstr ""
 
@@ -3335,17 +3335,17 @@ msgid "admin.layout.nav_tenant_domains"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/tenant-entitlement/module.ts:70
+#: src/modules/tenant-entitlement/module.ts:112
 msgid "admin.layout.nav_tenant_entitlement"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/tenant-lifecycle/module.ts:97
+#: src/modules/tenant-lifecycle/module.ts:215
 msgid "admin.layout.nav_tenant_lifecycle"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/tenant-provisioning/module.ts:88
+#: src/modules/tenant-provisioning/module.ts:142
 msgid "admin.layout.nav_tenant_provisioning"
 msgstr ""
 
@@ -3354,7 +3354,7 @@ msgid "admin.layout.nav_toggle_aria_label"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/usage-metering/module.ts:168
+#: src/modules/usage-metering/module.ts:215
 msgid "admin.layout.nav_usage_metering"
 msgstr ""
 

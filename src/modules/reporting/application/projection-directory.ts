@@ -30,9 +30,9 @@
 import { computeProjectionFreshness } from "../domain/freshness";
 import { collectProjectionDescriptors } from "../domain/projection-registry";
 import {
-  filterPermittedProjectionDescriptors,
-  isProjectionPermitted
-} from "../domain/projection-permission-filter";
+  filterAccessibleProjectionDescriptors,
+  isProjectionAccessibleForTenant
+} from "./projection-access";
 import { listModules } from "../../index";
 import type { ProjectionDescriptor } from "../../_shared/module-contract";
 import { getProjectionMetrics } from "./projection-metric-store";
@@ -99,7 +99,20 @@ async function buildSummaryView(
     scope: descriptor.scope,
     description: descriptor.description,
     metricLabels: descriptor.metricLabels,
-    metrics,
+    // Every DECLARED metric is always present, defaulting to 0 (Issue #880).
+    // The metric store only holds keys that have actually been incremented,
+    // while a REBUILD materializes every declared key including the zeros —
+    // so without this, the same projection answered with a different set of
+    // keys before and after a rebuild, and a discriminator that has simply
+    // never occurred (`entered_suspended` on a healthy tenant) was absent
+    // rather than 0. Same normalization `export-generation.ts` already
+    // applies when it writes one row per declared metric.
+    metrics: {
+      ...Object.fromEntries(
+        Object.keys(descriptor.metricLabels).map((metricKey) => [metricKey, 0])
+      ),
+      ...metrics
+    },
     freshness: {
       status: freshness.status,
       ageSeconds: freshness.ageSeconds,
@@ -118,7 +131,9 @@ export async function listProjectionSummariesForTenant(
   grantedPermissionKeys: ReadonlySet<string>,
   now: Date = new Date()
 ): Promise<ProjectionSummaryView[]> {
-  const descriptors = filterPermittedProjectionDescriptors(
+  const descriptors = await filterAccessibleProjectionDescriptors(
+    tx,
+    tenantId,
     listRegisteredProjectionDescriptors(),
     grantedPermissionKeys
   );
@@ -160,12 +175,21 @@ export async function getProjectionSummaryForTenant(
   if (!descriptor || descriptor.scope !== "tenant") {
     return { outcome: "not_found" };
   }
-  if (!isProjectionPermitted(descriptor, grantedPermissionKeys)) {
+  if (
+    !(await isProjectionAccessibleForTenant(
+      tx,
+      tenantId,
+      descriptor,
+      grantedPermissionKeys
+    ))
+  ) {
     // A SINGLE-item lookup for a descriptor that genuinely exists but the
-    // caller lacks THIS descriptor's own permission for — 403, not 404,
-    // matching this repo's existing convention of never disguising a
-    // permission denial as a generic "not found" (see every
-    // `authorizeInTransaction`-gated route's own `403 ACCESS_DENIED`).
+    // caller lacks THIS descriptor's own permission for — or whose owning
+    // module this tenant has not enabled (Issue #880, see
+    // `projection-access.ts`) — is 403, not 404, matching both this repo's
+    // convention of never disguising a permission denial as a generic "not
+    // found" and the `403 MODULE_DISABLED` every route of a disabled
+    // module already answers.
     return { outcome: "forbidden" };
   }
 

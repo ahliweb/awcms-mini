@@ -218,6 +218,10 @@ describe("validateProjectionRegistry (Issue #753)", () => {
     const result = validateProjectionRegistry(listModules());
     expect(result.valid).toBe(true);
     expect(result.issues).toEqual([]);
-    expect(result.descriptors.length).toBe(3);
+    // `reporting`'s own three (Issue #753) plus the six control-plane
+    // projections each owning module declares (Issue #880) — the exact
+    // membership is pinned by
+    // `tests/unit/control-plane-observability-coverage.test.ts`.
+    expect(result.descriptors.length).toBe(9);
   });
 });
