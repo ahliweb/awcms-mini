@@ -1,4 +1,122 @@
-import { defineModule } from "../_shared/module-contract";
+import {
+  defineModule,
+  type ProjectionCursorStream
+} from "../_shared/module-contract";
+import {
+  LIFECYCLE_TRANSITIONS_METRIC_KEYS,
+  LIFECYCLE_TRANSITIONS_PROJECTION_KEY
+} from "./domain/projection-keys";
+
+/**
+ * ONE stream shared by this projection's `source` and `rebuildSource` — see
+ * `tenant-provisioning/module.ts`'s matching constant for why the two are
+ * never written as separate literals.
+ *
+ * `created_at` is the cursor (insert-time only; the table is append-only
+ * under both a trigger and `REVOKE UPDATE, DELETE`, migration 089).
+ * `effective_at` deliberately is NOT: a scheduled transition can be recorded
+ * with an `effective_at` in the future or the past, so it is not monotonic in
+ * insert order and would let a bounded cursor scan skip rows permanently.
+ */
+const LIFECYCLE_TRANSITIONS_STREAM: ProjectionCursorStream = {
+  streamKey: "tenant_lifecycle_history",
+  tableName: "awcms_mini_tenant_lifecycle_history",
+  cursorColumn: "created_at",
+  metrics: [
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.historyTotal,
+      effect: "increment"
+    },
+    // By event kind — "what happened".
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.transitionCount,
+      effect: "increment",
+      matchColumn: "event_kind",
+      matchValue: "transition"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.downgradeCount,
+      effect: "increment",
+      matchColumn: "event_kind",
+      matchValue: "downgrade"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.scheduleSetCount,
+      effect: "increment",
+      matchColumn: "event_kind",
+      matchValue: "schedule_set"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.scheduleCanceledCount,
+      effect: "increment",
+      matchColumn: "event_kind",
+      matchValue: "schedule_canceled"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.restoreCount,
+      effect: "increment",
+      matchColumn: "event_kind",
+      matchValue: "restore"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.reconciledCount,
+      effect: "increment",
+      matchColumn: "event_kind",
+      matchValue: "reconciled"
+    },
+    // By destination state — "where it went". Counts ENTRIES into a state,
+    // not time spent in it; the current state is authoritative elsewhere
+    // (`awcms_mini_tenant_lifecycle_states`, this descriptor's drill-down).
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredActive,
+      effect: "increment",
+      matchColumn: "to_state",
+      matchValue: "active"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredTrial,
+      effect: "increment",
+      matchColumn: "to_state",
+      matchValue: "trial"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredRenewalDue,
+      effect: "increment",
+      matchColumn: "to_state",
+      matchValue: "renewal_due"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredPastDue,
+      effect: "increment",
+      matchColumn: "to_state",
+      matchValue: "past_due"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredGrace,
+      effect: "increment",
+      matchColumn: "to_state",
+      matchValue: "grace"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredSuspended,
+      effect: "increment",
+      matchColumn: "to_state",
+      matchValue: "suspended"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredCanceled,
+      effect: "increment",
+      matchColumn: "to_state",
+      matchValue: "canceled"
+    },
+    {
+      metricKey: LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredBlocked,
+      effect: "increment",
+      matchColumn: "to_state",
+      matchValue: "blocked"
+    }
+  ]
+};
 
 /**
  * `tenant_lifecycle` — the FOURTH SaaS control-plane module (Issue #873, epic
@@ -163,6 +281,57 @@ export const tenantLifecycleModule = defineModule({
           "identity_access.business_scope_exceptions.approve",
         maxDurationDays: 14
       }
+    }
+  ],
+  // Issue #880 — see `tenant-provisioning/module.ts`'s matching block for the
+  // ownership/direction rule (declared here, materialized by `reporting`'s
+  // generic engine, no cross-module table write in either direction).
+  reportingProjections: [
+    {
+      key: LIFECYCLE_TRANSITIONS_PROJECTION_KEY,
+      version: 1,
+      ownerModuleKey: "tenant_lifecycle",
+      scope: "tenant",
+      description:
+        "Lifecycle event counts for this tenant by event kind (transition/downgrade/schedule set/schedule canceled/restore/reconciled) and by destination state, incrementally derived from the append-only awcms_mini_tenant_lifecycle_history timeline. Surfaces the churn a current-state view cannot: repeated entries into past_due/grace/suspended, scheduled transitions set versus canceled, and how often reconciliation had to correct the state. The authoritative CURRENT state and its scheduled transitions stay in awcms_mini_tenant_lifecycle_states (drill down); this projection never gates access — the fail-closed restriction profile is derived server-side at the auth chokepoint, never from a read model.",
+      source: {
+        strategy: "cursor_table",
+        streams: [LIFECYCLE_TRANSITIONS_STREAM]
+      },
+      rebuildSource: { streams: [LIFECYCLE_TRANSITIONS_STREAM] },
+      metricLabels: {
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.historyTotal]: "Lifecycle events",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.transitionCount]:
+          "State transitions",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.downgradeCount]: "Downgrades",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.scheduleSetCount]:
+          "Transitions scheduled",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.scheduleCanceledCount]:
+          "Scheduled transitions canceled",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.restoreCount]: "Restores",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.reconciledCount]:
+          "Reconciliation corrections",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredActive]: "Entered active",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredTrial]: "Entered trial",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredRenewalDue]:
+          "Entered renewal due",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredPastDue]: "Entered past due",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredGrace]: "Entered grace",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredSuspended]:
+          "Entered suspended",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredCanceled]: "Entered canceled",
+        [LIFECYCLE_TRANSITIONS_METRIC_KEYS.enteredBlocked]: "Entered blocked"
+      },
+      requiredPermission: "tenant_lifecycle.states.read",
+      freshness: {
+        targetSeconds: 300,
+        staleAfterSeconds: 900,
+        errorAfterConsecutiveFailures: 3
+      },
+      drillDownPath: "/api/v1/tenant-lifecycle/tenants/{tenantId}",
+      retentionClass:
+        "Not separately registered in data_lifecycle: one row per lifecycle event, and a tenant's lifecycle changes at human/scheduler cadence (state changes, schedules, restores) rather than at request or telemetry cadence. It is also the audit trail of every restriction a tenant was ever placed under, so age-based purge is deliberately not proposed.",
+      batchLimit: 1000
     }
   ],
   api: {

@@ -222,3 +222,17 @@ reviewed meter event in the SAME commit as its business transaction (the
 import.
 
 See the `awcms-mini-usage-metering` skill and `docs/adr/0022-*.md`.
+
+## Reporting projection (Issue #880)
+
+This module declares `usage_metering.usage_reconciliation_outcomes` in its own
+`module.ts` (keys/labels in `domain/projection-keys.ts`): reconciliation run
+outcomes (consistent / drift detected / failed), counted incrementally from
+the append-only `awcms_mini_usage_reconciliation_runs`. A rising
+`drift_detected_count` means aggregates and source events disagree (invoices
+built on those aggregates are suspect); a rising `failed_count` means
+reconciliation is not completing, which otherwise looks identical to "no
+drift". `awcms_mini_usage_events`/`_corrections` are deliberately NOT the
+source: they are age-purged, so an all-time counter over them would report
+retention as permanent drift. Read under
+`usage_metering.reconciliation.read`.

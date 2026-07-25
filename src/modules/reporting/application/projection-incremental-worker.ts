@@ -68,6 +68,7 @@ import {
   recordProjectionFailure,
   recordProjectionSuccess
 } from "./projection-state-store";
+import { isProjectionOwnerModuleEnabled } from "./projection-access";
 import { findRunningRebuild } from "./rebuild-run-store";
 
 const TABLE_NAME_PATTERN = /^awcms_mini_[a-z][a-z0-9_]*$/;
@@ -209,6 +210,8 @@ export type IncrementalUpdateOutcome = {
   projectionKey: string;
   tenantId: string;
   skippedRebuildInProgress: boolean;
+  /** Skipped because this tenant has not enabled the projection's OWNING module (Issue #880) — a distinct outcome from a rebuild skip, and never recorded as a success or a failure: the projection's freshness must not claim it was updated, nor accuse a healthy worker of failing. */
+  skippedModuleDisabled: boolean;
   rowsProcessed: number;
   failed: boolean;
 };
@@ -233,11 +236,36 @@ export async function runIncrementalUpdateForTenant(
     );
   }
 
+  // Issue #880 — a module a tenant has not enabled is INERT for that tenant,
+  // background work included (ADR-0022 §7: a deployment that never activates
+  // the control plane does no control-plane work at all). Skipping is safe
+  // for correctness precisely because no cursor advances here: whatever rows
+  // exist are still behind the stored cursor and are picked up by the first
+  // pass after the module is enabled — the skip loses no row, it only defers
+  // the scan.
+  const ownerEnabled = await withTenant(
+    sql,
+    tenantId,
+    (tx) => isProjectionOwnerModuleEnabled(tx, tenantId, descriptor),
+    { workClass: "maintenance" }
+  );
+  if (!ownerEnabled) {
+    return {
+      projectionKey: descriptor.key,
+      tenantId,
+      skippedRebuildInProgress: false,
+      skippedModuleDisabled: true,
+      rowsProcessed: 0,
+      failed: false
+    };
+  }
+
   if (await isRebuildRunning(sql, tenantId, descriptor.key)) {
     return {
       projectionKey: descriptor.key,
       tenantId,
       skippedRebuildInProgress: true,
+      skippedModuleDisabled: false,
       rowsProcessed: 0,
       failed: false
     };
@@ -272,6 +300,7 @@ export async function runIncrementalUpdateForTenant(
       projectionKey: descriptor.key,
       tenantId,
       skippedRebuildInProgress: false,
+      skippedModuleDisabled: false,
       rowsProcessed,
       failed: false
     };
@@ -289,6 +318,7 @@ export async function runIncrementalUpdateForTenant(
       projectionKey: descriptor.key,
       tenantId,
       skippedRebuildInProgress: false,
+      skippedModuleDisabled: false,
       rowsProcessed,
       failed: true
     };

@@ -42,14 +42,64 @@ declares its own array, a central aggregator reads `listModules()`"
 shape `dataLifecycle`/`sodRules` already established). A module
 contributes ONE entry per projection in its own `module.ts`'s
 `reportingProjections` array — `reporting`'s own three entries
-(`module.ts`) are the only ones registered in this PR. `reporting`'s
-engine never writes another module's transactional table; it only ever
-reads a source table (via a bounded cursor re-scan, or a `domain_event`
-consumer) and writes its own `awcms_mini_reporting_projection_*` tables.
+(`module.ts`) plus the six control-plane entries added by Issue #880 (see
+§Registered projections below). `reporting`'s engine never writes another
+module's transactional table; it only ever reads a source table (via a
+bounded cursor re-scan, or a `domain_event` consumer) and writes its own
+`awcms_mini_reporting_projection_*` tables.
 
 Registry validation: `domain/projection-registry.ts`'s
 `validateProjectionRegistry`, wired into `bun run check` via `bun run
 reporting:projections:registry:check`.
+
+### Registered projections
+
+| Key                                            | Owner                  | Source table (append-only)                               | What it answers                                                     |
+| ---------------------------------------------- | ---------------------- | -------------------------------------------------------- | ------------------------------------------------------------------- |
+| `reporting.access_audit_summary`               | `reporting`            | `awcms_mini_abac_decision_logs`                          | All-time allow/deny/total ABAC decisions                            |
+| `reporting.module_activity_summary`            | `reporting`            | `awcms_mini_identities`, `awcms_mini_sync_nodes`         | Identity/sync-node counts                                           |
+| `reporting.event_activity_summary`             | `reporting`            | `awcms_mini_domain_events`                               | Domain-event activity (the `domain_event`-strategy demonstration)   |
+| `tenant_provisioning.provisioning_outcomes`    | `tenant_provisioning`  | `awcms_mini_tenant_provisioning_step_attempts`           | Is provisioning progressing, retrying, or stuck (waiting = manual)? |
+| `tenant_lifecycle.lifecycle_transitions`       | `tenant_lifecycle`     | `awcms_mini_tenant_lifecycle_history`                    | Lifecycle churn by event kind and destination state                 |
+| `tenant_entitlement.entitlement_evaluations`   | `tenant_entitlement`   | `awcms_mini_tenant_entitlement_evaluation_snapshots`     | Did entitlement propagation actually run, and why?                  |
+| `usage_metering.usage_reconciliation_outcomes` | `usage_metering`       | `awcms_mini_usage_reconciliation_runs`                   | Do aggregates still agree with source events (drift/failed runs)?   |
+| `subscription_billing.invoice_lifecycle`       | `subscription_billing` | `awcms_mini_subscription_billing_invoice_status_history` | Invoice transition counts — issued vs paid backlog, void churn      |
+| `payment_gateway.payment_processing_outcomes`  | `payment_gateway`      | `awcms_mini_payment_gateway_processing_attempts`         | Webhook pipeline health — applied vs ignored provider events        |
+
+The six control-plane projections (Issue #880, epic #868 Wave 3) are
+declared by each owning module's own `module.ts` + `domain/projection-keys.ts`,
+never here. Each one deliberately counts an append-only ATTEMPT/TRANSITION
+log rather than a current-state table: an increment-only cursor counter is
+only faithful over a source whose rows and discriminator columns never
+change after insert (all six are guarded by BOTH an append-only trigger and
+`REVOKE UPDATE, DELETE`). No money amount, provider reference, envelope, or
+PII is ever projected — a metric key and an integer are all these tables
+store. `service_catalog` owns no tenant-scoped append-only table and
+therefore contributes no projection; that decision is recorded and gated in
+`tests/unit/control-plane-observability-coverage.test.ts`, which fails if a
+control-plane module has neither a projection nor a written rationale.
+
+`sql/101_awcms_mini_control_plane_projection_sources.sql` grants the
+least-privilege `awcms_mini_worker` role SELECT on each of those source
+tables (plus `awcms_mini_tenant_modules`) and adds the
+`(tenant_id, created_at)` index each cursor scan needs.
+
+### Owning-module gating (Issue #880)
+
+Every control-plane module is `defaultTenantState: "disabled"`
+(ADR-0022 §7), and `fetchGrantedPermissionKeys` does not drop a disabled
+module's permission keys from a subject's set — so "does the caller hold
+`requiredPermission`?" is no longer the whole accessibility decision.
+`application/projection-access.ts` is the ONE place that decides it
+(module state first, exactly as `authorizeInTransaction` orders it, then
+the descriptor's own permission). It gates the list, the detail lookup,
+reconcile, rebuild/cancel, export create/trigger, the admin screen, and
+BOTH unattended workers — a projection of a module a tenant has not
+enabled is invisible in the API, absent from exports, and skipped by the
+refresh worker without advancing any cursor (so enabling the module later
+loses nothing). `tests/unit/reporting-projection-access-chokepoint.test.ts`
+fails if any other file reaches past that chokepoint to the
+permission-only helper.
 
 ### Two update strategies
 
@@ -214,13 +264,15 @@ sufficient — every descriptor also declares its OWN
 `domain/projection-permission-filter.ts` (filters the list, 403s a
 single-key lookup) — same pattern
 `module-management/domain/navigation-registry.ts`'s
-`filterVisibleNavigationEntries` already established for admin nav. All
-three descriptors registered in this PR happen to share the same
-`requiredPermission`, so this second layer is not yet distinguishable
-from the first for any REAL descriptor today — but it is what stops a
-caller holding only the coarse permission from seeing a FUTURE
-narrower-permissioned projection a derived module registers (reviewer
-finding, PR #781).
+`filterVisibleNavigationEntries` already established for admin nav
+(reviewer finding, PR #781). Since Issue #880 the six control-plane
+descriptors each declare their OWNING module's own read permission
+(`tenant_lifecycle.states.read`, `subscription_billing.invoices.read`, …),
+so this second layer is load-bearing for real descriptors today, not only
+hypothetical future ones — and a THIRD layer, the owning module's
+per-tenant enabled state, is applied ahead of both (see §Owning-module
+gating above). All three are decided in
+`application/projection-access.ts`, never per route.
 
 ### Admin UI
 

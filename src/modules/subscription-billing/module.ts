@@ -1,4 +1,57 @@
-import { defineModule } from "../_shared/module-contract";
+import {
+  defineModule,
+  type ProjectionCursorStream
+} from "../_shared/module-contract";
+import {
+  INVOICE_LIFECYCLE_METRIC_KEYS,
+  INVOICE_LIFECYCLE_PROJECTION_KEY
+} from "./domain/projection-keys";
+
+/**
+ * ONE stream shared by this projection's `source` and `rebuildSource` — see
+ * `tenant-provisioning/module.ts`'s matching constant for the rationale.
+ *
+ * `created_at` is the cursor, not `effective_at`: `effective_at` is the
+ * business timestamp of the status change and may be backdated, so it is not
+ * monotonic in insert order. `created_at` is the insert-time default on a
+ * table kept append-only by both a trigger and `REVOKE UPDATE, DELETE`
+ * (migration 091).
+ */
+const INVOICE_LIFECYCLE_STREAM: ProjectionCursorStream = {
+  streamKey: "invoice_status_history",
+  tableName: "awcms_mini_subscription_billing_invoice_status_history",
+  cursorColumn: "created_at",
+  metrics: [
+    {
+      metricKey: INVOICE_LIFECYCLE_METRIC_KEYS.transitionTotal,
+      effect: "increment"
+    },
+    {
+      metricKey: INVOICE_LIFECYCLE_METRIC_KEYS.toDraftCount,
+      effect: "increment",
+      matchColumn: "to_status",
+      matchValue: "draft"
+    },
+    {
+      metricKey: INVOICE_LIFECYCLE_METRIC_KEYS.toIssuedCount,
+      effect: "increment",
+      matchColumn: "to_status",
+      matchValue: "issued"
+    },
+    {
+      metricKey: INVOICE_LIFECYCLE_METRIC_KEYS.toPaidCount,
+      effect: "increment",
+      matchColumn: "to_status",
+      matchValue: "paid"
+    },
+    {
+      metricKey: INVOICE_LIFECYCLE_METRIC_KEYS.toVoidCount,
+      effect: "increment",
+      matchColumn: "to_status",
+      matchValue: "void"
+    }
+  ]
+};
 
 /**
  * `subscription_billing` — the FIFTH SaaS control-plane module (Issue #876, epic
@@ -232,6 +285,40 @@ export const subscriptionBillingModule = defineModule({
           "identity_access.business_scope_exceptions.approve",
         maxDurationDays: 14
       }
+    }
+  ],
+  // Issue #880 — see `tenant-provisioning/module.ts`'s matching block.
+  reportingProjections: [
+    {
+      key: INVOICE_LIFECYCLE_PROJECTION_KEY,
+      version: 1,
+      ownerModuleKey: "subscription_billing",
+      scope: "tenant",
+      description:
+        "Invoice status-transition counts (draft/issued/paid/void) for this tenant, incrementally derived from the append-only awcms_mini_subscription_billing_invoice_status_history. Issued minus paid is the collection backlog an operator watches, and a rising to_void_count is correction churn. Deliberately COUNTS ONLY, never amounts: this is not a general ledger, AR-AP, or aged-receivable report (ADR-0013 §3, ADR-0022 §11), and exact minor-unit money must never live in an increment-only counter that cannot be corrected downward. Amounts, currency, and per-invoice state stay authoritative in the invoice rows (drill down).",
+      source: {
+        strategy: "cursor_table",
+        streams: [INVOICE_LIFECYCLE_STREAM]
+      },
+      rebuildSource: { streams: [INVOICE_LIFECYCLE_STREAM] },
+      metricLabels: {
+        [INVOICE_LIFECYCLE_METRIC_KEYS.transitionTotal]:
+          "Invoice status transitions",
+        [INVOICE_LIFECYCLE_METRIC_KEYS.toDraftCount]: "To draft",
+        [INVOICE_LIFECYCLE_METRIC_KEYS.toIssuedCount]: "To issued",
+        [INVOICE_LIFECYCLE_METRIC_KEYS.toPaidCount]: "To paid",
+        [INVOICE_LIFECYCLE_METRIC_KEYS.toVoidCount]: "To void"
+      },
+      requiredPermission: "subscription_billing.invoices.read",
+      freshness: {
+        targetSeconds: 300,
+        staleAfterSeconds: 900,
+        errorAfterConsecutiveFailures: 3
+      },
+      drillDownPath: "/api/v1/subscription-billing/tenants/{tenantId}/invoices",
+      retentionClass:
+        "Not separately registered in data_lifecycle: a few rows per invoice per billing period. It is also the provenance trail of every issued/paid/void decision on a financial document, so age-based purge is deliberately not proposed (financial_tax retention would in any case be the longest class in the registry).",
+      batchLimit: 1000
     }
   ],
   api: {

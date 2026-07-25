@@ -63,6 +63,14 @@ async function main() {
           const skippedForRebuild = incrementalOutcomes.filter(
             (o) => o.skippedRebuildInProgress
           ).length;
+          // Issue #880 — reported separately from a rebuild skip so an
+          // operator can tell "this tenant has not enabled the owning module"
+          // apart from "a rebuild currently owns this projection"; neither is
+          // a failure, but only one of them is expected to change when a
+          // tenant opts into the control plane.
+          const skippedModuleDisabled = incrementalOutcomes.filter(
+            (o) => o.skippedModuleDisabled
+          ).length;
           const rowsProcessed = incrementalOutcomes.reduce(
             (sum, o) => sum + o.rowsProcessed,
             0
@@ -75,6 +83,7 @@ async function main() {
           console.log(
             `reporting:projections:refresh complete — descriptors=${descriptors.length} ` +
               `rowsProcessed=${rowsProcessed} skippedForRebuild=${skippedForRebuild} ` +
+              `skippedModuleDisabled=${skippedModuleDisabled} ` +
               `rebuildsAdvanced=${rebuildsAdvanced} rebuildsCompleted=${rebuildsCompleted} ` +
               `failedTenantDescriptorPairs=${failedTenants}`
           );

@@ -1,4 +1,46 @@
-import { defineModule } from "../_shared/module-contract";
+import {
+  defineModule,
+  type ProjectionCursorStream
+} from "../_shared/module-contract";
+import {
+  ENTITLEMENT_EVALUATIONS_METRIC_KEYS,
+  ENTITLEMENT_EVALUATIONS_PROJECTION_KEY
+} from "./domain/projection-keys";
+
+/**
+ * ONE stream shared by this projection's `source` and `rebuildSource` — see
+ * `tenant-provisioning/module.ts`'s matching constant for the rationale.
+ *
+ * `created_at` is the cursor, not `resolved_at`: `resolved_at` is a
+ * caller-supplied resolution timestamp, so two snapshots written in quick
+ * succession are not guaranteed monotonic in insert order, and a bounded
+ * cursor scan would skip a row permanently. `created_at` is the row's own
+ * insert-time default on an append-only table (`REVOKE UPDATE, DELETE` plus
+ * an append-only trigger, migration 081).
+ */
+const ENTITLEMENT_EVALUATIONS_STREAM: ProjectionCursorStream = {
+  streamKey: "entitlement_evaluation_snapshots",
+  tableName: "awcms_mini_tenant_entitlement_evaluation_snapshots",
+  cursorColumn: "created_at",
+  metrics: [
+    {
+      metricKey: ENTITLEMENT_EVALUATIONS_METRIC_KEYS.evaluationTotal,
+      effect: "increment"
+    },
+    {
+      metricKey: ENTITLEMENT_EVALUATIONS_METRIC_KEYS.assignmentChangedCount,
+      effect: "increment",
+      matchColumn: "trigger",
+      matchValue: "assignment_changed"
+    },
+    {
+      metricKey: ENTITLEMENT_EVALUATIONS_METRIC_KEYS.overrideChangedCount,
+      effect: "increment",
+      matchColumn: "trigger",
+      matchValue: "override_changed"
+    }
+  ]
+};
 
 /**
  * `tenant_entitlement` — the SECOND SaaS control-plane module and the HEART of
@@ -151,6 +193,40 @@ export const tenantEntitlementModule = defineModule({
           "identity_access.business_scope_exceptions.approve",
         maxDurationDays: 14
       }
+    }
+  ],
+  // Issue #880 — see `tenant-provisioning/module.ts`'s matching block.
+  reportingProjections: [
+    {
+      key: ENTITLEMENT_EVALUATIONS_PROJECTION_KEY,
+      version: 1,
+      ownerModuleKey: "tenant_entitlement",
+      scope: "tenant",
+      description:
+        "How often this tenant's effective entitlement was re-evaluated and why (assignment change versus operator override), incrementally derived from the append-only awcms_mini_tenant_entitlement_evaluation_snapshots. A flat evaluation_total after a catalog/assignment change is the signal that entitlement propagation stalled; a rising override_changed_count is override churn worth reviewing. Counts only — no feature/quota CONTENT is projected: the effective entitlement is resolved live and fail-closed on every capability check, and a derived read model must never become an authorization source (ADR-0022 §4).",
+      source: {
+        strategy: "cursor_table",
+        streams: [ENTITLEMENT_EVALUATIONS_STREAM]
+      },
+      rebuildSource: { streams: [ENTITLEMENT_EVALUATIONS_STREAM] },
+      metricLabels: {
+        [ENTITLEMENT_EVALUATIONS_METRIC_KEYS.evaluationTotal]:
+          "Entitlement evaluations",
+        [ENTITLEMENT_EVALUATIONS_METRIC_KEYS.assignmentChangedCount]:
+          "Triggered by assignment change",
+        [ENTITLEMENT_EVALUATIONS_METRIC_KEYS.overrideChangedCount]:
+          "Triggered by override change"
+      },
+      requiredPermission: "tenant_entitlement.entitlement.read",
+      freshness: {
+        targetSeconds: 300,
+        staleAfterSeconds: 900,
+        errorAfterConsecutiveFailures: 3
+      },
+      drillDownPath: "/api/v1/tenant-entitlement/effective",
+      retentionClass:
+        "Not separately registered in data_lifecycle: one row per entitlement re-evaluation (an assignment or override change), i.e. commercial-decision cadence, not request cadence. The snapshots are also the explainability trail behind every past entitlement decision, so age-based purge is deliberately not proposed here.",
+      batchLimit: 1000
     }
   ],
   api: {

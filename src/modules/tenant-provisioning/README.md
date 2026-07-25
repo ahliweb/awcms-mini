@@ -93,3 +93,16 @@ Events: `awcms-mini.tenant-provisioning.requested` / `.completed` / `.failed` /
 `.reconciled` (v1.0). Admin UI: `/admin/tenant-provisioning`.
 
 See the `awcms-mini-tenant-provisioning` skill and `docs/adr/0022-*.md`.
+
+## Reporting projection (Issue #880)
+
+This module declares `tenant_provisioning.provisioning_outcomes` in its own
+`module.ts` (keys/labels in `domain/projection-keys.ts`): step-attempt
+outcomes (succeeded / failed / waiting / skipped) counted incrementally from
+the append-only `awcms_mini_tenant_provisioning_step_attempts`, materialized
+by `reporting`'s generic engine and read at
+`GET /api/v1/reports/projections/tenant_provisioning.provisioning_outcomes`
+under this module's own `tenant_provisioning.requests.read` permission. It is
+invisible and inert for a tenant that has not enabled this module. Per-run
+status/readiness stays authoritative in the run itself — a projection is a
+derived read model, never an authorization source.

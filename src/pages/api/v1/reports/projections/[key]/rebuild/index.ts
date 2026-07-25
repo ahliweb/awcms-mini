@@ -18,6 +18,7 @@ import {
 } from "../../../../../../../modules/_shared/idempotency";
 import { recordAuditEvent } from "../../../../../../../modules/logging/application/audit-log";
 import { findProjectionDescriptor } from "../../../../../../../modules/reporting/application/projection-directory";
+import { isProjectionOwnerModuleEnabled } from "../../../../../../../modules/reporting/application/projection-access";
 import { triggerOrResumeRebuild } from "../../../../../../../modules/reporting/application/projection-rebuild";
 
 const IDEMPOTENCY_SCOPE = "reporting_projection_rebuild";
@@ -93,6 +94,22 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
 
     if (!auth.allowed) {
       return auth.denied;
+    }
+
+    // Issue #880 — a projection whose OWNING module this tenant has not
+    // enabled is not rebuildable here, exactly as every route of that module
+    // answers `403 MODULE_DISABLED`. Only the module half of
+    // `projection-access.ts` applies: rebuild is gated by its own separate
+    // `reporting.projections.rebuild` permission by design (see
+    // `ProjectionDescriptor.requiredPermission`'s doc comment, which scopes
+    // that field to READING the snapshot/freshness/reconciliation), and this
+    // check deliberately does not silently widen that contract.
+    if (!(await isProjectionOwnerModuleEnabled(tx, tenantId, descriptor))) {
+      return fail(
+        403,
+        "MODULE_DISABLED",
+        `Projection "${key}" belongs to a module that is not enabled for this tenant.`
+      );
     }
 
     const existingIdempotency = await findIdempotencyRecord(

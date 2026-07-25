@@ -18,6 +18,7 @@ import {
 } from "../../../../../modules/_shared/idempotency";
 import { recordAuditEvent } from "../../../../../modules/logging/application/audit-log";
 import { findProjectionDescriptor } from "../../../../../modules/reporting/application/projection-directory";
+import { isProjectionAccessibleForTenant } from "../../../../../modules/reporting/application/projection-access";
 import {
   createScheduledExport,
   listScheduledExports
@@ -169,6 +170,30 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
 
     if (!auth.allowed) {
       return auth.denied;
+    }
+
+    // Issue #880 — an export artifact CONTAINS this projection's metric
+    // values (`export-generation.ts` writes one row per declared metric), so
+    // configuring one is a read of the projection's content: the caller must
+    // hold the descriptor's OWN `requiredPermission` and their tenant must
+    // have the owning module enabled, not merely hold the coarse
+    // `reporting.exports.configure` gate. Before control-plane modules
+    // contributed descriptors every projection was owned by `reporting`
+    // itself, so the coarse gate happened to be coextensive with the
+    // descriptor's own; it no longer is.
+    if (
+      !(await isProjectionAccessibleForTenant(
+        tx,
+        tenantId,
+        descriptor,
+        auth.grantedPermissionKeys
+      ))
+    ) {
+      return fail(
+        403,
+        "ACCESS_DENIED",
+        `Missing the required permission to export projection "${projectionKey}".`
+      );
     }
 
     const existingIdempotency = await findIdempotencyRecord(

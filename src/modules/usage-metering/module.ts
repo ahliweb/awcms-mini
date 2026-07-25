@@ -1,4 +1,51 @@
-import { defineModule } from "../_shared/module-contract";
+import {
+  defineModule,
+  type ProjectionCursorStream
+} from "../_shared/module-contract";
+import {
+  USAGE_RECONCILIATION_METRIC_KEYS,
+  USAGE_RECONCILIATION_PROJECTION_KEY
+} from "./domain/projection-keys";
+
+/**
+ * ONE stream shared by this projection's `source` and `rebuildSource` — see
+ * `tenant-provisioning/module.ts`'s matching constant for the rationale.
+ *
+ * `created_at` is the cursor, not `started_at`: a run's `started_at` is when
+ * the reconciliation began, so a long run inserted after a short one can
+ * carry an EARLIER `started_at` and would be skipped permanently by a bounded
+ * cursor scan. `created_at` is the insert-time default on a table a
+ * `BEFORE UPDATE OR DELETE` trigger keeps strictly append-only (migration 087).
+ */
+const USAGE_RECONCILIATION_STREAM: ProjectionCursorStream = {
+  streamKey: "usage_reconciliation_runs",
+  tableName: "awcms_mini_usage_reconciliation_runs",
+  cursorColumn: "created_at",
+  metrics: [
+    {
+      metricKey: USAGE_RECONCILIATION_METRIC_KEYS.runTotal,
+      effect: "increment"
+    },
+    {
+      metricKey: USAGE_RECONCILIATION_METRIC_KEYS.consistentCount,
+      effect: "increment",
+      matchColumn: "status",
+      matchValue: "consistent"
+    },
+    {
+      metricKey: USAGE_RECONCILIATION_METRIC_KEYS.driftDetectedCount,
+      effect: "increment",
+      matchColumn: "status",
+      matchValue: "drift_detected"
+    },
+    {
+      metricKey: USAGE_RECONCILIATION_METRIC_KEYS.failedCount,
+      effect: "increment",
+      matchColumn: "status",
+      matchValue: "failed"
+    }
+  ]
+};
 
 /**
  * Single source of truth for this module's high-volume `dataLifecycle`
@@ -287,6 +334,38 @@ export const usageMeteringModule = defineModule({
         description:
           "Deletes usage corrections then events past their retention cutoff for a tenant, in bounded batches, honoring an active legal hold on usage_metering.events. The same function the scheduled job calls."
       }
+    }
+  ],
+  // Issue #880 — see `tenant-provisioning/module.ts`'s matching block.
+  reportingProjections: [
+    {
+      key: USAGE_RECONCILIATION_PROJECTION_KEY,
+      version: 1,
+      ownerModuleKey: "usage_metering",
+      scope: "tenant",
+      description:
+        "Usage reconciliation run outcomes (consistent/drift detected/failed) for this tenant, incrementally derived from the append-only awcms_mini_usage_reconciliation_runs. This is the trust signal for everything downstream of metering: a rising drift_detected_count means aggregates and source events disagree (invoices built on those aggregates are suspect), and a rising failed_count means reconciliation itself is not running to completion, which would otherwise look identical to 'no drift'. The per-window drift detail stays in each run's own report (drill down).",
+      source: {
+        strategy: "cursor_table",
+        streams: [USAGE_RECONCILIATION_STREAM]
+      },
+      rebuildSource: { streams: [USAGE_RECONCILIATION_STREAM] },
+      metricLabels: {
+        [USAGE_RECONCILIATION_METRIC_KEYS.runTotal]: "Reconciliation runs",
+        [USAGE_RECONCILIATION_METRIC_KEYS.consistentCount]: "Consistent",
+        [USAGE_RECONCILIATION_METRIC_KEYS.driftDetectedCount]: "Drift detected",
+        [USAGE_RECONCILIATION_METRIC_KEYS.failedCount]: "Failed"
+      },
+      requiredPermission: "usage_metering.reconciliation.read",
+      freshness: {
+        targetSeconds: 300,
+        staleAfterSeconds: 900,
+        errorAfterConsecutiveFailures: 3
+      },
+      drillDownPath: "/api/v1/usage-metering/reconciliation",
+      retentionClass:
+        "Not separately registered in data_lifecycle: one row per reconciliation run (scheduled/on-demand cadence), unlike this module's genuinely high-volume awcms_mini_usage_events, which IS registered — see the usage_metering.events descriptor above. Reconciliation runs are also never purged, which is exactly why they, and not the purged event tables, are this module's projection source.",
+      batchLimit: 1000
     }
   ],
   api: {

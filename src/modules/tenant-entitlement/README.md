@@ -83,3 +83,15 @@ Events: `awcms-mini.tenant-entitlement.assignment.changed`,
 `/admin/tenant-entitlement`.
 
 See the `awcms-mini-tenant-entitlement` skill and `docs/adr/0022-*.md`.
+
+## Reporting projection (Issue #880)
+
+This module declares `tenant_entitlement.entitlement_evaluations` in its own
+`module.ts` (keys/labels in `domain/projection-keys.ts`): how often the
+effective entitlement was re-evaluated and why (assignment versus override
+change), counted incrementally from the append-only
+`awcms_mini_tenant_entitlement_evaluation_snapshots`. COUNTS ONLY — no
+feature/quota content is projected, because the effective entitlement is
+resolved live and fail-closed on every capability check and a derived read
+model must never become an authorization source (ADR-0022 §4). Read under
+`tenant_entitlement.entitlement.read`.

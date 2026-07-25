@@ -8,7 +8,7 @@ import {
   resolveAuthInputs
 } from "../../../../../../modules/identity-access/application/access-guard";
 import { findProjectionDescriptor } from "../../../../../../modules/reporting/application/projection-directory";
-import { isProjectionPermitted } from "../../../../../../modules/reporting/domain/projection-permission-filter";
+import { isProjectionAccessibleForTenant } from "../../../../../../modules/reporting/application/projection-access";
 import { reconcileProjection } from "../../../../../../modules/reporting/application/projection-reconciliation";
 
 /**
@@ -66,8 +66,17 @@ export const POST: APIRoute = async ({ request, cookies, locals, params }) => {
     // `reporting.projections.analyze` check above is necessary but not
     // sufficient; a caller must ALSO hold this specific descriptor's own
     // permission (reviewer finding, PR #781 — same fix as the two GET
-    // routes).
-    if (!isProjectionPermitted(descriptor, auth.grantedPermissionKeys)) {
+    // routes), AND their tenant must have the OWNING module enabled
+    // (Issue #880 — a control-plane module is default-disabled, see
+    // `reporting/application/projection-access.ts`).
+    if (
+      !(await isProjectionAccessibleForTenant(
+        tx,
+        tenantId,
+        descriptor,
+        auth.grantedPermissionKeys
+      ))
+    ) {
       return fail(
         403,
         "ACCESS_DENIED",

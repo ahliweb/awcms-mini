@@ -100,3 +100,17 @@ platform tenant, per-tenant context, never BYPASSRLS); read routes allow the
 platform operator or the tenant's own user (self-read). The webhook receiver
 `POST /api/v1/payment-gateway/webhook/{providerAccountId}` is authenticated by
 the opaque account id + provider signature (no tenant JWT).
+
+## Reporting projection (Issue #880)
+
+This module declares `payment_gateway.payment_processing_outcomes` in its own
+`module.ts` (keys/labels in `domain/projection-keys.ts`): outcomes of applying
+normalized provider events to payment intents (applied, or ignored as
+out-of-order / duplicate / terminal / unknown intent), counted incrementally
+from the append-only `awcms_mini_payment_gateway_processing_attempts`. This is
+the webhook-pipeline health signal — signature-verified events that keep
+arriving but cannot be absorbed are invisible in intent state alone. The
+envelope-bearing `awcms_mini_payment_gateway_webhook_inbox` is deliberately
+NOT the source (it has a guarded status UPDATE path, and no provider
+reference, token, or payload may ever reach a projection — ADR-0022
+Medium-2). Read under `payment_gateway.reconciliation.read`.
