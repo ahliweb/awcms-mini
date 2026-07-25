@@ -155,3 +155,28 @@ menjadi bug otorisasi basi.
   Edge adalah satu-satunya ingress; mem-publish keduanya akan membuat permintaan
   bisa melewati edge — persis kelas kesalahan yang membuat cache tampak benar
   saat diuji dan bocor saat produksi.
+
+## Menjalankan Varnish sebagai sidecar di luar compose
+
+Bila edge dijalankan sebagai container terpisah (mis. di belakang Traefik yang
+dikelola Coolify) alih-alih lewat `docker-compose.prod.yml`, dua hal berikut
+sudah pernah salah pada deployment nyata dan wajib diperiksa:
+
+- **Jangan pernah bind-mount `default.vcl` dari `/tmp`.** `systemd-tmpfiles`
+  mengosongkan `/tmp` saat boot (direktif `D /tmp … 30d`). Karena Varnish adalah
+  satu-satunya ingress untuk domain itu, file VCL yang hilang berarti `varnishd`
+  gagal start dan **domainnya mati** — dengan `restart=unless-stopped` yang
+  dengan patuh mencoba ulang container yang tidak mungkin start. Simpan VCL di
+  lokasi persisten milik operator, dan mount `:ro`.
+- **Sertakan healthcheck.** Image Varnish tidak membawa `HEALTHCHECK` sendiri,
+  jadi container tanpa `--health-cmd` akan tampak "Up" selamanya meski cache-nya
+  tidak melayani. Gunakan `varnishadm ping`
+  (`--health-cmd "varnishadm ping" --health-interval 30s --health-timeout 5s
+--health-retries 3`).
+- Plafon memori container harus **di atas** ukuran cache `-s malloc,<size>`
+  (mis. cache 256M → limit 768m). Menyamakan keduanya membuat container di-OOM-kill
+  begitu cache terisi penuh.
+- Sidecar semacam ini tidak dikelola Coolify, sehingga limit CPU/memori hanya
+  ada di container itu sendiri — bila dibuat ulang manual, `--cpus`/`--memory`
+  harus diberikan lagi, dan label routing Traefik harus disalin dari container
+  lama (baca dengan `docker inspect`, jangan diketik ulang).

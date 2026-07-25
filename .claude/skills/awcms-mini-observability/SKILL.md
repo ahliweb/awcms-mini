@@ -120,6 +120,35 @@ lintas tenant, `BYPASSRLS`, atau platform-claim di predikat policy.
   menggandakan satu invoice sebanyak retry-nya → metrik naik justru saat
   dunning bekerja lebih keras.
 
+## Export bukti control-plane (#930 Wave 5b)
+
+`application/control-plane-evidence.ts` +
+`GET /api/v1/control-plane/tenants/{tenantId}/evidence`. Ini satu-satunya
+permukaan baca yang mengembalikan record control-plane tenant LAIN kepada
+operator platform, jadi bentuknya sengaja dibatasi:
+
+- **DUA gerbang independen**, gagal salah satu = tolak: permission
+  `identity_access:support_access:export` (`authorizeSupportOperator(..., "export")`,
+  seed migration `107`) **DAN** `hasActiveSupportGrant` — grant support-access
+  yang sudah di-approve dan belum kedaluwarsa untuk tenant ITU. Permission saja
+  bersifat menetap; grant terikat scope/waktu/alasan dan harus di-approve orang
+  BERBEDA. Jangan pernah menyederhanakannya menjadi satu permission.
+- Baca lewat `withTargetTenant` (konteks RLS tenant target), bukan predikat
+  yang dilebarkan — ADR-0022 §6b.
+- `EVIDENCE_MAX_WINDOW_DAYS = 90` (di-**clamp**, bukan ditolak),
+  `EVIDENCE_SECTION_ROW_LIMIT = 100` per seksi dengan `LIMIT n + 1` supaya
+  truncation TERDETEKSI dan dilaporkan jujur, bukan terpotong diam-diam.
+- **`last_error_message` sengaja TIDAK diikutkan** (hanya `attempt_count` +
+  `last_error_class`): string error provider adalah teks bebas dan pernah
+  membawa potongan email/PAN pelanggan. Test integrasi menegakkan ini dengan
+  penelusuran string REKURSIF atas seluruh respons, bukan cek key level atas —
+  menambah kembali field itu membuat suite MERAH.
+- `Cache-Control: private, no-store` — bukti lintas-tenant tidak boleh mendarat
+  di cache bersama (lihat `http-cache-varnish.md`).
+- **Penolakan diaudit sama seriusnya dengan keberhasilan.** Operator yang
+  berulang kali menyondol tenant tanpa grant persis sinyal yang dicari, dan
+  sinyal itu hanya ada bila penolakan ikut dicatat.
+
 ## Skill terkait
 
 `awcms-mini-audit-log` (APA yang wajib diaudit + redaksi), `awcms-mini-integration` (pola dispatcher/outbox untuk I/O eksternal, ADR-0006), `awcms-mini-security-hardening` (batas scope A.8.16 SIEM/monitoring terpusat), `awcms-mini-performance` (pool/backpressure tuning yang metrik `db_pool_work_class_*` sekarang membuatnya observable).
