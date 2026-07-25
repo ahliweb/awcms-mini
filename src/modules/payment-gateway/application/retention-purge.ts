@@ -46,6 +46,7 @@ import { withTenant } from "../../../lib/database/tenant-context";
 import { recordAuditEvent } from "../../logging/application/audit-log";
 import type { LegalHoldGuardPort } from "../../_shared/ports/legal-hold-guard-port";
 import {
+  PAYMENT_GATEWAY_OUTBOX_LIFECYCLE_KEY,
   PAYMENT_GATEWAY_RECONCILIATIONS_LIFECYCLE_KEY,
   WEBHOOK_EVIDENCE_CHAIN_LIFECYCLE_KEYS
 } from "../domain/lifecycle-keys";
@@ -78,6 +79,10 @@ export type PurgePaymentEvidenceResult = {
   legalHoldBlocked: boolean;
   /** True when an active legal hold blocked the reconciliation log. Reported separately because the two descriptors are held independently: a hold on one must never be read as covering, or as excusing, the other. */
   reconciliationLegalHoldBlocked: boolean;
+  /** Terminal (`succeeded`/`dead`) outbound commands purged. Live commands are never eligible — see the query's comment. */
+  purgedOutbox: number;
+  /** True when an active legal hold blocked the outbound command queue. Held independently of both the evidence chain and the reconciliation log. */
+  outboxLegalHoldBlocked: boolean;
   cutoff: Date;
 };
 
@@ -122,6 +127,11 @@ export async function purgeExpiredPaymentEvidence(
         tx,
         tenantId,
         PAYMENT_GATEWAY_RECONCILIATIONS_LIFECYCLE_KEY
+      );
+      const outboxHeld = await legalHoldGuard.isDescriptorHeld(
+        tx,
+        tenantId,
+        PAYMENT_GATEWAY_OUTBOX_LIFECYCLE_KEY
       );
 
       // Leaf first: nothing references a processing attempt.
@@ -174,6 +184,46 @@ export async function purgeExpiredPaymentEvidence(
         RETURNING id
       `) as { id: string }[]);
 
+      // The outbound command queue (Issue #930 Wave 5). Independent of the
+      // chain in both directions — the chain is what a PROVIDER told us, the
+      // outbox is what WE asked a provider to do — so it is held separately.
+      //
+      // TWO predicates, and the status one is the load-bearing half. A
+      // command that has not reached a terminal state is work that still owes
+      // a customer something: deleting a `pending`/`in_flight`/`failed` row
+      // would silently drop a checkout, refund, or cancellation, with the
+      // retry loop simply never seeing it again and no error anywhere.
+      // `failed` is RETRYABLE despite the name — it sits in the due index
+      // alongside `pending`. Only `succeeded` and `dead` are terminal.
+      //
+      // Ages on `updated_at`, not `created_at` like every other table here: a
+      // command queued three months ago that only reached `dead` today has
+      // been finished for zero days, and `created_at` would purge it
+      // immediately. `updated_at` is when it stopped being live.
+      //
+      // The `IN (SELECT ... LIMIT n)` batching IS bounded for a DELETE —
+      // verified on this schema, 10 candidate rows with a limit of 2 deleted
+      // exactly 2, the subquery evaluated once. Do NOT "improve" it by adding
+      // `FOR UPDATE SKIP LOCKED`: that forces the LIMIT onto the inner side
+      // of a semi-join, re-executes it per candidate row, and silently
+      // unbounds the batch. That exact regression is why
+      // `tenant-entitlement/application/expiry-sweep.ts` uses a MATERIALIZED
+      // CTE instead.
+      const purgedOutbox = outboxHeld
+        ? []
+        : ((await tx`
+        DELETE FROM awcms_mini_payment_gateway_outbox
+        WHERE id IN (
+          SELECT id FROM awcms_mini_payment_gateway_outbox
+          WHERE tenant_id = ${tenantId}
+            AND status IN ('succeeded', 'dead')
+            AND updated_at < ${cutoff}
+          ORDER BY updated_at ASC
+          LIMIT ${batchLimit}
+        )
+        RETURNING id
+      `) as { id: string }[]);
+
       // Independent of the chain above (references payment intents only, and
       // an intent is never purged here), so it is held and purged separately.
       const purgedReconciliations = reconciliationsHeld
@@ -193,7 +243,8 @@ export async function purgeExpiredPaymentEvidence(
         purgedProcessingAttempts.length +
         purgedNormalizedEvents.length +
         purgedWebhookInbox.length +
-        purgedReconciliations.length;
+        purgedReconciliations.length +
+        purgedOutbox.length;
 
       if (total > 0) {
         await recordAuditEvent(tx, {
@@ -210,8 +261,10 @@ export async function purgeExpiredPaymentEvidence(
             purgedNormalizedEvents: purgedNormalizedEvents.length,
             purgedWebhookInbox: purgedWebhookInbox.length,
             purgedReconciliations: purgedReconciliations.length,
+            purgedOutbox: purgedOutbox.length,
             evidenceLegalHoldBlocked: evidenceHeld,
-            reconciliationLegalHoldBlocked: reconciliationsHeld
+            reconciliationLegalHoldBlocked: reconciliationsHeld,
+            outboxLegalHoldBlocked: outboxHeld
           },
           correlationId: options.correlationId
         });
@@ -222,8 +275,10 @@ export async function purgeExpiredPaymentEvidence(
         purgedNormalizedEvents: purgedNormalizedEvents.length,
         purgedWebhookInbox: purgedWebhookInbox.length,
         purgedReconciliations: purgedReconciliations.length,
+        purgedOutbox: purgedOutbox.length,
         legalHoldBlocked: evidenceHeld,
         reconciliationLegalHoldBlocked: reconciliationsHeld,
+        outboxLegalHoldBlocked: outboxHeld,
         cutoff
       };
     },

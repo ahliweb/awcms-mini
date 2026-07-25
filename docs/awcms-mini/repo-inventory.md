@@ -43,7 +43,7 @@
 
 ## Migrations
 
-105 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `105_awcms_mini_control_plane_reconciliation_grants.sql`).
+106 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `106_awcms_mini_payment_gateway_outbox_retention.sql`).
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -152,6 +152,7 @@
 | 103 | `103_awcms_mini_control_plane_fleet_sweep_grants.sql`                    |
 | 104 | `104_awcms_mini_tenant_entitlement_expiry.sql`                           |
 | 105 | `105_awcms_mini_control_plane_reconciliation_grants.sql`                 |
+| 106 | `106_awcms_mini_payment_gateway_outbox_retention.sql`                    |
 
 ## Tables & Row-Level Security
 

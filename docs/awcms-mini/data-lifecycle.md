@@ -51,6 +51,7 @@ bawah ini tidak cocok dengan jumlah itu, tabel ini yang basi):
 | `payment_gateway.normalized_events`    | `awcms_mini_payment_gateway_normalized_events`    | `payment_gateway`   | `delegated` | `audit_security`      |
 | `payment_gateway.processing_attempts`  | `awcms_mini_payment_gateway_processing_attempts`  | `payment_gateway`   | `delegated` | `audit_security`      |
 | `payment_gateway.reconciliations`      | `awcms_mini_payment_gateway_reconciliations`      | `payment_gateway`   | `delegated` | `audit_security`      |
+| `payment_gateway.outbox`               | `awcms_mini_payment_gateway_outbox`               | `payment_gateway`   | `delegated` | `operational_queue`   |
 
 ## Retensi data (per descriptor)
 
@@ -59,21 +60,22 @@ descriptor mendeklarasikan kelas retensi dan batas amannya sendiri,
 dipetakan ke kebutuhan bisnis/kepatuhan tabel itu spesifik, bukan angka
 generik yang dipaksakan ke semua data.
 
-| Descriptor                             | Default  | Batas aman (min–max) | Rasional                                                                                                                                                                     |
-| -------------------------------------- | -------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `logging.audit_events`                 | 730 hari | 365–1825 hari        | Doc 04 "Security/audit log: 1–5 tahun sesuai kebutuhan" — titik tengah rentang                                                                                               |
-| `visitor_analytics.visit_events`       | 90 hari  | 7–730 hari           | Selaras `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS` (doc 18/`visitor-analytics.md`) — telemetry, retensi jauh lebih pendek dari audit                                           |
-| `form_drafts.form_drafts`              | 30 hari  | 1–365 hari           | Selaras `FORM_DRAFT_RETENTION_DAYS` — scratch state, bukan rekaman bisnis                                                                                                    |
-| `data_lifecycle.data_lifecycle_runs`   | 180 hari | 30–1825 hari         | Riwayat eksekusi lifecycle ITU SENDIRI adalah bukti kepatuhan (ISO 27001/22301) — retensi menengah, diarsipkan sebelum purge fisik                                           |
-| `data_exchange.import_batches`         | 30 hari  | 7–365 hari           | Metadata batch impor — state operasional, bukan rekaman bisnis; hasil impornya sendiri hidup di tabel domain tujuan                                                          |
-| `data_exchange.export_jobs`            | 30 hari  | 7–365 hari           | Sama seperti import batch — job queue state, artefak ekspornya dikelola terpisah                                                                                             |
-| `data_exchange.reconciliation_reports` | 180 hari | 30–1825 hari         | Laporan rekonsiliasi adalah bukti kepatuhan atas pertukaran data, bukan sekadar state job                                                                                    |
-| `integration_hub.inbound_deliveries`   | 90 hari  | 7–365 hari           | Log pengiriman masuk — bukti transport berumur pendek, bukan rekaman bisnis                                                                                                  |
-| `usage_metering.events`                | 730 hari | 365–3650 hari        | Bukti tagihan: harus bertahan melewati siklus sengketa faktur dan kewajiban arsip pajak                                                                                      |
-| `payment_gateway.webhook_inbox`        | 400 hari | 180–2555 hari        | Bukti dispute/chargeback provider — providernya sendiri lazim membatasi ke ≤1 tahun; 400 hari = setahun penuh plus margin. Sengaja LEBIH PENDEK dari `usage_metering.events` |
-| `payment_gateway.normalized_events`    | 400 hari | 180–2555 hari        | Satu mata rantai bukti yang sama; seluruh rantai menua sebagai satu kesatuan (lihat §Rantai bukti payment_gateway)                                                           |
-| `payment_gateway.processing_attempts`  | 400 hari | 180–2555 hari        | Idem — daun rantai bukti                                                                                                                                                     |
-| `payment_gateway.reconciliations`      | 400 hari | 180–2555 hari        | Log rekonsiliasi pembayaran; INDEPENDEN dari rantai di atas dan di-legal-hold terpisah                                                                                       |
+| Descriptor                             | Default  | Batas aman (min–max) | Rasional                                                                                                                                                                              |
+| -------------------------------------- | -------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `logging.audit_events`                 | 730 hari | 365–1825 hari        | Doc 04 "Security/audit log: 1–5 tahun sesuai kebutuhan" — titik tengah rentang                                                                                                        |
+| `visitor_analytics.visit_events`       | 90 hari  | 7–730 hari           | Selaras `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS` (doc 18/`visitor-analytics.md`) — telemetry, retensi jauh lebih pendek dari audit                                                    |
+| `form_drafts.form_drafts`              | 30 hari  | 1–365 hari           | Selaras `FORM_DRAFT_RETENTION_DAYS` — scratch state, bukan rekaman bisnis                                                                                                             |
+| `data_lifecycle.data_lifecycle_runs`   | 180 hari | 30–1825 hari         | Riwayat eksekusi lifecycle ITU SENDIRI adalah bukti kepatuhan (ISO 27001/22301) — retensi menengah, diarsipkan sebelum purge fisik                                                    |
+| `data_exchange.import_batches`         | 30 hari  | 7–365 hari           | Metadata batch impor — state operasional, bukan rekaman bisnis; hasil impornya sendiri hidup di tabel domain tujuan                                                                   |
+| `data_exchange.export_jobs`            | 30 hari  | 7–365 hari           | Sama seperti import batch — job queue state, artefak ekspornya dikelola terpisah                                                                                                      |
+| `data_exchange.reconciliation_reports` | 180 hari | 30–1825 hari         | Laporan rekonsiliasi adalah bukti kepatuhan atas pertukaran data, bukan sekadar state job                                                                                             |
+| `integration_hub.inbound_deliveries`   | 90 hari  | 7–365 hari           | Log pengiriman masuk — bukti transport berumur pendek, bukan rekaman bisnis                                                                                                           |
+| `usage_metering.events`                | 730 hari | 365–3650 hari        | Bukti tagihan: harus bertahan melewati siklus sengketa faktur dan kewajiban arsip pajak                                                                                               |
+| `payment_gateway.webhook_inbox`        | 400 hari | 180–2555 hari        | Bukti dispute/chargeback provider — providernya sendiri lazim membatasi ke ≤1 tahun; 400 hari = setahun penuh plus margin. Sengaja LEBIH PENDEK dari `usage_metering.events`          |
+| `payment_gateway.normalized_events`    | 400 hari | 180–2555 hari        | Satu mata rantai bukti yang sama; seluruh rantai menua sebagai satu kesatuan (lihat §Rantai bukti payment_gateway)                                                                    |
+| `payment_gateway.processing_attempts`  | 400 hari | 180–2555 hari        | Idem — daun rantai bukti                                                                                                                                                              |
+| `payment_gateway.reconciliations`      | 400 hari | 180–2555 hari        | Log rekonsiliasi pembayaran; INDEPENDEN dari rantai di atas dan di-legal-hold terpisah                                                                                                |
+| `payment_gateway.outbox`               | 180 hari | 30–730 hari          | Antrean perintah KELUAR (apa yang KITA minta ke provider), bukan bukti. Hanya baris TERMINAL (`succeeded`/`dead`) yang pernah memenuhi syarat, dan usianya dihitung dari `updated_at` |
 
 `retentionDaysOverride` (dry-run on-demand, `POST
 /api/v1/data-lifecycle/dry-run`) selalu di-clamp ke `[retentionMinDays,
@@ -107,7 +109,22 @@ closed): purge sebagian rantai yang di-hold akan menyisakan bukti yang
 tak bisa ditafsirkan (baris inbox tanpa outcome) atau outcome tanpa
 provenance. `payment_gateway.reconciliations` di-hold TERPISAH — hold
 pada rantai tidak pernah dibaca sebagai mencakupnya, maupun sebagai
-alasan untuk melewatinya.
+alasan untuk melewatinya. Hal yang sama berlaku untuk
+`payment_gateway.outbox` (Issue #930 Wave 5): rantai adalah apa yang
+PROVIDER katakan kepada kita, outbox adalah apa yang KITA minta ke
+provider — tidak ada yang mereferensi yang lain, jadi keduanya di-hold
+sendiri-sendiri.
+
+**Outbox: yang menahan bukan usianya, tapi STATUS-nya.** Baris yang belum
+terminal (`pending`/`in_flight`/`failed`) adalah pekerjaan yang masih
+berutang sesuatu ke pelanggan; menghapusnya akan diam-diam membuang
+checkout, refund, atau pembatalan — loop retry sekadar tidak pernah
+melihatnya lagi, tanpa error di mana pun. `failed` termasuk yang
+DILINDUNGI meski namanya terdengar terminal: ia BISA di-retry dan berbagi
+index due dengan `pending`. Index retensinya sengaja PARSIAL pada
+`status IN ('succeeded','dead')` supaya predikat yang aman sekaligus
+menjadi yang cepat — purge yang lupa filter status akan salah SEKALIGUS
+lambat, bukan diam-diam salah.
 
 **Batas DELETE adalah GRANT, bukan trigger.** Sebelum migration 102,
 keempat tabel ini memakai trigger `BEFORE UPDATE OR DELETE` yang raise
