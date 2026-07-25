@@ -6,6 +6,12 @@ import {
   PAYMENT_PROCESSING_METRIC_KEYS,
   PAYMENT_PROCESSING_PROJECTION_KEY
 } from "./domain/projection-keys";
+import {
+  PAYMENT_GATEWAY_NORMALIZED_EVENTS_LIFECYCLE_KEY,
+  PAYMENT_GATEWAY_PROCESSING_ATTEMPTS_LIFECYCLE_KEY,
+  PAYMENT_GATEWAY_RECONCILIATIONS_LIFECYCLE_KEY,
+  PAYMENT_GATEWAY_WEBHOOK_INBOX_LIFECYCLE_KEY
+} from "./domain/lifecycle-keys";
 
 /**
  * ONE stream shared by this projection's `source` and `rebuildSource` — see
@@ -164,6 +170,15 @@ export const paymentGatewayModule = defineModule({
       recommendedSchedule: "*/10 * * * *",
       safeInOfflineLan: true,
       environmentNotes: "DB-only and safe offline/LAN. No provider call."
+    },
+    {
+      command: "bun run payment-gateway:purge",
+      purpose:
+        "Delete payment webhook evidence (processing attempts, normalized events, webhook inbox) and reconciliation logs past their retention cutoff, in FK-safe order and bounded batches, honoring legal holds. The ONLY delete path for these tables (Issue #932) — before migration 102 no role could delete from them at all, so the evidence grew without bound.",
+      recommendedSchedule: "0 3 * * *",
+      safeInOfflineLan: true,
+      environmentNotes:
+        "Pure PostgreSQL operation, no provider call or network egress. Runs as awcms_mini_worker, the only role granted DELETE on these tables (awcms_mini_app still cannot delete). Retention resolves from --retention-days=<n>, then PAYMENT_EVIDENCE_RETENTION_DAYS, then the 400-day default. A no-op on a deployment where the control plane is disabled."
     }
   ],
   navigation: [
@@ -310,6 +325,222 @@ export const paymentGatewayModule = defineModule({
     hasHealthCheck: true,
     hasReadinessCheck: true
   },
+  // Issue #932 — the four tables that grow with real provider traffic. All
+  // registered as "delegated" adopters: `data_lifecycle`'s engine may READ
+  // them for dry-run backlog counts, but the real delete stays owned by
+  // `purgeExpiredPaymentEvidence` (`bun run payment-gateway:purge`), which
+  // honors legal holds against these same keys and deletes in FK-safe order.
+  //
+  // Until migration 102 NONE of them could be purged by any role at all — the
+  // append-only triggers refused DELETE outright, so "append-only" meant
+  // "retained forever". Those triggers are now `BEFORE UPDATE` (every
+  // in-place-edit protection unchanged) and DELETE is a grant held only by
+  // `awcms_mini_worker`.
+  dataLifecycle: [
+    {
+      key: PAYMENT_GATEWAY_WEBHOOK_INBOX_LIFECYCLE_KEY,
+      tableName: "awcms_mini_payment_gateway_webhook_inbox",
+      ownerModuleKey: "payment_gateway",
+      scope: "tenant",
+      cursorColumn: "received_at",
+      retentionClass: "audit_security",
+      retentionMinDays: 180,
+      retentionMaxDays: 2555,
+      defaultRetentionDays: 400,
+      partition: {
+        eligible: true,
+        granularity: "monthly",
+        rationale:
+          "Highest insert rate of any table this module owns (one row per inbound provider webhook, including replays and rejected signatures), append-only, purged by age only — a textbook monthly range-partition candidate. Not automated here (destructive migration is out of scope); tracked as partitioning runbook guidance in docs/awcms-mini/data-lifecycle.md."
+      },
+      archive: {
+        archivable: false,
+        rationale:
+          "Current reality: purgeExpiredPaymentEvidence performs a bounded age-based DELETE with no archive step. The commercially meaningful outcome of every webhook already survives separately and longer in payment_intents/refunds, which this purge never touches; declaring archivable:true without a real archive step would be inaccurate."
+      },
+      deletion: {
+        mode: "hard_delete",
+        rationale:
+          "Age-only cutoff, and only for rows with no surviving normalized event referencing them (the FK-safe ordering). Anonymization is not applicable: the row holds no personal data by construction — the envelope is masked before persist (ADR-0022 Medium-2), leaving a provider event id, a body hash/size, and a verification outcome."
+      },
+      legalHold: {
+        applicable: true,
+        precedence: "overrides_retention"
+      },
+      requiredIndexes: [
+        {
+          columns: ["tenant_id", "received_at"],
+          purpose:
+            "awcms_mini_payment_gateway_webhook_inbox_retention_idx (migration 102) — the age-ordered bounded scan the purge relies on."
+        }
+      ],
+      batchLimit: 5000,
+      backupRestoreNotes:
+        "Included in ordinary full-database backup/restore; no standalone archive artifact exists (archive.archivable is false above). A restore predating a purge legitimately reintroduces rows the purge had aged out; the next scheduled run removes them again.",
+      executionMode: "delegated",
+      existingAdopter: {
+        jobCommand: "bun run payment-gateway:purge",
+        purgeFunctionRef:
+          "src/modules/payment-gateway/application/retention-purge.ts#purgeExpiredPaymentEvidence",
+        description:
+          "Deletes webhook inbox rows past the retention cutoff that no surviving normalized event references, in bounded batches, honoring an active legal hold on any link of the evidence chain. The same function the scheduled job calls."
+      }
+    },
+    {
+      key: PAYMENT_GATEWAY_NORMALIZED_EVENTS_LIFECYCLE_KEY,
+      tableName: "awcms_mini_payment_gateway_normalized_events",
+      ownerModuleKey: "payment_gateway",
+      scope: "tenant",
+      cursorColumn: "created_at",
+      retentionClass: "audit_security",
+      retentionMinDays: 180,
+      retentionMaxDays: 2555,
+      defaultRetentionDays: 400,
+      partition: {
+        eligible: false,
+        rationale:
+          "One row per SUCCESSFULLY verified and normalized webhook, so strictly fewer rows than the inbox above (replays and signature failures never reach it) and comfortably handled by the age-ordered index. Partitioning would add operational surface for no measured benefit; revisit if a deployment's inbox partitioning proves insufficient."
+      },
+      archive: {
+        archivable: false,
+        rationale:
+          "Same as the inbox: no archive step exists, and the resulting payment state is retained separately in payment_intents."
+      },
+      deletion: {
+        mode: "hard_delete",
+        rationale:
+          "Age-only cutoff, and only for rows with no surviving processing attempt referencing them (FK-safe ordering). Numeric/enumerated provider event data only — nothing to anonymize."
+      },
+      legalHold: {
+        applicable: true,
+        precedence: "overrides_retention"
+      },
+      requiredIndexes: [
+        {
+          columns: ["tenant_id", "created_at"],
+          purpose:
+            "awcms_mini_payment_gateway_normalized_events_retention_idx (migration 102) — the age-ordered bounded scan."
+        },
+        {
+          columns: ["webhook_inbox_id"],
+          purpose:
+            "awcms_mini_payment_gateway_normalized_events_inbox_idx (migration 102) — the surviving-child probe that keeps the inbox purge FK-safe."
+        }
+      ],
+      batchLimit: 5000,
+      backupRestoreNotes:
+        "Included in ordinary full-database backup/restore; no standalone archive artifact.",
+      executionMode: "delegated",
+      existingAdopter: {
+        jobCommand: "bun run payment-gateway:purge",
+        purgeFunctionRef:
+          "src/modules/payment-gateway/application/retention-purge.ts#purgeExpiredPaymentEvidence",
+        description:
+          "Deletes normalized events past the retention cutoff that no surviving processing attempt references, in bounded batches, honoring an active legal hold on any link of the evidence chain."
+      }
+    },
+    {
+      key: PAYMENT_GATEWAY_PROCESSING_ATTEMPTS_LIFECYCLE_KEY,
+      tableName: "awcms_mini_payment_gateway_processing_attempts",
+      ownerModuleKey: "payment_gateway",
+      scope: "tenant",
+      cursorColumn: "created_at",
+      retentionClass: "audit_security",
+      retentionMinDays: 180,
+      retentionMaxDays: 2555,
+      defaultRetentionDays: 400,
+      partition: {
+        eligible: false,
+        rationale:
+          "One row per attempt to apply a normalized event to an intent — same order of magnitude as normalized events, and the leaf of the chain. Age-ordered index is sufficient; see the inbox descriptor for where partitioning would be applied first."
+      },
+      archive: {
+        archivable: false,
+        rationale:
+          "No archive step exists. This log answers 'why did this provider event not change the intent', which is an operational question with a bounded useful life, not a record retained for its own sake."
+      },
+      deletion: {
+        mode: "hard_delete",
+        rationale:
+          "Age-only cutoff. Nothing references a processing attempt, so it is purged first and needs no surviving-child probe. Enumerated outcome plus a short detail string — nothing to anonymize."
+      },
+      legalHold: {
+        applicable: true,
+        precedence: "overrides_retention"
+      },
+      requiredIndexes: [
+        {
+          columns: ["tenant_id", "created_at"],
+          purpose:
+            "awcms_mini_payment_gateway_processing_attempts_tenant_created_idx (migration 101) — the age-ordered bounded scan, shared with the reporting projection's cursor."
+        },
+        {
+          columns: ["normalized_event_id"],
+          purpose:
+            "awcms_mini_payment_gateway_processing_attempts_event_idx (migration 102) — the surviving-child probe that keeps the normalized-event purge FK-safe."
+        }
+      ],
+      batchLimit: 5000,
+      backupRestoreNotes:
+        "Included in ordinary full-database backup/restore; no standalone archive artifact.",
+      executionMode: "delegated",
+      existingAdopter: {
+        jobCommand: "bun run payment-gateway:purge",
+        purgeFunctionRef:
+          "src/modules/payment-gateway/application/retention-purge.ts#purgeExpiredPaymentEvidence",
+        description:
+          "Deletes processing attempts past the retention cutoff (the leaf of the evidence chain, purged first), in bounded batches, honoring an active legal hold on any link of the chain."
+      }
+    },
+    {
+      key: PAYMENT_GATEWAY_RECONCILIATIONS_LIFECYCLE_KEY,
+      tableName: "awcms_mini_payment_gateway_reconciliations",
+      ownerModuleKey: "payment_gateway",
+      scope: "tenant",
+      cursorColumn: "created_at",
+      retentionClass: "audit_security",
+      retentionMinDays: 180,
+      retentionMaxDays: 2555,
+      defaultRetentionDays: 400,
+      partition: {
+        eligible: false,
+        rationale:
+          "One row per reconciliation comparison, written by a scheduled job rather than by provider traffic — the lowest-volume of the four and not a partitioning candidate."
+      },
+      archive: {
+        archivable: false,
+        rationale:
+          "No archive step exists. A reconciliation outcome that has aged out is superseded by every later reconciliation of the same intent."
+      },
+      deletion: {
+        mode: "hard_delete",
+        rationale:
+          "Age-only cutoff. References payment intents (never purged here) and is referenced by nothing, so it needs no surviving-child probe and is independent of the webhook evidence chain — including for legal holds, which are placed on this key separately."
+      },
+      legalHold: {
+        applicable: true,
+        precedence: "overrides_retention"
+      },
+      requiredIndexes: [
+        {
+          columns: ["tenant_id", "created_at"],
+          purpose:
+            "awcms_mini_payment_gateway_reconciliations_retention_idx (migration 102) — the age-ordered bounded scan."
+        }
+      ],
+      batchLimit: 5000,
+      backupRestoreNotes:
+        "Included in ordinary full-database backup/restore; no standalone archive artifact.",
+      executionMode: "delegated",
+      existingAdopter: {
+        jobCommand: "bun run payment-gateway:purge",
+        purgeFunctionRef:
+          "src/modules/payment-gateway/application/retention-purge.ts#purgeExpiredPaymentEvidence",
+        description:
+          "Deletes reconciliation log rows past the retention cutoff, in bounded batches, honoring an active legal hold on this key (held independently of the webhook evidence chain)."
+      }
+    }
+  ],
   // Issue #880 — see `tenant-provisioning/module.ts`'s matching block.
   reportingProjections: [
     {
@@ -345,7 +576,7 @@ export const paymentGatewayModule = defineModule({
       },
       drillDownPath: "/api/v1/payment-gateway/tenants/{tenantId}/health",
       retentionClass:
-        "Not separately registered in data_lifecycle: one row per normalized provider event application, bounded by real provider traffic for this tenant rather than by request volume. The module's genuinely envelope-bearing table (awcms_mini_payment_gateway_webhook_inbox) is a candidate for a lifecycle descriptor and is deliberately not this projection's source — see domain/projection-keys.ts.",
+        "payment_gateway.processing_attempts — registered in this module's own dataLifecycle array above (Issue #932), age-purged by `bun run payment-gateway:purge`. NOTE that this projection's counters are ALL-TIME while its source table is purged, so a reconciliation run against it will report a growing shortfall as old attempts age out; that is retention working, not projection drift. See docs/awcms-mini/data-lifecycle.md.",
       batchLimit: 1000
     }
   ],
