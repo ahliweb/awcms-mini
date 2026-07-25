@@ -52,6 +52,7 @@
     "db:work-class:check": "bun scripts/work-class-registry-check.ts",
     "sync:objects:dispatch": "bun scripts/object-sync-dispatch.ts",
     "tenant-provisioning:reconcile": "bun scripts/tenant-provisioning-reconcile.ts",
+    "tenant-provisioning:fleet-reconcile": "bun scripts/tenant-provisioning-fleet-reconcile.ts",
     "tenant-lifecycle:run-scheduled": "bun scripts/tenant-lifecycle-run-scheduled.ts",
     "subscription-billing:run-renewal": "bun scripts/subscription-billing-run-renewal.ts",
     "subscription-billing:run-dunning": "bun scripts/subscription-billing-run-dunning.ts",

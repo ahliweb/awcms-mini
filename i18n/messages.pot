@@ -3345,7 +3345,7 @@ msgid "admin.layout.nav_tenant_lifecycle"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/tenant-provisioning/module.ts:142
+#: src/modules/tenant-provisioning/module.ts:151
 msgid "admin.layout.nav_tenant_provisioning"
 msgstr ""
 

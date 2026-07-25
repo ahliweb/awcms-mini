@@ -134,7 +134,16 @@ export const tenantProvisioningModule = defineModule({
       recommendedSchedule: "on-demand",
       safeInOfflineLan: true,
       environmentNotes:
-        "Per-tenant: pass a tenant id (`bun run tenant-provisioning:reconcile <tenantId>` or PROVISIONING_TENANT_ID). Reconciliation is DB-only and safe offline. A FLEET-WIDE batch that scans every provisioned tenant is intentionally DEFERRED to #880 (it needs a purpose-built cross-tenant read-model — a platform operator is not a soft super-tenant, ADR-0022 §6b); until then reconcile on-demand, one tenant at a time (this script or the per-tenant REST endpoint)."
+        "Per-tenant: pass a tenant id (`bun run tenant-provisioning:reconcile <tenantId>` or PROVISIONING_TENANT_ID). Reconciliation is DB-only and safe offline. This remains the ON-DEMAND entry point for one named tenant; the scheduled fleet-wide pass is `tenant-provisioning:fleet-reconcile` (Issue #930), which uses the cross-tenant read model this note previously said was missing."
+    },
+    {
+      command: "bun run tenant-provisioning:fleet-reconcile",
+      purpose:
+        "Run the non-destructive desired-vs-actual reconciliation across every active tenant whose last pass has gone stale (reports drift + safe operator actions; never auto-fixes).",
+      recommendedSchedule: "daily",
+      safeInOfflineLan: true,
+      environmentNotes:
+        "Fleet-wide, and shaped so a platform operator is never a soft super-tenant (ADR-0022 §6b): tenants are enumerated from the global directory, then each tenant's rows are read and written inside THAT tenant's own RLS context — no query ever sees two tenants at once and nothing needs BYPASSRLS. Runs as `awcms_mini_worker`; migration 105 grants exactly the privileges the pass needs (UPDATE on requests, SELECT+INSERT on reconciliations, SELECT on steps/results) and no write access to the state it measures. Bounded: tenants reconciled within the last 20h are skipped, and at most 200 tenants are reconciled per pass — the budget is spent on the STALEST due tenants (never-reconciled first), so it can only ever delay a tenant, never strand one. `--dry-run` reports how many tenants are due without writing."
     }
   ],
   navigation: [

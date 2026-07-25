@@ -1701,6 +1701,12 @@
       "rationale": "Scheduled bounded bookkeeping sweep (tenant-entitlement:expiry-sweep, Issue #930) closing out assignments whose validity window elapsed. \"maintenance\" rather than \"reporting\": unlike control-plane-fleet-sweep this is genuinely tolerant of delay, because an unswept row grants nothing (resolution already ignores a closed window) — only the recorded commercial state lags. Every withTenant call in the job passes workClass: \"maintenance\" explicitly. Runs as awcms_mini_worker, the only role migration 104 grants UPDATE on the assignments table."
     },
     {
+      "path": "scripts/tenant-provisioning-fleet-reconcile.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Fleet-wide provisioning reconciliation (tenant-provisioning:fleet-reconcile, Issue #930) — the pass tenant_provisioning's own descriptor deferred for want of a cross-tenant read model. \"maintenance\" rather than \"reporting\": drift that has already happened does not become more urgent while the pass waits, and unlike the observation sweep this one WRITES (status transition + reconciliation record), so it belongs in the same bucket as other bounded scheduled writers. The due-ness probe passes workClass: \"maintenance\" explicitly; the reconcile itself delegates to reconcileProvisioning, which opens its own transaction directly (a pre-existing property of the engine the REST endpoint and per-tenant CLI also use, not introduced here)."
+    },
+    {
       "path": "scripts/usage-metering-aggregate.ts",
       "workClass": "background_sync",
       "source": "registry",
