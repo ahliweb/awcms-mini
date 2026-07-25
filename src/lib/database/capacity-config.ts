@@ -41,14 +41,15 @@
  *   `setup` below) — but that call is one-time/rare, not steady-state, so it
  *   is modeled as its OWN process class rather than folded into `app`.
  * - `worker` — the unattended background scripts that call
- *   `getWorkerDatabaseClient()` (`scripts/audit-log-purge.ts`,
- *   `form-draft-purge.ts`, `visitor-analytics-purge.ts`,
- *   `visitor-analytics-rollup.ts`, `email-dispatch.ts`,
- *   `object-sync-dispatch.ts`, `social-publish-dispatch.ts`,
- *   `blog-scheduled-publish.ts`, `news-media-r2-reconcile.ts` — verified via
- *   `grep -rl getWorkerDatabaseClient scripts/`, the same ground truth
- *   `scripts/work-class-registry-check.ts` uses), the `awcms_mini_worker`
- *   role, `WORKER_DATABASE_URL`. Each job additionally serializes itself
+ *   `getWorkerDatabaseClient()`, the `awcms_mini_worker` role,
+ *   `WORKER_DATABASE_URL`. The authoritative list is
+ *   `JOB_WORK_CLASS_REGISTRY` (`work-class-registry.ts`), which
+ *   `scripts/work-class-registry-check.ts` already gates against a grep of
+ *   `scripts/` — see `countRegisteredWorkerJobs()`. This comment used to
+ *   name all nine of them inline; the real count has since nearly tripled,
+ *   and a hand-copied list in a comment is exactly the kind of inventory
+ *   that goes stale without anything failing. Each job additionally
+ *   serializes itself
  *   via a Postgres advisory lock (`src/lib/jobs/job-runner.ts`) — at most one
  *   instance of a GIVEN job name runs cluster-wide at a time — which is a
  *   real, already-existing mitigation this model does not re-implement; see
@@ -76,6 +77,7 @@
 import type { ClientKind } from "./client";
 import { resolvePoolMaxForKind } from "./client";
 import { getWorkClassLimits } from "./work-class";
+import { JOB_WORK_CLASS_REGISTRY } from "./work-class-registry";
 import { recordGauge } from "../observability/metrics-port";
 
 export type ProcessClass = ClientKind;
@@ -100,8 +102,27 @@ export type PgBouncerCapacityConfig = {
   defaultPoolSize: number;
 };
 
+/**
+ * Whether an instance count came from an explicit env declaration or fell
+ * back to a default (Issue #930 Wave 4).
+ *
+ * This distinction is the whole point of the
+ * `worker_instances_max_undeclared` finding below: "1" chosen deliberately
+ * because cron is staggered, and "1" because nobody ever set the variable,
+ * are the same number with opposite meanings. Only the second is worth
+ * telling an operator about, and without this flag the model cannot tell
+ * them apart.
+ */
+export type InstanceCountSource = {
+  min: boolean;
+  expected: boolean;
+  max: boolean;
+};
+
 export type CapacityConfig = {
   instanceCounts: Record<ProcessClass, InstanceCountConfig>;
+  /** Per field: `true` when the value was explicitly declared in the environment rather than defaulted. */
+  instanceCountsDeclared: Record<ProcessClass, InstanceCountSource>;
   /** Effective `Bun.SQL` pool `max` per process class — read via `resolvePoolMaxForKind` (client.ts), the SAME function `buildClient` uses, so this can never drift from the pool the runtime actually opens. */
   poolMax: Record<ProcessClass, number>;
   pgBouncer: PgBouncerCapacityConfig;
@@ -198,6 +219,33 @@ function loadInstanceCounts(
 }
 
 /**
+ * Which of a process class's instance counts were explicitly declared.
+ *
+ * "Declared" means the variable was set to a value this module ACCEPTED — a
+ * malformed or out-of-range value falls back to the default, and reporting
+ * that as declared would let a typo silence the finding it should trigger.
+ * That is why this re-parses rather than merely checking for presence.
+ */
+function loadInstanceCountSources(
+  processClass: ProcessClass,
+  env: Record<string, string | undefined>
+): InstanceCountSource {
+  const prefix = `DATABASE_CAPACITY_${processClass.toUpperCase()}_INSTANCES_`;
+
+  // Two sentinels that cannot both be returned by a successful parse, so
+  // "the fallback was used" is detected without duplicating the bounds.
+  const declared = (key: string): boolean =>
+    parseBoundedInt(env[key], -1, INSTANCE_COUNT_MIN, INSTANCE_COUNT_MAX) !==
+    -1;
+
+  return {
+    min: declared(`${prefix}MIN`),
+    expected: declared(`${prefix}EXPECTED`),
+    max: declared(`${prefix}MAX`)
+  };
+}
+
+/**
  * Reads every Issue #743 capacity env var (all optional, all with
  * conservative defaults matching the existing single-instance offline/LAN
  * profile — see each `DEFAULT_*` constant above) plus the SAME
@@ -215,6 +263,13 @@ export function loadCapacityConfigFromEnv(
     ])
   ) as Record<ProcessClass, InstanceCountConfig>;
 
+  const instanceCountsDeclared = Object.fromEntries(
+    PROCESS_CLASSES.map((processClass) => [
+      processClass,
+      loadInstanceCountSources(processClass, env)
+    ])
+  ) as Record<ProcessClass, InstanceCountSource>;
+
   const poolMax = Object.fromEntries(
     PROCESS_CLASSES.map((processClass) => [
       processClass,
@@ -224,6 +279,7 @@ export function loadCapacityConfigFromEnv(
 
   return {
     instanceCounts,
+    instanceCountsDeclared,
     poolMax,
     pgBouncer: {
       enabled: env.DATABASE_PGBOUNCER === "true",
@@ -253,6 +309,26 @@ export function loadCapacityConfigFromEnv(
       CONNECTION_BUDGET_MAX
     )
   };
+}
+
+/**
+ * How many distinct worker-role scripts exist (Issue #930 Wave 4).
+ *
+ * Read from `JOB_WORK_CLASS_REGISTRY` rather than counted by hand or by
+ * globbing `scripts/`: this module is pure (no I/O), and the registry is
+ * already gated against the filesystem — `scripts/work-class-registry-check.ts`
+ * discovers worker scripts by grepping for `getWorkerDatabaseClient(`/
+ * `getSetupDatabaseClient(` and fails if the registry misses one or keeps a
+ * stale entry. So the registry cannot drift from reality without a gate
+ * failing first, which makes it valid ground truth here.
+ *
+ * This is deliberately the FULL count, with nothing filtered out for being
+ * "probably not scheduled that way". Every entry is a process that can open
+ * a worker-role pool, and for a capacity ceiling, over-counting is the safe
+ * direction to be wrong in.
+ */
+export function countRegisteredWorkerJobs(): number {
+  return Object.keys(JOB_WORK_CLASS_REGISTRY).length;
 }
 
 export type CapacityFindingSeverity = "fail" | "warning";
@@ -352,6 +428,42 @@ export function validateCapacityConfig(
         `Combined work-class concurrency ceilings (${workClassTotal}) exceed the "app" pool max ` +
         `(${appPoolMax}) — an intentional, documented oversubscription (see work-class.ts), ` +
         "not a hard failure; consider raising DATABASE_POOL_MAX if this process is latency-sensitive under load."
+    });
+  }
+
+  // Issue #930 Wave 4 — the "worker" instance count is the one number in this
+  // model an operator cannot get right by accident.
+  //
+  // `job-runner.ts`'s advisory lock guarantees no SINGLE job name overlaps
+  // ITSELF, which is what makes a default of 1 look safe. It says nothing
+  // about two DIFFERENT scripts firing in the same cron minute, and each is
+  // its own process opening its own `worker`-role pool. The runbook has
+  // always said so in prose and asked operators to size the variable
+  // themselves — prose that went unenforced while the job count grew from 9
+  // to the number below.
+  //
+  // So this does NOT demand a larger number. A deployment whose cron is
+  // staggered so at most one job ever runs is correct at 1. What it demands
+  // is that the number be DECLARED: an undeclared 1 means nobody has thought
+  // about it, and that is the only case worth a finding. Declaring 1
+  // deliberately silences it.
+  const scheduledWorkerJobs = countRegisteredWorkerJobs();
+  const declared = config.instanceCountsDeclared;
+
+  if (
+    !declared.worker.max &&
+    config.instanceCounts.worker.max < scheduledWorkerJobs
+  ) {
+    findings.push({
+      severity: "warning",
+      code: "worker_instances_max_undeclared",
+      message:
+        `DATABASE_CAPACITY_WORKER_INSTANCES_MAX is not set, so it defaults to ` +
+        `${config.instanceCounts.worker.max}, while ${scheduledWorkerJobs} worker scripts are registered. ` +
+        "The advisory lock in job-runner.ts prevents one job name from overlapping itself, but NOT two " +
+        "different jobs firing in the same cron minute — each opens its own worker-role pool. Declare the " +
+        "maximum number of worker jobs your schedule allows to run concurrently (declaring 1 is correct, " +
+        "and silences this, if your cron is staggered). See docs/awcms-mini/database-capacity-runbook.md."
     });
   }
 

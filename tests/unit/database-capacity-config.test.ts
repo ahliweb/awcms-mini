@@ -9,12 +9,14 @@ import { describe, expect, test } from "bun:test";
 
 import {
   computeCapacityUsage,
+  countRegisteredWorkerJobs,
   evaluateCapacityBudget,
   loadCapacityConfigFromEnv,
   validateCapacityConfig,
   type CapacityConfig
 } from "../../src/lib/database/capacity-config";
 import { resolvePoolMaxForKind } from "../../src/lib/database/client";
+import { JOB_WORK_CLASS_REGISTRY } from "../../src/lib/database/work-class-registry";
 
 function baseConfig(overrides: Partial<CapacityConfig> = {}): CapacityConfig {
   return {
@@ -22,6 +24,15 @@ function baseConfig(overrides: Partial<CapacityConfig> = {}): CapacityConfig {
       app: { min: 1, expected: 1, max: 1 },
       worker: { min: 0, expected: 1, max: 1 },
       setup: { min: 0, expected: 0, max: 1 }
+    },
+    // Declared across the board by default, so the fixture exercises the
+    // budget arithmetic without every unrelated test also tripping the
+    // "undeclared worker max" finding (Issue #930 Wave 4). The tests that
+    // care about that finding override this explicitly.
+    instanceCountsDeclared: {
+      app: { min: true, expected: true, max: true },
+      worker: { min: true, expected: true, max: true },
+      setup: { min: true, expected: true, max: true }
     },
     poolMax: { app: 20, worker: 20, setup: 20 },
     pgBouncer: {
@@ -183,6 +194,109 @@ describe("computeCapacityUsage", () => {
     const expected = computeCapacityUsage(config, "expected");
 
     expect(expected.totalConnections).toBe(2 * 20 + 1 * 20 + 0 * 20);
+  });
+});
+
+describe("worker instance count declaration (Issue #930 Wave 4)", () => {
+  const UNDECLARED = {
+    app: { min: true, expected: true, max: true },
+    worker: { min: true, expected: true, max: false },
+    setup: { min: true, expected: true, max: true }
+  };
+
+  function findingCodes(config: CapacityConfig): string[] {
+    return validateCapacityConfig(config).map((f) => f.code);
+  }
+
+  test("the registered worker-job count is read from the gated registry, not a hand-maintained number", () => {
+    // The number itself is not pinned — it grows every time a job is added,
+    // and pinning it here would just be a second hand-maintained copy of the
+    // thing this function exists to stop duplicating. What IS pinned: it
+    // matches the registry, and it is well past the "9 scripts" the runbook
+    // claimed for a long time while the real count nearly tripled.
+    expect(countRegisteredWorkerJobs()).toBe(
+      Object.keys(JOB_WORK_CLASS_REGISTRY).length
+    );
+    expect(countRegisteredWorkerJobs()).toBeGreaterThan(9);
+  });
+
+  test("an UNDECLARED worker max below the job count is flagged — nobody has thought about job overlap", () => {
+    const config = baseConfig({ instanceCountsDeclared: UNDECLARED });
+
+    expect(findingCodes(config)).toContain("worker_instances_max_undeclared");
+    // A warning, never a fail: the deployment may be perfectly safe, and
+    // preflight must not start refusing to run for every existing operator.
+    expect(
+      validateCapacityConfig(config).filter((f) => f.severity === "fail")
+    ).toEqual([]);
+  });
+
+  test("DECLARING 1 silences it — a staggered cron layout is a legitimate answer, not a misconfiguration", () => {
+    // This is the whole point of tracking declaration rather than magnitude.
+    // The number is identical to the case above; only the intent differs.
+    const config = baseConfig({
+      instanceCounts: {
+        app: { min: 1, expected: 1, max: 1 },
+        worker: { min: 0, expected: 1, max: 1 },
+        setup: { min: 0, expected: 0, max: 1 }
+      }
+    });
+
+    expect(findingCodes(config)).not.toContain(
+      "worker_instances_max_undeclared"
+    );
+  });
+
+  test("an undeclared max that already covers every job is not flagged", () => {
+    const config = baseConfig({
+      instanceCountsDeclared: UNDECLARED,
+      instanceCounts: {
+        app: { min: 1, expected: 1, max: 1 },
+        worker: {
+          min: 0,
+          expected: 1,
+          max: countRegisteredWorkerJobs()
+        },
+        setup: { min: 0, expected: 0, max: 1 }
+      }
+    });
+
+    expect(findingCodes(config)).not.toContain(
+      "worker_instances_max_undeclared"
+    );
+  });
+
+  test("loadCapacityConfigFromEnv reports an unset variable as undeclared", () => {
+    const config = loadCapacityConfigFromEnv({});
+    expect(config.instanceCountsDeclared.worker.max).toBe(false);
+  });
+
+  test("loadCapacityConfigFromEnv reports an explicitly set variable as declared", () => {
+    const config = loadCapacityConfigFromEnv({
+      DATABASE_CAPACITY_WORKER_INSTANCES_MAX: "3"
+    });
+    expect(config.instanceCountsDeclared.worker.max).toBe(true);
+    expect(config.instanceCounts.worker.max).toBe(3);
+  });
+
+  test("a MALFORMED value is not treated as declared — a typo must not silence the finding", () => {
+    // The value falls back to the default, so reporting it as declared would
+    // let `MAX=tree` look like a deliberate decision while budgeting nothing.
+    for (const bad of ["tree", "", "-1", "1.5", "99999999"]) {
+      const config = loadCapacityConfigFromEnv({
+        DATABASE_CAPACITY_WORKER_INSTANCES_MAX: bad
+      });
+      expect(config.instanceCountsDeclared.worker.max).toBe(false);
+    }
+  });
+
+  test("declaring 0 is honoured as a declaration (a deployment that runs no workers at all)", () => {
+    const config = loadCapacityConfigFromEnv({
+      DATABASE_CAPACITY_WORKER_INSTANCES_MAX: "0",
+      DATABASE_CAPACITY_WORKER_INSTANCES_EXPECTED: "0"
+    });
+    expect(config.instanceCountsDeclared.worker.max).toBe(true);
+    expect(config.instanceCounts.worker.max).toBe(0);
   });
 });
 
