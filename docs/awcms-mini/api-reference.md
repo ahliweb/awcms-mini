@@ -12766,6 +12766,49 @@ Recompute each window in a bounded range from the immutable events + corrections
 
 Cross-cutting SaaS control-plane security surfaces (Issue #879, ADR-0022 §5/§6). Support-access grants: a platform/support operator has NO standing right to read another tenant's records — a time/reason-bound grant, approved by a DISTINCT actor (SoD identity_access.support_request_vs_approve), revocable and auto-expiring, is required for every cross-tenant support read (never reusable across tenants, fail-closed on expiry/revocation).
 
+### `GET /api/v1/control-plane/tenants/{tenantId}/evidence` — Export a bounded, masked, audited control-plane evidence package
+
+- **operationId**: `controlPlaneExportTenantEvidence`
+- **Security**: bearerAuth + tenantHeader
+
+Issue #930 Wave 5 (epic #868). An operator investigating a tenant's
+control-plane health reads SHAPE AND TIMING — counts, statuses,
+timestamps, plan keys — and nothing customer-identifying.
+
+Requires BOTH the `identity_access.support_access.export` permission
+(evaluated in the operator's own platform tenant) AND an approved,
+unrevoked, unexpired support-access grant for THIS target tenant. The
+permission alone returns 403: without the second gate it would be a
+standing key to every tenant's history with no record that anyone
+decided the access was warranted.
+
+Bounded: the window is clamped to 90 days and each section to 100 rows,
+with `clamped`/`truncated` reported rather than silently applied.
+Masked by construction: the response shape has no field capable of
+carrying a provider reference, envelope, token, secret, or email
+address. Audited: both a successful and a REFUSED export write an audit
+row in the target tenant.
+
+**Parameters**
+
+| Name               | In     | Required | Type               | Description                                                                                                 |
+| ------------------ | ------ | -------- | ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `tenantId`         | path   | yes      | string (uuid)      |                                                                                                             |
+| `from`             | query  | no       | string (date-time) | ISO-8601 start of the window. Clamped to at most 90 days before `to`; clamping is reported in the response. |
+| `to`               | query  | no       | string (date-time) | ISO-8601 end of the window. Defaults to now; a future value is treated as now.                              |
+| `X-Correlation-ID` | header | no       | string             | Optional server-side trace correlation ID.                                                                  |
+| `X-Request-ID`     | header | no       | string             | Optional client-generated request trace ID.                                                                 |
+
+**Responses**
+
+| Status | Description                                    | Schema                                     |
+| ------ | ---------------------------------------------- | ------------------------------------------ |
+| 200    | Evidence package returned.                     | [`ApiSuccess`](#standard-success-envelope) |
+| 400    | Validation or request error.                   | [`ApiError`](#standard-error-envelope)     |
+| 401    | Authentication required or expired.            | [`ApiError`](#standard-error-envelope)     |
+| 403    | Access denied by RBAC, ABAC, or tenant policy. | [`ApiError`](#standard-error-envelope)     |
+| 500    | Internal server error without stack trace.     | [`ApiError`](#standard-error-envelope)     |
+
 ### `GET /api/v1/control-plane/tenants/{tenantId}/support-access` — List support-access grants for a tenant
 
 - **operationId**: `controlPlaneListSupportAccess`

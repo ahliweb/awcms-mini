@@ -43,7 +43,7 @@
 
 ## Migrations
 
-106 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `106_awcms_mini_payment_gateway_outbox_retention.sql`).
+107 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `107_awcms_mini_control_plane_evidence_export.sql`).
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -153,6 +153,7 @@
 | 104 | `104_awcms_mini_tenant_entitlement_expiry.sql`                           |
 | 105 | `105_awcms_mini_control_plane_reconciliation_grants.sql`                 |
 | 106 | `106_awcms_mini_payment_gateway_outbox_retention.sql`                    |
+| 107 | `107_awcms_mini_control_plane_evidence_export.sql`                       |
 
 ## Tables & Row-Level Security
 
@@ -182,19 +183,19 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-402 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+404 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 49         |
 | `e2e`         | 11         |
-| `integration` | 122        |
+| `integration` | 123        |
 | `modules`     | 5          |
-| `unit`        | 215        |
+| `unit`        | 216        |
 
 ## Routes / Operations (summary)
 
-349 OpenAPI paths, 475 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
+350 OpenAPI paths, 476 operations, contract `info.version` `1.0.0` — sourced from the bundled contract (`bun run openapi:bundle`). Route<->contract parity itself is already enforced by `bun run api:spec:check`'s route-parity check (Issue #685/#695); this is a read-only summary, not a separate enforcement.
 
 ## GitHub issue/label/milestone snapshot
 
