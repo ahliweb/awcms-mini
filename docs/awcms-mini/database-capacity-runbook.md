@@ -33,11 +33,11 @@ and the standalone `bun run database:capacity:check`.
 
 ## Process class inventory
 
-| Class    | What it is                                                        | Role                | Connection string     |
-| -------- | ----------------------------------------------------------------- | ------------------- | --------------------- |
-| `app`    | Every web/SSR instance (`bun run start`/`preview`/`dev`)          | `awcms_mini_app`    | `DATABASE_URL`        |
-| `worker` | The 9 unattended background scripts (`getWorkerDatabaseClient()`) | `awcms_mini_worker` | `WORKER_DATABASE_URL` |
-| `setup`  | `POST /api/v1/setup/initialize` only (one-time wizard)            | `awcms_mini_setup`  | `SETUP_DATABASE_URL`  |
+| Class    | What it is                                                       | Role                | Connection string     |
+| -------- | ---------------------------------------------------------------- | ------------------- | --------------------- |
+| `app`    | Every web/SSR instance (`bun run start`/`preview`/`dev`)         | `awcms_mini_app`    | `DATABASE_URL`        |
+| `worker` | Every unattended background script (`getWorkerDatabaseClient()`) | `awcms_mini_worker` | `WORKER_DATABASE_URL` |
+| `setup`  | `POST /api/v1/setup/initialize` only (one-time wizard)           | `awcms_mini_setup`  | `SETUP_DATABASE_URL`  |
 
 **`DATABASE_CAPACITY_WORKER_INSTANCES_MAX`'s default (1) is narrower than
 it looks.** It only accounts for one instance of the SAME job NAME running
@@ -49,7 +49,38 @@ cron minute) — each is a separate process opening its own `worker`-role
 pool at the same time, so real overlap of N distinct scripts needs
 `DATABASE_CAPACITY_WORKER_INSTANCES_MAX >= N`, not `1`, even though the
 advisory lock guarantees no SINGLE job name ever overlaps itself.
-Multi-job-concurrent cron layouts should size this explicitly.
+
+Sejak Issue #930 Wave 4 ini **tidak lagi cuma prosa**. `production:preflight`
+dan `database:capacity` mengeluarkan temuan `worker_instances_max_undeclared`
+(severity `warning`, bukan `fail`) ketika variabelnya **tidak pernah
+di-set** sementara jumlah script worker terdaftar lebih besar dari
+defaultnya.
+
+Yang diminta adalah **deklarasi**, bukan angka yang lebih besar:
+
+- Cron di-stagger sehingga cuma satu job jalan pada satu waktu? Set
+  `DATABASE_CAPACITY_WORKER_INSTANCES_MAX=1` secara eksplisit. Itu jawaban
+  yang benar, dan temuannya hilang.
+- Cron tidak di-stagger? Set ke jumlah job yang benar-benar bisa tumpang
+  tindih.
+
+Bedanya penting: `1` yang dipilih sadar dan `1` karena tidak ada yang pernah
+memikirkannya adalah angka yang sama dengan arti berlawanan, dan hanya yang
+kedua yang layak diberi peringatan. Nilai yang salah ketik (mis. `MAX=tree`)
+**tidak** dihitung sebagai deklarasi — ia jatuh ke default, jadi
+memperlakukannya sebagai deklarasi akan membuat typo membungkam peringatan
+yang seharusnya menyala.
+
+Jumlah script worker itu sendiri **tidak pernah ditulis tangan** di dokumen
+ini maupun di komentar kode. Ia diturunkan dari `JOB_WORK_CLASS_REGISTRY`
+lewat `countRegisteredWorkerJobs()`, dan registry itu sudah di-gate terhadap
+grep `scripts/` oleh `bun run db:work-class:check`. Dokumen ini dulu menyebut
+angka literal hasil ketik tangan; jumlah aslinya sejak itu hampir tiga kali
+lipat tanpa ada satu gate pun yang gagal — dan angka itu sebelumnya sudah
+pernah "dikoreksi oleh Issue #743", lalu melenceng lagi. Karena itu
+`tests/unit/capacity-worker-inventory-drift.test.ts` sekarang menolak angka
+semacam itu muncul kembali di dokumen ini maupun di empat file kode yang
+dulu ikut menyalinnya.
 
 Exempted, with rationale (not part of the instance x pool_max sum, see
 `capacity-config.ts`'s header comment for the full reasoning):
@@ -237,8 +268,9 @@ bounded by a different, already-existing mechanism —
 `src/lib/jobs/job-runner.ts`'s Postgres advisory lock ensures at most ONE
 instance of a given job NAME runs cluster-wide at a time, which is the
 dominant connection-storm risk for scheduled jobs (an overlapping re-run of
-the SAME job). Retrofitting all 9 worker scripts onto the work-class gate
-itself is a reasonable follow-up, out of this issue's atomic scope.
+the SAME job). Retrofitting every registered worker script onto the
+work-class gate itself is a reasonable follow-up, out of this issue's atomic
+scope.
 
 ## CI drift gate — work-class registry
 

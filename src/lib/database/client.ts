@@ -158,7 +158,7 @@ export function getDatabaseClient(): Bun.SQL {
   return getNamedDatabaseClient("app");
 }
 
-/** The "background worker" connection (`awcms_mini_worker`) — the 9 unattended cron-style scripts with no corresponding web endpoint (count corrected by Issue #743, ground truth = `grep -rl getWorkerDatabaseClient scripts/`, see `src/lib/database/work-class-registry.ts`'s `JOB_WORK_CLASS_REGISTRY` for the exact current list; migration 045's header predates that count). Falls back to `DATABASE_URL` if `WORKER_DATABASE_URL` isn't set. */
+/** The "background worker" connection (`awcms_mini_worker`) — the unattended cron-style scripts with no corresponding web endpoint. Ground truth is `src/lib/database/work-class-registry.ts`'s `JOB_WORK_CLASS_REGISTRY`, gated against `grep -rl getWorkerDatabaseClient scripts/` by `db:work-class:check`; a literal count used to live here and drifted twice (Issue #930). Falls back to `DATABASE_URL` if `WORKER_DATABASE_URL` isn't set. */
 export function getWorkerDatabaseClient(): Bun.SQL {
   return getNamedDatabaseClient("worker");
 }

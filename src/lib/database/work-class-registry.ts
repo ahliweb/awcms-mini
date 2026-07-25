@@ -17,7 +17,7 @@
  *
  * ## Why jobs are not runtime-gated through work-class.ts (yet)
  *
- * Retrofitting all 9 worker scripts to call `acquireWorkClassSlot` around
+ * Retrofitting every registered worker script to call `acquireWorkClassSlot` around
  * their main loop is a real, separately-scoped follow-up (see
  * `docs/awcms-mini/database-capacity-runbook.md` §Known limitation), not
  * done in Issue #743: job concurrency is already bounded by a DIFFERENT,
@@ -29,7 +29,7 @@
  * requires every worker script to be explicitly classified — closing the
  * "every database-using process is included in the capacity model, or
  * explicitly exempted with rationale" gap — without also taking on a
- * runtime behavior change to 9 already-shipped scripts in the same issue.
+ * runtime behavior change to every already-shipped script in the same issue.
  *
  * `scripts/work-class-registry-check.ts` discovers the CURRENT set of
  * worker scripts by grepping `scripts/*.ts` for `getWorkerDatabaseClient(`/

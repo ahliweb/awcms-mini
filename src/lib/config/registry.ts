@@ -264,7 +264,7 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     sensitivity: "secret",
     profiles: ["staging", "production"],
     description:
-      "Connection string for the least-privilege `awcms_mini_worker` role (Issue #683) used by the 9 unattended background scripts (count corrected by Issue #743). Falls back to DATABASE_URL (src/lib/database/client.ts's getWorkerDatabaseClient) when unset."
+      "Connection string for the least-privilege `awcms_mini_worker` role (Issue #683) used by every unattended background script — the authoritative list is JOB_WORK_CLASS_REGISTRY, gated against the filesystem by db:work-class:check (a literal count here drifted twice; Issue #930). Falls back to DATABASE_URL (src/lib/database/client.ts's getWorkerDatabaseClient) when unset."
   },
   {
     name: "SETUP_DATABASE_URL",
@@ -381,7 +381,7 @@ export const CONFIG_REGISTRY: readonly ConfigVarEntry[] = [
     profiles: ALL_PROFILES,
     default: "0",
     description:
-      "Minimum expected concurrently-running `worker` processes (the 9 scripts calling getWorkerDatabaseClient) — src/lib/database/capacity-config.ts. Default 0: worker scripts are periodic CLI invocations, not always-running daemons."
+      "Minimum expected concurrently-running `worker` processes (every script calling getWorkerDatabaseClient; the authoritative list is JOB_WORK_CLASS_REGISTRY) — src/lib/database/capacity-config.ts. Default 0: worker scripts are periodic CLI invocations, not always-running daemons."
   },
   {
     name: "DATABASE_CAPACITY_WORKER_INSTANCES_EXPECTED",
