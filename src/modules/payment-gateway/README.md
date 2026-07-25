@@ -114,3 +114,27 @@ envelope-bearing `awcms_mini_payment_gateway_webhook_inbox` is deliberately
 NOT the source (it has a guarded status UPDATE path, and no provider
 reference, token, or payload may ever reach a projection — ADR-0022
 Medium-2). Read under `payment_gateway.reconciliation.read`.
+
+## Admin UI (Issue #878)
+
+`/admin/payment-gateway` (`src/pages/admin/payment-gateway/index.astro`) — the
+platform-operator READ surface: provider health + circuit-breaker state,
+provider account bindings, and payment intents, looked up per target tenant.
+Each of the three sections is gated by its own permission (`health.read`,
+`provider_accounts.read`, `intents.read`), so a caller holding only one sees
+only that one; the SSR permission set already has every `payment_gateway.*`
+key stripped for a tenant that has not enabled this default-disabled module.
+
+Read-only by design. Checkout, cancel, refund request/approve, and outbox
+retry are high-risk, reason-and-`Idempotency-Key` mutations — several under
+maker/checker SoD and step-up (#879) — so they run through the API and are
+deliberately not driven from this screen.
+
+Provider references (`provider_account_ref`, `provider_session_ref`) are
+masked to their last four characters. Signing secrets cannot appear at all:
+they are `env:` pointers and the API never returns them.
+
+`tests/unit/module-navigation-path-resolves.test.ts` gates the sidebar entry
+this module declares against the page actually existing — this module shipped
+in #877 with the entry and no page, so a permitted operator's sidebar link
+404'd.
