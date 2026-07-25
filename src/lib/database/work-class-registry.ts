@@ -124,6 +124,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       'Scheduled bounded retention purge (usage-metering:purge, Issue #875) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; the withTenant call inside retention-purge.ts already passes workClass: "maintenance" explicitly.'
   },
+  "scripts/control-plane-fleet-sweep.ts": {
+    workClass: "reporting",
+    rationale:
+      'Fleet-wide READ-ONLY observation sweep (control-plane:fleet-sweep, Issue #930) — walks every active tenant and aggregates each control-plane module\'s signals. "reporting" rather than "maintenance": it is an analytical read across many tenants whose latency profile matches the projection refresh worker, and unlike a retention purge it is not merely tolerant of delay — stale gauges silently under-report an ongoing incident. Every withTenant call inside the sweep already passes workClass: "reporting" explicitly.'
+  },
   "scripts/payment-gateway-purge.ts": {
     workClass: "maintenance",
     rationale:

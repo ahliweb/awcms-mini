@@ -1605,6 +1605,12 @@
       "rationale": "Scheduled-publish dispatcher (blog:publish:scheduled) — recurring, not latency-sensitive, but more time-relevant than a maintenance purge."
     },
     {
+      "path": "scripts/control-plane-fleet-sweep.ts",
+      "workClass": "reporting",
+      "source": "registry",
+      "rationale": "Fleet-wide READ-ONLY observation sweep (control-plane:fleet-sweep, Issue #930) — walks every active tenant and aggregates each control-plane module's signals. \"reporting\" rather than \"maintenance\": it is an analytical read across many tenants whose latency profile matches the projection refresh worker, and unlike a retention purge it is not merely tolerant of delay — stale gauges silently under-report an ongoing incident. Every withTenant call inside the sweep already passes workClass: \"reporting\" explicitly."
+    },
+    {
       "path": "scripts/data-exchange-worker.ts",
       "workClass": "background_sync",
       "source": "registry",

@@ -95,7 +95,8 @@ suite("module job registry API", () => {
     expect(result.status).toBe(200);
     expect(result.body.data.moduleKey).toBe("logging");
     expect(result.body.data.jobs).toEqual([
-      expect.objectContaining({ command: "bun run logs:audit:purge" })
+      expect.objectContaining({ command: "bun run logs:audit:purge" }),
+      expect.objectContaining({ command: "bun run control-plane:fleet-sweep" })
     ]);
   });
 

@@ -33,6 +33,12 @@ Implementasi Issue 10.1 (`docs/awcms-mini/06_github_issues_detail.md` §Issue 10
 
   Gate juga memverifikasi `runbookPath` benar-benar ADA di disk (lapisan script, `existsSync`) — tautan runbook mati yang baru ketahuan jam 3 pagi lebih buruk daripada tidak ada tautan, karena responder sudah terlanjur mempercayainya. Isi runbook: `docs/awcms-mini/control-plane-slo-runbook.md`.
 
+- **Fleet sweep** `bun run control-plane:fleet-sweep` (Issue #930) — `application/control-plane-fleet-aggregation.ts`. Inilah cross-tenant read model yang dulu jadi utang di `tenant-provisioning:reconcile`: enumerasi tenant dari direktori GLOBAL, lalu baca tiap tenant di dalam konteks RLS-nya sendiri, lalu agregasi di memori. Tidak ada query yang melihat dua tenant sekaligus; tidak ada `BYPASSRLS`, tidak ada platform-claim di predikat policy (ADR-0022 §6b).
+
+  File agregasi ini **menerima DATA dan tidak meng-import modul lain sama sekali**. Tiap modul pemilik mengekspos kolektornya sendiri (`<modul>/application/control-plane-signals.ts`) yang membaca HANYA tabelnya sendiri; composition root (`scripts/control-plane-fleet-sweep.ts`) satu-satunya tempat yang boleh meng-import beberapa kolektor sekaligus. Jadi logikanya tetap pure function yang bisa diuji unit tanpa database.
+
+  Dua perilaku yang sengaja dipilih: **setiap gauge diemit walau nol** (gauge yang berhenti dilaporkan tidak bisa dibedakan dari kolektor mati — "no data" tampil sebagai celah, bukan alarm), dan **sweep yang dibatalkan di tengah tidak mempublikasikan apa pun** (total dari sebagian tenant terbaca sebagai penurunan fleet-wide, persis bentuk pemulihan, dan akan memadamkan alert yang masih seharusnya menyala). Sweep READ-ONLY — remediasi tetap milik engine per-tenant yang teraudit.
+
 - **Endpoint authorized** `GET /api/v1/logs/observability/slo` (permission `logging.observability.read`, sama seperti `dependency-health`) — katalog objective yang aman dipublikasikan. Respons dibangun `domain/slo-safe-view.ts` dari **allow-list field eksplisit**, tidak pernah dengan menyebar descriptor: angka ambang, dwell time, dan nama metrik sengaja DITAHAN karena itu nilai konfigurasi kapasitas/toleransi (persis kelas nilai yang dilarang #930 muncul di permukaan alert/health). Yang diekspos adalah yang benar-benar dibutuhkan responder: objective apa, janjinya apa, severity apa saja yang bisa dicapai, dan runbook-nya di mana. State live (objective mana yang sedang breach) belum disajikan di sini — kolektor fleet-wide-nya menyusul bersama job control-plane terjadwal.
 
 ## Bukan bagian modul ini

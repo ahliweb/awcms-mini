@@ -32,6 +32,48 @@ berkardinalitas rendah" benar **secara konstruksi**, bukan karena review.
 Operator menemukan tenant spesifik lewat API baca yang ter-reauthorize,
 **tidak pernah** lewat label metrik.
 
+## Dari mana angkanya datang
+
+`bun run control-plane:fleet-sweep` (`scripts/control-plane-fleet-sweep.ts`,
+jadwal disarankan tiap 5 menit). Inilah **cross-tenant read model** yang
+dulu ditandai sebagai utang di `tenant-provisioning:reconcile` ("a
+fleet-wide batch would need a purpose-built cross-tenant read-model,
+ADR-0022 §6b"). Bentuknya adalah intinya:
+
+1. Enumerasi tenant dari direktori tenant GLOBAL.
+2. Untuk tiap tenant, masuk ke konteks RLS tenant itu dan baca **hanya
+   baris miliknya**.
+3. Agregasi ke total fleet di memori aplikasi.
+
+Tidak ada satu query pun yang melihat baris dua tenant sekaligus, dan tidak
+ada yang butuh `BYPASSRLS` maupun platform-claim di predikat policy —
+persis yang dijaga `bun run rls:platform-claim:check`.
+
+Sweep ini **READ-ONLY**. Ia tidak pernah merekonsiliasi, mencabut,
+me-retry, atau memajukan apa pun. Job yang sekaligus mengamati DAN
+memutasi membuat "metriknya bergerak" jadi ambigu antara "fleet-nya
+berubah" dan "sweep-nya yang mengubah". Remediasi tetap di engine
+per-tenant lewat entry point-nya sendiri yang teraudit.
+
+Dua perilaku yang sengaja dipilih dan mudah salah:
+
+- **Setiap gauge diemit walau nilainya NOL.** Gauge yang berhenti dilaporkan
+  tidak bisa dibedakan dari kolektor yang mati di time-series backend mana
+  pun — "no data" biasanya tampil sebagai celah, bukan alarm. Menulis 0
+  secara eksplisit itulah yang membuat operator bisa membedakan "tidak ada
+  masalah" dari "tidak ada yang mengawasi".
+- **Sweep yang dibatalkan di tengah TIDAK mempublikasikan apa pun.** Total
+  fleet dari sebagian tenant terbaca sebagai PENURUNAN fleet-wide — persis
+  bentuk sebuah pemulihan — dan akan diam-diam memadamkan alert yang
+  seharusnya masih menyala.
+
+Job berjalan sebagai `awcms_mini_worker` dengan grant SELECT dari migration
+`103`. Catatan untuk debugging: `DATABASE_URL` developer biasanya superuser,
+dan superuser **melewati grant DAN RLS** — jadi sweep bisa tampak jalan
+sempurna secara lokal padahal grant-nya kurang (gagal di tenant pertama saat
+deploy) sekaligus diam-diam membaca semua tenant sekaligus. Integration test
+kolektor karena itu berjalan sebagai role worker sungguhan.
+
 ## Apa yang boleh muncul di permukaan status
 
 `GET /api/v1/logs/observability/slo` mengembalikan **status aman saja**:
