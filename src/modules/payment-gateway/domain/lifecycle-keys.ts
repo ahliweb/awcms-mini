@@ -30,6 +30,17 @@ export const PAYMENT_GATEWAY_PROCESSING_ATTEMPTS_LIFECYCLE_KEY =
 export const PAYMENT_GATEWAY_RECONCILIATIONS_LIFECYCLE_KEY =
   "payment_gateway.reconciliations";
 
+/**
+ * The outbound command queue (Issue #930 Wave 5).
+ *
+ * Independent of the evidence chain in both directions: the chain records what
+ * a PROVIDER told us, the outbox records what WE asked a provider to do.
+ * Neither references the other, so each is held and purged separately — a hold
+ * on the evidence chain must not be read as covering the commands, nor as
+ * excusing them.
+ */
+export const PAYMENT_GATEWAY_OUTBOX_LIFECYCLE_KEY = "payment_gateway.outbox";
+
 /** The three links of the webhook evidence chain — a hold on any one blocks the purge of all of them. */
 export const WEBHOOK_EVIDENCE_CHAIN_LIFECYCLE_KEYS = [
   PAYMENT_GATEWAY_WEBHOOK_INBOX_LIFECYCLE_KEY,

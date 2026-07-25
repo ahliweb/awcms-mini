@@ -9,6 +9,7 @@ import {
 import {
   PAYMENT_GATEWAY_NORMALIZED_EVENTS_LIFECYCLE_KEY,
   PAYMENT_GATEWAY_PROCESSING_ATTEMPTS_LIFECYCLE_KEY,
+  PAYMENT_GATEWAY_OUTBOX_LIFECYCLE_KEY,
   PAYMENT_GATEWAY_RECONCILIATIONS_LIFECYCLE_KEY,
   PAYMENT_GATEWAY_WEBHOOK_INBOX_LIFECYCLE_KEY
 } from "./domain/lifecycle-keys";
@@ -538,6 +539,62 @@ export const paymentGatewayModule = defineModule({
           "src/modules/payment-gateway/application/retention-purge.ts#purgeExpiredPaymentEvidence",
         description:
           "Deletes reconciliation log rows past the retention cutoff, in bounded batches, honoring an active legal hold on this key (held independently of the webhook evidence chain)."
+      }
+    },
+    {
+      key: PAYMENT_GATEWAY_OUTBOX_LIFECYCLE_KEY,
+      tableName: "awcms_mini_payment_gateway_outbox",
+      ownerModuleKey: "payment_gateway",
+      scope: "tenant",
+      // `updated_at`, not `created_at` like the other four: a command queued
+      // months ago that only reached `dead` today has been finished for zero
+      // days. This ages on when the command STOPPED BEING LIVE.
+      cursorColumn: "updated_at",
+      // `operational_queue` rather than `audit_security`: this is the outbound
+      // command queue, not evidence of what a provider did. The commercial
+      // outcome any command produced is recorded in payment_intents/refunds,
+      // which this purge never touches, and the provider's own account of it
+      // is the webhook evidence chain above.
+      retentionClass: "operational_queue",
+      retentionMinDays: 30,
+      retentionMaxDays: 730,
+      defaultRetentionDays: 180,
+      partition: {
+        eligible: false,
+        rationale:
+          "Highest write volume in the module (one row per outbound command, and query_status polls), but the working set is small by construction: only terminal rows are ever retained, and the partial retention index keeps the aged-out scan off the live queue entirely. Revisit if a deployment measures the terminal backlog outgrowing that index."
+      },
+      archive: {
+        archivable: false,
+        rationale:
+          "No archive step exists, and a terminal command carries no information not already in the resulting intent/refund state plus the provider's own webhook evidence."
+      },
+      deletion: {
+        mode: "hard_delete",
+        rationale:
+          "Age on updated_at AND terminal status only ('succeeded'/'dead'). The status half is not an optimisation: a pending/in_flight/failed row is work that still owes a customer something, and deleting one would silently drop a checkout, refund, or cancellation with the retry loop simply never seeing it again. Note that 'failed' is RETRYABLE despite the name — it shares the due index with 'pending'."
+      },
+      legalHold: {
+        applicable: true,
+        precedence: "overrides_retention"
+      },
+      requiredIndexes: [
+        {
+          columns: ["tenant_id", "updated_at"],
+          purpose:
+            "awcms_mini_payment_gateway_outbox_retention_idx (migration 106) — the age-ordered bounded scan, PARTIAL on status IN ('succeeded','dead') so the safe predicate is also the fast one: a purge that forgot the status filter would be both wrong and slow rather than quietly wrong."
+        }
+      ],
+      batchLimit: 5000,
+      backupRestoreNotes:
+        "Included in ordinary full-database backup/restore; no standalone archive artifact.",
+      executionMode: "delegated",
+      existingAdopter: {
+        jobCommand: "bun run payment-gateway:purge",
+        purgeFunctionRef:
+          "src/modules/payment-gateway/application/retention-purge.ts#purgeExpiredPaymentEvidence",
+        description:
+          "Deletes TERMINAL outbound commands past the retention cutoff, in bounded batches, honoring an active legal hold on this key (held independently of both the evidence chain and the reconciliation log). Live commands are never eligible."
       }
     }
   ],

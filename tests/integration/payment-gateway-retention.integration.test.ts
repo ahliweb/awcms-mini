@@ -46,6 +46,7 @@ import { legalHoldGuardPortAdapter } from "../../src/modules/data-lifecycle/appl
 import { purgeExpiredPaymentEvidence } from "../../src/modules/payment-gateway/application/retention-purge";
 import {
   PAYMENT_GATEWAY_NORMALIZED_EVENTS_LIFECYCLE_KEY,
+  PAYMENT_GATEWAY_OUTBOX_LIFECYCLE_KEY,
   PAYMENT_GATEWAY_PROCESSING_ATTEMPTS_LIFECYCLE_KEY,
   PAYMENT_GATEWAY_RECONCILIATIONS_LIFECYCLE_KEY,
   PAYMENT_GATEWAY_WEBHOOK_INBOX_LIFECYCLE_KEY
@@ -600,6 +601,184 @@ suite("payment-gateway retention purge (Issue #932)", () => {
       `
       )) as { status: string }[];
       expect(rows[0]!.status).toBe("normalized");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Issue #930 Wave 5 — the outbound command queue.
+  //
+  // #932 made the EVIDENCE chain purgeable and left the outbox behind, with
+  // the same defect in a purer form: a BEFORE DELETE trigger that raised for
+  // every role, no DELETE grant, and no DELETE statement anywhere in the
+  // codebase. It grew forever, one row per outbound provider command with up
+  // to 8000 characters of payload.
+  // -------------------------------------------------------------------------
+  describe("the outbound command queue (Issue #930 Wave 5)", () => {
+    // `seedProviderAccount()` inserts a FIXED provider_account_ref, so calling
+    // it once per command collides on the account's unique binding key. One
+    // account per test is also closer to reality: many commands, one provider
+    // account.
+    let sharedAccountId: string | null = null;
+
+    beforeEach(() => {
+      sharedAccountId = null;
+    });
+
+    async function outboxAccountId(): Promise<string> {
+      sharedAccountId ??= await seedProviderAccount();
+      return sharedAccountId;
+    }
+
+    async function seedOutboxCommand(
+      status: string,
+      updatedAt: Date,
+      createdAt: Date = updatedAt
+    ): Promise<string> {
+      const providerAccountId = await outboxAccountId();
+      const intentId = await seedIntent(providerAccountId);
+      const rows = (await withTenant(
+        getAdminSql(),
+        TENANT_ID,
+        (tx) => tx`
+        INSERT INTO awcms_mini_payment_gateway_outbox
+          (tenant_id, provider_account_id, intent_id, kind, status, attempts,
+           max_attempts, next_attempt_at, payload, created_at, updated_at)
+        VALUES (${TENANT_ID}, ${providerAccountId}, ${intentId},
+                'create_checkout', ${status}, 1, 5, ${updatedAt},
+                '{"probe":true}'::jsonb, ${createdAt}, ${updatedAt})
+        RETURNING id
+      `
+      )) as { id: string }[];
+      return rows[0]!.id;
+    }
+
+    async function purge(options: { batchLimit?: number } = {}) {
+      return purgeExpiredPaymentEvidence(
+        getWorkerTestSql(),
+        TENANT_ID,
+        legalHoldGuardPortAdapter,
+        { now: NOW, ...options }
+      );
+    }
+
+    test("terminal commands past the cutoff are purged — the table is no longer unpurgeable", async () => {
+      await seedOutboxCommand("succeeded", OLD);
+      await seedOutboxCommand("dead", OLD);
+
+      const result = await purge();
+
+      expect(result.purgedOutbox).toBe(2);
+      expect(await countRows("awcms_mini_payment_gateway_outbox")).toBe(0);
+    });
+
+    test("a LIVE command is never eligible, however old it is", async () => {
+      // The load-bearing assertion of this whole block. A pending, in-flight,
+      // or failed row is work that still owes a customer something: purging
+      // one would silently drop a checkout, refund, or cancellation, and the
+      // retry loop would simply never see it again — no error, no trace.
+      //
+      // `failed` is included deliberately: despite the name it is RETRYABLE,
+      // sharing the due index with `pending`. Reading it as terminal is the
+      // most plausible way someone breaks this later.
+      await seedOutboxCommand("pending", OLD);
+      await seedOutboxCommand("in_flight", OLD);
+      await seedOutboxCommand("failed", OLD);
+
+      const result = await purge();
+
+      expect(result.purgedOutbox).toBe(0);
+      expect(await countRows("awcms_mini_payment_gateway_outbox")).toBe(3);
+    });
+
+    test("age is measured from when the command stopped being live, not when it was queued", async () => {
+      // Queued long ago, but only reached a terminal state yesterday: it has
+      // been finished for one day, not six years. Ageing on `created_at`
+      // (which every other table here uses) would purge it immediately.
+      await seedOutboxCommand("dead", RECENT, OLD);
+
+      const result = await purge();
+
+      expect(result.purgedOutbox).toBe(0);
+      expect(await countRows("awcms_mini_payment_gateway_outbox")).toBe(1);
+    });
+
+    test("a legal hold on the outbox blocks it, and is reported distinctly from 'nothing aged out'", async () => {
+      await seedOutboxCommand("succeeded", OLD);
+      await placeLegalHold(PAYMENT_GATEWAY_OUTBOX_LIFECYCLE_KEY);
+
+      const result = await purge();
+
+      expect(result.purgedOutbox).toBe(0);
+      expect(result.outboxLegalHoldBlocked).toBe(true);
+      expect(await countRows("awcms_mini_payment_gateway_outbox")).toBe(1);
+    });
+
+    test("the outbox hold and the evidence-chain hold do not cover for each other", async () => {
+      // Independent in both directions: the chain is what a PROVIDER told us,
+      // the outbox is what WE asked a provider to do. A hold on one must never
+      // be read as covering the other, nor as excusing it.
+      const providerAccountId = await outboxAccountId();
+      await seedChain(providerAccountId, crypto.randomUUID(), {
+        inbox: OLD,
+        normalized: OLD,
+        attempt: OLD
+      });
+      await seedOutboxCommand("succeeded", OLD);
+
+      await placeLegalHold(PAYMENT_GATEWAY_OUTBOX_LIFECYCLE_KEY);
+      const heldOutbox = await purge();
+
+      expect(heldOutbox.outboxLegalHoldBlocked).toBe(true);
+      expect(heldOutbox.legalHoldBlocked).toBe(false);
+      expect(heldOutbox.purgedOutbox).toBe(0);
+      // The chain went ahead and purged, unaffected by the outbox hold.
+      expect(heldOutbox.purgedWebhookInbox).toBeGreaterThan(0);
+    });
+
+    test("a hold on the evidence chain does not block the outbox", async () => {
+      await seedOutboxCommand("succeeded", OLD);
+      await placeLegalHold(PAYMENT_GATEWAY_WEBHOOK_INBOX_LIFECYCLE_KEY);
+
+      const result = await purge();
+
+      expect(result.legalHoldBlocked).toBe(true);
+      expect(result.outboxLegalHoldBlocked).toBe(false);
+      expect(result.purgedOutbox).toBe(1);
+    });
+
+    test("the batch limit bounds a single pass, and re-running drains the rest", async () => {
+      for (let i = 0; i < 3; i += 1) {
+        await seedOutboxCommand("succeeded", OLD);
+      }
+
+      const first = await purge({ batchLimit: 2 });
+      expect(first.purgedOutbox).toBe(2);
+      expect(await countRows("awcms_mini_payment_gateway_outbox")).toBe(1);
+
+      const second = await purge({ batchLimit: 2 });
+      expect(second.purgedOutbox).toBe(1);
+      expect(await countRows("awcms_mini_payment_gateway_outbox")).toBe(0);
+    });
+
+    test("the request-path role still cannot delete a command — dropping the trigger moved the boundary to grants, it did not remove it", async () => {
+      const id = await seedOutboxCommand("succeeded", OLD);
+
+      let error: unknown = null;
+      try {
+        await withTenant(
+          getTestSql(),
+          TENANT_ID,
+          (tx) => tx`
+          DELETE FROM awcms_mini_payment_gateway_outbox WHERE id = ${id}
+        `
+        );
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).not.toBeNull();
+      expect(String(error)).toContain("permission denied");
+      expect(await countRows("awcms_mini_payment_gateway_outbox")).toBe(1);
     });
   });
 });

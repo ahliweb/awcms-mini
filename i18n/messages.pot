@@ -3257,7 +3257,7 @@ msgid "admin.layout.nav_organization_structure_units"
 msgstr ""
 
 #. referenced dynamically via t(entry.labelKey) (AdminLayout.astro / admin/modules/[moduleKey].astro)
-#: src/modules/payment-gateway/module.ts:186
+#: src/modules/payment-gateway/module.ts:187
 msgid "admin.layout.nav_payment_gateway"
 msgstr ""
 
