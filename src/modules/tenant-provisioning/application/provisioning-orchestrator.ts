@@ -69,6 +69,7 @@ import { validateProvisioningRequest } from "../domain/request-validation";
 import { getContributedProvisioningStep } from "../infrastructure/step-handler-registry";
 import type { CoreStepDeps } from "./core-step-handlers";
 import { createCoreStepHandlers } from "./core-step-handlers";
+import { commitOwnerSecret } from "./owner-secret-commitment";
 import {
   acquireLease,
   completeStep,
@@ -160,13 +161,30 @@ export type ProvisioningEngineDeps = {
   steps: CoreStepDeps;
 };
 
-/** Bind the idempotency/inputs hash to the target identity (tenantCode) + immutable inputs — never the raw password (only its fingerprint). */
-export function computeProvisioningInputsHash(
+/**
+ * Bind the idempotency/inputs hash to the target identity (tenantCode) +
+ * immutable inputs — never the raw owner password, only a KEYED commitment to
+ * it.
+ *
+ * The commitment is keyed (`owner-secret-commitment.ts`) rather than a bare
+ * digest because the result is PERSISTED, as `inputs_hash` here and as the
+ * generic idempotency store's `request_hash`. Every other field below is
+ * recoverable by anyone who can read those tables, so an unkeyed digest would
+ * let a database reader confirm password guesses offline against a stored
+ * column — an oracle for the tenant's initial administrator credential
+ * (CodeQL alerts #63/#64). With the pepper held in the process environment
+ * instead of a column — and each derivation costing a full scrypt — that
+ * enumeration is no longer possible.
+ *
+ * Async because the commitment is a deliberately slow KDF; see
+ * `owner-secret-commitment.ts` for why the cost is both affordable and load
+ * bearing here.
+ */
+export async function computeProvisioningInputsHash(
   input: ProvisioningRequestInput
-): string {
-  const passwordFingerprint = createHash("sha256")
-    .update(input.owner.password)
-    .digest("hex");
+): Promise<string> {
+  const ownerSecretCommitment = await commitOwnerSecret(input.owner.password);
+
   return createHash("sha256")
     .update(
       JSON.stringify({
@@ -177,7 +195,7 @@ export function computeProvisioningInputsHash(
         legalName: input.legalName,
         ownerDisplayName: input.owner.displayName,
         ownerLoginIdentifier: input.owner.loginIdentifier,
-        ownerPasswordFingerprint: passwordFingerprint,
+        ownerSecretCommitment,
         officeCode: input.officeCode,
         officeName: input.officeName,
         options: input.options
@@ -236,7 +254,7 @@ export async function requestProvisioning(
     return { ok: false, reason: "validation", errors };
   }
   const plan = getProvisioningPlan(input.planKey, input.planVersion)!;
-  const inputsHash = computeProvisioningInputsHash(input);
+  const inputsHash = await computeProvisioningInputsHash(input);
 
   // ACID anti-duplicate: create the tenant (RLS-free). A concurrent request for
   // the same tenant_code blocks here on the unique index, then finds it taken.
