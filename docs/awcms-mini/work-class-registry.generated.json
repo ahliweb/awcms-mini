@@ -791,6 +791,11 @@
       "source": "explicit"
     },
     {
+      "path": "src/pages/api/v1/logs/observability/slo.ts",
+      "workClass": "reporting",
+      "source": "explicit"
+    },
+    {
       "path": "src/pages/api/v1/media/news-images/upload-sessions/[id]/cancel.ts",
       "workClass": "interactive",
       "source": "default"

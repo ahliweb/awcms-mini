@@ -2379,6 +2379,28 @@ Cross-module audit trail (awcms_mini_audit_events) and its read API. Complements
 | 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                     | [`ApiError`](#standard-error-envelope)                                                                           |
 | 500    | Internal server error without stack trace.                                                                                                                                                                                                                         | [`ApiError`](#standard-error-envelope)                                                                           |
 
+### `GET /api/v1/logs/observability/slo` — Authorized catalog of module-declared service-level objectives and their runbooks (Issue
+
+- **operationId**: `logsGetObservabilitySlo`
+- **Security**: bearerAuth + tenantHeader
+
+**Parameters**
+
+| Name               | In     | Required | Type   | Description                                 |
+| ------------------ | ------ | -------- | ------ | ------------------------------------------- |
+| `X-Correlation-ID` | header | no       | string | Optional server-side trace correlation ID.  |
+| `X-Request-ID`     | header | no       | string | Optional client-generated request trace ID. |
+
+**Responses**
+
+| Status | Description                                                                                                                                                                                                                                                              | Schema                                                                                               |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| 200    | Safe view of every service-level objective each module declared in its own module.ts. Deliberately withholds numeric alert thresholds, dwell times, and instrumentation metric names — those are capacity/tolerance configuration, which this surface must never reveal. | [`ApiSuccess`](#standard-success-envelope)&lt;[`SloCatalogResponse`](#schema-slocatalogresponse)&gt; |
+| 400    | Validation or request error.                                                                                                                                                                                                                                             | [`ApiError`](#standard-error-envelope)                                                               |
+| 401    | Authentication required or expired.                                                                                                                                                                                                                                      | [`ApiError`](#standard-error-envelope)                                                               |
+| 403    | Access denied by RBAC, ABAC, or tenant policy.                                                                                                                                                                                                                           | [`ApiError`](#standard-error-envelope)                                                               |
+| 500    | Internal server error without stack trace.                                                                                                                                                                                                                               | [`ApiError`](#standard-error-envelope)                                                               |
+
 ## Profile Identity
 
 Profile lifecycle (soft delete/restore/purge) demonstrating the audit trail end-to-end. Full profile CRUD (create/update/list) remains out of scope/backlog.
@@ -18406,6 +18428,87 @@ Partial draft content — every field is optional (PATCH); a provided child coll
   "locked": false,
   "tenantId": "00000000-0000-0000-0000-000000000000",
   "lockedAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+### Schema: SloCatalogResponse
+
+| Field            | Type                                                            | Required | Nullable | Description |
+| ---------------- | --------------------------------------------------------------- | -------- | -------- | ----------- |
+| `generatedAt`    | string (date-time)                                              | yes      | no       |             |
+| `objectiveCount` | integer                                                         | yes      | no       |             |
+| `objectives`     | array of [`SloObjectiveSafeView`](#schema-sloobjectivesafeview) | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "generatedAt": "2026-01-01T00:00:00.000Z",
+  "objectiveCount": 0,
+  "objectives": [
+    {
+      "key": "string",
+      "ownerModuleKey": "string",
+      "title": "string",
+      "description": "string",
+      "kind": "freshness",
+      "unit": "seconds",
+      "severities": [],
+      "operatorActions": [],
+      "runbookPath": "string"
+    }
+  ]
+}
+```
+
+### Schema: SloObjectiveSafeView
+
+| Field             | Type                                                                  | Required | Nullable | Description |
+| ----------------- | --------------------------------------------------------------------- | -------- | -------- | ----------- |
+| `key`             | string                                                                | yes      | no       |             |
+| `ownerModuleKey`  | string                                                                | yes      | no       |             |
+| `title`           | string                                                                | yes      | no       |             |
+| `description`     | string                                                                | yes      | no       |             |
+| `kind`            | enum(`freshness`, `backlog`, `success_rate`, `latency`, `saturation`) | yes      | no       |             |
+| `unit`            | enum(`seconds`, `count`, `ratio`, `milliseconds`)                     | yes      | no       |             |
+| `severities`      | array of enum(`info`, `warning`, `critical`)                          | yes      | no       |             |
+| `operatorActions` | array of [`SloOperatorAction`](#schema-slooperatoraction)             | yes      | no       |             |
+| `runbookPath`     | string                                                                | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "key": "string",
+  "ownerModuleKey": "string",
+  "title": "string",
+  "description": "string",
+  "kind": "freshness",
+  "unit": "seconds",
+  "severities": ["info"],
+  "operatorActions": [
+    {
+      "severity": "info",
+      "action": "string"
+    }
+  ],
+  "runbookPath": "string"
+}
+```
+
+### Schema: SloOperatorAction
+
+| Field      | Type                                | Required | Nullable | Description |
+| ---------- | ----------------------------------- | -------- | -------- | ----------- |
+| `severity` | enum(`info`, `warning`, `critical`) | yes      | no       |             |
+| `action`   | string                              | yes      | no       |             |
+
+**Example**
+
+```json
+{
+  "severity": "info",
+  "action": "string"
 }
 ```
 

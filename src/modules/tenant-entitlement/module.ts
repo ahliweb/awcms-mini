@@ -229,6 +229,49 @@ export const tenantEntitlementModule = defineModule({
       batchLimit: 1000
     }
   ],
+  // Issue #930 (epic #868) — an entitlement whose validity window has passed
+  // but which nothing has revoked is a commercial problem and an
+  // AUTHORIZATION problem at the same time: the tenant keeps access it is no
+  // longer entitled to. That dual nature is why the objective is tight (one
+  // sweep interval) rather than merely eventual.
+  serviceLevelObjectives: [
+    {
+      key: "tenant_entitlement.expired_entitlements_swept",
+      ownerModuleKey: "tenant_entitlement",
+      title: "Expired entitlements are revoked promptly",
+      description:
+        "Entitlements past their validity window are revoked within one sweep interval. A non-zero backlog here means tenants still hold access they are no longer entitled to — commercially wrong and an authorization gap at once.",
+      kind: "backlog",
+      metricName: "control_plane_entitlement_expired_unswept",
+      unit: "count",
+      objectiveValue: 0,
+      objectiveComparison: "above",
+      runbookPath:
+        "docs/awcms-mini/control-plane-slo-runbook.md#tenant-entitlement-expiry-sweep",
+      thresholds: [
+        {
+          thresholdKey: "unswept_present",
+          severity: "warning",
+          comparison: "above",
+          value: 0,
+          // One sweep interval plus margin — below this it is simply "the
+          // sweep has not run yet", which is not a fault.
+          forSeconds: 3600,
+          operatorAction:
+            "Verify the expiry sweep ran and did not fail open. Do not bulk-revoke by hand — revocation must go through the audited service path."
+        },
+        {
+          thresholdKey: "unswept_accumulating",
+          severity: "critical",
+          comparison: "above",
+          value: 25,
+          forSeconds: 3600,
+          operatorAction:
+            "Treat as an access-control incident: entitlements are not being revoked at all. Confirm whether the remaining rows are genuinely expired or carry a deliberately non-expiring override before acting."
+        }
+      ]
+    }
+  ],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/tenant-entitlement"

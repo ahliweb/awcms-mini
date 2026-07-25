@@ -197,6 +197,14 @@ jobs:
       - name: Reporting projection registry validation check
         run: bun run reporting:projections:registry:check
 
+      # Issue #930 (epic #868 SaaS control plane): added alongside the other
+      # registry checks above, for the same "CI silently runs a subset of
+      # `bun run check`" reason. This one additionally verifies every
+      # `runbookPath` resolves on disk, so a docs file removed in one PR
+      # cannot silently orphan an alert's runbook link.
+      - name: Control-plane SLO/alert registry validation check
+        run: bun run slo:registry:check
+
       # Issue #874 (epic #868 SaaS control plane): added alongside the other
       # registry checks above, for the exact same "CI silently runs a subset of
       # `bun run check`" reason Issue #685/#740/#745/#746/#750/#753 already

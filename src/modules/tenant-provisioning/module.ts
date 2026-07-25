@@ -221,6 +221,113 @@ export const tenantProvisioningModule = defineModule({
       batchLimit: 1000
     }
   ],
+  // Issue #930 (epic #868) — fleet-wide operational objectives. Provisioning
+  // is the clearest case for why the control plane needs its OWN objectives:
+  // a provisioning queue that stops draining is invisible to every tenant
+  // (the ones still waiting cannot see it; the ones already provisioned are
+  // unaffected) and to every tenant-scoped report (the tenant does not exist
+  // yet). Nobody is looking, so the objective has to.
+  serviceLevelObjectives: [
+    {
+      key: "tenant_provisioning.provisioning_backlog_drains",
+      ownerModuleKey: "tenant_provisioning",
+      title: "Provisioning backlog keeps draining",
+      description:
+        "The fleet-wide count of non-terminal provisioning attempts stays bounded, so a new tenant always finishes onboarding rather than silently stalling in a queue nobody can see.",
+      kind: "backlog",
+      metricName: "control_plane_provisioning_backlog",
+      dimension: "attemptStatus",
+      unit: "count",
+      objectiveValue: 50,
+      objectiveComparison: "above",
+      runbookPath:
+        "docs/awcms-mini/control-plane-slo-runbook.md#tenant-provisioning-backlog",
+      thresholds: [
+        {
+          thresholdKey: "backlog_elevated",
+          severity: "warning",
+          comparison: "above",
+          value: 50,
+          // Fifteen minutes is longer than a normal burst of signups takes to
+          // drain, so this does not fire on healthy load.
+          forSeconds: 900,
+          operatorAction:
+            "Check the reconcile job's per-tenant leases for one that was never released, then distinguish genuinely stuck attempts from those correctly waiting on a human decision."
+        },
+        {
+          thresholdKey: "backlog_critical",
+          severity: "critical",
+          comparison: "above",
+          value: 200,
+          forSeconds: 900,
+          operatorAction:
+            "Treat as a stalled queue, not load: verify the reconcile worker is running at all and check database pool saturation before investigating the module itself."
+        }
+      ]
+    },
+    {
+      key: "tenant_provisioning.provisioning_attempt_age",
+      ownerModuleKey: "tenant_provisioning",
+      title: "No provisioning attempt ages out",
+      description:
+        "The oldest non-terminal provisioning attempt stays younger than the objective. Queue DEPTH alone cannot tell a healthy queue that is briefly deep from a stalled one that is permanently shallow — age can, which is why this objective exists alongside the backlog one.",
+      kind: "freshness",
+      metricName: "control_plane_provisioning_oldest_pending_seconds",
+      unit: "seconds",
+      objectiveValue: 3600,
+      objectiveComparison: "above",
+      runbookPath:
+        "docs/awcms-mini/control-plane-slo-runbook.md#tenant-provisioning-age",
+      thresholds: [
+        {
+          thresholdKey: "oldest_attempt_stale",
+          severity: "warning",
+          comparison: "above",
+          value: 3600,
+          forSeconds: 600,
+          operatorAction:
+            "If age climbs while depth stays flat, one attempt is not advancing rather than the system being loaded — find the oldest attempt and identify which step never completed."
+        },
+        {
+          thresholdKey: "oldest_attempt_abandoned",
+          severity: "critical",
+          comparison: "above",
+          value: 21600,
+          forSeconds: 600,
+          operatorAction:
+            "A six-hour-old attempt will not recover on its own; resume or compensate it explicitly through the operator API so the action is audited."
+        }
+      ]
+    },
+    {
+      key: "tenant_provisioning.manual_intervention_bounded",
+      ownerModuleKey: "tenant_provisioning",
+      title: "Manual-intervention queue stays bounded",
+      description:
+        "Control-plane workflows parked awaiting a human decision stay bounded. Deliberately not a 'system broken' alert — it separates 'the system is stuck' from 'the system is correctly waiting for an operator who has not looked yet', which still needs an SLA because a tenant is waiting at the end of it.",
+      kind: "backlog",
+      metricName: "control_plane_manual_intervention_total",
+      dimension: "subsystem",
+      unit: "count",
+      objectiveValue: 20,
+      objectiveComparison: "above",
+      runbookPath:
+        "docs/awcms-mini/control-plane-slo-runbook.md#control-plane-manual-intervention",
+      thresholds: [
+        {
+          thresholdKey: "intervention_queue_growing",
+          severity: "warning",
+          comparison: "above",
+          value: 20,
+          // Long dwell on purpose: this is a human-throughput signal, and
+          // paging on a short spike would train operators to ignore it.
+          forSeconds: 14400,
+          operatorAction:
+            "Escalate to the process owner rather than the technical on-call — a growing queue here means nobody is working the decision backlog, not that the system failed."
+        }
+      ]
+    }
+  ],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/tenant-provisioning"

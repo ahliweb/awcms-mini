@@ -61,6 +61,35 @@ Base ini generik dan **sengaja tidak** membangun SIEM/alerting/export nyata (doc
 - **Metrics BUKAN sumber otorisasi** — jangan pernah membaca nilai metrik untuk membuat keputusan ABAC/RLS/autentikasi di kode apa pun.
 - **Endpoint authorized** `GET /api/v1/logs/observability/dependency-health` (permission `logging.observability.read`) membedakan "local dependency" (database) dari "optional external provider" — pola untuk endpoint serupa di aplikasi turunan yang butuh membedakan dependency lokal vs provider opsional dalam satu respons.
 
+## SLO / alert registry (#930)
+
+Modul mendeklarasikan `serviceLevelObjectives` di `module.ts`-nya sendiri;
+`logging/domain/slo-registry.ts` mengagregasi + memvalidasi. Gate
+`bun run slo:registry:check` (bagian `bun run check`).
+
+- **`metricName` WAJIB terdaftar di `METRIC_DEFINITIONS`.** Objective yang
+  diukur terhadap metrik yang tidak pernah di-emit = **diam permanen**:
+  terlihat sebagai coverage, tidak pernah memanggil siapa pun.
+- **`dimension` WAJIB salah satu `allowedLabelKeys` metrik itu.** Ini yang
+  membuat "dimensi berkardinalitas rendah" benar SECARA KONSTRUKSI —
+  objective tak bisa memperkenalkan label, jadi tak bisa menyelundupkan
+  tenant/resource id ke alert. Jangan longgarkan aturan ini.
+- **Metrik control-plane wajib unlabeled atau berlabel enum kode-tetap.**
+  Prefix `control_plane_*`. Operator menemukan tenant lewat API baca yang
+  ter-reauthorize, TIDAK PERNAH lewat label metrik.
+- **`runbookPath` diverifikasi ADA di disk** oleh lapisan script gate
+  (`existsSync`), bukan hanya dicek bentuknya. Tautan runbook mati jam 3
+  pagi lebih buruk daripada tidak ada tautan.
+- **Ambang severity divalidasi urutannya**: `critical` harus lebih jauh dari
+  objective daripada `warning`, dan setiap threshold harus searah dengan
+  `objectiveComparison` — threshold yang berlawanan arah justru
+  mendeskripsikan keadaan SEHAT dan akan menyala permanen. `below` di atas
+  metrik `counter` ditolak (counter tak pernah turun → alert latch selamanya).
+- **Permukaan operator menahan konfigurasi**: `GET /api/v1/logs/observability/slo`
+  dibangun `domain/slo-safe-view.ts` dari allow-list field EKSPLISIT. Jangan
+  pernah menyebar descriptor ke respons — angka ambang/dwell/nama metrik
+  adalah data kalibrasi untuk bertahan tepat di bawah alarm.
+
 ## Skill terkait
 
 `awcms-mini-audit-log` (APA yang wajib diaudit + redaksi), `awcms-mini-integration` (pola dispatcher/outbox untuk I/O eksternal, ADR-0006), `awcms-mini-security-hardening` (batas scope A.8.16 SIEM/monitoring terpusat), `awcms-mini-performance` (pool/backpressure tuning yang metrik `db_pool_work_class_*` sekarang membuatnya observable).
