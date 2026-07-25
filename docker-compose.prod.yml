@@ -89,8 +89,14 @@ services:
       SETUP_DATABASE_URL: ${AWCMS_MINI_SETUP_DB_PASSWORD:+postgres://awcms_mini_setup:${AWCMS_MINI_SETUP_DB_PASSWORD}@db:5432/${POSTGRES_DB:-awcms-mini}}
       HOST: "0.0.0.0"
       PORT: "4321"
-    ports:
-      - "4321:4321"
+    # No host port. The app is reachable only through `cache` below, which is
+    # the sole ingress in this topology — publishing 4321 as well would let a
+    # request bypass the edge (and its tenant/session cache keying) entirely,
+    # which is exactly the class of mistake that makes a cache look correct in
+    # testing and leak in production. Use `docker compose exec` or an override
+    # file for direct access while debugging.
+    expose:
+      - "4321"
     depends_on:
       db:
         condition: service_healthy
@@ -116,6 +122,60 @@ services:
       resources:
         limits:
           cpus: "1"
+          memory: 512M
+
+  # Varnish edge cache (always on in this profile — see
+  # docs/awcms-mini/http-cache-varnish.md). Deliberately NOT present in
+  # docker-compose.yml: the LAN-first/offline topology serves one tenant on one
+  # box, where an extra hop buys nothing and makes local debugging harder.
+  #
+  # This service caches NOTHING the app has not explicitly marked cacheable —
+  # `src/lib/http/cache-policy.ts` stamps `no-store` on every response that did
+  # not opt in. Run `bun run varnish:cache:check` after touching the VCL: it
+  # starts a real Varnish and proves tenant, session, and locale isolation over
+  # HTTP, which reading the diff cannot.
+  cache:
+    image: varnish:7.6
+    restart: unless-stopped
+    command:
+      - varnishd
+      - "-F"
+      - "-a"
+      - ":80"
+      - "-f"
+      - "/etc/varnish/default.vcl"
+      - "-s"
+      - "malloc,${VARNISH_CACHE_SIZE:-256m}"
+    volumes:
+      - ./deploy/varnish/default.vcl:/etc/varnish/default.vcl:ro
+    ports:
+      - "${VARNISH_HTTP_PORT:-4321}:80"
+    depends_on:
+      app:
+        condition: service_started
+    # Varnish mmaps its storage and wants locked memory; without this it logs
+    # an mlock warning on every start and can page cache objects to disk,
+    # which for session-scoped entries means authenticated content written to
+    # swap. Raising the limit keeps them in RAM.
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/lib/varnish:exec
+    healthcheck:
+      test: ["CMD-SHELL", "varnishadm ping || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
           memory: 512M
 
 volumes:
