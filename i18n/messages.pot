@@ -4260,6 +4260,126 @@ msgstr ""
 msgid "admin.organization_structure.units.title"
 msgstr ""
 
+#: src/pages/admin/payment-gateway/index.astro:113
+msgid "admin.payment_gateway.access_denied_body"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:112
+msgid "admin.payment_gateway.access_denied_title"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:86
+msgid "admin.payment_gateway.accounts_heading"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:102
+msgid "admin.payment_gateway.circuit_open"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:94
+msgid "admin.payment_gateway.col_account_ref"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:98
+msgid "admin.payment_gateway.col_amount"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:92
+msgid "admin.payment_gateway.col_circuit_open_until"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:101
+msgid "admin.payment_gateway.col_created"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:89
+msgid "admin.payment_gateway.col_direction"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:95
+msgid "admin.payment_gateway.col_display_name"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:97
+msgid "admin.payment_gateway.col_endpoint_host"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:91
+msgid "admin.payment_gateway.col_failures"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:99
+msgid "admin.payment_gateway.col_invoice"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:93
+msgid "admin.payment_gateway.col_last_checked"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:88
+msgid "admin.payment_gateway.col_provider"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:100
+msgid "admin.payment_gateway.col_session_ref"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:90
+msgid "admin.payment_gateway.col_state"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:96
+msgid "admin.payment_gateway.col_status"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:84
+msgid "admin.payment_gateway.empty"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:136
+msgid "admin.payment_gateway.field_target_tenant"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:83
+msgid "admin.payment_gateway.forbidden"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:85
+msgid "admin.payment_gateway.health_heading"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:87
+msgid "admin.payment_gateway.intents_heading"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:130
+msgid "admin.payment_gateway.intro"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:146
+msgid "admin.payment_gateway.lookup_button"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:133
+msgid "admin.payment_gateway.lookup_heading"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:131
+msgid "admin.payment_gateway.masking_note"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:81
+msgid "admin.payment_gateway.not_found"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:103
+msgid "admin.payment_gateway.state_loading"
+msgstr ""
+
+#: src/pages/admin/payment-gateway/index.astro:107
+msgid "admin.payment_gateway.title"
+msgstr ""
+
 #: src/pages/admin/profile-identity/[id].astro:151
 msgid "admin.profile_identity.access_denied_body"
 msgstr ""

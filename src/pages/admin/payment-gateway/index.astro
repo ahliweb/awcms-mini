@@ -1,0 +1,534 @@
+---
+/**
+ * Payment gateway operator panel (Issue #878, epic #868 SaaS control plane,
+ * ADR-0022) — the read surface for the module shipped by #877.
+ *
+ * WHY THIS PAGE EXISTS. `payment_gateway`'s descriptor has always declared a
+ * sidebar entry for `/admin/payment-gateway` (`module.ts`'s `navigation`), but
+ * the page itself was never built: an operator holding
+ * `payment_gateway.intents.read` saw the link and got a 404. It was the only
+ * control-plane module with no admin screen at all, so provider health,
+ * account bindings, and intent status were reachable only through direct API
+ * calls. `tests/unit/module-navigation-path-resolves.test.ts` now fails if any
+ * module ever declares a nav path again without the page behind it.
+ *
+ * SHAPE. Same pattern as the other control-plane panels
+ * (`admin/subscription-billing/index.astro`,
+ * `admin/tenant-lifecycle/index.astro`): a payment record belongs to a TARGET
+ * tenant, so the SSR page renders only the lookup form + section shells, and
+ * the island fills them client-side per target tenant. Read-only — every
+ * mutation this module exposes (checkout, cancel, refund request/approve,
+ * outbox retry) is high-risk, needs a reason + `Idempotency-Key`, and several
+ * are under maker/checker SoD + step-up (#879), so they are deliberately NOT
+ * driven from this screen.
+ *
+ * AUTHORIZATION. Three independent sections, each gated by its OWN permission
+ * (`health.read`, `provider_accounts.read`, `intents.read`) — a caller holding
+ * only one sees only that one. This is presentation gating on top of, never
+ * instead of, the API's own re-authorization: every endpoint below re-checks
+ * RBAC and additionally refuses a cross-tenant read unless the caller IS the
+ * platform tenant (`_support.ts`'s `authorizeRead`). The SSR permission set
+ * itself already has `payment_gateway.*` stripped for any tenant that has not
+ * enabled this default-disabled module (`lib/auth/ssr-session.ts`, Issue #841).
+ *
+ * MASKING. Provider references are masked to their last four characters by
+ * default (`provider_account_ref`, `provider_session_ref`) — issue #878
+ * requires sensitive provider references masked by default, and an operator
+ * screen that prints a full merchant/session id into a shared screen or a
+ * screenshot is exactly the leak that rule exists for. Signing secrets can
+ * never appear here at all: the API never returns them (they are `env:`
+ * pointers, ADR-0022 §6), so there is nothing to mask.
+ */
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import StateNotice from "../../../components/ui/StateNotice.astro";
+import { permissionKey } from "../../../modules/identity-access/domain/access-control";
+import { createTranslator } from "../../../lib/i18n/translate";
+
+const context = Astro.locals.ssrContext;
+
+if (!context) {
+  throw new Error(
+    "admin/payment-gateway/index.astro rendered without Astro.locals.ssrContext — src/middleware.ts should have redirected to /login before this page ever runs."
+  );
+}
+
+const t = await createTranslator(Astro.locals.locale);
+
+const CAN_READ_HEALTH = context.permissions.has(
+  permissionKey("payment_gateway", "health", "read")
+);
+const CAN_READ_ACCOUNTS = context.permissions.has(
+  permissionKey("payment_gateway", "provider_accounts", "read")
+);
+const CAN_READ_INTENTS = context.permissions.has(
+  permissionKey("payment_gateway", "intents", "read")
+);
+const CAN_READ_ANY = CAN_READ_HEALTH || CAN_READ_ACCOUNTS || CAN_READ_INTENTS;
+
+/**
+ * Only the sections the caller may actually read are announced to the island,
+ * so it never issues a request it already knows will be denied (and never
+ * renders an empty panel that reads as "this tenant has none" when the real
+ * answer is "you may not see this").
+ */
+const clientConfig = {
+  canReadHealth: CAN_READ_HEALTH,
+  canReadAccounts: CAN_READ_ACCOUNTS,
+  canReadIntents: CAN_READ_INTENTS
+};
+
+const clientStrings = {
+  notFound: t("admin.payment_gateway.not_found"),
+  networkError: t("common.network_error"),
+  forbidden: t("admin.payment_gateway.forbidden"),
+  empty: t("admin.payment_gateway.empty"),
+  healthHeading: t("admin.payment_gateway.health_heading"),
+  accountsHeading: t("admin.payment_gateway.accounts_heading"),
+  intentsHeading: t("admin.payment_gateway.intents_heading"),
+  colProvider: t("admin.payment_gateway.col_provider"),
+  colDirection: t("admin.payment_gateway.col_direction"),
+  colState: t("admin.payment_gateway.col_state"),
+  colFailures: t("admin.payment_gateway.col_failures"),
+  colCircuitOpenUntil: t("admin.payment_gateway.col_circuit_open_until"),
+  colLastChecked: t("admin.payment_gateway.col_last_checked"),
+  colAccountRef: t("admin.payment_gateway.col_account_ref"),
+  colDisplayName: t("admin.payment_gateway.col_display_name"),
+  colStatus: t("admin.payment_gateway.col_status"),
+  colEndpointHost: t("admin.payment_gateway.col_endpoint_host"),
+  colAmount: t("admin.payment_gateway.col_amount"),
+  colInvoice: t("admin.payment_gateway.col_invoice"),
+  colSessionRef: t("admin.payment_gateway.col_session_ref"),
+  colCreated: t("admin.payment_gateway.col_created"),
+  circuitOpen: t("admin.payment_gateway.circuit_open"),
+  loading: t("admin.payment_gateway.state_loading")
+};
+---
+
+<AdminLayout title={t("admin.payment_gateway.title")}>
+  {
+    !CAN_READ_ANY && (
+      <StateNotice
+        kind="denied"
+        title={t("admin.payment_gateway.access_denied_title")}
+        body={t("admin.payment_gateway.access_denied_body")}
+      />
+    )
+  }
+  {
+    CAN_READ_ANY && (
+      <div class="gateway-manager">
+        <script
+          type="application/json"
+          id="i18n-strings"
+          set:html={JSON.stringify(clientStrings)}
+        />
+        <script
+          type="application/json"
+          id="panel-config"
+          set:html={JSON.stringify(clientConfig)}
+        />
+        <p class="intro">{t("admin.payment_gateway.intro")}</p>
+        <p class="note">{t("admin.payment_gateway.masking_note")}</p>
+        <section class="panel">
+          <h2>{t("admin.payment_gateway.lookup_heading")}</h2>
+          <form id="lookup-form" class="inline-form">
+            <label>
+              {t("admin.payment_gateway.field_target_tenant")}
+              <input
+                name="tenantId"
+                required
+                size="40"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+            <button type="submit">
+              {t("admin.payment_gateway.lookup_button")}
+            </button>
+          </form>
+          <p
+            id="lookup-status"
+            class="status"
+            role="status"
+            aria-live="polite"
+          />
+          {CAN_READ_HEALTH && <div id="health" class="result" hidden />}
+          {CAN_READ_ACCOUNTS && <div id="accounts" class="result" hidden />}
+          {CAN_READ_INTENTS && <div id="intents" class="result" hidden />}
+        </section>
+      </div>
+    )
+  }
+</AdminLayout>
+
+<style>
+  .gateway-manager {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+  }
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--sp-4);
+    box-shadow: var(--shadow-sm);
+  }
+  .panel h2 {
+    margin-top: 0;
+  }
+  .intro,
+  .note {
+    color: var(--color-text-muted);
+  }
+  .note {
+    font-size: var(--fs-sm);
+  }
+  .status:empty {
+    display: none;
+  }
+  .status {
+    color: var(--color-text-muted);
+    font-size: var(--fs-sm);
+    margin-top: var(--sp-2);
+  }
+  .inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    align-items: end;
+  }
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+    min-width: 0;
+  }
+  .inline-form label {
+    flex: 1 1 240px;
+  }
+  .inline-form input {
+    width: 100%;
+    min-width: 0;
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+  .inline-form button[type="submit"] {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: var(--color-primary-strong);
+    color: var(--color-primary-contrast);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .inline-form button[type="submit"]:hover:not(:disabled) {
+    box-shadow: var(--shadow-md);
+  }
+  .inline-form button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--sp-2);
+  }
+  th,
+  td {
+    text-align: left;
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--fs-sm);
+    vertical-align: top;
+  }
+  th {
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+  tbody tr {
+    transition: background-color var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+  tbody tr:hover {
+    background: var(--color-surface-2);
+  }
+  /* Result panels are `hidden` until a lookup fills them client-side, so their
+     reveal animates from hidden (not SSR content). Motion tokens. */
+  .result:not([hidden]) {
+    animation: awcms-slide-up-in var(--motion-duration-base)
+      var(--motion-ease-out);
+  }
+  .result {
+    margin-top: var(--sp-3);
+    overflow-x: auto;
+  }
+  input:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+</style>
+
+<script>
+  interface Strings {
+    notFound: string;
+    networkError: string;
+    forbidden: string;
+    empty: string;
+    healthHeading: string;
+    accountsHeading: string;
+    intentsHeading: string;
+    colProvider: string;
+    colDirection: string;
+    colState: string;
+    colFailures: string;
+    colCircuitOpenUntil: string;
+    colLastChecked: string;
+    colAccountRef: string;
+    colDisplayName: string;
+    colStatus: string;
+    colEndpointHost: string;
+    colAmount: string;
+    colInvoice: string;
+    colSessionRef: string;
+    colCreated: string;
+    circuitOpen: string;
+    loading: string;
+  }
+
+  interface PanelConfig {
+    canReadHealth: boolean;
+    canReadAccounts: boolean;
+    canReadIntents: boolean;
+  }
+
+  // Imported, not inlined: masking logic in an `.astro` file is unreachable by
+  // unit tests and unchecked by `tsc --noEmit`, so it could regress to showing
+  // the full reference silently. See that module's own header.
+  import { maskProviderReference } from "../../../modules/payment-gateway/domain/reference-masking";
+
+  const stringsEl = document.getElementById("i18n-strings");
+  const strings: Strings = stringsEl
+    ? JSON.parse(stringsEl.textContent ?? "{}")
+    : ({} as Strings);
+
+  const configEl = document.getElementById("panel-config");
+  const config: PanelConfig = configEl
+    ? JSON.parse(configEl.textContent ?? "{}")
+    : ({} as PanelConfig);
+
+  const BASE = "/api/v1/payment-gateway";
+
+  function esc(value: unknown): string {
+    return String(value ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        })[c] ?? c
+    );
+  }
+
+  function formatTimestamp(value: unknown): string {
+    if (!value) return "—";
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
+  }
+
+  /** Minor units are exact integers (never float) — rendered verbatim next to the currency, never divided in the browser. */
+  function formatAmount(currency: unknown, minor: unknown): string {
+    return `${esc(currency)} ${esc(minor)}`;
+  }
+
+  type Row = Record<string, unknown>;
+
+  function renderTable(headers: string[], rows: string[]): string {
+    return (
+      `<table><thead><tr>${headers
+        .map((header) => `<th scope="col">${esc(header)}</th>`)
+        .join("")}</tr></thead><tbody>` +
+      rows.join("") +
+      `</tbody></table>`
+    );
+  }
+
+  /**
+   * Fetches one section and renders it, keeping every failure mode
+   * DISTINGUISHABLE: a denied read, an empty result, and a network failure must
+   * never all render as the same blank panel (the trap
+   * `admin/subscription-billing/index.astro` already documents for its own
+   * second call).
+   */
+  async function loadSection(
+    box: HTMLElement,
+    url: string,
+    heading: string,
+    render: (rows: Row[]) => string
+  ): Promise<void> {
+    box.hidden = false;
+    box.textContent = strings.loading;
+
+    let response: Response;
+    try {
+      response = await fetch(url, { headers: { Accept: "application/json" } });
+    } catch {
+      box.textContent = strings.networkError;
+      return;
+    }
+
+    if (!response.ok) {
+      box.textContent =
+        response.status === 403
+          ? strings.forbidden
+          : response.status === 404
+            ? strings.notFound
+            : strings.networkError;
+      return;
+    }
+
+    let rows: Row[] = [];
+    try {
+      const body = (await response.json()) as { data?: Record<string, Row[]> };
+      const data = body.data ?? {};
+      rows = Object.values(data)[0] ?? [];
+    } catch {
+      box.textContent = strings.networkError;
+      return;
+    }
+
+    box.innerHTML =
+      `<h3>${esc(heading)}</h3>` +
+      (rows.length === 0 ? `<p>${esc(strings.empty)}</p>` : render(rows));
+  }
+
+  function renderHealth(rows: Row[]): string {
+    return renderTable(
+      [
+        strings.colProvider,
+        strings.colDirection,
+        strings.colState,
+        strings.colFailures,
+        strings.colCircuitOpenUntil,
+        strings.colLastChecked
+      ],
+      rows.map(
+        (row) =>
+          `<tr><td>${esc(row.provider_key)}</td>` +
+          `<td>${esc(row.direction)}</td>` +
+          `<td>${esc(row.state)}</td>` +
+          `<td>${esc(row.consecutive_failures)}</td>` +
+          `<td>${row.circuit_open_until ? esc(strings.circuitOpen) + " " + esc(formatTimestamp(row.circuit_open_until)) : "—"}</td>` +
+          `<td>${esc(formatTimestamp(row.last_checked_at))}</td></tr>`
+      )
+    );
+  }
+
+  function renderAccounts(rows: Row[]): string {
+    return renderTable(
+      [
+        strings.colProvider,
+        strings.colAccountRef,
+        strings.colDisplayName,
+        strings.colStatus,
+        strings.colEndpointHost
+      ],
+      rows.map(
+        (row) =>
+          `<tr><td>${esc(row.provider_key)}</td>` +
+          `<td>${esc(maskProviderReference(row.provider_account_ref))}</td>` +
+          `<td>${esc(row.display_name)}</td>` +
+          `<td>${esc(row.status)}</td>` +
+          `<td>${esc(row.endpoint_host)}</td></tr>`
+      )
+    );
+  }
+
+  function renderIntents(rows: Row[]): string {
+    return renderTable(
+      [
+        strings.colProvider,
+        strings.colStatus,
+        strings.colAmount,
+        strings.colInvoice,
+        strings.colSessionRef,
+        strings.colCreated
+      ],
+      rows.map(
+        (row) =>
+          `<tr><td>${esc(row.provider_key)}</td>` +
+          `<td>${esc(row.status)}</td>` +
+          `<td>${formatAmount(row.currency, row.amount_minor)}</td>` +
+          `<td>${esc(row.invoice_id)}</td>` +
+          `<td>${esc(maskProviderReference(row.provider_session_ref))}</td>` +
+          `<td>${esc(formatTimestamp(row.created_at))}</td></tr>`
+      )
+    );
+  }
+
+  async function load(tenantId: string): Promise<void> {
+    const target = `${BASE}/tenants/${encodeURIComponent(tenantId)}`;
+    const health = document.getElementById("health");
+    const accounts = document.getElementById("accounts");
+    const intents = document.getElementById("intents");
+
+    // Sequential, not Promise.all: three concurrent operator reads against the
+    // same tenant buy nothing here and make a partial failure harder to read.
+    if (config.canReadHealth && health) {
+      await loadSection(
+        health,
+        `${target}/health`,
+        strings.healthHeading,
+        renderHealth
+      );
+    }
+    if (config.canReadAccounts && accounts) {
+      await loadSection(
+        accounts,
+        `${target}/provider-accounts`,
+        strings.accountsHeading,
+        renderAccounts
+      );
+    }
+    if (config.canReadIntents && intents) {
+      await loadSection(
+        intents,
+        `${target}/intents`,
+        strings.intentsHeading,
+        renderIntents
+      );
+    }
+  }
+
+  document
+    .getElementById("lookup-form")
+    ?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const submit = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]'
+      );
+      const status = document.getElementById("lookup-status");
+      const tenantId = String(new FormData(form).get("tenantId") ?? "").trim();
+      if (!tenantId) return;
+
+      if (submit) submit.disabled = true;
+      if (status) status.textContent = strings.loading;
+
+      void load(tenantId).finally(() => {
+        if (submit) submit.disabled = false;
+        if (status) status.textContent = "";
+      });
+    });
+</script>

@@ -5508,3 +5508,93 @@ msgstr "Total"
 
 msgid "admin.subscription_billing.col_outstanding"
 msgstr "Outstanding"
+
+msgid "admin.payment_gateway.title"
+msgstr "Payment Gateway"
+
+msgid "admin.payment_gateway.access_denied_title"
+msgstr "Access denied"
+
+msgid "admin.payment_gateway.access_denied_body"
+msgstr "You do not have permission to read payment gateway records."
+
+msgid "admin.payment_gateway.intro"
+msgstr "Look up a tenant's provider health, account bindings, and payment intents. Read-only: checkout, cancel, refund, and outbox retry are high-risk actions that run through the API with a reason and an idempotency key."
+
+msgid "admin.payment_gateway.masking_note"
+msgstr "Provider references are masked to their last four characters. Signing secrets are never stored or returned — they are environment pointers only."
+
+msgid "admin.payment_gateway.lookup_heading"
+msgstr "Look up a tenant"
+
+msgid "admin.payment_gateway.field_target_tenant"
+msgstr "Target tenant id"
+
+msgid "admin.payment_gateway.lookup_button"
+msgstr "Look up"
+
+msgid "admin.payment_gateway.state_loading"
+msgstr "Loading…"
+
+msgid "admin.payment_gateway.not_found"
+msgstr "No payment gateway records found for this tenant."
+
+msgid "admin.payment_gateway.forbidden"
+msgstr "You may not read this tenant's payment records."
+
+msgid "admin.payment_gateway.empty"
+msgstr "Nothing recorded yet."
+
+msgid "admin.payment_gateway.health_heading"
+msgstr "Provider health"
+
+msgid "admin.payment_gateway.accounts_heading"
+msgstr "Provider accounts"
+
+msgid "admin.payment_gateway.intents_heading"
+msgstr "Payment intents"
+
+msgid "admin.payment_gateway.col_provider"
+msgstr "Provider"
+
+msgid "admin.payment_gateway.col_direction"
+msgstr "Direction"
+
+msgid "admin.payment_gateway.col_state"
+msgstr "State"
+
+msgid "admin.payment_gateway.col_failures"
+msgstr "Consecutive failures"
+
+msgid "admin.payment_gateway.col_circuit_open_until"
+msgstr "Circuit breaker"
+
+msgid "admin.payment_gateway.col_last_checked"
+msgstr "Last checked"
+
+msgid "admin.payment_gateway.col_account_ref"
+msgstr "Account reference"
+
+msgid "admin.payment_gateway.col_display_name"
+msgstr "Display name"
+
+msgid "admin.payment_gateway.col_status"
+msgstr "Status"
+
+msgid "admin.payment_gateway.col_endpoint_host"
+msgstr "Endpoint host"
+
+msgid "admin.payment_gateway.col_amount"
+msgstr "Amount (minor units)"
+
+msgid "admin.payment_gateway.col_invoice"
+msgstr "Invoice"
+
+msgid "admin.payment_gateway.col_session_ref"
+msgstr "Session reference"
+
+msgid "admin.payment_gateway.col_created"
+msgstr "Created"
+
+msgid "admin.payment_gateway.circuit_open"
+msgstr "Open until"

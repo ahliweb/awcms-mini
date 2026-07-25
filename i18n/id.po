@@ -5507,3 +5507,93 @@ msgstr "Total"
 
 msgid "admin.subscription_billing.col_outstanding"
 msgstr "Sisa"
+
+msgid "admin.payment_gateway.title"
+msgstr "Gerbang Pembayaran"
+
+msgid "admin.payment_gateway.access_denied_title"
+msgstr "Akses ditolak"
+
+msgid "admin.payment_gateway.access_denied_body"
+msgstr "Anda tidak memiliki izin untuk membaca data gerbang pembayaran."
+
+msgid "admin.payment_gateway.intro"
+msgstr "Cari kesehatan provider, ikatan akun, dan payment intent milik sebuah tenant. Hanya baca: checkout, pembatalan, refund, dan retry outbox adalah aksi berisiko tinggi yang dijalankan lewat API dengan alasan dan kunci idempotensi."
+
+msgid "admin.payment_gateway.masking_note"
+msgstr "Referensi provider ditampilkan tersamar hingga empat karakter terakhir. Signing secret tidak pernah disimpan atau dikembalikan — hanya berupa penunjuk environment."
+
+msgid "admin.payment_gateway.lookup_heading"
+msgstr "Cari tenant"
+
+msgid "admin.payment_gateway.field_target_tenant"
+msgstr "ID tenant tujuan"
+
+msgid "admin.payment_gateway.lookup_button"
+msgstr "Cari"
+
+msgid "admin.payment_gateway.state_loading"
+msgstr "Memuat…"
+
+msgid "admin.payment_gateway.not_found"
+msgstr "Tidak ada data gerbang pembayaran untuk tenant ini."
+
+msgid "admin.payment_gateway.forbidden"
+msgstr "Anda tidak boleh membaca data pembayaran tenant ini."
+
+msgid "admin.payment_gateway.empty"
+msgstr "Belum ada data."
+
+msgid "admin.payment_gateway.health_heading"
+msgstr "Kesehatan provider"
+
+msgid "admin.payment_gateway.accounts_heading"
+msgstr "Akun provider"
+
+msgid "admin.payment_gateway.intents_heading"
+msgstr "Payment intent"
+
+msgid "admin.payment_gateway.col_provider"
+msgstr "Provider"
+
+msgid "admin.payment_gateway.col_direction"
+msgstr "Arah"
+
+msgid "admin.payment_gateway.col_state"
+msgstr "Status"
+
+msgid "admin.payment_gateway.col_failures"
+msgstr "Kegagalan beruntun"
+
+msgid "admin.payment_gateway.col_circuit_open_until"
+msgstr "Circuit breaker"
+
+msgid "admin.payment_gateway.col_last_checked"
+msgstr "Terakhir diperiksa"
+
+msgid "admin.payment_gateway.col_account_ref"
+msgstr "Referensi akun"
+
+msgid "admin.payment_gateway.col_display_name"
+msgstr "Nama tampilan"
+
+msgid "admin.payment_gateway.col_status"
+msgstr "Status"
+
+msgid "admin.payment_gateway.col_endpoint_host"
+msgstr "Host endpoint"
+
+msgid "admin.payment_gateway.col_amount"
+msgstr "Jumlah (unit minor)"
+
+msgid "admin.payment_gateway.col_invoice"
+msgstr "Faktur"
+
+msgid "admin.payment_gateway.col_session_ref"
+msgstr "Referensi sesi"
+
+msgid "admin.payment_gateway.col_created"
+msgstr "Dibuat"
+
+msgid "admin.payment_gateway.circuit_open"
+msgstr "Terbuka sampai"
