@@ -192,6 +192,71 @@ SQL
   fi
 fi
 
+# --- Control plane (Issue #930 Wave 5) ----------------------------------------
+# The drill previously proved the schema ledger, a sample tenant row, and RLS
+# isolation on `awcms_mini_offices` — all base-platform. Nothing looked at the
+# control plane at all, so a restore could report "pass" with every
+# provisioning run, entitlement, invoice, payment envelope, and projection
+# cursor missing. #930's Wave 5 asks for a rehearsal that covers control-plane
+# tables, projections, and jobs; this is that coverage.
+#
+# Two different failures are distinguished, because they mean opposite things:
+#
+#   * A control-plane TABLE that is absent from the restored schema is always a
+#     failure. It means the dump or the restore dropped part of the schema, and
+#     that is true whether or not the deployment uses the control plane.
+#   * Tables present but EMPTY is legitimate: a LAN/offline deployment never
+#     enables the control plane, and every one of its modules is
+#     default-disabled per tenant (ADR-0022 §7). That is a "skip", not a pass.
+#
+# Note the asymmetry with `tenant_isolation` below: a control_plane "skip" does
+# NOT force the overall verdict to "incomplete", while a tenant_isolation
+# "skip" does. That is deliberate rather than a loophole — RLS isolation is
+# something EVERY deployment has and the drill exists to prove, so an unproven
+# one is a gap; control-plane data is something most deployments legitimately
+# do not have, and demanding it would make "incomplete" the normal result and
+# train operators to ignore the verdict.
+control_plane_status="skip"
+control_plane_rows="0"
+control_plane_detail="control-plane tables restored but empty — expected for a deployment that never enabled the control plane"
+
+control_plane_tables=(
+  awcms_mini_tenant_provisioning_requests
+  awcms_mini_tenant_entitlement_assignments
+  awcms_mini_subscription_billing_invoices
+  awcms_mini_payment_gateway_webhook_inbox
+  awcms_mini_control_plane_support_access_grants
+  awcms_mini_reporting_projection_state
+  awcms_mini_reporting_projection_cursors
+)
+
+missing_tables=()
+control_plane_total=0
+for cp_table in "${control_plane_tables[@]}"; do
+  if ! exists="$(psql -tAc "SELECT to_regclass('public.${cp_table}') IS NOT NULL" 2>/dev/null)"; then
+    missing_tables+=("$cp_table")
+    continue
+  fi
+  if [[ "$(echo "$exists" | tr -d '[:space:]')" != "t" ]]; then
+    missing_tables+=("$cp_table")
+    continue
+  fi
+  cp_count="$(psql -tAc "SELECT count(*) FROM ${cp_table}" 2>/dev/null || echo 0)"
+  cp_count="$(echo "$cp_count" | tr -d '[:space:]')"
+  [[ "$cp_count" =~ ^[0-9]+$ ]] || cp_count=0
+  control_plane_total=$(( control_plane_total + cp_count ))
+done
+
+control_plane_rows="$control_plane_total"
+
+if [[ ${#missing_tables[@]} -gt 0 ]]; then
+  control_plane_status="fail"
+  control_plane_detail="control-plane table(s) absent from the restored schema: ${missing_tables[*]} — the dump or restore lost part of the schema"
+elif [[ "$control_plane_total" -gt 0 ]]; then
+  control_plane_status="pass"
+  control_plane_detail="${control_plane_total} control-plane row(s) restored across provisioning, entitlement, billing, payment, support-access, and reporting projection state"
+fi
+
 unset PGPASSWORD
 
 drill_finished_epoch="$(date -u +%s)"
@@ -218,7 +283,7 @@ fi
 # outright; anything else (e.g. tenant_isolation "skip") is reported as
 # "incomplete" — a third, distinct state that is neither a clean pass nor a
 # hard failure, so it can't be silently treated as either.
-if [[ "$schema_migrations_status" == "fail" || "$tenant_isolation_status" == "fail" ]]; then
+if [[ "$schema_migrations_status" == "fail" || "$tenant_isolation_status" == "fail" || "$control_plane_status" == "fail" ]]; then
   overall="fail"
 elif [[ "$schema_migrations_status" == "pass" && "$tenant_isolation_status" == "pass" ]]; then
   overall="pass"
@@ -250,6 +315,11 @@ cat > "$report_file" <<JSON
     "tenant_isolation": {
       "status": "${tenant_isolation_status}",
       "detail": "${tenant_isolation_detail}"
+    },
+    "control_plane": {
+      "status": "${control_plane_status}",
+      "rows": ${control_plane_rows},
+      "detail": "${control_plane_detail}"
     }
   },
   "overall": "${overall}"
