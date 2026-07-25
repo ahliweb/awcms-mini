@@ -816,7 +816,8 @@ describe("database migration runner helpers", () => {
       "103_awcms_mini_control_plane_fleet_sweep_grants.sql",
       "104_awcms_mini_tenant_entitlement_expiry.sql",
       "105_awcms_mini_control_plane_reconciliation_grants.sql",
-      "106_awcms_mini_payment_gateway_outbox_retention.sql"
+      "106_awcms_mini_payment_gateway_outbox_retention.sql",
+      "107_awcms_mini_control_plane_evidence_export.sql"
     ]);
     for (const migration of migrations) {
       expect(migration.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);

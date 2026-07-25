@@ -177,6 +177,62 @@ Integration test menulis sebagai role worker sungguhan, dan mencabut salah
 satu dari ketiga grant itu membuat suite-nya merah — jadi grant-nya terbukti
 load-bearing, bukan hiasan.
 
+## Ekspor bukti operator
+
+`GET /api/v1/control-plane/tenants/{tenantId}/evidence` (Issue #930 Wave 5).
+Paket bukti control-plane untuk SATU tenant: bentuk dan waktu — jumlah,
+status, timestamp — untuk menjawab "kenapa control plane tenant ini tidak
+sehat?".
+
+### Dua gerbang, dan kenapa permission saja tidak cukup
+
+Desain yang jelas adalah memberi operator permission
+`identity_access.support_access.export` lalu berhenti di situ. Itu akan
+membuat riwayat control-plane SETIAP tenant bisa dibaca pemegang permission
+itu, kapan saja, tanpa jejak bahwa ada yang memutuskan aksesnya memang perlu
+— permission-nya jadi kunci permanen ke seluruh fleet.
+
+Karena itu endpoint ini menuntut KEDUANYA:
+
+1. permission `identity_access.support_access.export`, dievaluasi di tenant
+   platform milik operator sendiri; DAN
+2. support-access grant yang **approved, belum dicabut, belum kedaluwarsa**
+   untuk tenant target itu, atas nama operator itu.
+
+Nomor (2) yang menentukan. Issue #879 sudah membangun grant sebagai
+maker/checker dengan approver kedua, alasan tercatat, dan jendela
+auto-expiry; menumpang di atasnya membuat ekspor mewarisi semuanya — ada
+orang lain yang menyetujui, ada alasannya, dan wewenang membaca tenant itu
+berakhir dengan sendirinya. Tanpa (2) jawabannya 403 walau operatornya
+lengkap permission-nya, **dan penolakannya sendiri diaudit**.
+
+### Bounded, masked, audited
+
+- **Bounded** — jendela di-clamp ke 90 hari, tiap seksi ke 100 baris. Baik
+  `clamped` maupun `truncated` DILAPORKAN, tidak diam-diam diterapkan:
+  "kamu minta setahun dan dapat 90 hari" dan "tenant ini memang tidak ada
+  aktivitas sebelum itu" terlihat identik di data dan artinya berlawanan.
+- **Masked secara konstruksi, bukan lewat redaksi** — tipe baris di
+  `control-plane-evidence.ts` tidak punya field yang SANGGUP membawa
+  referensi provider, envelope, token, secret, atau alamat email. `SELECT *`
+  yang ceroboh di kemudian hari tidak punya tempat untuk menaruhnya. Redaksi
+  adalah sesuatu yang bisa lupa dipasang; field yang tidak ada tidak bisa.
+  Contoh konkret: `last_error_class` (enum terbatas) DIAMBIL,
+  `last_error_message` di kolom sebelahnya TIDAK — teks bebas adalah tempat
+  identitas bocor. Integration test menanam email pelanggan persis di kolom
+  itu lalu menelusuri seluruh paket; menambahkan kolom itu ke output membuat
+  test-nya merah.
+- **Audited** — ekspor sukses menulis satu baris audit berisi jendela yang
+  BENAR-BENAR dipakai (setelah clamp), seksi mana yang terpotong, dan batas
+  yang berlaku. Ekspor yang DITOLAK juga menulis satu: "siapa mencoba membaca
+  tenant yang grant-nya sudah tidak hidup" justru baris yang lebih menarik
+  dalam sebuah investigasi, dan desain yang hanya mencatat keberhasilan tidak
+  bisa menjawabnya.
+
+Semua pembacaan terjadi di dalam konteks RLS tenant TARGET (ADR-0022 §6b) —
+otorisasi di tenant platform, data di tenant target, tidak pernah satu query
+melihat dua tenant sekaligus.
+
 ## tenant-entitlement-expiry-sweep
 
 **Objective** `tenant_entitlement.expired_entitlements_swept` — assignment yang

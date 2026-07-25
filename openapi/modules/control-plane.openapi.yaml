@@ -4,6 +4,72 @@
 # "Control Plane" tag lives in the root fragment
 # (openapi/awcms-mini-public-api.src.yaml).
 paths:
+  /api/v1/control-plane/tenants/{tenantId}/evidence:
+    get:
+      tags:
+        - Control Plane
+      summary: "Export a bounded, masked, audited control-plane evidence package"
+      description: |
+        Issue #930 Wave 5 (epic #868). An operator investigating a tenant's
+        control-plane health reads SHAPE AND TIMING — counts, statuses,
+        timestamps, plan keys — and nothing customer-identifying.
+
+        Requires BOTH the `identity_access.support_access.export` permission
+        (evaluated in the operator's own platform tenant) AND an approved,
+        unrevoked, unexpired support-access grant for THIS target tenant. The
+        permission alone returns 403: without the second gate it would be a
+        standing key to every tenant's history with no record that anyone
+        decided the access was warranted.
+
+        Bounded: the window is clamped to 90 days and each section to 100 rows,
+        with `clamped`/`truncated` reported rather than silently applied.
+        Masked by construction: the response shape has no field capable of
+        carrying a provider reference, envelope, token, secret, or email
+        address. Audited: both a successful and a REFUSED export write an audit
+        row in the target tenant.
+      operationId: controlPlaneExportTenantEvidence
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - name: tenantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          required: false
+          description: "ISO-8601 start of the window. Clamped to at most 90 days before `to`; clamping is reported in the response."
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: "ISO-8601 end of the window. Defaults to now; a future value is treated as now."
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: "Evidence package returned."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/v1/control-plane/tenants/{tenantId}/support-access:
     get:
       tags:
