@@ -49,6 +49,37 @@ bun test
 bun run build
 ```
 
+Sebelum menganggap selesai, jalankan **`bun run check` PENUH** (bukan cuma empat
+perintah di atas) di database **terisolasi**, dengan `DATABASE_URL` diset supaya
+integration test benar-benar jalan — tanpanya `*.integration.test.ts` cuma
+dilewati diam-diam.
+
+### Regenerasi artefak turunan (urut — sering terlupa, dan gate-nya keras)
+
+```bash
+bun run repo:inventory:generate
+bun run modules:composition:inventory:generate
+bun run db:work-class:generate          # setiap route/job baru
+bun run saas-contracts:inventory:generate
+bun run openapi:bundle && bun run api:docs:generate   # EDIT openapi/modules/*.yaml, JANGAN file bundle
+bun run i18n:extract                     # TERAKHIR — line-ref bergeser tiap kali src/ direformat
+bun run format
+```
+
+### Yang paling sering bikin gate merah di akhir
+
+- **Gate baru harus didaftarkan di `.github/workflows/ci.yml`** sebagai step
+  tersendiri, bukan cuma ditambahkan ke script `check` di `package.json`. Ada
+  test yang gagal dengan `ci.yml tidak menjalankan langkah check berikut: ...`.
+- **Migration baru** → tambahkan ke daftar di `tests/foundation.test.ts` DAN ke
+  tabel "Matrix Modul vs Migration" doc 13 (migration lintas-modul masuk baris
+  `_(Foundation, lintas-modul)_`, dan hitungan prosanya ikut naik).
+- **Job baru (`bun run x:y`)** → descriptor `jobs` di `module.ts` pemiliknya +
+  entri `JOB_WORK_CLASS_REGISTRY` + daftar di `tests/module-management-job-registry.test.ts`
+  dan `tests/integration/module-job-registry.integration.test.ts`.
+- **Changeset**: jalankan `bun run changesets:policy:check` **SETELAH commit** —
+  sebelum commit ia tidak melihat file untracked dan lolos palsu.
+
 ## Definition of Done
 
 Ikuti checklist DoD di `AGENTS.md`. Tutup dengan **laporan implementasi**:

@@ -104,5 +104,12 @@ LAN/offline (modul disabled) = 100% tanpa provider.
   assert SQLSTATE `42501` — "sekadar throw" juga dipenuhi `23503` dari FK
   anak dan lolos walau grant salah lebar.
 
+- Sinyal fleet-wide (#930): `application/control-plane-signals.ts` —
+  `deadLetterDepth` (outbox `status='dead'`) + `webhookBacklog` (inbox
+  `status='received'`), dibaca `bun run control-plane:fleet-sweep`. DLQ BUKAN
+  backlog: tiap barisnya kerja provider yang sudah habis retry dan tak akan
+  pernah dicoba lagi tanpa aksi operator — itu kehilangan permanen, bukan
+  antrean yang terkuras sendiri.
+
 Lihat `src/modules/payment-gateway/README.md` untuk detail ERD/tabel/state
 machine.

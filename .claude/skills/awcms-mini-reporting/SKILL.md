@@ -316,6 +316,24 @@ dengan link download. Setiap mutasi lewat endpoint `/api/v1/reports/*` nyata via
 7. Jangan tulis export di dalam transaksi DB.
 8. Jangan tambah tabel/worker/cache ke kelima view live — itu di luar scope 9.1.
 
+## Sinyal control-plane fleet-wide (#930)
+
+`application/control-plane-signals.ts` — `collectReportingSignals(tx, modules, now)`
+menghitung projection ber-status `stale`/`failed` untuk gauge
+`control_plane_projection_stale_total`.
+
+- **Pakai ulang `computeProjectionFreshness`, JANGAN tulis ulang aturan basi di
+  SQL.** Definisi "stale" kedua akan menyimpang dari yang dilaporkan read API,
+  lalu operator melihat alert menyala untuk projection yang UI sebut current —
+  bug monitoring paling merusak, karena menghancurkan kepercayaan pada kedua
+  permukaan sekaligus.
+- **`delayed` sengaja TIDAK dihitung** — itu keadaan normal di antara siklus
+  refresh; memasukkannya membuat gauge selalu non-nol dan tak berguna sebagai
+  alert.
+- Descriptor TANPA baris state = belum pernah jalan untuk tenant itu → dilapor
+  `stale` (lewat `lastSuccessAt === null`), bukan dilewati. "Belum pernah
+  menghasilkan nilai" lebih buruk daripada "nilainya lama".
+
 ## Verifikasi
 
 `tests/unit/reporting-projection-{freshness,permission-filter,registry}.test.ts`,

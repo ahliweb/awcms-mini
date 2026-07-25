@@ -70,6 +70,23 @@ cancel terjadwal. PROVIDES `billing_document_state` (read-only, di-consume
   (writes = platform-operator; reads = platform-operator ATAU self-tenant).
 - Jobs: `scripts/subscription-billing-run-{renewal,dunning}.ts`.
 
+## Sinyal control-plane fleet-wide (#930)
+
+`application/control-plane-signals.ts` —
+`collectSubscriptionBillingSignals(tx, now)`: invoice `status='issued'` yang
+`due_at` sudah lewat, DIKELOMPOKKAN menurut tahap dunning TERAKHIR-nya.
+
+- **Pakai `LEFT JOIN LATERAL ... ORDER BY attempt_no DESC LIMIT 1`, JANGAN join
+  biasa.** Join biasa menggandakan satu invoice sebanyak jumlah retry-nya →
+  metrik overdue justru NAIK saat dunning bekerja lebih keras. Ini kebalikan
+  dari yang dimaksud, dan terlihat masuk akal di dashboard.
+- Tahap `none` (overdue tapi belum pernah di-dunning) bermakna berbeda dari
+  tahap lanjut: menumpuk di `none` = invoice tidak MASUK dunning; menumpuk di
+  satu tahap lanjut = tidak KELUAR dari tahap itu.
+- Hanya `issued` yang bisa overdue (`draft` belum ditagihkan, `paid` lunas,
+  `void` dicabut), dan `due_at IS NULL` tidak pernah overdue.
+- Worker butuh GRANT SELECT eksplisit (migration `103`).
+
 ## Dunning ↔ lifecycle (WAJIB)
 
 Dunning **MEMINTA** transisi lifecycle lewat port `lifecycle_transition` (#873),

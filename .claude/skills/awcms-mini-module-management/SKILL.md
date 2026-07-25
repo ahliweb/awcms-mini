@@ -382,10 +382,24 @@ check`.
 tests/unit/module-composition-fixture.test.ts`) — contoh nyata yang bisa
   dijalankan, bukan sekadar dokumentasi naratif.
 
-`MODULE_CONTRACT_VERSION` kini `2.0.0` (MAJOR: tipe kontrak khusus
-jalur-turunan yang dulu diekspor — `ApplicationModuleRegistry`/
+`MODULE_CONTRACT_VERSION` kini **`2.1.0`**. `2.0.0` = MAJOR (tipe kontrak
+khusus jalur-turunan yang dulu diekspor — `ApplicationModuleRegistry`/
 `ModuleMigrationNamespace`, `mergeModuleRegistries`, dan konsep namespace
-migration 900–999 — dihapus). Tidak ada field `ModuleDescriptor` yang
-berubah: setiap `module.ts` yang ada tetap valid tanpa perubahan.
+migration 900–999 — dihapus; tidak ada field `ModuleDescriptor` yang berubah,
+setiap `module.ts` tetap valid). `2.1.0` = MINOR aditif (#930): field opsional
+`serviceLevelObjectives?: ServiceLevelObjectiveDescriptor[]`.
+
+**Keluarga descriptor kontribusi-modul saat ini** (pola sama: modul
+mendeklarasikan array-nya sendiri, satu engine pusat membaca `listModules()`,
+satu gate memvalidasi): `permissions` · `navigation` · `jobs` · `settings` ·
+`health` · `capabilities` · `dataLifecycle` (#745) · `sodRules` (#746) ·
+`dataExchange` (#752) · `referenceData` (#750) · `reportingProjections` (#753)
+· `defaultTenantState` + `serviceCatalog` (#870/#874) ·
+`serviceLevelObjectives` (#930).
+
+Menambah keluarga baru = bump MINOR + tulis validator murni di modul
+pemiliknya + gate `bun run <x>:check` + **daftarkan step-nya di
+`.github/workflows/ci.yml`** (ada test yang gagal bila `check` punya langkah
+yang tidak dijalankan CI).
 
 Detail keputusan lengkap: `docs/adr/0024-awcms-family-direct-use-templates-and-derived-pathway-removal.md`.

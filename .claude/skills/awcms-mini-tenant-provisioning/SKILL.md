@@ -91,6 +91,25 @@ record + readiness). JANGAN hapus data tenant sebagai kompensasi generik.
 entitlement_assignment/module_preset/subdomain_request/readiness_check). Step tanpa
 handler ter-resolve → FAIL CLOSED (blocked). Derived contribute tanpa edit engine.
 
+## Sinyal control-plane fleet-wide (#930)
+
+`application/control-plane-signals.ts` — `collectProvisioningSignals(tx, now)`,
+dibaca `bun run control-plane:fleet-sweep`. Membaca HANYA tabel modul ini, di
+dalam konteks RLS satu tenant; iterasi lintas-tenant ada di composition root
+(ADR-0022 §6b — platform operator BUKAN soft super-tenant).
+
+- **`awcms_mini_tenant_provisioning_requests` UNIQUE pada `tenant_id`** —
+  provisioning 1:1 dengan tenant, jadi per tenant paling banyak SATU request.
+  Menguji beberapa status berarti menyiapkan beberapa TENANT, bukan beberapa
+  request.
+- Status modul dipetakan ke vocabulary label metrik yang lebih KASAR
+  (`pending`/`running`/`waiting`/`failed`) — sengaja, supaya label alert tidak
+  ikut tumbuh tiap kali status baru ditambahkan.
+- **`failed` masuk hitungan backlog tapi TIDAK menua.** Ia tidak menunggu apa
+  pun; memasukkannya ke umur "oldest pending" membuat umur naik selamanya
+  setelah satu kegagalan dan mengunci alert terbuka.
+- Worker butuh GRANT SELECT eksplisit (migration `103`).
+
 ## Verifikasi WAJIB
 
 `bun run check` PENUH di DB PostgreSQL terisolasi FRESH (migration 085 diedit ⇒
