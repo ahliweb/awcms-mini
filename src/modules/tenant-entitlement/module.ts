@@ -229,18 +229,41 @@ export const tenantEntitlementModule = defineModule({
       batchLimit: 1000
     }
   ],
-  // Issue #930 (epic #868) — an entitlement whose validity window has passed
-  // but which nothing has revoked is a commercial problem and an
-  // AUTHORIZATION problem at the same time: the tenant keeps access it is no
-  // longer entitled to. That dual nature is why the objective is tight (one
-  // sweep interval) rather than merely eventual.
+  // Issue #930 (epic #868). CORRECTED in Wave 3: Wave 1 described this backlog
+  // as an authorization gap ("the tenant keeps access it is no longer entitled
+  // to") and paged on it as an access-control incident. That was wrong on both
+  // counts, and the correction matters because a false severity is not a
+  // harmless exaggeration — it puts routine bookkeeping in the same queue as
+  // real breaches, which is how genuine pages get ignored.
+  //
+  //   * `domain/resolution.ts`'s `assignmentActive()` already returns null once
+  //     `now >= effectiveTo`, so an expired assignment contributes NO grants
+  //     whether or not the sweep has run. No access is retained.
+  //   * `assignOffer` supersedes the incumbent row in its own transaction, so
+  //     an unswept row does not block re-subscribing to the same plan either.
+  //
+  // What it really measures is bookkeeping drift: operator listings, commercial
+  // reporting, and the entitlement projections all read `status`, so a fleet of
+  // `active` rows with long-closed windows misstates what is being sold. The
+  // consumer that drains it is `bun run tenant-entitlement:expiry-sweep`.
+  jobs: [
+    {
+      command: "bun run tenant-entitlement:expiry-sweep",
+      purpose:
+        "Close out assignments whose validity window has elapsed (status active -> expired), across every active tenant, inside each tenant's own RLS context. Bookkeeping only: an expired assignment already contributes no grants, so no tenant's effective access changes — this makes the recorded commercial state match what enforcement has been doing all along.",
+      recommendedSchedule: "*/30 * * * *",
+      safeInOfflineLan: true,
+      environmentNotes:
+        "DB-only, no provider or network dependency. Runs as awcms_mini_worker, which migration 104 grants UPDATE (never INSERT/DELETE) on the assignments table. Bounded per tenant; a tenant with more expirable rows than the batch limit is reported truncated and finished by the next pass. One tenant's failure is counted and surfaced, never aborting the rest of the fleet."
+    }
+  ],
   serviceLevelObjectives: [
     {
       key: "tenant_entitlement.expired_entitlements_swept",
       ownerModuleKey: "tenant_entitlement",
-      title: "Expired entitlements are revoked promptly",
+      title: "Expired entitlements are closed out promptly",
       description:
-        "Entitlements past their validity window are revoked within one sweep interval. A non-zero backlog here means tenants still hold access they are no longer entitled to — commercially wrong and an authorization gap at once.",
+        "Assignments past their validity window are moved to `expired` within one sweep interval. A backlog does NOT mean tenants retain access — resolution already ignores a closed window — it means commercial state on record has drifted from reality.",
       kind: "backlog",
       metricName: "control_plane_entitlement_expired_unswept",
       unit: "count",
@@ -251,23 +274,23 @@ export const tenantEntitlementModule = defineModule({
       thresholds: [
         {
           thresholdKey: "unswept_present",
-          severity: "warning",
+          severity: "info",
           comparison: "above",
           value: 0,
           // One sweep interval plus margin — below this it is simply "the
           // sweep has not run yet", which is not a fault.
           forSeconds: 3600,
           operatorAction:
-            "Verify the expiry sweep ran and did not fail open. Do not bulk-revoke by hand — revocation must go through the audited service path."
+            "Informational. Confirm `tenant-entitlement:expiry-sweep` is scheduled and its last run succeeded. No access is at risk, so this never justifies a manual bulk update — closing an assignment out must go through the audited sweep or the service path."
         },
         {
           thresholdKey: "unswept_accumulating",
-          severity: "critical",
+          severity: "warning",
           comparison: "above",
           value: 25,
           forSeconds: 3600,
           operatorAction:
-            "Treat as an access-control incident: entitlements are not being revoked at all. Confirm whether the remaining rows are genuinely expired or carry a deliberately non-expiring override before acting."
+            "The sweep is very likely not running at all: check its job telemetry and the worker role's UPDATE grant on the assignments table (migration 104). Commercial reporting is understating expiry until it drains; entitlement enforcement is unaffected."
         }
       ]
     }

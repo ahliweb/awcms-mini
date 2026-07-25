@@ -9,10 +9,23 @@
 export type EntitlementSignals = {
   /**
    * Assignments still marked `active` whose validity window has already
-   * closed. This is simultaneously a commercial problem (the tenant is not
-   * paying for what it holds) and an AUTHORIZATION problem (it retains access
-   * it is no longer entitled to), which is why the objective built on it is
-   * tight rather than merely eventual.
+   * closed — i.e. the backlog `bun run tenant-entitlement:expiry-sweep` has
+   * yet to close out.
+   *
+   * NOT an authorization problem, despite how this was originally described
+   * (Issue #930 Wave 1). `domain/resolution.ts`'s `assignmentActive()` returns
+   * null once `now >= effectiveTo`, so an expired assignment contributes no
+   * grants whether or not the sweep has run: the tenant does not retain
+   * access. Nor does it block re-subscription — `assignOffer` supersedes the
+   * incumbent row inside its own transaction, so an unswept row never occupies
+   * the live slot in a way that matters.
+   *
+   * What it actually measures is BOOKKEEPING DRIFT. Operator listings,
+   * commercial reporting, and the entitlement projections all read `status`,
+   * so a fleet of `active` rows whose windows closed months ago misstates what
+   * the platform is selling. That is worth fixing on a schedule, and worth
+   * alerting on when the sweep stops running — but it is not an incident, and
+   * the thresholds in `module.ts` are calibrated accordingly.
    */
   expiredUnswept: number;
 };

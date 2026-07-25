@@ -1695,6 +1695,12 @@
       "rationale": "Outbox dispatcher (social-publishing:dispatch) — same recurring dispatcher profile."
     },
     {
+      "path": "scripts/tenant-entitlement-expiry-sweep.ts",
+      "workClass": "maintenance",
+      "source": "registry",
+      "rationale": "Scheduled bounded bookkeeping sweep (tenant-entitlement:expiry-sweep, Issue #930) closing out assignments whose validity window elapsed. \"maintenance\" rather than \"reporting\": unlike control-plane-fleet-sweep this is genuinely tolerant of delay, because an unswept row grants nothing (resolution already ignores a closed window) — only the recorded commercial state lags. Every withTenant call in the job passes workClass: \"maintenance\" explicitly. Runs as awcms_mini_worker, the only role migration 104 grants UPDATE on the assignments table."
+    },
+    {
       "path": "scripts/usage-metering-aggregate.ts",
       "workClass": "background_sync",
       "source": "registry",

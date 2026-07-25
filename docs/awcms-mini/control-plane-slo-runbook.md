@@ -119,20 +119,37 @@ langkah mana yang tidak selesai.
 
 ## tenant-entitlement-expiry-sweep
 
-**Objective** `tenant_entitlement.expired_entitlements_swept` — entitlement
-yang jendela validitasnya sudah lewat tercabut dalam satu interval sweep.
+**Objective** `tenant_entitlement.expired_entitlements_swept` — assignment yang
+jendela validitasnya sudah lewat dipindahkan ke status `expired` dalam satu
+interval sweep. Konsumennya: `bun run tenant-entitlement:expiry-sweep`.
 
-Non-nol lebih lama dari satu interval sweep berarti tenant **masih memegang
-akses yang seharusnya sudah dicabut** — masalah komersial dan masalah
-otorisasi sekaligus.
+> **Koreksi (Issue #930 Wave 3).** Versi pertama halaman ini menyatakan backlog
+> ini berarti tenant "masih memegang akses yang seharusnya sudah dicabut" dan
+> memperlakukannya sebagai insiden access-control. **Itu keliru.**
+> `assignmentActive()` di `domain/resolution.ts` sudah mengembalikan null begitu
+> `now >= effectiveTo`, jadi assignment kedaluwarsa **tidak memberi grant apa
+> pun** terlepas sweep sudah jalan atau belum — tidak ada akses yang tertahan.
+> Re-subscribe juga tidak terhalang, karena `assignOffer` men-supersede baris
+> incumbent di transaksinya sendiri.
+>
+> Severity diturunkan (`info`/`warning`, bukan `warning`/`critical`) mengikuti
+> koreksi itu. Severity palsu bukan sekadar melebih-lebihkan: ia menaruh
+> pembukuan rutin di antrean yang sama dengan pelanggaran nyata, dan itulah cara
+> alert sungguhan mulai diabaikan.
 
-1. Verifikasi sweep berjalan dan tidak fail-open. Kegagalan sweep tidak
-   boleh ditelan diam-diam.
-2. Jangan "perbaiki" dengan mencabut manual massal tanpa audit — jalur
-   pencabutan tetap harus lewat service yang mengaudit.
-3. Kalau sweep sehat tapi angkanya tetap: kemungkinan ada entitlement dengan
-   sumber override yang sengaja tidak kedaluwarsa. Konfirmasi lewat
-   penjelasan entitlement efektif, bukan lewat tabel.
+Yang sebenarnya diukur: **drift pembukuan**. Listing operator, laporan
+komersial, dan projection entitlement semuanya membaca `status`, sehingga
+kumpulan baris `active` yang jendelanya sudah lama tutup membuat catatan
+komersial tidak sesuai kenyataan. Penegakan entitlement tidak terpengaruh.
+
+1. Cek `tenant-entitlement:expiry-sweep` terjadwal dan run terakhirnya sukses
+   (telemetri job). Kegagalan sweep tidak boleh ditelan diam-diam.
+2. Kalau sweep jalan tapi angkanya tidak turun: cek grant `UPDATE` untuk role
+   `awcms_mini_worker` pada `awcms_mini_tenant_entitlement_assignments`
+   (migration 104). Tanpa grant itu sweep gagal per-tenant, dan kegagalan
+   per-tenant memang sengaja tidak menghentikan seluruh armada.
+3. **Jangan** "perbaiki" dengan UPDATE massal manual. Tidak ada akses yang
+   berisiko, jadi tidak ada alasan mendesak untuk melewati jalur yang mengaudit.
 
 ## subscription-billing-dunning
 
