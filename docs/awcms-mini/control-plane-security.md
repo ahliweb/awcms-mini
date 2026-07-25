@@ -111,6 +111,46 @@ Break-glass use is exceptional, short-lived, alerted, and followed by review.
 > surfaces. The model, SoD pairing, and expiry mechanism are defined here; the
 > surfaces are applied in #878 and verified in #881.
 
+### 4b. Operator evidence export (#930 Wave 5b)
+
+`GET /api/v1/control-plane/tenants/{tenantId}/evidence` is the one read surface
+that returns another tenant's control-plane records to a platform operator. It
+is built so that the permission alone is **not** a standing key to the fleet —
+it passes **two independent gates**, and failing either one is a refusal:
+
+1. `authorizeSupportOperator(..., "export")` — the `identity_access:support_access:export`
+   permission (seeded by migration 107), and
+2. `hasActiveSupportGrant(...)` — an **approved, unexpired** support-access grant
+   for _that specific tenant_, i.e. the maker/checker + reason + expiry apparatus
+   of §4.
+
+Gate 2 is the point. A permission is durable; a grant is scope-, time-, and
+reason-bound and had to be approved by a _different_ person. Requiring both
+means holding the export permission grants nothing until someone independently
+opens a window on one named tenant.
+
+The read itself runs through `withTargetTenant`, i.e. inside the target tenant's
+own RLS context — consistent with §5 and ADR-0022 §6b, never a widened predicate
+and never a platform claim.
+
+Bounded and masked by construction:
+
+| Property     | Value                                                                                             | Why                                                                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Window       | `EVIDENCE_MAX_WINDOW_DAYS = 90`, clamped not rejected                                             | An unbounded window turns a support tool into a bulk-export tool                                                                                               |
+| Rows         | `EVIDENCE_SECTION_ROW_LIMIT = 100` per section, selected `LIMIT n + 1`                            | The extra row is how truncation is _detected_ and reported honestly rather than silently cutting off                                                           |
+| Error detail | `attempt_count` and `last_error_class` are returned; **`last_error_message` deliberately is not** | Provider error strings are free text and have been observed to carry customer email/PAN fragments. A class is enough to diagnose; the message is a PII channel |
+| Caching      | `Cache-Control: private, no-store`                                                                | Cross-tenant evidence must not land in a shared cache — see `http-cache-varnish.md`                                                                            |
+
+**Both outcomes are audited.** A refusal is recorded as deliberately as a
+success: an operator repeatedly probing tenants they hold no grant for is
+exactly the signal §7 wants, and it only exists if denials are written down.
+
+The `last_error_message` exclusion is mutation-verified — re-adding it to the
+projection fails the integration test, which asserts on a seeded email appearing
+nowhere in the response via a recursive string walk rather than a top-level key
+check.
+
 ## 5. Trust model — no soft super-tenant (ADR-0022 §6 High-1)
 
 Forbidding the `BYPASSRLS` role attribute is necessary but **not sufficient**:
@@ -131,6 +171,37 @@ permission-gated read-model — never a widened policy predicate.
 Secrets (payment provider keys, webhook signing secrets) live only in
 `process.env`/the deployment secret store — never in a table, event, log, or
 audit record. Rotation is a deployment configuration change.
+
+**Owner-secret commitment (#937).** The provisioning idempotency record stores a
+digest of the request body, and that body contains the new tenant owner's
+password. A plain SHA-256 there is a **verification oracle**: anyone who can read
+the column can confirm a guessed password by recomputing the digest. It is now
+derived with `scrypt`, keyed by a pepper
+(`src/modules/tenant-provisioning/application/owner-secret-commitment.ts`).
+
+Three constraints shape that choice, and they rule out the two obvious
+alternatives:
+
+- **Not argon2id.** Real credentials _are_ argon2id (`src/lib/auth/password.ts`,
+  untouched). It cannot be used here because this value must be **deterministic**
+  and recomputable from the request body on every replay, and argon2id draws a
+  fresh random salt per call, so two derivations of the same input never compare
+  equal.
+- **Not a bare HMAC.** Keying alone stops a database-only reader, but if the
+  pepper ever leaks (env dump, crash log) each guess is one cheap hash again.
+  scrypt with a fixed salt is deterministic _and_ costly, so a pepper leak
+  degrades to a slow attack instead of an instant one.
+- **Cost parameters are pinned, not defaulted.** The digest is persisted and
+  compared on replay, so a runtime changing its default N/r/p would silently
+  invalidate every stored `inputs_hash`. (This is also why the `scrypt` call is
+  hand-wrapped rather than `promisify`d — `promisify` collapses to the
+  three-argument overload and would silently drop the pinned parameters.)
+
+Keyed with `AUTH_JWT_SECRET`, the same secret behind the audit `ipHash` and the
+`usage_metering` pseudonym, with a fixed domain-separation label in the salt so
+the three output spaces stay disjoint and no derived value can be correlated
+across them. It throws rather than degrading to an unkeyed digest, because an
+empty key would silently restore the exact oracle it exists to remove.
 
 ## 6. Privacy, data classification, retention, legal hold
 

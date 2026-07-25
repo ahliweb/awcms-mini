@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 111.**
+**Jumlah memory saat snapshot terakhir: 116.**
 
 ## Sengaja TIDAK disertakan
 
@@ -89,6 +89,7 @@ Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikec
 - [bun rejects.toThrow() hang](bun-test-rejects-tothrow-hang.md) — `.rejects.toThrow()` pada promise Bun.SQL memutar proses 100% CPU selamanya
 - [bun check skips integration](bun-check-skips-integration-tests.md) — tanpa DATABASE_URL, *.integration.test.ts dilewati; jalankan suite Postgres penuh sebelum push
 - [bun test DB warmup flake](bun-test-db-warmup-flake.md) — gagal integration palsu tepat setelah `docker start`; re-run sekali dulu
+- [tenant-domain set-primary race flake](tenant-domain-set-primary-race-flake.md) — 1 fail dari ~5750 di CI pada PR tak terkait; `gh run rerun --failed`, jangan diagnosa ulang
 - [Concurrent check DB contention](concurrent-check-db-contention.md) — dua `bun run check` paralel = 50-300+ gagal palsu; re-run terisolasi sebelum percaya
 - [Idle-in-transaction hang](idle-in-transaction-hang.md) — proses test kunci koneksi idle-in-tx → HANG TRUNCATE test lain; diagnosa pg_stat_activity
 - [Dev server smoke leak + E2E flake](dev-server-smoke-test-process-leak.md) — `pkill astro dev` meleset → timeout palsu. `admin-analytics` RESOLVED (#883/PR#884): reload-poll. E2E lokal awcms-pg:5433
@@ -159,9 +160,15 @@ Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikec
 ## Dokumen & konvensi repo
 
 - [Audit doc rename by date](audit-doc-rename-by-date.md) — AUDIT_STANDAR_PENGEMBANGAN_<tgl>.md: git mv ke tanggal + update ~15 rujukan (kecuali CHANGELOG)
+- [Doc tables claiming criteria drift](doc-tables-claiming-acceptance-criteria-drift.md) — observability-metrics.md 19/48 metrik; tabel tangan tanpa gate = jaminan di atas kertas (kini di-gate)
 - [Skill/doc drift recurring](skill-doc-drift-recurring.md) — kejadian ke-6 (#829); di-gate tests/unit/module-skill-coverage.test.ts
 - [ADR numbering race](adr-numbering-race-extends-migration-pattern.md) — tabrakan file ADR (#789 vs #784); git merge tak menandai — diff `docs/adr/` manual
 - [AWPOS standard refactor](awpos-standard-refactor.md) — awcms-mini = base modular monolith; sumber `/home/data/dev_bun/awpos/docs/awpos/`; legacy `legacy/pre-awpos-standard`
+
+## Server produksi pihak ketiga (detail di repo ops terpisah)
+
+- [Two postmasters one PGDATA](two-postmasters-one-pgdata-docker.md) — PID namespace Docker lumpuhkan `postmaster.pid`; buktikan via marker file; `--restart=no` lalu SIGKILL (bukan graceful)
+- [Docker limits live + Coolify](docker-limits-live-plus-coolify.md) — pasang DUA kali: `docker update` (live, cgroup v2) DAN field Coolify (tahan redeploy); plafon ≠ reservasi
 
 ## usage_metering follow-ups
 
@@ -169,7 +176,8 @@ Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikec
 
 ## Riwayat epic (semua CLOSED kecuali disebut)
 
-- [SaaS Control Plane epic #868](saas-control-plane-epic-868.md) — ▶️ **RESUMED 2026-07-25** (aturan derivatif RESOLVED via ADR-0024). #880 CLOSED (PR #929) · #878 sebagian (PR #931) · sisa: #930 ops, #878 UI, **#932 WIP di branch `feat/932-payment-evidence-retention` commit `1e7b0f33` — bukti webhook TAK BISA dihapus role mana pun; belum jalankan test/docs/PR**. SEMUA PR sesi ini MERGED TANPA review independen (Codex habis kuota, subagent dilarang)
+- [#878 overview butuh fleet-state store](878-overview-needs-fleet-state-store.md) — endpoint SLO cuma KATALOG; state fleet hidup hanya metrik ter-emit → overview = migration+tabel+endpoint, bukan halaman saja
+- [SaaS Control Plane epic #868](saas-control-plane-epic-868.md) — ▶️ **AKTIF 2026-07-25**. #930 nyaris tuntas: Wave 1-5a MERGED (#934/#935/#939/#940/#941/#942), Wave 5b/5c OPEN (#943/#944 stacked). #932 CLOSED. Sisa: **#878 UI**. SEMUA PR sesi ini MERGED TANPA review independen (Codex habis kuota, subagent dilarang)
 - [Post-audit hardening #818](post-audit-hardening-epic-818.md) — AKTIF: audit 2026-07-17 v0.24.0. Wave final SELESAI (#837/#849/#851/#845). Sisa open: #825, #858, #859
 - [Platform-evolution #738](platform-evolution-epic-738-survey.md) — #739-755 CLOSED; 6/6 PR Wave-3 hasilkan Critical/High di review pertama
 - [Platform hardening #679](platform-hardening-epic-progress.md) — CLOSED (PR #701-#722, 22/22)
@@ -178,6 +186,30 @@ Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikec
 - Epic CLOSED (detail di disk): [visitor-analytics](visitor-analytics-epic-progress.md), [auth-online](auth-online-hardening-epic-progress.md), [blog-content](blog-content-epic-progress.md)
 - [Master-data + hermes deferred](master-data-hermes-agent-deferred-2026-07-13.md) — owner tutup #658-664 & #669-678 NOT_PLANNED; JANGAN lanjut sampai dibuka
 - [Request-schema drift ungated](request-schema-drift-ungated.md) — #837 (RESOLVED PR#853): skema REQUEST PATCH vs runtime parser tak ada gate; `api-reference.md` regen wajib
+`````
+
+<!-- memory-file: 878-overview-needs-fleet-state-store.md -->
+
+`````markdown
+---
+name: 878-overview-needs-fleet-state-store
+description: "#878 control-plane overview TAK BISA dibangun sebagai halaman saja — endpoint SLO cuma KATALOG, state fleet hidup hanya ada sebagai metrik yang di-emit"
+metadata: 
+  node_type: memory
+  type: project
+  modified: 2026-07-25T14:53:30.551Z
+---
+
+Scope #878 yang TERSISA (diverifikasi 2026-07-25, bukan ditebak): ketujuh modul control-plane SUDAH punya halaman operator + entri nav (`/admin/{service-catalog,tenant-entitlement,tenant-provisioning,tenant-lifecycle,usage-metering,subscription-billing,payment-gateway}`). Yang belum ada:
+
+1. **Control-plane OVERVIEW** (butir pertama scope #878).
+2. **SELURUH permukaan tenant self-service** — `src/pages/` cuma punya `admin/`, `api/`, `blog/`, `news/`, `index`, `login`. Tidak ada area berautentikasi untuk tenant sama sekali.
+
+**Why:** overview TIDAK bisa dikerjakan sebagai "satu halaman Astro". `GET /api/v1/logs/observability/slo` adalah **katalog** — docstring-nya sendiri bilang: *"Live objective STATE (which objectives are currently in breach) is not served here yet ... This endpoint is the catalog half."* State fleet hidup hari ini HANYA ada sebagai metrik yang di-emit `control-plane:fleet-sweep` (push ke metrics port, tidak disimpan, tidak bisa di-query).
+
+Menghitungnya on-demand saat render halaman = kerja lintas-tenant tak terbatas di request time, persis yang dihindari ADR-0022 §6b.
+
+**How to apply:** rencanakan overview sebagai **migration + tabel state fleet + store + endpoint + halaman**, bukan halaman saja. Sweep menulis pembacaannya; overview membaca snapshot terakhir + `collected_at` (tampilkan umurnya — snapshot basi harus terlihat basi, lihat pola `clamped`/`truncated` di [[saas-control-plane-epic-868]] Wave 5b). Jangan mulai dengan mengarang halaman lalu mencari datanya.
 `````
 
 <!-- memory-file: adr-numbering-race-extends-migration-pattern.md -->
@@ -1522,6 +1554,51 @@ When manually smoke-testing a change by launching `bun --bun astro dev --port N 
 **Local E2E setup that worked in the sandbox** (no awcms-mini DB reachable by default; parallel agents pollute the shared dev DB): the `awcms-pg` container (superuser role `awcms`, published `localhost:5433`) is reachable from the host here, so create an isolated `CREATE DATABASE "awcms-mini-verify<NNN>"` in it, `DATABASE_URL=…superuser… bun run db:migrate`, then `ALTER ROLE awcms_mini_app WITH LOGIN PASSWORD …` (migration 013 makes it NOLOGIN — mirrors the CI job + `harness.ts` `provisionAppRole()`), `bun run build`, start `bun ./dist/server/entry.mjs` with `VISITOR_ANALYTICS_ENABLED=true` + the CI env (see `.github/workflows/ci.yml` E2E job), and run Playwright with `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/google-chrome` (Chrome is preinstalled; `--with-deps` install isn't needed). Clean up after: kill the server by PID, `DROP DATABASE`, and `ALTER ROLE awcms_mini_app WITH NOLOGIN` (the role is cluster-global in that shared cluster).
 `````
 
+<!-- memory-file: doc-tables-claiming-acceptance-criteria-drift.md -->
+
+`````markdown
+---
+name: doc-tables-claiming-acceptance-criteria-drift
+description: "Tabel dokumen yang mengaku \"acceptance criterion\" tapi tak ada gate = jaminan di atas kertas; observability-metrics.md basi 19/48"
+metadata: 
+  node_type: memory
+  type: project
+  modified: 2026-07-25T08:38:40.089Z
+---
+
+`docs/awcms-mini/observability-metrics.md` §"Cardinality and privacy review"
+menyatakan dirinya **acceptance criterion**: setiap metrik yang di-emit wajib
+terdaftar dengan label set + batas kardinalitas, supaya menambah metrik memaksa
+keputusan privasi yang sadar.
+
+Tidak pernah ada yang mengeceknya. Saat ditemukan (2026-07-25) tabel itu memuat
+**19 dari 48** metrik terdeklarasi — keluarga utuh tanpa entri sama sekali
+(domain event, business scope, SoD, workflow, profile identity, organization
+structure, control plane).
+
+**Why:** tabel tangan yang tak di-gate tapi DIKUTIP reviewer lebih buruk
+daripada tidak ada jaminan sama sekali — ia memberi rasa aman palsu. Kelas yang
+sama dengan [[validator-exists-but-unwired-critical-pattern]], tapi di lapisan
+dokumen.
+
+**How to apply:**
+
+- Sekarang di-gate `tests/unit/observability-metrics-doc-coverage.test.ts`
+  (dua arah: metrik terdeklarasi tanpa baris = gagal; baris menyebut metrik
+  yang sudah tak ada = gagal). Menambah entri `METRIC_DEFINITIONS` WAJIB
+  menambah barisnya.
+- **Curigai setiap tabel dokumen yang mengaku criterion/matrix/inventory tapi
+  di-maintain tangan.** Cek cepat: hitung baris tabel vs sumber kebenaran di
+  kode. Kandidat lain yang sudah punya gate — repo-inventory, module-composition
+  -inventory, work-class registry, saas-contract inventory, api-reference,
+  doc 13 matrix migration, module-skill-coverage. Yang belum punya gate:
+  perlakukan sebagai kemungkinan basi sampai dibuktikan.
+- Saat menulis mutation test untuk gate dokumen: **pastikan mutasinya benar-benar
+  mengubah file.** Percobaan pertama di sini "hijau" hanya karena pola `grep`
+  tidak cocok dengan kolom tabel yang sudah dipadding Prettier — mutasinya yang
+  salah, bukan gate-nya. Varian [[my-crude-verification-breaks-setup]].
+`````
+
 <!-- memory-file: docker-host-port-blocked.md -->
 
 `````markdown
@@ -1605,6 +1682,42 @@ least-privilege `awcms_mini_app` yang dipakai app; `tests/integration/
 harness.ts` sendiri yang provision+repoint ke `awcms_mini_app` setelah
 migrate, jadi cukup pasang `DATABASE_URL` ke role superuser itu sebelum
 `bun test`).
+`````
+
+<!-- memory-file: docker-limits-live-plus-coolify.md -->
+
+`````markdown
+---
+name: docker-limits-live-plus-coolify
+description: "Limit CPU/memori harus dipasang DUA kali — docker update (live, tanpa restart) DAN field Coolify (bertahan saat redeploy)"
+metadata: 
+  node_type: memory
+  type: project
+  modified: 2026-07-25T22:33:09.356Z
+---
+
+Memasang limit resource pada resource Coolify lewat UI/field saja **butuh redeploy** (= downtime
+produksi), sedangkan `docker update` saja **hilang saat redeploy berikutnya** karena Coolify
+membuat ulang container dari record-nya.
+
+**Why:** keduanya memecahkan separuh masalah. Pasang keduanya: `docker update --cpus X --memory Y
+--memory-swap Y <container>` untuk berlaku SEKARANG tanpa restart (uptime & health terjaga —
+verified), lalu tulis `limits_cpus`/`limits_memory` di `App\Models\Application` /
+`StandalonePostgresql` agar deploy berikutnya mempertahankannya.
+
+**How to apply:**
+- `docker update` bisa mengubah limit MEMORI secara live hanya di **cgroup v2**. Cek
+  `stat -fc %T /sys/fs/cgroup` → `cgroup2fs`, atau `docker info --format {{.CgroupVersion}}`.
+- Escaping `php artisan tinker --execute="..."` lewat SSH gampang hancur (output kosong senyap).
+  Tulis file `.php` di server via heredoc ber-quote, `docker cp` ke container coolify, lalu
+  `php artisan tinker /tmp/x.php`.
+- Limit adalah PLAFON, bukan reservasi — total boleh melebihi RAM fisik. Sizing untuk membatasi
+  blast radius, bukan kelangkaan.
+- Varnish: plafon memori harus DI ATAS `-s malloc,<size>` (256M cache → 768m), jangan disamakan.
+- Sengaja JANGAN cap: workload produksi paling penting (mengecap yang lain sudah melindunginya) dan
+  control plane Coolify (mengecap deployer bisa menghalangi men-deploy perbaikannya sendiri).
+- Container sidecar manual (Varnish) tidak dikelola Coolify — limit hanya ada di container; kalau
+  dibuat ulang manual, `--cpus`/`--memory` harus diberikan lagi.
 `````
 
 <!-- memory-file: docker-manual-container-root-ownership.md -->
@@ -6566,7 +6679,7 @@ description: "Epic #868 SaaS control plane — 7 modul opt-in in-repo default-di
 metadata: 
   node_type: memory
   type: project
-  modified: 2026-07-25T07:29:32.486Z
+  modified: 2026-07-25T14:36:20.866Z
 ---
 
 # Epic #868 — SaaS Control Plane (opt-in, in-repo, default-disabled)
@@ -6631,10 +6744,60 @@ naik justru saat dunning bekerja lebih keras.
 Semantik schema yang mahal ditemukan: provisioning **1:1 per tenant** (UNIQUE `tenant_id`);
 entitlement **satu yang hidup per (tenant, plan_key)** (partial unique).
 
-**SISA #930 (belum dikerjakan):** job REMEDIASI fleet (reconcile/expiry/renewal/dunning eksekusi —
-Wave 2 baru separuh OBSERVASI), kapasitas + production preflight untuk beban control-plane, export
-bukti operator (bounded/masked/audited), dokumen RTO/RPO + rehearsal backup/restore + degraded-mode
-provider. Sesudah itu baru **#878** (body-nya bilang "operational indicators are finalized by #880").
+**Wave 3 ✅ PR #939 MERGED** — `tenant-entitlement:expiry-sweep` (migration **104**: status `expired`
++ `expired_at` write-once + perluas whitelist transisi migration 081 + GRANT UPDATE worker).
+**SLO Wave 1 SALAH menilai apa yang diukurnya** dan itu lebih penting dari job yang hilang: descriptor
+menyebut backlog tak-tersapu sebagai celah OTORISASI ("tenant keeps access"), padahal `assignmentActive()`
+sudah menolak jendela tertutup DAN `assignOffer` men-supersede baris lama → tak ada akses tertahan, tak ada
+blokir re-subscribe. Yang nyata: drift PEMBUKUAN. Severity turun ke `info`/`warning`. **Severity palsu bukan
+melebih-lebihkan yang tak berbahaya — ia menaruh pembukuan rutin di sebelah pelanggaran nyata, dan begitulah
+page sungguhan mulai diabaikan.** Dua bug ketangkap test: trigger 081 TOLAK `active -> expired` (sweep tak akan
+jalan sama sekali), dan **`WHERE id IN (SELECT ... LIMIT n FOR UPDATE SKIP LOCKED)` TIDAK membatasi UPDATE**
+(planner pilih Nested Loop Semi Join, subquery dieksekusi ulang per baris; limit 2 vs 3 baris → 3 ter-update)
+→ ganti CTE `MATERIALIZED` yang di-JOIN. Lihat [[promise-all-on-single-tx-hang]] untuk kelas serupa.
+
+**Wave 3b ✅ PR #940 MERGED** — `tenant-provisioning:fleet-reconcile` + migration **105** (worker: UPDATE
+requests, SELECT+INSERT reconciliations, SELECT steps/results — TANPA INSERT/DELETE requests, TANPA write
+apa pun ke steps/results: reconciler yang bisa menulis inputnya sendiri cuma bisa MENYEMBUNYIKAN drift).
+**Bug desain yang ketangkap unit test sendiri:** versi pertama jalan berurutan lalu berhenti saat budget
+habis — itu MEMBUAT EKOR DAFTAR KELAPARAN PERMANEN, karena dengan interval 20 jam pada jadwal harian setiap
+tenant yang disentuh pass sebelumnya sudah basi lagi di tick berikutnya → kepala daftar menang selamanya.
+Bukan "terlambat", TIDAK PERNAH. Ganti dua fase: probe semua → belanja budget ke yang PALING BASI.
+Test mereproduksi kegagalan pada bentuk yang DITOLAK, bukan cuma assert perbaikannya.
+
+**Wave 4 ✅ PR #941 MERGED** — inventory worker BASI di LIMA tempat sekaligus (runbook, capacity-config,
+client.ts, config/registry.ts ×2, work-class-registry): semua bilang "9 script", registry berisi **24**.
+`config/registry.ts` bahkan beranotasi "(count corrected by Issue #743)" — jadi angka itu sudah pernah
+dikoreksi lalu melenceng LAGI, tanpa satu gate pun gagal. Lebih buruk dari doc basi biasa: saran sizing
+`DATABASE_CAPACITY_WORKER_INSTANCES_MAX` DIRUMUSKAN dalam "N script", jadi N basi = saran meng-under-budget
+koneksi. Semua kini turunkan dari `JOB_WORK_CLASS_REGISTRY` via `countRegisteredWorkerJobs()`, di-gate
+`tests/unit/capacity-worker-inventory-drift.test.ts`. **Gate itu menemukan 2 dari 5 sendiri:** regex pertama
+menuntut kata sifat worker/background dan MELEWATKAN "9 already-shipped scripts" tiga baris dari yang
+ditangkapnya; versi lebih luas lalu menemukan salinan keempat yang grep manual lewatkan.
+Temuan baru `worker_instances_max_undeclared` (severity `warning`) menuntut **DEKLARASI, bukan angka lebih
+besar** — cron ter-stagger memang benar di 1; typo (`MAX=tree`) TIDAK dihitung deklarasi (jatuh ke default).
+
+**Wave 5a ✅ PR #942 MERGED** — outbox payment TAK BISA di-purge & tumbuh SELAMANYA (#932 memperbaiki hal
+persis sama untuk rantai bukti lalu MELEWATI outbox): trigger `BEFORE DELETE` menolak semua role, nol GRANT
+DELETE, nol statement DELETE di seluruh repo. Migration **106** HAPUS trigger-nya (beda #932: trigger ini
+hanya jaga DELETE, tak ada yang tersisa untuk dipersempit) dan pindahkan batas ke grant.
+**Dua predikat, yang STATUS load-bearing:** baris non-terminal = pekerjaan yang masih berutang ke pelanggan;
+menghapusnya diam-diam membuang checkout/refund/pembatalan. `failed` DILINDUNGI meski namanya terdengar
+terminal — ia bisa di-retry dan berbagi index due dengan `pending`. Cursor `updated_at` bukan `created_at`.
+Keduanya mutation-verified. **Diverifikasi empiris:** `IN (SELECT ... LIMIT n)` MEMANG membatasi DELETE
+(10 kandidat, limit 2 → tepat 2) — beda dari kasus UPDATE di Wave 3 karena di sana ada `FOR UPDATE SKIP LOCKED`.
+
+**Wave 5b PR #943 + Wave 5c PR #944 OPEN (stacked, CI jalan 2026-07-25):**
+5b = `GET /api/v1/control-plane/tenants/{tenantId}/evidence` + migration **107**. **DUA gerbang:** permission
+`support_access.export` DAN grant support-access aktif untuk tenant itu — tanpa gerbang kedua, permission-nya
+jadi kunci permanen ke seluruh fleet tanpa jejak siapa pun memutuskan aksesnya perlu. Penolakan JUGA diaudit.
+Masked SECARA KONSTRUKSI: tipe barisnya tak punya field yang SANGGUP membawa PII/provider-ref;
+`last_error_class` diambil, `last_error_message` di kolom sebelahnya TIDAK (mutation-verified: menambahkannya
+membuat test merah). 5c = drill restore ternyata TAK PERNAH melihat control plane sama sekali → restore bisa
+lapor `pass` dengan seluruh provisioning/entitlement/invoice/cursor hilang.
+
+**SISA #930 setelah 5b/5c merge:** tidak ada — semua kriteria terpenuhi. Sesudah itu **#878**
+(body-nya bilang "operational indicators are finalized by #880").
 
 ### (arsip) #932 saat masih WIP (branch `feat/932-payment-evidence-retention`, commit `1e7b0f33`)
 
@@ -8695,6 +8858,67 @@ Epic #555 "online public tenant routing, news routes, and tenant domain manageme
 **Why**: this is the authoritative source for "what's next" in the epic — don't re-derive from git log alone since GitHub issue numbers don't always match commit order intuitively.
 
 **How to apply**: the full per-issue technical detail (config vars, schema columns, resolver behavior, security follow-ups) lives in the `awcms-mini-tenant-domain-routing` skill's status table — read that first, this memory is just the pointer. The `/news` timing side-channel (Medium finding, audit of #560) was fixed alongside #562 (`padUnresolvedTenantLatency()`). Two new non-blocking follow-ups from #562's security audit, tracked in the skill: (1) a pre-existing idempotency-store race shared by every idempotent endpoint in the repo (`_shared/idempotency.ts`, not `tenant_domain`-specific), (2) whether `set_primary` should be reclassified into `HIGH_RISK_ACTIONS` (currently inert metadata, zero functional effect today). See also [[skill-doc-drift-recurring]], [[prettier-check-docs-only-prs]], and [[blog-content-epic-progress]] for the sibling epic this one builds on (`/news` reuses blog_content's #536-#543 services).
+`````
+
+<!-- memory-file: tenant-domain-set-primary-race-flake.md -->
+
+`````markdown
+---
+name: tenant-domain-set-primary-race-flake
+description: "Test \"set-primary under concurrent first-time race\" (#562) flake berulang di CI pada PR yang tak menyentuh tenant-domain — jangan didiagnosa ulang, cukup rerun"
+metadata: 
+  node_type: memory
+  type: project
+  modified: 2026-07-25T12:42:28.671Z
+---
+
+`tests/.../tenant domain management API (Issue #562) > set-primary under concurrent first-time race: exactly one request wins, the loser gets a clean 409` GAGAL sesekali di job Quality CI, pada PR yang **tidak menyentuh** modul tenant-domain sama sekali (terkonfirmasi 2026-07-25 di PR #940 yang hanya mengubah `tenant_provisioning`).
+
+**Why:** flake pre-existing, bukan regresi branch. Sudah pernah diisolasi 20/20 lolos sebanyak 3 kali berturut-turut secara lokal. Satu-satunya kegagalan di run itu, sementara 5749 test lain lolos — pola "1 fail dari ~5750" yang berdiri sendiri di test race adalah sinyal flake, bukan sinyal bug.
+
+**How to apply:** jangan buang waktu mendiagnosa ulang atau menuduh perubahan sendiri. Langsung `gh run rerun <runId> --failed`. Baru curigai regresi nyata kalau (a) branch memang menyentuh tenant-domain/`awcms_mini_tenant_domains`, atau (b) gagal lagi di rerun. Bandingkan dengan [[bun-test-db-warmup-flake]] (flake DB warmup, beda penyebab) dan [[concurrent-check-db-contention]] (gagal massal, bukan tunggal).
+`````
+
+<!-- memory-file: two-postmasters-one-pgdata-docker.md -->
+
+`````markdown
+---
+name: two-postmasters-one-pgdata-docker
+description: "Docker PID namespace melumpuhkan proteksi postmaster.pid — dua Postgres bisa hidup di PGDATA yang sama; SIGKILL bukan graceful stop"
+metadata: 
+  node_type: memory
+  type: project
+  modified: 2026-07-25T21:57:07.697Z
+---
+
+Sebuah container Postgres "legacy" yang tercatat sudah dihapus ternyata dibuat ULANG (oleh sebab
+yang tak diketahui) dan bind-mount **PGDATA yang SAMA** dengan instance produksi yang sedang jalan.
+Dua postmaster hidup di satu data directory selama ~44 jam sebelum ketahuan.
+
+**Why:** proteksi Postgres (`postmaster.pid`) TIDAK melindungi di Docker karena tiap container punya
+**PID namespace sendiri** — kedua postmaster adalah PID 1 di namespace masing-masing, jadi cek
+liveness atas PID di lockfile tidak bermakna lintas container. Lockfile di disk bertanggal start
+container KEDUA (menimpa milik yang pertama). Jadi "Postgres kan menolak start kalau sudah ada yang
+jalan" adalah asumsi yang SALAH di Docker.
+
+**How to apply:**
+1. `docker inspect` yang mount source-nya sama hanya SUGESTIF. Buktikan berbagi byte dengan marker
+   file: tulis di container A (`echo x > $PGDATA/.check`), baca di container B, lalu hapus. Itu
+   bukti, bukan inferensi — sejalan [[grep-for-marker-cannot-prove-absence]].
+2. Tentukan mana yang HIDUP dari `DB_HOST` aplikasi + label routing (Traefik), jangan menebak dari
+   nama container.
+3. Urutan mematikan: `docker update --restart=no` **DULU** — kalau policy `unless-stopped`, Docker
+   akan menghidupkan lagi setelah kill — baru `docker kill`.
+4. **SIGKILL, bukan `docker stop`.** Graceful shutdown Postgres menjalankan shutdown checkpoint =
+   MEM-FLUSH shared buffers basi ke disk; justru itulah tulisan yang merusak. Instance rogue bukan
+   otoritas atas isi direktori itu.
+5. Assessment kerusakan: `pg_dump` penuh (membaca tiap baris → memunculkan heap rusak) + `count(*)`
+   per tabel + grep log 48 jam untuk `corrupt|invalid page|checksum|PANIC`.
+6. Hentikan, JANGAN hapus — biarkan pemilik sistem yang memutuskan penghapusan.
+
+Detail insiden konkret (server, path, nama container) sengaja TIDAK di sini — repo ini publik, lihat
+[[memory-snapshot-to-docs]] dan kebijakan #928. Catatan lengkapnya ada di repo ops `serv-dinkesdocker`
+`docs/14-resource-limits-and-rogue-postgres.md`.
 `````
 
 <!-- memory-file: typescript-7-jsdoc-backtick-fence-bug.md -->

@@ -75,9 +75,9 @@
     "semantic_hash": "322ed3cf024880dca51c85cdbc223bfa"
   },
   "deploy/backup/restore-drill.sh": {
-    "mtime": 1783770743.0408006,
-    "ast_hash": "cde3b11a57651aa7b9c1d15c3952263e",
-    "semantic_hash": "cde3b11a57651aa7b9c1d15c3952263e"
+    "mtime": 1784991950.7823734,
+    "ast_hash": "c9ad0c8cc51764d07088c3768a34a31c",
+    "semantic_hash": "c9ad0c8cc51764d07088c3768a34a31c"
   },
   "deploy/backup/restore-postgres.sh": {
     "mtime": 1783770743.0408006,
@@ -95,19 +95,19 @@
     "semantic_hash": "225f5470838849a53a7c868af82f5c78"
   },
   "docs/awcms-mini/module-composition-inventory.json": {
-    "mtime": 1784623558.8499691,
-    "ast_hash": "e5314787163124d1264b4d200f2feaaf",
-    "semantic_hash": "e5314787163124d1264b4d200f2feaaf"
+    "mtime": 1784984244.6433733,
+    "ast_hash": "fec8d8f6826f89d6a6ea986d444123fb",
+    "semantic_hash": "fec8d8f6826f89d6a6ea986d444123fb"
   },
   "docs/awcms-mini/saas-contract-registry.generated.json": {
-    "mtime": 1784604103.106546,
+    "mtime": 1784965050.779177,
     "ast_hash": "02bc0004fc6d4dcba74f79f8f879d1db",
     "semantic_hash": "02bc0004fc6d4dcba74f79f8f879d1db"
   },
   "docs/awcms-mini/work-class-registry.generated.json": {
-    "mtime": 1784623558.8499691,
-    "ast_hash": "653283a3d43c3caf34afea6b1c5051bb",
-    "semantic_hash": "653283a3d43c3caf34afea6b1c5051bb"
+    "mtime": 1784984244.6433733,
+    "ast_hash": "833553c46a877302f7b29a94fd4f6c5f",
+    "semantic_hash": "833553c46a877302f7b29a94fd4f6c5f"
   },
   "fixtures/abac-example-policies.json": {
     "mtime": 1784460954.4757879,
@@ -115,9 +115,9 @@
     "semantic_hash": "35c6c2c931cd681e975ca0c253fd83d3"
   },
   "package.json": {
-    "mtime": 1784635479.4678755,
-    "ast_hash": "805734c621c6bea498b630ce0d426c9a",
-    "semantic_hash": "805734c621c6bea498b630ce0d426c9a"
+    "mtime": 1784984244.6443746,
+    "ast_hash": "0200ea626b48ec46e04865323ec1350f",
+    "semantic_hash": "0200ea626b48ec46e04865323ec1350f"
   },
   "playwright.config.ts": {
     "mtime": 1783547912.948776,
@@ -400,9 +400,9 @@
     "semantic_hash": "70a87f67d4236ab08747b7ab7ce7fba2"
   },
   "scripts/reporting-projections-refresh.ts": {
-    "mtime": 1784030527.469943,
-    "ast_hash": "4d306b36ca804242707611e20ceb4a16",
-    "semantic_hash": "4d306b36ca804242707611e20ceb4a16"
+    "mtime": 1784943743.4115386,
+    "ast_hash": "041f3dcca12e21e02103d7c5c35d5b68",
+    "semantic_hash": "041f3dcca12e21e02103d7c5c35d5b68"
   },
   "scripts/rls-platform-claim-check.ts": {
     "mtime": 1784623558.854969,
@@ -440,9 +440,9 @@
     "semantic_hash": "ce9a5d7f771a325af42344e9af019252"
   },
   "scripts/sync-agent-memory.ts": {
-    "mtime": 1784279973.0293481,
-    "ast_hash": "c3af935d0e51cbefb4282fdc7acedf46",
-    "semantic_hash": "c3af935d0e51cbefb4282fdc7acedf46"
+    "mtime": 1784938690.9032457,
+    "ast_hash": "f38abe79db8995165b6a62e944a08b41",
+    "semantic_hash": "f38abe79db8995165b6a62e944a08b41"
   },
   "scripts/tenant-lifecycle-run-scheduled.ts": {
     "mtime": 1784604103.1135461,
@@ -1190,14 +1190,14 @@
     "semantic_hash": "b66f79ee12439546088664a3c856691e"
   },
   "src/lib/config/registry.ts": {
-    "mtime": 1784751860.4266458,
-    "ast_hash": "94391265c279c3f00763188b76332a70",
-    "semantic_hash": "94391265c279c3f00763188b76332a70"
+    "mtime": 1784986643.4451125,
+    "ast_hash": "9adb946a78b67a24ff42a3631c451905",
+    "semantic_hash": "9adb946a78b67a24ff42a3631c451905"
   },
   "src/lib/database/capacity-config.ts": {
-    "mtime": 1783932054.2195861,
-    "ast_hash": "26c33dff0ee3f6e65d2e3a92b32c9b18",
-    "semantic_hash": "26c33dff0ee3f6e65d2e3a92b32c9b18"
+    "mtime": 1784986643.4451125,
+    "ast_hash": "496a9d7c56cee581a17b74228886c6bb",
+    "semantic_hash": "496a9d7c56cee581a17b74228886c6bb"
   },
   "src/lib/database/circuit-breaker.ts": {
     "mtime": 1783839283.8351438,
@@ -1205,9 +1205,9 @@
     "semantic_hash": "95deac41a6397a08d83686135f287355"
   },
   "src/lib/database/client.ts": {
-    "mtime": 1783932054.2195861,
-    "ast_hash": "ac78a209b944fd41e3e92b0a77eac683",
-    "semantic_hash": "ac78a209b944fd41e3e92b0a77eac683"
+    "mtime": 1784986643.4451125,
+    "ast_hash": "4833b001abfc8ec38318494f6d2faad9",
+    "semantic_hash": "4833b001abfc8ec38318494f6d2faad9"
   },
   "src/lib/database/tenant-context.ts": {
     "mtime": 1784751860.4266458,
@@ -1215,9 +1215,9 @@
     "semantic_hash": "476cebfd75e8fdccbefb05220a2d6bc3"
   },
   "src/lib/database/work-class-registry.ts": {
-    "mtime": 1784604103.1165462,
-    "ast_hash": "3f03c748f300e7bca7498b20a0bc45c0",
-    "semantic_hash": "3f03c748f300e7bca7498b20a0bc45c0"
+    "mtime": 1784986643.4451125,
+    "ast_hash": "1ba2633676d0c131db3c485d03d958ea",
+    "semantic_hash": "1ba2633676d0c131db3c485d03d958ea"
   },
   "src/lib/database/work-class.ts": {
     "mtime": 1783932054.2205863,
@@ -1325,9 +1325,9 @@
     "semantic_hash": "cbadc7c6392d02d34099394ddf919f6c"
   },
   "src/lib/observability/metrics-port.ts": {
-    "mtime": 1784301861.852045,
-    "ast_hash": "da574334aded4dc5324abb2912e6b920",
-    "semantic_hash": "da574334aded4dc5324abb2912e6b920"
+    "mtime": 1784960947.4223473,
+    "ast_hash": "a191b682ab9236d44531dec667cffb34",
+    "semantic_hash": "a191b682ab9236d44531dec667cffb34"
   },
   "src/lib/performance/analyze-fixtures.ts": {
     "mtime": 1784352228.2772717,
@@ -1545,9 +1545,9 @@
     "semantic_hash": "427d59cbacab52983ca622413ae2fb99"
   },
   "src/middleware.ts": {
-    "mtime": 1784301861.853045,
-    "ast_hash": "00d72b37a323eb15bdca4995039e06ef",
-    "semantic_hash": "00d72b37a323eb15bdca4995039e06ef"
+    "mtime": 1784980618.8843062,
+    "ast_hash": "12f9bed30a90a471f9964572a60829d0",
+    "semantic_hash": "12f9bed30a90a471f9964572a60829d0"
   },
   "src/modules/_shared/api-response.ts": {
     "mtime": 1783312911.7763307,
@@ -1580,9 +1580,9 @@
     "semantic_hash": "25e14d8e6375972d894c10d53c567ad5"
   },
   "src/modules/_shared/module-contract.ts": {
-    "mtime": 1784604103.117546,
-    "ast_hash": "81b7aec8aa5f32c9d1aecec605d57048",
-    "semantic_hash": "81b7aec8aa5f32c9d1aecec605d57048"
+    "mtime": 1784960947.4223473,
+    "ast_hash": "5e86e12ce9a341b92afa4bee274d9d16",
+    "semantic_hash": "5e86e12ce9a341b92afa4bee274d9d16"
   },
   "src/modules/_shared/offset-pagination.ts": {
     "mtime": 1784278725.8474467,
@@ -2795,9 +2795,9 @@
     "semantic_hash": "25e18f127ad788fa7ce013571e0c7bb1"
   },
   "src/modules/logging/module.ts": {
-    "mtime": 1783950827.542055,
-    "ast_hash": "7e09c86423f85fce1d8be6b366672165",
-    "semantic_hash": "7e09c86423f85fce1d8be6b366672165"
+    "mtime": 1784964470.7537916,
+    "ast_hash": "efe244b4daa7dcc2d955c7e1fd327ec7",
+    "semantic_hash": "efe244b4daa7dcc2d955c7e1fd327ec7"
   },
   "src/modules/module-management/application/descriptor-sync.ts": {
     "mtime": 1784604103.1195462,
@@ -3245,9 +3245,9 @@
     "semantic_hash": "374a16291b664969b38876f686ba2eb5"
   },
   "src/modules/payment-gateway/module.ts": {
-    "mtime": 1784623558.856969,
-    "ast_hash": "9935e04f21b38059489039c94f86f284",
-    "semantic_hash": "9935e04f21b38059489039c94f86f284"
+    "mtime": 1784991950.7913718,
+    "ast_hash": "4255b09b5bca036f159b53c77f351a11",
+    "semantic_hash": "4255b09b5bca036f159b53c77f351a11"
   },
   "src/modules/profile-identity/application/address-directory.ts": {
     "mtime": 1783984465.570901,
@@ -3465,14 +3465,14 @@
     "semantic_hash": "acd609e1922793ca2406a06190690639"
   },
   "src/modules/reporting/application/projection-directory.ts": {
-    "mtime": 1784030527.4719431,
-    "ast_hash": "f887676cd18b853706fb616a5b2b36c8",
-    "semantic_hash": "f887676cd18b853706fb616a5b2b36c8"
+    "mtime": 1784943743.4115386,
+    "ast_hash": "f0642a196c0b2d1000b5c5cf40dd7ae8",
+    "semantic_hash": "f0642a196c0b2d1000b5c5cf40dd7ae8"
   },
   "src/modules/reporting/application/projection-incremental-worker.ts": {
-    "mtime": 1784030527.4719431,
-    "ast_hash": "1a7317a362d160c1261f471f29e078d5",
-    "semantic_hash": "1a7317a362d160c1261f471f29e078d5"
+    "mtime": 1784943743.4115386,
+    "ast_hash": "93e25bcacc77b694558f406a3816c266",
+    "semantic_hash": "93e25bcacc77b694558f406a3816c266"
   },
   "src/modules/reporting/application/projection-metric-store.ts": {
     "mtime": 1784030527.4719431,
@@ -3505,9 +3505,9 @@
     "semantic_hash": "c845b3bdae9c8497d3ee7b6e40ff45f5"
   },
   "src/modules/reporting/application/scheduled-export-dispatch.ts": {
-    "mtime": 1784030527.472943,
-    "ast_hash": "23b9cfa764c9bc376fdb18d85c47b350",
-    "semantic_hash": "23b9cfa764c9bc376fdb18d85c47b350"
+    "mtime": 1784943743.4115386,
+    "ast_hash": "d530a0de5ded2405acefbdb94ec52d0b",
+    "semantic_hash": "d530a0de5ded2405acefbdb94ec52d0b"
   },
   "src/modules/reporting/application/scheduled-export-store.ts": {
     "mtime": 1784030527.472943,
@@ -3580,9 +3580,9 @@
     "semantic_hash": "b7be7d37b9cd19567862c4d83bdae6bf"
   },
   "src/modules/reporting/module.ts": {
-    "mtime": 1784030527.472943,
-    "ast_hash": "960aa447152c90aafedaf16615ff31f1",
-    "semantic_hash": "960aa447152c90aafedaf16615ff31f1"
+    "mtime": 1784960947.4233468,
+    "ast_hash": "4a2b190d3c5c5a9013e3bac37b6c1ec8",
+    "semantic_hash": "4a2b190d3c5c5a9013e3bac37b6c1ec8"
   },
   "src/modules/service-catalog/application/plan-directory.ts": {
     "mtime": 1784623558.856969,
@@ -3875,9 +3875,9 @@
     "semantic_hash": "9cdfbb7e34c0656418ad52cac0ae9f63"
   },
   "src/modules/subscription-billing/module.ts": {
-    "mtime": 1784623558.857969,
-    "ast_hash": "a407233c25d7673e49b6a45c835ae7a1",
-    "semantic_hash": "a407233c25d7673e49b6a45c835ae7a1"
+    "mtime": 1784960947.4233468,
+    "ast_hash": "2f665e0caffb6692e42634d5ea2eb34d",
+    "semantic_hash": "2f665e0caffb6692e42634d5ea2eb34d"
   },
   "src/modules/sync-storage/application/object-dispatch.ts": {
     "mtime": 1783307696.2294035,
@@ -4020,9 +4020,9 @@
     "semantic_hash": "263dffa2997fca8fe2ab6dd952b39ed6"
   },
   "src/modules/tenant-entitlement/module.ts": {
-    "mtime": 1784623558.857969,
-    "ast_hash": "f7b8bc87ed4b32cf5123f92973229372",
-    "semantic_hash": "f7b8bc87ed4b32cf5123f92973229372"
+    "mtime": 1784980618.8843062,
+    "ast_hash": "abb979ec6028315b15351f3b4aac5d25",
+    "semantic_hash": "abb979ec6028315b15351f3b4aac5d25"
   },
   "src/modules/tenant-lifecycle/application/lifecycle-directory.ts": {
     "mtime": 1784604103.1225462,
@@ -4070,9 +4070,9 @@
     "semantic_hash": "918dfadb22c8da323b1c34a0268974c1"
   },
   "src/modules/tenant-lifecycle/module.ts": {
-    "mtime": 1784623558.857969,
-    "ast_hash": "d536091326d4b352d26ebf5160667187",
-    "semantic_hash": "d536091326d4b352d26ebf5160667187"
+    "mtime": 1784943743.4125366,
+    "ast_hash": "0598f4de06b6b3e871bd03abf77931d8",
+    "semantic_hash": "0598f4de06b6b3e871bd03abf77931d8"
   },
   "src/modules/tenant-provisioning/application/core-step-handlers.ts": {
     "mtime": 1784604103.1235461,
@@ -4085,9 +4085,9 @@
     "semantic_hash": "6003c690172d07929e0bc6951ed2385b"
   },
   "src/modules/tenant-provisioning/application/provisioning-orchestrator.ts": {
-    "mtime": 1784604103.124546,
-    "ast_hash": "7765a6fac7b0db68890cabc2ab3435db",
-    "semantic_hash": "7765a6fac7b0db68890cabc2ab3435db"
+    "mtime": 1784976909.0817378,
+    "ast_hash": "285211cd76ecdce014d333a0d62a4e24",
+    "semantic_hash": "285211cd76ecdce014d333a0d62a4e24"
   },
   "src/modules/tenant-provisioning/application/provisioning-status-port-adapter.ts": {
     "mtime": 1784604103.124546,
@@ -4130,9 +4130,9 @@
     "semantic_hash": "457100c76b440b9b38ca6b9bd59342e5"
   },
   "src/modules/tenant-provisioning/module.ts": {
-    "mtime": 1784604103.1255462,
-    "ast_hash": "bff9dc4721ec08ea598da5fa3bdd5dd2",
-    "semantic_hash": "bff9dc4721ec08ea598da5fa3bdd5dd2"
+    "mtime": 1784984244.6453757,
+    "ast_hash": "cf82c291ed5ff1d08a98f5d6acae0215",
+    "semantic_hash": "cf82c291ed5ff1d08a98f5d6acae0215"
   },
   "src/modules/usage-metering/application/aggregation-engine.ts": {
     "mtime": 1784787119.4765773,
@@ -4230,9 +4230,9 @@
     "semantic_hash": "abcbd25e1dd3edc4bd6616c06ea99331"
   },
   "src/modules/usage-metering/module.ts": {
-    "mtime": 1784604103.127546,
-    "ast_hash": "2525435c63b1efddc7a991971726693f",
-    "semantic_hash": "2525435c63b1efddc7a991971726693f"
+    "mtime": 1784943743.4135346,
+    "ast_hash": "7745e369ad27b63913b3c75d4e37d666",
+    "semantic_hash": "7745e369ad27b63913b3c75d4e37d666"
   },
   "src/modules/visitor-analytics/application/analytics-queries.ts": {
     "mtime": 1784301861.8540452,
@@ -5945,9 +5945,9 @@
     "semantic_hash": "058bb2ff55614f54b4dc6efc9674de95"
   },
   "src/pages/api/v1/reports/exports/index.ts": {
-    "mtime": 1784030527.4739432,
-    "ast_hash": "660c9424648fe66923fb00350b6554c2",
-    "semantic_hash": "660c9424648fe66923fb00350b6554c2"
+    "mtime": 1784943743.4135346,
+    "ast_hash": "d221ac455a5816f45eff07a5d76988c7",
+    "semantic_hash": "d221ac455a5816f45eff07a5d76988c7"
   },
   "src/pages/api/v1/reports/exports/runs.ts": {
     "mtime": 1784030527.4739432,
@@ -5960,9 +5960,9 @@
     "semantic_hash": "d92443695b87b5c46121635fc1f92e59"
   },
   "src/pages/api/v1/reports/exports/trigger.ts": {
-    "mtime": 1784030527.4739432,
-    "ast_hash": "81893f272bf88403192d5abffa8a463e",
-    "semantic_hash": "81893f272bf88403192d5abffa8a463e"
+    "mtime": 1784943743.4135346,
+    "ast_hash": "b3460267e5a54d245e835aa87f1e4467",
+    "semantic_hash": "b3460267e5a54d245e835aa87f1e4467"
   },
   "src/pages/api/v1/reports/module-usage.ts": {
     "mtime": 1783244196.1262648,
@@ -5975,19 +5975,19 @@
     "semantic_hash": "7fc421f15670867359490758b6c0402e"
   },
   "src/pages/api/v1/reports/projections/[key]/rebuild/cancel.ts": {
-    "mtime": 1784121018.4699116,
-    "ast_hash": "0813e68dc6ac8cd68f87223a24aee751",
-    "semantic_hash": "0813e68dc6ac8cd68f87223a24aee751"
+    "mtime": 1784943743.4135346,
+    "ast_hash": "4484258d6e16abbb9b947e23ff6e271c",
+    "semantic_hash": "4484258d6e16abbb9b947e23ff6e271c"
   },
   "src/pages/api/v1/reports/projections/[key]/rebuild/index.ts": {
-    "mtime": 1784121018.4699116,
-    "ast_hash": "51c6d0cb908409c02123f1248d07af13",
-    "semantic_hash": "51c6d0cb908409c02123f1248d07af13"
+    "mtime": 1784943743.4135346,
+    "ast_hash": "56cf3aed53a70dddc60a3853b3bf280e",
+    "semantic_hash": "56cf3aed53a70dddc60a3853b3bf280e"
   },
   "src/pages/api/v1/reports/projections/[key]/reconcile.ts": {
-    "mtime": 1784030527.4739432,
-    "ast_hash": "2f21160663247515b192413e0fa99590",
-    "semantic_hash": "2f21160663247515b192413e0fa99590"
+    "mtime": 1784943743.4135346,
+    "ast_hash": "e9a5117731c946275ba174986af48ad4",
+    "semantic_hash": "e9a5117731c946275ba174986af48ad4"
   },
   "src/pages/api/v1/reports/projections/index.ts": {
     "mtime": 1784030527.4749432,
@@ -6325,9 +6325,9 @@
     "semantic_hash": "8d8aa5ed11cdcd2ab23df5357a8dac6a"
   },
   "src/pages/api/v1/tenant-provisioning/requests/index.ts": {
-    "mtime": 1784604103.1325462,
-    "ast_hash": "2ed972aecd095a0d527bd70dfb6d3e3a",
-    "semantic_hash": "2ed972aecd095a0d527bd70dfb6d3e3a"
+    "mtime": 1784976909.0817378,
+    "ast_hash": "118fcf9da4f2d17f0048a8e6979400a6",
+    "semantic_hash": "118fcf9da4f2d17f0048a8e6979400a6"
   },
   "src/pages/api/v1/tenant-provisioning/tenants/[tenantId]/cancel.ts": {
     "mtime": 1784604103.1325462,
@@ -6800,9 +6800,9 @@
     "semantic_hash": "2c8bf3d5188b1c5e3d150d1bf426144e"
   },
   "tests/foundation.test.ts": {
-    "mtime": 1784792504.858645,
-    "ast_hash": "07ab11a9bd95135acb6eae66670b0094",
-    "semantic_hash": "07ab11a9bd95135acb6eae66670b0094"
+    "mtime": 1784991950.7923715,
+    "ast_hash": "9827747660820238bbbf0a0acf920731",
+    "semantic_hash": "9827747660820238bbbf0a0acf920731"
   },
   "tests/i18n.test.ts": {
     "mtime": 1783298772.681335,
@@ -7030,9 +7030,9 @@
     "semantic_hash": "33fddeb892a5329c386ab24fc566d49b"
   },
   "tests/integration/harness.ts": {
-    "mtime": 1784290917.3293707,
-    "ast_hash": "93e08bcdc3e9c4ca71573901a2257d64",
-    "semantic_hash": "93e08bcdc3e9c4ca71573901a2257d64"
+    "mtime": 1784976909.0817378,
+    "ast_hash": "b1b3ae5b16e9ff59b3e1e86e0cad01e0",
+    "semantic_hash": "b1b3ae5b16e9ff59b3e1e86e0cad01e0"
   },
   "tests/integration/idn-admin-regions-schema.integration.test.ts": {
     "mtime": 1783896056.6348565,
@@ -7100,9 +7100,9 @@
     "semantic_hash": "200bc9bbecb75a7e7c15835badcc0f63"
   },
   "tests/integration/module-job-registry.integration.test.ts": {
-    "mtime": 1783984465.5769007,
-    "ast_hash": "deda5e7957ad425a975c13eeb93f9422",
-    "semantic_hash": "deda5e7957ad425a975c13eeb93f9422"
+    "mtime": 1784964470.7547967,
+    "ast_hash": "bc21583d4dbaa7f6af80dd45192ef552",
+    "semantic_hash": "bc21583d4dbaa7f6af80dd45192ef552"
   },
   "tests/integration/module-management-schema.integration.test.ts": {
     "mtime": 1783395343.7594404,
@@ -7430,9 +7430,9 @@
     "semantic_hash": "60f21d0d93721e771ad2c5b3f2846f85"
   },
   "tests/module-management-job-registry.test.ts": {
-    "mtime": 1784604103.1355462,
-    "ast_hash": "d6342a46eec20e735504d528066e9ec5",
-    "semantic_hash": "d6342a46eec20e735504d528066e9ec5"
+    "mtime": 1784984244.6453757,
+    "ast_hash": "f3b1ae45744a0892adb49b73be296862",
+    "semantic_hash": "f3b1ae45744a0892adb49b73be296862"
   },
   "tests/module-management-navigation-registry.test.ts": {
     "mtime": 1783404635.7782185,
@@ -7710,9 +7710,9 @@
     "semantic_hash": "677f426fd0ca1bbd9726ae24339bc748"
   },
   "tests/unit/database-capacity-config.test.ts": {
-    "mtime": 1783932054.2235863,
-    "ast_hash": "f68ee2f802f0c0aaa6c8100829adf545",
-    "semantic_hash": "f68ee2f802f0c0aaa6c8100829adf545"
+    "mtime": 1784986643.4461117,
+    "ast_hash": "c45da6a1b770d03aa98cca11278b2eff",
+    "semantic_hash": "c45da6a1b770d03aa98cca11278b2eff"
   },
   "tests/unit/document-infrastructure-classification-and-relation.test.ts": {
     "mtime": 1784030377.6201112,
@@ -8260,9 +8260,9 @@
     "semantic_hash": "98b66bd87ea2b6b444abe50ef1082673"
   },
   "tests/unit/reporting-projection-registry.test.ts": {
-    "mtime": 1784030527.475943,
-    "ast_hash": "2ebf7bd3f202bcefeec412fa95a25439",
-    "semantic_hash": "2ebf7bd3f202bcefeec412fa95a25439"
+    "mtime": 1784943743.414533,
+    "ast_hash": "d143ac44550c89b760be7b4f4cf91138",
+    "semantic_hash": "d143ac44550c89b760be7b4f4cf91138"
   },
   "tests/unit/request-body-limit.test.ts": {
     "mtime": 1784278725.8524466,
@@ -10004,9 +10004,314 @@
     "ast_hash": "b40331b26aa6328e6ce21c0f22b6f522",
     "semantic_hash": "b40331b26aa6328e6ce21c0f22b6f522"
   },
-  "docs/Pedoman_Penggunaan_Agent_Keluarga_AWCMS_v1.0.pdf": {
-    "mtime": 1784121018.4649115,
-    "ast_hash": "e3552c7380f3a434b7c9e7f5d186b79c",
-    "semantic_hash": "e3552c7380f3a434b7c9e7f5d186b79c"
+  "scripts/control-plane-fleet-sweep.ts": {
+    "mtime": 1784964470.7537916,
+    "ast_hash": "36346ad45fb23ff7141aab6ab6f19f58",
+    "semantic_hash": "36346ad45fb23ff7141aab6ab6f19f58"
+  },
+  "scripts/payment-gateway-purge.ts": {
+    "mtime": 1784957692.1586144,
+    "ast_hash": "eea6e03eb20e2d6e466894a21bb2c62c",
+    "semantic_hash": "eea6e03eb20e2d6e466894a21bb2c62c"
+  },
+  "scripts/slo-registry-check.ts": {
+    "mtime": 1784960947.4223473,
+    "ast_hash": "4444051bf2e6c518a11e98e7d4464d0f",
+    "semantic_hash": "4444051bf2e6c518a11e98e7d4464d0f"
+  },
+  "scripts/tenant-entitlement-expiry-sweep.ts": {
+    "mtime": 1784980618.8843062,
+    "ast_hash": "5d9c80cab227049e81942201f1a54f05",
+    "semantic_hash": "5d9c80cab227049e81942201f1a54f05"
+  },
+  "scripts/tenant-provisioning-fleet-reconcile.ts": {
+    "mtime": 1784984244.6443746,
+    "ast_hash": "8b8094fb21ace210aea47179105ace86",
+    "semantic_hash": "8b8094fb21ace210aea47179105ace86"
+  },
+  "scripts/varnish-cache-check.ts": {
+    "mtime": 1784980618.8843062,
+    "ast_hash": "9dc28e00891e41db60675e7bb5225137",
+    "semantic_hash": "9dc28e00891e41db60675e7bb5225137"
+  },
+  "sql/101_awcms_mini_control_plane_projection_sources.sql": {
+    "mtime": 1784943743.4115386,
+    "ast_hash": "6f2bb3bdb7fef6260567847e25e3d028",
+    "semantic_hash": "6f2bb3bdb7fef6260567847e25e3d028"
+  },
+  "sql/102_awcms_mini_payment_gateway_retention.sql": {
+    "mtime": 1784957692.1586144,
+    "ast_hash": "a7b1ee908d9456832c912acf23dc84f4",
+    "semantic_hash": "a7b1ee908d9456832c912acf23dc84f4"
+  },
+  "sql/103_awcms_mini_control_plane_fleet_sweep_grants.sql": {
+    "mtime": 1784964470.7537916,
+    "ast_hash": "2587e939987b99d38e014e0c8e46dbdd",
+    "semantic_hash": "2587e939987b99d38e014e0c8e46dbdd"
+  },
+  "sql/104_awcms_mini_tenant_entitlement_expiry.sql": {
+    "mtime": 1784980618.8843062,
+    "ast_hash": "9025722369d5abebf4c4ecb9a0ba04f6",
+    "semantic_hash": "9025722369d5abebf4c4ecb9a0ba04f6"
+  },
+  "sql/105_awcms_mini_control_plane_reconciliation_grants.sql": {
+    "mtime": 1784984244.6443746,
+    "ast_hash": "0e9af1de51634f4ac66e2ed1f165e532",
+    "semantic_hash": "0e9af1de51634f4ac66e2ed1f165e532"
+  },
+  "sql/106_awcms_mini_payment_gateway_outbox_retention.sql": {
+    "mtime": 1784991950.7913718,
+    "ast_hash": "9656127f87b6754bb8d79ca0b732e079",
+    "semantic_hash": "9656127f87b6754bb8d79ca0b732e079"
+  },
+  "sql/107_awcms_mini_control_plane_evidence_export.sql": {
+    "mtime": 1784991950.7913718,
+    "ast_hash": "d864ce4085b037167448f26afcc2f826",
+    "semantic_hash": "d864ce4085b037167448f26afcc2f826"
+  },
+  "src/lib/http/cache-policy.ts": {
+    "mtime": 1784980618.8843062,
+    "ast_hash": "893b1f53c8e8c56564f0398c7e0920b2",
+    "semantic_hash": "893b1f53c8e8c56564f0398c7e0920b2"
+  },
+  "src/modules/logging/application/control-plane-evidence.ts": {
+    "mtime": 1784991950.7913718,
+    "ast_hash": "abc44c288962babf1415278e0d31addd",
+    "semantic_hash": "abc44c288962babf1415278e0d31addd"
+  },
+  "src/modules/logging/application/control-plane-fleet-aggregation.ts": {
+    "mtime": 1784964470.7537916,
+    "ast_hash": "170bd9eb7c6493f9ac0880242a7ae2a5",
+    "semantic_hash": "170bd9eb7c6493f9ac0880242a7ae2a5"
+  },
+  "src/modules/logging/domain/slo-registry.ts": {
+    "mtime": 1784960947.4233468,
+    "ast_hash": "08c2a054090bbe7eee6318feee3280c6",
+    "semantic_hash": "08c2a054090bbe7eee6318feee3280c6"
+  },
+  "src/modules/logging/domain/slo-safe-view.ts": {
+    "mtime": 1784960947.4233468,
+    "ast_hash": "89ab416d0d1b2b281663e0e425a66053",
+    "semantic_hash": "89ab416d0d1b2b281663e0e425a66053"
+  },
+  "src/modules/payment-gateway/application/control-plane-signals.ts": {
+    "mtime": 1784964470.7537916,
+    "ast_hash": "6ff80b28379b541827c248e83dffc0e5",
+    "semantic_hash": "6ff80b28379b541827c248e83dffc0e5"
+  },
+  "src/modules/payment-gateway/application/purge-job.ts": {
+    "mtime": 1784957692.1596134,
+    "ast_hash": "d96e7791e5da3a51fcbf35f5965a2e90",
+    "semantic_hash": "d96e7791e5da3a51fcbf35f5965a2e90"
+  },
+  "src/modules/payment-gateway/application/retention-purge.ts": {
+    "mtime": 1784991950.7913718,
+    "ast_hash": "ae2deb8f584405dacd1d5948fd632629",
+    "semantic_hash": "ae2deb8f584405dacd1d5948fd632629"
+  },
+  "src/modules/payment-gateway/domain/lifecycle-keys.ts": {
+    "mtime": 1784991950.7913718,
+    "ast_hash": "fb6010fd20b60801f905335b5ca65fb4",
+    "semantic_hash": "fb6010fd20b60801f905335b5ca65fb4"
+  },
+  "src/modules/payment-gateway/domain/projection-keys.ts": {
+    "mtime": 1784943743.4115386,
+    "ast_hash": "b633210e2ee65f82cecc513d431f5d38",
+    "semantic_hash": "b633210e2ee65f82cecc513d431f5d38"
+  },
+  "src/modules/payment-gateway/domain/reference-masking.ts": {
+    "mtime": 1784946952.0404494,
+    "ast_hash": "717a39e17cdc260e3216de3e1470d437",
+    "semantic_hash": "717a39e17cdc260e3216de3e1470d437"
+  },
+  "src/modules/reporting/application/control-plane-signals.ts": {
+    "mtime": 1784964470.7547967,
+    "ast_hash": "778c9cff38c404eaeb55479885a67437",
+    "semantic_hash": "778c9cff38c404eaeb55479885a67437"
+  },
+  "src/modules/reporting/application/projection-access.ts": {
+    "mtime": 1784943743.4115386,
+    "ast_hash": "2a1b1c8002bd4f416130cb961a47a971",
+    "semantic_hash": "2a1b1c8002bd4f416130cb961a47a971"
+  },
+  "src/modules/subscription-billing/application/control-plane-signals.ts": {
+    "mtime": 1784964470.7547967,
+    "ast_hash": "1dbf0f6464caf1339a0e84c44c6fe2d0",
+    "semantic_hash": "1dbf0f6464caf1339a0e84c44c6fe2d0"
+  },
+  "src/modules/subscription-billing/domain/projection-keys.ts": {
+    "mtime": 1784943743.4115386,
+    "ast_hash": "0c2674435dca49b6f06d315fe6fe3884",
+    "semantic_hash": "0c2674435dca49b6f06d315fe6fe3884"
+  },
+  "src/modules/tenant-entitlement/application/control-plane-signals.ts": {
+    "mtime": 1784980618.8843062,
+    "ast_hash": "47def6ec1810279a52200c56677ad18a",
+    "semantic_hash": "47def6ec1810279a52200c56677ad18a"
+  },
+  "src/modules/tenant-entitlement/application/expiry-sweep.ts": {
+    "mtime": 1784980618.8843062,
+    "ast_hash": "d18a80d8322522e214348aae2b67cd95",
+    "semantic_hash": "d18a80d8322522e214348aae2b67cd95"
+  },
+  "src/modules/tenant-entitlement/domain/projection-keys.ts": {
+    "mtime": 1784943743.4125366,
+    "ast_hash": "7f810c57eeb11904966d7b86c52a404a",
+    "semantic_hash": "7f810c57eeb11904966d7b86c52a404a"
+  },
+  "src/modules/tenant-lifecycle/domain/projection-keys.ts": {
+    "mtime": 1784943743.4125366,
+    "ast_hash": "56ad97c69e71983354fee41d42718824",
+    "semantic_hash": "56ad97c69e71983354fee41d42718824"
+  },
+  "src/modules/tenant-provisioning/application/control-plane-signals.ts": {
+    "mtime": 1784964470.7547967,
+    "ast_hash": "a86a2be446283cd2004764ce2635faf6",
+    "semantic_hash": "a86a2be446283cd2004764ce2635faf6"
+  },
+  "src/modules/tenant-provisioning/application/fleet-reconciliation.ts": {
+    "mtime": 1784984244.6453757,
+    "ast_hash": "73db806aceb61e441d32ddee84a0e4d0",
+    "semantic_hash": "73db806aceb61e441d32ddee84a0e4d0"
+  },
+  "src/modules/tenant-provisioning/application/owner-secret-commitment.ts": {
+    "mtime": 1784976909.0807374,
+    "ast_hash": "480e762a008d9506a7e3c71c01058e13",
+    "semantic_hash": "480e762a008d9506a7e3c71c01058e13"
+  },
+  "src/modules/tenant-provisioning/domain/projection-keys.ts": {
+    "mtime": 1784943743.4125366,
+    "ast_hash": "acac589074d15ad094fe548aeada661c",
+    "semantic_hash": "acac589074d15ad094fe548aeada661c"
+  },
+  "src/modules/usage-metering/domain/projection-keys.ts": {
+    "mtime": 1784943743.4125366,
+    "ast_hash": "f3ea5d01a37fca683a2e1195a803ba9a",
+    "semantic_hash": "f3ea5d01a37fca683a2e1195a803ba9a"
+  },
+  "src/pages/admin/payment-gateway/index.astro": {
+    "mtime": 1784946952.0404494,
+    "ast_hash": "1d15ae7e0f45dfaf6f9c076e56a7a3d7",
+    "semantic_hash": "1d15ae7e0f45dfaf6f9c076e56a7a3d7"
+  },
+  "src/pages/api/v1/control-plane/tenants/[tenantId]/evidence.ts": {
+    "mtime": 1784991950.7913718,
+    "ast_hash": "33e4c578ae3c6bec32ec75e2e567d3e6",
+    "semantic_hash": "33e4c578ae3c6bec32ec75e2e567d3e6"
+  },
+  "src/pages/api/v1/logs/observability/slo.ts": {
+    "mtime": 1784960947.4233468,
+    "ast_hash": "afafd07aad530dfb2c7b514b1ac84c78",
+    "semantic_hash": "afafd07aad530dfb2c7b514b1ac84c78"
+  },
+  "tests/e2e/helpers/seed-module-enabled-cli.ts": {
+    "mtime": 1784946952.0404494,
+    "ast_hash": "be3485ba6d75acf29de32f1381e62016",
+    "semantic_hash": "be3485ba6d75acf29de32f1381e62016"
+  },
+  "tests/e2e/payment-gateway-operator.e2e.ts": {
+    "mtime": 1784946952.0404494,
+    "ast_hash": "2b7f15fc512b12f0cd0594c7bfe57ec2",
+    "semantic_hash": "2b7f15fc512b12f0cd0594c7bfe57ec2"
+  },
+  "tests/integration/control-plane-evidence-export.integration.test.ts": {
+    "mtime": 1784991950.7923715,
+    "ast_hash": "77720d39e9a844d1051a7b43dfb35ff2",
+    "semantic_hash": "77720d39e9a844d1051a7b43dfb35ff2"
+  },
+  "tests/integration/control-plane-projections.integration.test.ts": {
+    "mtime": 1784943743.4135346,
+    "ast_hash": "a788a42c72453f261c19918703c647f3",
+    "semantic_hash": "a788a42c72453f261c19918703c647f3"
+  },
+  "tests/integration/control-plane-signals.integration.test.ts": {
+    "mtime": 1784964470.7547967,
+    "ast_hash": "cac3b75dd9e94c256eb811a823648578",
+    "semantic_hash": "cac3b75dd9e94c256eb811a823648578"
+  },
+  "tests/integration/payment-gateway-retention.integration.test.ts": {
+    "mtime": 1784991950.7923715,
+    "ast_hash": "f5ed87a6ec029fa73336ca9f1a6b4141",
+    "semantic_hash": "f5ed87a6ec029fa73336ca9f1a6b4141"
+  },
+  "tests/integration/tenant-entitlement-expiry-sweep.integration.test.ts": {
+    "mtime": 1784980618.8853092,
+    "ast_hash": "2cbd52ad87bceb7a0b2db17c42805d9e",
+    "semantic_hash": "2cbd52ad87bceb7a0b2db17c42805d9e"
+  },
+  "tests/integration/tenant-provisioning-fleet-reconcile.integration.test.ts": {
+    "mtime": 1784984244.6453757,
+    "ast_hash": "4db319b5c6b7485eca8d344466f53127",
+    "semantic_hash": "4db319b5c6b7485eca8d344466f53127"
+  },
+  "tests/unit/capacity-worker-inventory-drift.test.ts": {
+    "mtime": 1784986643.4451125,
+    "ast_hash": "41b2ef2971d2877c107cef2f4bdd3ffb",
+    "semantic_hash": "41b2ef2971d2877c107cef2f4bdd3ffb"
+  },
+  "tests/unit/control-plane-evidence-window.test.ts": {
+    "mtime": 1784991950.7923715,
+    "ast_hash": "2b3144f1f85f058e35225c6d32118715",
+    "semantic_hash": "2b3144f1f85f058e35225c6d32118715"
+  },
+  "tests/unit/control-plane-fleet-aggregation.test.ts": {
+    "mtime": 1784964470.7547967,
+    "ast_hash": "619b50a23b8755d2a7c2ba42242a153a",
+    "semantic_hash": "619b50a23b8755d2a7c2ba42242a153a"
+  },
+  "tests/unit/control-plane-observability-coverage.test.ts": {
+    "mtime": 1784943743.4135346,
+    "ast_hash": "9a4287ba86bf1629cdf7f1b281479909",
+    "semantic_hash": "9a4287ba86bf1629cdf7f1b281479909"
+  },
+  "tests/unit/http-cache-policy.test.ts": {
+    "mtime": 1784980618.8853092,
+    "ast_hash": "a58a27bb15557144754c81ba3159f854",
+    "semantic_hash": "a58a27bb15557144754c81ba3159f854"
+  },
+  "tests/unit/module-navigation-path-resolves.test.ts": {
+    "mtime": 1784946952.0404494,
+    "ast_hash": "d557d047fac20005c5bf0e72c3d2bc16",
+    "semantic_hash": "d557d047fac20005c5bf0e72c3d2bc16"
+  },
+  "tests/unit/observability-metrics-doc-coverage.test.ts": {
+    "mtime": 1784968680.3320146,
+    "ast_hash": "d6bebe13231d87b571b77a45293d00dd",
+    "semantic_hash": "d6bebe13231d87b571b77a45293d00dd"
+  },
+  "tests/unit/payment-gateway-reference-masking.test.ts": {
+    "mtime": 1784946952.0404494,
+    "ast_hash": "9f6798ca98a382a0bbfc4a752f841992",
+    "semantic_hash": "9f6798ca98a382a0bbfc4a752f841992"
+  },
+  "tests/unit/reporting-projection-access-chokepoint.test.ts": {
+    "mtime": 1784943743.414533,
+    "ast_hash": "4fe2fc2fb5a860f1140615f22515780b",
+    "semantic_hash": "4fe2fc2fb5a860f1140615f22515780b"
+  },
+  "tests/unit/slo-registry.test.ts": {
+    "mtime": 1784960947.4233468,
+    "ast_hash": "058f21a61950173a7728db78ecb2fdd1",
+    "semantic_hash": "058f21a61950173a7728db78ecb2fdd1"
+  },
+  "tests/unit/slo-safe-view.test.ts": {
+    "mtime": 1784960947.4233468,
+    "ast_hash": "16351913374db232afffef2eb7fe5e70",
+    "semantic_hash": "16351913374db232afffef2eb7fe5e70"
+  },
+  "tests/unit/sync-agent-memory-index-exclusion.test.ts": {
+    "mtime": 1784938690.9042459,
+    "ast_hash": "a324277229ca96248ca5ad784bec4164",
+    "semantic_hash": "a324277229ca96248ca5ad784bec4164"
+  },
+  "tests/unit/tenant-provisioning-fleet-reconciliation.test.ts": {
+    "mtime": 1784984244.6463768,
+    "ast_hash": "991fe4fe932fa9b07e8329c3f2eeca18",
+    "semantic_hash": "991fe4fe932fa9b07e8329c3f2eeca18"
+  },
+  "tests/unit/tenant-provisioning-owner-secret-commitment.test.ts": {
+    "mtime": 1784976909.082738,
+    "ast_hash": "f00aa0f37f715bf4511cc2a0152ab6a3",
+    "semantic_hash": "f00aa0f37f715bf4511cc2a0152ab6a3"
   }
 }

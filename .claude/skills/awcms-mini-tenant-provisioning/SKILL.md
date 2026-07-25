@@ -110,6 +110,45 @@ dalam konteks RLS satu tenant; iterasi lintas-tenant ada di composition root
   setelah satu kegagalan dan mengunci alert terbuka.
 - Worker butuh GRANT SELECT eksplisit (migration `103`).
 
+## Rekonsiliasi fleet-wide (#930 Wave 3b)
+
+`application/fleet-reconciliation.ts` (kebijakan MURNI, nol akses DB) +
+`scripts/tenant-provisioning-fleet-reconcile.ts` (composition root).
+`RECONCILE_MIN_INTERVAL_HOURS = 20`, `RECONCILE_MAX_TENANTS_PER_RUN = 200`.
+
+**Jebakan yang sudah pernah menggigit: budget + urutan enumerasi = STARVATION.**
+Versi pertama menelusuri tenant sesuai urutan enumerasi lalu berhenti di batas
+budget, dengan asumsi "filter kesegaran membuatnya berotasi". Itu SALAH: dengan
+interval 20 jam pada cadence harian, setiap tenant yang disentuh pass sebelumnya
+sudah basi lagi di pass berikutnya — jadi tenant yang sama terpilih selamanya dan
+sisanya tidak pernah direkonsiliasi. Pola yang benar adalah **dua fase**: fase 1
+probe SEMUA tenant (murah, baca `lastReconciledAt` saja), fase 2 urutkan menurut
+kebasian (`null` dulu, lalu terlama) baru potong di budget. Kedua bentuk itu ada
+di suite unit — termasuk test yang mereproduksi bentuk starvation-nya, jangan
+dihapus karena "kelihatan redundan".
+
+`--dry-run` tidak boleh memanggil mutasi sama sekali. Kegagalan per-tenant
+dihitung lewat `safeErrorDetail(error)`, **bukan** `logScriptFailure` (yang akan
+berkelahi dengan `applyJobExitCode`).
+
+## Komitmen owner-secret: scrypt ber-pepper (#937)
+
+`application/owner-secret-commitment.ts`. Body request provisioning memuat
+password owner tenant baru, dan digest-nya disimpan di record idempotency —
+SHA-256 polos di situ adalah **verification oracle** (pembaca kolom bisa
+mengonfirmasi tebakan password).
+
+Jangan "perbaiki" ke argon2id: nilai ini harus **deterministik** dan bisa
+dihitung ulang dari body saat replay, sedangkan argon2id mengundi salt baru tiap
+panggilan sehingga tidak pernah bisa dibandingkan sama. Jangan pula turunkan ke
+HMAC polos: itu hanya memberi properti "keyed", tidak "costly", sehingga pepper
+yang bocor langsung mengembalikan serangan instan. Parameter biaya **dipin
+eksplisit** (digest dipersistensi lalu dibandingkan saat replay — default runtime
+yang berubah akan membatalkan semua `inputs_hash` tersimpan secara diam-diam),
+dan `scrypt` dibungkus tangan karena `promisify` runtuh ke overload tiga-argumen
+dan diam-diam membuang parameter itu. Lihat
+[`docs/awcms-mini/control-plane-security.md`](../../../docs/awcms-mini/control-plane-security.md) §5.
+
 ## Verifikasi WAJIB
 
 `bun run check` PENUH di DB PostgreSQL terisolasi FRESH (migration 085 diedit ⇒

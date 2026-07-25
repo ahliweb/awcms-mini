@@ -44,6 +44,30 @@ perintah generate `userlist.txt` dari `pg_authid`. CI
 kedua compose file di setiap PR — jangan biarkan salah satu file punya
 syntax error/env var yang tidak resolve sampai lolos ke deploy.
 
+## Edge cache Varnish (#938, opsional)
+
+`deploy/varnish/default.vcl` + service `cache` di `docker-compose.prod.yml`.
+Aturannya **default deny** — sebuah route hanya di-cache bila aplikasi secara
+eksplisit menandainya cacheable. Detail lengkap:
+[`docs/awcms-mini/http-cache-varnish.md`](../../../docs/awcms-mini/http-cache-varnish.md).
+
+Yang mudah salah saat deploy:
+
+- **Edge adalah satu-satunya ingress.** `docker-compose.prod.yml` sengaja tidak
+  lagi mem-publish port `4321` milik `app`. Jangan "sekalian" mem-publish
+  keduanya untuk debugging — permintaan yang bisa melewati edge membuat cache
+  tampak benar saat diuji dan bocor saat produksi.
+- Jalankan `bun run varnish:cache:check` setiap kali `default.vcl` berubah
+  (butuh Docker; sengaja BUKAN bagian `bun run check`). `varnishd -C` hanya
+  membuktikan berkasnya parse, bukan bahwa cache-nya benar-benar mengisolasi.
+- Bila Varnish dijalankan sebagai **sidecar di luar compose** (mis. di belakang
+  Traefik/Coolify): VCL **tidak boleh** di-bind-mount dari `/tmp` (dikosongkan
+  saat boot ⇒ `varnishd` gagal start ⇒ domain mati), container butuh
+  `--health-cmd "varnishadm ping"` karena image-nya tidak membawa `HEALTHCHECK`,
+  dan plafon memori harus di ATAS ukuran `-s malloc,<size>`. Ketiganya sudah
+  pernah salah pada deployment nyata — lihat §"Menjalankan Varnish sebagai
+  sidecar di luar compose" pada doc di atas.
+
 ## Command inti (semua profil)
 
 ```bash

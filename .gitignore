@@ -50,8 +50,23 @@ blob-report/
 
 # Cache inkremental graphify (AST + embedding semantic per file, ratusan file
 # kecil yang di-regenerate otomatis saat sumbernya berubah). Hasil akhir graph
-# (graph.json/graph.html/GRAPH_REPORT.md/manifest.json) TETAP di-commit.
+# (graph.json/GRAPH_REPORT.md/manifest.json) TETAP di-commit.
 graphify-out/cache/
 # Penanda lokal per-mesin (absolute path checkout + interpreter uv), bukan hasil.
 graphify-out/.graphify_root
 graphify-out/.graphify_python
+# Backup bertanggal yang ditulis graphify tiap kali graph di-recluster — masing-masing
+# berisi SALINAN PENUH graph.json (~21 MB). Berguna lokal sebagai undo, tapi
+# meng-commit-nya menggandakan blob terbesar repo tiap regenerate.
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+# Turunan run terakhir (analisis + signature label), di-regenerate bersama graph.
+graphify-out/.graphify_analysis.json
+graphify-out/.graphify_labels.json.sig
+# graph.html TIDAK lagi di-commit. Graph sudah melewati batas viz default
+# (11.130 node > 5.000), sehingga graphify melewatinya kecuali
+# GRAPHIFY_VIZ_NODE_LIMIT dinaikkan — dan pada ukuran ini bundel HTML-nya ~16 MB
+# dan praktis tak bisa dibuka. Membiarkan berkas lama ter-commit berarti
+# menyimpan visualisasi yang TIDAK cocok dengan graph.json di sebelahnya, dan itu
+# lebih buruk daripada tidak ada. Regenerate lokal bila perlu:
+#   GRAPHIFY_VIZ_NODE_LIMIT=15000 graphify cluster-only .
+graphify-out/graph.html
