@@ -64,7 +64,7 @@ export const POST: APIRoute = async ({ request, cookies, locals }) => {
     return fail(400, "VALIDATION_ERROR", "Request body must be valid JSON.");
   }
   const input = parseProvisioningRequestBody(body);
-  const requestHash = computeProvisioningInputsHash(input);
+  const requestHash = await computeProvisioningInputsHash(input);
 
   const sql = getDatabaseClient();
   const deps = buildEngineDeps(correlationId);

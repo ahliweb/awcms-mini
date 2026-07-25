@@ -1,11 +1,11 @@
 ---
 name: awcms-mini-codeql-triage
-description: Triase dan perbaiki temuan CodeQL code scanning AWCMS-Mini (github.com/ahliweb/awcms-mini/security/code-scanning). Gunakan saat diminta "analisis code scanning"/"perbaiki CodeQL", saat sebuah PR gagal check CodeQL, atau saat menemukan alert baru. Mendokumentasikan lima false-positive nyata yang sudah ditemukan (name-heuristic password, incompatible-types typeof/null, URL substring-sanitization di test mock, dua kasus dismiss resmi tanpa reformulasi kode, dan Bun.SQL tagged-template null-cast) plus pola "unused-local-variable di test kadang menandai coverage gap" — supaya tidak diinvestigasi ulang dari nol.
+description: Triase dan perbaiki temuan CodeQL code scanning AWCMS-Mini (github.com/ahliweb/awcms-mini/security/code-scanning). Gunakan saat diminta "analisis code scanning"/"perbaiki CodeQL", saat sebuah PR gagal check CodeQL, atau saat menemukan alert baru. Mendokumentasikan satu TRUE-positive terkonfirmasi (password sungguhan → digest cepat yang dipersist = oracle cracking offline, plus dua "fix" yang membungkam alert tanpa memperbaiki apa pun) dan lima false-positive nyata (name-heuristic password, incompatible-types typeof/null, URL substring-sanitization di test mock, dua kasus dismiss resmi tanpa reformulasi kode, dan Bun.SQL tagged-template null-cast) plus pola "unused-local-variable di test kadang menandai coverage gap" — supaya tidak diinvestigasi ulang dari nol.
 ---
 
 # AWCMS-Mini — Triase CodeQL Code Scanning
 
-CodeQL (`.github/workflows/codeql.yml`, matrix `actions` + `javascript-typescript`) jalan di setiap push/PR ke `main`. Sebagian temuan adalah bug nyata; sebagian lain adalah **false positive** dari heuristik statis CodeQL yang tidak melihat konteks runtime sesungguhnya. Skill ini adalah proses triase + katalog false-positive yang sudah dikonfirmasi.
+CodeQL (`.github/workflows/codeql.yml`, matrix `actions` + `javascript-typescript`) jalan di setiap push/PR ke `main`. Sebagian temuan adalah bug nyata; sebagian lain adalah **false positive** dari heuristik statis CodeQL yang tidak melihat konteks runtime sesungguhnya. Skill ini adalah proses triase + DUA katalog: true-positive dan false-positive yang sama-sama sudah dikonfirmasi. Rule yang sama (`js/insufficient-password-hash`) muncul di kedua katalog — jangan pernah menyimpulkan dari nama rule saja.
 
 ## Langkah triase (wajib, jangan menebak)
 
@@ -31,6 +31,87 @@ CodeQL (`.github/workflows/codeql.yml`, matrix `actions` + `javascript-typescrip
    ```
    `dismissed_reason` harus PERSIS `"false positive"` / `"won't fix"` / `"used in tests"` (dengan spasi) — `false_positive` dengan underscore ditolak API (422). `dismissed_comment` dibatasi 280 karakter; taruh alasan lengkap di katalog skill ini, bukan di comment.
 5. **Verifikasi**: `bun run check` hijau, push, tunggu CI — konfirmasi CodeQL run berikutnya tidak lagi menampilkan alert yang sama (bukan cuma "kelihatannya benar").
+
+## Katalog TRUE-POSITIVE yang sudah dikonfirmasi
+
+**Baca bagian ini SEBELUM katalog false-positive di bawahnya.** Katalog FP itu
+panjang dan mudah membuat bias "CodeQL biasanya salah" — padahal setidaknya satu
+alert `js/insufficient-password-hash` ternyata **bug nyata**. Rule yang sama bisa
+menghasilkan FP dan TP; yang menentukan adalah SUMBER-nya, bukan nama rule-nya.
+
+### T1. `js/insufficient-password-hash` — password sungguhan → digest cepat yang DIPERSIST (alert #63/#64)
+
+Ditemukan 2026-07-25 di
+`src/modules/tenant-provisioning/application/provisioning-orchestrator.ts`
+(`computeProvisioningInputsHash`). **Bukan** heuristik nama (pattern FP-1):
+pesan CodeQL menyebut `an access to password`, dan sumbernya memang
+`input.owner.password` — password yang dipilih manusia, bukan token CSPRNG.
+
+Kenapa nyata: hasilnya di-fold ke `inputs_hash` yang **dipersist dua kali**
+(`awcms_mini_tenant_provisioning_requests.inputs_hash` dan `request_hash` di
+idempotency store). SEMUA field lain yang masuk digest itu bisa dibaca pembaca
+DB yang sama — `tenantCode`/`tenantName`/`options` ada di kolom `inputs` jsonb
+di sebelahnya; `ownerLoginIdentifier`, `legalName`, `officeCode`, `officeName`,
+`ownerDisplayName` ada di tabel identity/tenant/office yang ditulis run yang
+sama. Jadi siapa pun dengan akses READ DB bisa menebak password dengan biaya
+dua SHA-256 per tebakan dan mengonfirmasi hit ke kolom tersimpan → **oracle
+cracking offline untuk password administrator awal sebuah tenant**, tanpa perlu
+hak tulis apa pun.
+
+**Fix**: derivasi **scrypt** dengan salt = pepper ber-domain-separation
+(`AUTH_JWT_SECRET`) di `application/owner-secret-commitment.ts`. Argon2id TIDAK
+bisa dipakai: nilainya harus deterministik dan dapat dihitung ulang dari body
+request di setiap replay, sedangkan argon2id di-salt acak per panggilan.
+Kredensial asli tidak tersentuh — sudah argon2id lewat `src/lib/auth/password.ts`.
+
+**Percobaan pertama memakai HMAC-SHA256 ber-pepper, dan CodeQL TETAP menandainya**
+(diverifikasi di CI, PR #937 run pertama) — HMAC-SHA256 tetap sebuah
+"fast hash" sink bagi rule ini, terlepas dari adanya kunci. scrypt dengan salt
+TETAP bersifat deterministik sekaligus mahal, sehingga memenuhi dua-duanya:
+
+- **berkunci** — pepper ada di environment proses, bukan di kolom, jadi pembaca
+  DB saja tidak bisa mereproduksi digest dari tebakan;
+- **mahal** — kalaupun pepper bocor, tiap tebakan berharga satu derivasi scrypt
+  penuh, bukan satu SHA-256.
+
+Jadi pindah dari HMAC ke scrypt bukan sekadar menyenangkan CodeQL: ia menutup
+single-point-of-failure "kalau pepper bocor, semuanya instan". **Pelajaran
+umum**: kalau `js/insufficient-password-hash` menuntut "computational effort"
+tapi nilainya harus deterministik, jawabannya adalah **KDF lambat dengan salt
+tetap** (scrypt/PBKDF2), bukan HMAC. Pin parameter biaya secara eksplisit
+(`{N,r,p}`) — digest ini DIPERSIST dan dibandingkan saat replay, jadi default
+runtime yang berubah akan membatalkan seluruh `inputs_hash` tersimpan secara
+diam-diam. Jangan pakai `promisify(scrypt)`: ia runtuh ke overload 3-argumen
+dan MENGABAIKAN parameter biaya tersebut tanpa error. Biaya terukur ~30 ms per
+derivasi.
+
+**Dua jebakan saat memperbaiki alert kelas ini** (keduanya menghilangkan alert
+TANPA memperbaiki apa pun — security theater):
+
+1. **Rename**. Karena FP-1 membuktikan CodeQL memakai heuristik nama, mengganti
+   `input.owner.password` → `input.owner.secret` akan MEMBUNGKAM alert sambil
+   meninggalkan oracle-nya utuh. Jangan.
+2. **Buang password dari hash**. Juga membungkam alert, tapi menukar oracle
+   dengan lubang korektness: retry dengan `Idempotency-Key` sama tapi password
+   BERBEDA akan dijawab replay 201 asli, sehingga pemanggil percaya password
+   barunya berlaku padahal tidak.
+
+**Aturan triase yang diturunkan**: untuk `js/insufficient-password-hash`,
+tentukan dulu apakah sumbernya **password pilihan manusia** atau **nilai random
+256-bit / DTO tanpa field password**. Kalau yang pertama DAN hasilnya
+dipersist, anggap TRUE POSITIVE sampai terbukti sebaliknya. Sapu kelasnya
+(`grep -rn "createHash(" --include=*.ts src scripts`) — per 2026-07-25 semua
+call site lain berisi checksum konten, JSON kanonik, atau token CSPRNG, jadi
+ini satu-satunya instance.
+
+**Red-verification wajib**: test yang hanya mengecek "menghasilkan hash" tetap
+hijau terhadap versi rentan. Yang mengunci properti sebenarnya adalah test
+**ketergantungan pepper** — hitung hash, ganti `process.env.AUTH_JWT_SECRET`,
+lalu assert hasilnya berubah. Test itu gagal untuk derivasi tak-berkunci MAUPUN
+untuk password yang dibuang, terlepas dari penamaan field. Lihat
+`tests/unit/tenant-provisioning-owner-secret-commitment.test.ts` (tiga mutasi
+sudah diverifikasi merah). Hati-hati: assertion "hasilnya != formula pra-fix"
+saja TIDAK cukup — ia juga lolos hanya karena nama field JSON berubah.
 
 ## Katalog false-positive yang sudah dikonfirmasi
 
