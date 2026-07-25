@@ -503,6 +503,98 @@ export const METRIC_DEFINITIONS = {
     allowedLabelKeys: [],
     approxCardinality: "Exactly 1 — unlabeled.",
     privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  // ==========================================================================
+  // Control-plane operations (Issue #930, epic #868). The SaaS control plane
+  // is the one subsystem where a silent stall is invisible to every tenant
+  // AND to every tenant-scoped report: nobody is looking at a provisioning
+  // queue that stopped draining, because the tenants still waiting on it
+  // cannot see it and the tenants already provisioned are unaffected. These
+  // are the signals `serviceLevelObjectives` descriptors evaluate against.
+  //
+  // Every one of them is deliberately UNLABELED or labeled only by a fixed
+  // code-defined enum. A per-tenant control-plane metric would be exactly the
+  // high-cardinality, tenant-identifying label this port exists to prevent —
+  // and #930's own acceptance criterion forbids per-tenant/per-resource/
+  // per-provider-reference labels explicitly. Operators locate the specific
+  // tenant through the authorized, re-authorized read APIs, never through a
+  // metrics label.
+  // ==========================================================================
+  control_plane_provisioning_backlog: {
+    name: "control_plane_provisioning_backlog",
+    type: "gauge",
+    description:
+      "Count of tenant provisioning attempts fleet-wide that are not in a terminal state, by attempt status. A backlog that stops draining means new tenants silently never finish onboarding — invisible to every existing tenant and to every tenant-scoped report.",
+    allowedLabelKeys: ["attemptStatus"],
+    approxCardinality:
+      "A handful — the fixed provisioning attempt status enum (pending, running, waiting, failed), never a tenant id or attempt id.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  control_plane_provisioning_oldest_pending_seconds: {
+    name: "control_plane_provisioning_oldest_pending_seconds",
+    type: "gauge",
+    description:
+      "Age in seconds of the OLDEST non-terminal provisioning attempt fleet-wide. Depth alone cannot distinguish a healthy queue that is briefly deep from a stalled one that is permanently shallow; age can.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  control_plane_entitlement_expired_unswept: {
+    name: "control_plane_entitlement_expired_unswept",
+    type: "gauge",
+    description:
+      "Count of tenant entitlements whose validity window has passed but which the expiry sweep has not yet revoked. Non-zero for longer than one sweep interval means tenants retain access they are no longer entitled to — a commercial and an authorization problem at once.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  control_plane_invoice_overdue_total: {
+    name: "control_plane_invoice_overdue_total",
+    type: "gauge",
+    description:
+      "Count of invoices fleet-wide past their due date and not settled, by dunning stage. A stage that stops advancing indicates the dunning sweep is not running, not that customers started paying.",
+    allowedLabelKeys: ["dunningStage"],
+    approxCardinality:
+      "A handful — the fixed dunning stage enum, never a tenant id, invoice id, or customer reference.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  control_plane_payment_dlq_depth: {
+    name: "control_plane_payment_dlq_depth",
+    type: "gauge",
+    description:
+      "Depth of the payment-gateway outbox dead-letter queue fleet-wide. Every row here is provider work that exhausted its retries and will never be attempted again without operator action.",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  control_plane_webhook_backlog: {
+    name: "control_plane_webhook_backlog",
+    type: "gauge",
+    description:
+      "Count of received payment webhook envelopes not yet normalized fleet-wide. Signature-verified provider events that keep arriving but are never absorbed are invisible in payment intent state alone (the same blind spot payment_gateway's own reporting projection exists to cover).",
+    allowedLabelKeys: [],
+    approxCardinality: "Exactly 1 — unlabeled.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  control_plane_projection_stale_total: {
+    name: "control_plane_projection_stale_total",
+    type: "gauge",
+    description:
+      "Count of registered reporting projections whose freshness state is 'stale' or 'failed', by state. A projection that silently stops updating reports confidently wrong numbers rather than no numbers, which is the more dangerous failure.",
+    allowedLabelKeys: ["freshnessState"],
+    approxCardinality:
+      "Exactly 2 — the freshness states this gauge reports (stale, failed). Never a projection key or tenant id.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
+  },
+  control_plane_manual_intervention_total: {
+    name: "control_plane_manual_intervention_total",
+    type: "gauge",
+    description:
+      "Count of control-plane workflows fleet-wide parked awaiting a human decision, by subsystem. Distinguishes 'the system is stuck' from 'the system is correctly waiting for an operator who has not looked yet'.",
+    allowedLabelKeys: ["subsystem"],
+    approxCardinality:
+      "A handful — the fixed control-plane subsystem enum (provisioning, entitlement, billing, payment), never a tenant id or workflow id.",
+    privacyNote: PRIVACY_NOTE_CODE_DEFINED_ENUM
   }
 } as const satisfies Record<string, MetricDefinition>;
 

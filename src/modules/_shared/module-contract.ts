@@ -360,6 +360,116 @@ export type ModuleDescriptor = {
   reportingProjections?: ProjectionDescriptor[];
   /** Static feature/meter key contributions this module makes to the `service_catalog` allowed-key registry (Issue #870) — see `ServiceCatalogModuleContract`'s own doc comment below. */
   serviceCatalog?: ServiceCatalogModuleContract;
+  /** Service-level objectives + alert thresholds this module owns (Issue #930) — see `ServiceLevelObjectiveDescriptor`'s own doc comment below. */
+  serviceLevelObjectives?: ServiceLevelObjectiveDescriptor[];
+};
+
+/**
+ * ============================================================================
+ * Service-level objective / alert descriptors (Issue #930, epic #868 SaaS
+ * control plane). Same "module declares its own array, a central aggregator
+ * reads `listModules()`" shape `dataLifecycle`/`sodRules`/
+ * `reportingProjections` already use — `logging` (this repo's observability
+ * module) owns the aggregator/validator in
+ * `logging/domain/slo-registry.ts`, wired into `bun run check` by
+ * `scripts/slo-registry-check.ts`.
+ *
+ * A module that runs an operation an operator must be paged about declares
+ * ONE descriptor per objective here. The central engine never invents an
+ * objective and never reaches into the declaring module's schema — it only
+ * reads what was declared plus the metric the descriptor names.
+ *
+ * TRUSTED CODE-ONLY METADATA (same rule as every descriptor family above) —
+ * declared by the owning module's source, never tenant/request-controlled.
+ *
+ * ## Why every threshold is evaluated against a DECLARED METRIC
+ *
+ * `metricName` must name a metric already declared in
+ * `src/lib/observability/metrics-port.ts`'s `METRIC_DEFINITIONS`, and
+ * `dimension` must be one of THAT metric's own `allowedLabelKeys`. This is
+ * what keeps the "low-cardinality dimensions" acceptance criterion true by
+ * construction rather than by review: an objective cannot introduce a new
+ * label, so it cannot introduce a tenant id, provider reference, or resource
+ * id as an alert dimension — the metric registry already bounded that set,
+ * and `recordCounter`/`recordGauge` silently drop anything outside it.
+ * ============================================================================
+ */
+
+/** What kind of operational property an objective constrains. Fixed, code-defined enum — an alert dimension is never free text. */
+export type SloObjectiveKind =
+  "freshness" | "backlog" | "success_rate" | "latency" | "saturation";
+
+/**
+ * How bad it is when an objective is breached. Deliberately only three
+ * levels: an operator who cannot tell "page me now" from "look at it
+ * tomorrow" ignores both.
+ */
+export type AlertSeverity = "info" | "warning" | "critical";
+
+/**
+ * Which direction breaches. `above` — the observed value breaching by being
+ * too HIGH (backlog depth, staleness seconds, latency). `below` — breaching
+ * by being too LOW (success rate). Making this explicit prevents the classic
+ * inverted-threshold bug where a success-rate alert never fires because it
+ * was written as if larger were worse.
+ */
+export type AlertComparison = "above" | "below";
+
+export type AlertThresholdDescriptor = {
+  /** Unique within the owning descriptor. Snake_case identifier. */
+  thresholdKey: string;
+  severity: AlertSeverity;
+  comparison: AlertComparison;
+  /** The boundary itself, in the objective's `unit`. Crossing it (per `comparison`) puts the objective in breach at this severity. */
+  value: number;
+  /**
+   * How long the breach must persist before the alert is real, in seconds.
+   * `0` means "fire on the first observation". Every threshold must state
+   * this explicitly — an alert with no dwell time on a sampled gauge is the
+   * single most common source of alert fatigue in this shape of system.
+   */
+  forSeconds: number;
+  /** What an operator should actually DO. Free text, but must be non-empty — a threshold nobody knows how to action is noise. */
+  operatorAction: string;
+};
+
+export type ServiceLevelObjectiveDescriptor = {
+  /** Stable, unique across the whole registry, `"<ownerModuleKey>.<name>"` — same format `dataLifecycle`/`reportingProjections` keys use. */
+  key: string;
+  /** Must equal the declaring module's own `key` — validated by the registry gate, not the type system. */
+  ownerModuleKey: string;
+  title: string;
+  /** What this objective actually promises, in operator language. */
+  description: string;
+  kind: SloObjectiveKind;
+  /**
+   * A metric name declared in `METRIC_DEFINITIONS`
+   * (`src/lib/observability/metrics-port.ts`). The gate rejects a name that
+   * is not declared there — an objective can never be evaluated against a
+   * metric nothing emits.
+   */
+  metricName: string;
+  /**
+   * Which of that metric's OWN `allowedLabelKeys` this objective is
+   * evaluated per. Omit for an unlabeled metric. The gate rejects a
+   * dimension the named metric does not declare — this is the structural
+   * reason an alert can never carry a high-cardinality label.
+   */
+  dimension?: string;
+  /** Unit of `objectiveValue` and every threshold `value` — documentation for the operator-facing surface, and a mismatch between "seconds" and "count" thresholds is a real review finding. */
+  unit: "seconds" | "count" | "ratio" | "milliseconds";
+  /** The target itself: the value the system intends to hold. Thresholds below describe departures from it. */
+  objectiveValue: number;
+  objectiveComparison: AlertComparison;
+  /**
+   * Repo-relative path to the runbook section an operator opens when this
+   * fires. The gate verifies the FILE EXISTS on disk — a dead runbook link
+   * discovered at 3am is worse than no link, because it costs the responder
+   * the time they spent trusting it.
+   */
+  runbookPath: string;
+  /** At least one. An objective with no threshold cannot page anyone, so it is not an objective. */
+  thresholds: readonly AlertThresholdDescriptor[];
 };
 
 /**
@@ -933,8 +1043,15 @@ export function defineModule(descriptor: ModuleDescriptor): ModuleDescriptor {
  * `extension:check`, and the `extension.manifest.json` compatibility manifest
  * mechanism) is deleted; the base is a template used directly. No
  * `ModuleDescriptor` field changed — every base `module.ts` stays valid unchanged.
+ *
+ * `2.1.0` (Issue #930, epic #868 SaaS control plane) — added the optional
+ * `ModuleDescriptor.serviceLevelObjectives` field plus the
+ * `ServiceLevelObjectiveDescriptor`/`AlertThresholdDescriptor` family of
+ * exported types. MINOR: purely additive, same rule as `1.2.0`'s own
+ * `reportingProjections` addition — no existing field was removed or retyped,
+ * and a `module.ts` that declares no objectives stays valid unchanged.
  */
-export const MODULE_CONTRACT_VERSION = "2.0.0";
+export const MODULE_CONTRACT_VERSION = "2.1.0";
 
 /**
  * SemVer of the SaaS COMMERCIAL CONTRACT shape (Issue #874, epic #868) — the

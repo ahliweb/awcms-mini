@@ -338,5 +338,49 @@ export const reportingModule = defineModule({
         "Not separately registered with data_lifecycle in this issue — see access_audit_summary's own retentionClass note above.",
       batchLimit: 2000
     }
+  ],
+  // Issue #930 (epic #868). This module owns the objective because it owns
+  // the freshness contract every projection declares. The failure it guards
+  // against is the nastier kind: a projection that silently stops updating
+  // reports confidently WRONG numbers rather than no numbers, and operators
+  // make decisions on top of them.
+  serviceLevelObjectives: [
+    {
+      key: "reporting.projection_freshness",
+      ownerModuleKey: "reporting",
+      title: "No reporting projection goes stale or failed",
+      description:
+        "Every registered projection stays within its own declared freshness policy. A projection that silently stops updating serves confidently wrong numbers rather than no numbers, which is the more dangerous failure because operators keep trusting it.",
+      kind: "freshness",
+      metricName: "control_plane_projection_stale_total",
+      dimension: "freshnessState",
+      unit: "count",
+      objectiveValue: 0,
+      objectiveComparison: "above",
+      runbookPath:
+        "docs/awcms-mini/control-plane-slo-runbook.md#reporting-projection-freshness",
+      thresholds: [
+        {
+          thresholdKey: "projection_stale",
+          severity: "warning",
+          comparison: "above",
+          value: 0,
+          // The refresh worker runs every 2 minutes; 15 minutes is several
+          // missed cycles, well past a single transient failure.
+          forSeconds: 900,
+          operatorAction:
+            "Run the projection refresh. Treat 'failed' (consecutive errors) differently from 'stale' (merely behind): the former is almost always a code or permission fault, the latter is load."
+        },
+        {
+          thresholdKey: "projection_widely_stale",
+          severity: "critical",
+          comparison: "above",
+          value: 3,
+          forSeconds: 900,
+          operatorAction:
+            "Several projections stale at once points at the shared refresh worker or its database grants, not at any individual projection. Do not rebuild before the cause is known — a rebuild destroys the evidence."
+        }
+      ]
+    }
   ]
 });

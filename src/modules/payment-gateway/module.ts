@@ -580,6 +580,80 @@ export const paymentGatewayModule = defineModule({
       batchLimit: 1000
     }
   ],
+  // Issue #930 (epic #868). Two objectives with deliberately different
+  // shapes: the DLQ is not a backlog (every row there is permanently lost
+  // work until a human acts), while the webhook inbox is one (rows drain on
+  // their own once normalization catches up).
+  serviceLevelObjectives: [
+    {
+      key: "payment_gateway.dead_letter_queue_drained",
+      ownerModuleKey: "payment_gateway",
+      title: "Payment dead-letter queue stays empty",
+      description:
+        "The provider outbox dead-letter queue holds nothing. Every row here is provider work that exhausted its retries and will NEVER be attempted again without operator action — so this is not a backlog that drains on its own, it is permanent loss until someone acts.",
+      kind: "backlog",
+      metricName: "control_plane_payment_dlq_depth",
+      unit: "count",
+      objectiveValue: 0,
+      objectiveComparison: "above",
+      runbookPath:
+        "docs/awcms-mini/control-plane-slo-runbook.md#payment-gateway-dlq",
+      thresholds: [
+        {
+          thresholdKey: "dlq_non_empty",
+          severity: "warning",
+          comparison: "above",
+          value: 0,
+          forSeconds: 1800,
+          operatorAction:
+            "Read the masked failure reasons through the operator API. Check whether an open provider circuit breaker is the upstream cause before touching the queue."
+        },
+        {
+          thresholdKey: "dlq_accumulating",
+          severity: "critical",
+          comparison: "above",
+          value: 25,
+          forSeconds: 1800,
+          operatorAction:
+            "Do not bulk-requeue until the underlying cause is gone — requeueing into a provider that is still down only moves the problem and burns the retry budget again."
+        }
+      ]
+    },
+    {
+      key: "payment_gateway.webhook_backlog_absorbed",
+      ownerModuleKey: "payment_gateway",
+      title: "Received webhooks get normalized",
+      description:
+        "Signature-verified provider webhooks that arrive are absorbed into normalized events. Envelopes that keep arriving but are never absorbed are invisible in payment-intent state alone — the same blind spot this module's reporting projection exists to cover.",
+      kind: "backlog",
+      metricName: "control_plane_webhook_backlog",
+      unit: "count",
+      objectiveValue: 100,
+      objectiveComparison: "above",
+      runbookPath:
+        "docs/awcms-mini/control-plane-slo-runbook.md#payment-gateway-webhook-backlog",
+      thresholds: [
+        {
+          thresholdKey: "webhook_backlog_elevated",
+          severity: "warning",
+          comparison: "above",
+          value: 100,
+          forSeconds: 900,
+          operatorAction:
+            "If the backlog grows while provider call metrics look normal, the fault is on our normalization side rather than the provider's delivery."
+        },
+        {
+          thresholdKey: "webhook_backlog_critical",
+          severity: "critical",
+          comparison: "above",
+          value: 1000,
+          forSeconds: 900,
+          operatorAction:
+            "Payment outcomes are not reaching intents; expect settlement state to be stale fleet-wide and communicate accordingly while the pipeline is restored."
+        }
+      ]
+    }
+  ],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/payment-gateway"

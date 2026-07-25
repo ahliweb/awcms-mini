@@ -321,6 +321,47 @@ export const subscriptionBillingModule = defineModule({
       batchLimit: 1000
     }
   ],
+  // Issue #930 (epic #868) — the distinction this objective buys is
+  // expensive to get wrong: overdue invoices that stop ADVANCING through
+  // dunning stages means the sweep is not running, not that customers
+  // started paying. The first needs an operator; the second does not.
+  serviceLevelObjectives: [
+    {
+      key: "subscription_billing.overdue_invoices_advance",
+      ownerModuleKey: "subscription_billing",
+      title: "Overdue invoices keep advancing through dunning",
+      description:
+        "Invoices past their due date keep moving through dunning stages rather than piling up in one stage. A stage that stops advancing indicates the dunning sweep is not running — which looks identical to customers paying if you only watch the total.",
+      kind: "backlog",
+      metricName: "control_plane_invoice_overdue_total",
+      dimension: "dunningStage",
+      unit: "count",
+      objectiveValue: 100,
+      objectiveComparison: "above",
+      runbookPath:
+        "docs/awcms-mini/control-plane-slo-runbook.md#subscription-billing-dunning",
+      thresholds: [
+        {
+          thresholdKey: "overdue_elevated",
+          severity: "warning",
+          comparison: "above",
+          value: 100,
+          forSeconds: 21600,
+          operatorAction:
+            "Check the dunning and renewal sweeps and their per-tenant leases. A pile-up concentrated in ONE stage means the transition out of that stage is failing, not that more invoices arrived."
+        },
+        {
+          thresholdKey: "overdue_critical",
+          severity: "critical",
+          comparison: "above",
+          value: 500,
+          forSeconds: 21600,
+          operatorAction:
+            "Revenue collection has effectively stopped; confirm the sweeps are executing before assuming a demand-side explanation."
+        }
+      ]
+    }
+  ],
   api: {
     openApiPath: "openapi/awcms-mini-public-api.openapi.yaml",
     basePath: "/api/v1/subscription-billing"

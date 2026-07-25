@@ -99,8 +99,126 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
+  /api/v1/logs/observability/slo:
+    get:
+      tags:
+        - Logging & Audit
+      summary: Authorized catalog of module-declared service-level objectives and their runbooks (Issue #930)
+      operationId: logsGetObservabilitySlo
+      security:
+        - bearerAuth: []
+          tenantHeader: []
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+        - $ref: "#/components/parameters/RequestId"
+      responses:
+        "200":
+          description: Safe view of every service-level objective each module declared in its own module.ts. Deliberately withholds numeric alert thresholds, dwell times, and instrumentation metric names — those are capacity/tolerance configuration, which this surface must never reveal.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiSuccess"
+                  - type: object
+                    required:
+                      - data
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/SloCatalogResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   schemas:
+    SloCatalogResponse:
+      type: object
+      required:
+        - generatedAt
+        - objectiveCount
+        - objectives
+      additionalProperties: false
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        objectiveCount:
+          type: integer
+          minimum: 0
+        objectives:
+          type: array
+          items:
+            $ref: "#/components/schemas/SloObjectiveSafeView"
+    SloObjectiveSafeView:
+      type: object
+      required:
+        - key
+        - ownerModuleKey
+        - title
+        - description
+        - kind
+        - unit
+        - severities
+        - operatorActions
+        - runbookPath
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+        ownerModuleKey:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        kind:
+          type: string
+          enum:
+            - freshness
+            - backlog
+            - success_rate
+            - latency
+            - saturation
+        unit:
+          type: string
+          enum:
+            - seconds
+            - count
+            - ratio
+            - milliseconds
+        severities:
+          type: array
+          items:
+            type: string
+            enum:
+              - info
+              - warning
+              - critical
+        operatorActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SloOperatorAction"
+        runbookPath:
+          type: string
+    SloOperatorAction:
+      type: object
+      required:
+        - severity
+        - action
+      additionalProperties: false
+      properties:
+        severity:
+          type: string
+          enum:
+            - info
+            - warning
+            - critical
+        action:
+          type: string
     DependencyHealthWorkClassSnapshot:
       type: object
       required:
