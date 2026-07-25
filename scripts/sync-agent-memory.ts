@@ -42,14 +42,25 @@ function memoryDir(): string {
 
 /**
  * Memory yang TIDAK BOLEH masuk snapshot. Repo ini publik.
- * Kriteria: device-specific (tak berguna di device lain) DAN/ATAU berbentuk-kredensial.
+ * Kriteria: device-specific (tak berguna di device lain) DAN/ATAU berbentuk-kredensial
+ * DAN/ATAU memaparkan infrastruktur produksi (IP, akun, topologi jaringan) — sanitasi
+ * di `sanitize()` hanya menangani homedir/originSessionId/placeholder password, jadi
+ * detail infrastruktur harus dikecualikan di level file, bukan diandalkan ke regex.
  * Menambah entri di sini = memory itu tidak ikut `restore` di device baru — sebutkan
  * alasannya, jangan diam-diam.
  */
-const EXCLUDE = new Map<string, string>([
+export const EXCLUDE = new Map<string, string>([
   [
     "local-postgres-connection-details.md",
     "Device-specific: nama container dev, port yang bisa berubah, dan password role. Tidak berguna di device lain — tiap device punya container sendiri."
+  ],
+  [
+    "dinkes-prod-multi-app-coolify-onboarding.md",
+    "Memaparkan infrastruktur produksi pihak ketiga: IP publik server, alias ssh, username admin beserta konfigurasi sudo-nya, topologi IP internal pada bridge Docker, dan detail hardening (health check, API panel). Tak satu pun kredensial, tapi gabungannya adalah paket rekon di repo publik. Sumber kebenarannya memang repo lain (serv-dinkesdocker), bukan repo ini."
+  ],
+  [
+    "pasted-secret-in-chat-treat-as-compromised.md",
+    "Menautkan server produksi di atas ke insiden kredensial konkret (token API dan password SSH yang pernah masuk transcript). Tidak memuat nilai secret apa pun, tapi menerbitkan riwayat penanganan kredensial sebuah server yang bisa diidentifikasi ke repo publik memperbesar nilai rekon entri di atas."
   ]
 ]);
 
@@ -121,9 +132,68 @@ async function readMemoryFiles(dir: string): Promise<Map<string, string>> {
 
   const out = new Map<string, string>();
   for (const name of names) {
-    out.set(name, sanitize(await readFile(path.join(dir, name), "utf8")));
+    let content = sanitize(await readFile(path.join(dir, name), "utf8"));
+    if (name === "MEMORY.md") content = dropExcludedIndexLines(content);
+    out.set(name, content);
   }
   return out;
+}
+
+/**
+ * Buang baris indeks `MEMORY.md` yang menunjuk memory ter-EXCLUDE.
+ *
+ * Mengecualikan file tapi menerbitkan baris indeksnya setengah jalan: hook satu
+ * baris di indeks memang ringkas, tapi tetap merangkum isi memory-nya — untuk
+ * entri yang dikecualikan justru karena isinya sensitif, ringkasan itu ikut
+ * membocorkan hal yang sama (mis. username admin sebuah server produksi).
+ * Hanya baris indeks yang dibuang; memory hidup di device tidak disentuh, dan
+ * `[[wikilink]]` menggantung di memory lain tetap dibiarkan (lihat catatan
+ * "Konsekuensi yang disengaja" pada dokumen yang dihasilkan).
+ */
+export function dropExcludedIndexLines(indexContent: string): string {
+  const excluded = [...EXCLUDE.keys()];
+  const isDropped = (line: string) =>
+    /^\s*[-*]\s/.test(line) &&
+    excluded.some((name) => line.includes(`(${name})`));
+
+  const lines = indexContent.split("\n");
+  const kept: string[] = [];
+  // Indeks dikelompokkan per heading `##`. Bila SELURUH isi sebuah kelompok
+  // terbuang, headingnya ikut dibuang: judul yang tersisa tanpa entri tidak
+  // memberi informasi apa pun ke pembaca snapshot, tapi tetap menyebutkan hal
+  // yang membuat kelompok itu dikecualikan (mis. nama server produksi).
+  let group: string[] = [];
+  let groupDroppedAny = false;
+  let groupKeptEntry = false;
+
+  const flush = () => {
+    if (group.length === 0) return;
+    if (!(groupDroppedAny && !groupKeptEntry)) kept.push(...group);
+    group = [];
+    groupDroppedAny = false;
+    groupKeptEntry = false;
+  };
+
+  for (const line of lines) {
+    if (/^##\s/.test(line)) {
+      flush();
+      group.push(line);
+      continue;
+    }
+    if (group.length === 0) {
+      kept.push(line);
+      continue;
+    }
+    if (isDropped(line)) {
+      groupDroppedAny = true;
+      continue;
+    }
+    if (/^\s*[-*]\s/.test(line)) groupKeptEntry = true;
+    group.push(line);
+  }
+  flush();
+
+  return kept.join("\n");
 }
 
 /** Bagian generated: satu blok per file memory, dibungkus penanda yang bisa di-parse balik. */
@@ -185,7 +255,9 @@ ${rows.join("\n")}
 
 Isi yang tetap disertakan juga disanitasi otomatis: \`originSessionId\` dibuang, path home diganti \`~\`, dan placeholder berbentuk-password diredaksi (nilainya ada di \`.env.example\`).
 
-Konsekuensi yang disengaja: \`MEMORY.md\` dan beberapa memory lain **tetap** merujuk memory yang dikecualikan (baris indeks + \`[[wikilink]]\`). Setelah \`restore\`, rujukan itu **menggantung** — itu normal, bukan snapshot rusak. Tulis ulang memory-nya secara lokal bila device baru memang membutuhkannya.
+Baris indeks \`MEMORY.md\` yang menunjuk memory di atas **ikut dibuang** — hook satu baris tetap merangkum isi memory-nya, jadi menerbitkannya akan membocorkan hal yang sama yang membuat memory itu dikecualikan.
+
+Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikecualikan lewat \`[[wikilink]]\` di tengah kalimat. Setelah \`restore\`, rujukan itu **menggantung** — itu normal, bukan snapshot rusak. Tulis ulang memory-nya secara lokal bila device baru memang membutuhkannya.
 
 `;
 }
@@ -300,7 +372,9 @@ async function main() {
   );
 }
 
-main().catch((err) => {
-  logScriptFailure("memory:docs sync FAILED", err);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((err) => {
+    logScriptFailure("memory:docs sync FAILED", err);
+    process.exit(1);
+  });
+}
