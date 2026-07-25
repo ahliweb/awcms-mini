@@ -80,6 +80,12 @@ describe("fetchModuleJobs", () => {
       expect.objectContaining({
         moduleKey: "logging",
         command: "bun run logs:audit:purge"
+      }),
+      // Issue #930 gave `logging` its second job — the control-plane fleet
+      // sweep, whose aggregation this module owns.
+      expect.objectContaining({
+        moduleKey: "logging",
+        command: "bun run control-plane:fleet-sweep"
       })
     ]);
   });
@@ -95,6 +101,7 @@ describe("fetchModuleJobs", () => {
         "bun run data-exchange:worker",
         "bun run data-lifecycle:archive-purge",
         "bun run domain-events:dispatch",
+        "bun run control-plane:fleet-sweep",
         "bun run email:dispatch",
         "bun run email:provider:health",
         "bun run email:templates:seed-defaults",

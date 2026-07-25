@@ -90,6 +90,36 @@ Modul mendeklarasikan `serviceLevelObjectives` di `module.ts`-nya sendiri;
   pernah menyebar descriptor ke respons — angka ambang/dwell/nama metrik
   adalah data kalibrasi untuk bertahan tepat di bawah alarm.
 
+## Fleet sweep control-plane (#930)
+
+`bun run control-plane:fleet-sweep`. Cross-tenant read model ADR-0022 §6b:
+enumerasi tenant dari direktori GLOBAL → baca tiap tenant DI DALAM konteks
+RLS-nya → agregasi di memori. JANGAN pernah menggantinya dengan satu query
+lintas tenant, `BYPASSRLS`, atau platform-claim di predikat policy.
+
+- **Kolektor tinggal di modul PEMILIK** (`<modul>/application/control-plane-signals.ts`),
+  membaca hanya tabelnya sendiri. Hanya `scripts/` (composition root) yang
+  boleh meng-import beberapa kolektor. File agregasi menerima DATA, tidak
+  meng-import modul apa pun → tetap unit-testable tanpa DB.
+- **Emit gauge WALAU NOL.** Gauge yang berhenti dilaporkan = tak terbedakan
+  dari kolektor mati; "no data" tampil sebagai celah, bukan alarm.
+- **Sweep dibatalkan di tengah → JANGAN publikasikan.** Total dari sebagian
+  tenant terbaca sebagai penurunan fleet-wide (bentuk pemulihan) dan akan
+  memadamkan alert yang masih seharusnya menyala.
+- **Umur = MAX fleet, bukan SUM.** Menjumlahkan umur menghasilkan angka yang
+  tumbuh mengikuti jumlah tenant dan tidak bermakna.
+- **Status `failed` dihitung di backlog tapi TIDAK menua.** Ia tidak menunggu
+  apa pun; memasukkannya membuat umur naik selamanya setelah satu kegagalan
+  dan mengunci alert.
+- **Job jalan sebagai `awcms_mini_worker`** (grant SELECT migration `103`).
+  **`DATABASE_URL` developer biasanya superuser, dan superuser melewati grant
+  DAN RLS** — sweep bisa tampak sempurna lokal padahal grant kurang (gagal di
+  tenant pertama saat deploy) sekaligus membaca semua tenant sekaligus.
+  Integration test kolektor WAJIB jalan sebagai role worker sungguhan.
+- **Join invoice→dunning pakai LATERAL ambil attempt TERAKHIR.** Join biasa
+  menggandakan satu invoice sebanyak retry-nya → metrik naik justru saat
+  dunning bekerja lebih keras.
+
 ## Skill terkait
 
 `awcms-mini-audit-log` (APA yang wajib diaudit + redaksi), `awcms-mini-integration` (pola dispatcher/outbox untuk I/O eksternal, ADR-0006), `awcms-mini-security-hardening` (batas scope A.8.16 SIEM/monitoring terpusat), `awcms-mini-performance` (pool/backpressure tuning yang metrik `db_pool_work_class_*` sekarang membuatnya observable).

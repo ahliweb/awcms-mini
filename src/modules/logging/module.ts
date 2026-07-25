@@ -30,6 +30,16 @@ export const loggingModule = defineModule({
       environmentNotes:
         "Pure database operation — no external network dependency.",
       safeInOfflineLan: true
+    },
+    {
+      command: "bun run control-plane:fleet-sweep",
+      purpose:
+        "Walk every active tenant, read each control-plane module's operational signals inside that tenant's own RLS context, aggregate fleet totals, and emit the control_plane_* gauges (Issue #930). Read-only — never reconciles, revokes, or retries anything.",
+      recommendedSchedule:
+        "Every 5 minutes via cron/systemd timer — frequent enough that the shortest alert dwell time (10 minutes) sees several samples.",
+      environmentNotes:
+        "Pure database reads plus metrics-port writes. With no metrics adapter registered the port is a no-op, so the sweep is harmless (and pointless) in offline/LAN deployments that never scrape metrics.",
+      safeInOfflineLan: true
     }
   ],
   // Issue #745 (data_lifecycle, epic #738) — registered as a representative
