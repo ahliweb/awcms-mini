@@ -124,6 +124,11 @@ export const JOB_WORK_CLASS_REGISTRY: Readonly<
     rationale:
       'Scheduled bounded retention purge (usage-metering:purge, Issue #875) — same tolerant-of-delay, never-latency-sensitive profile as audit-log-purge/data-lifecycle-archive-purge; the withTenant call inside retention-purge.ts already passes workClass: "maintenance" explicitly.'
   },
+  "scripts/payment-gateway-purge.ts": {
+    workClass: "maintenance",
+    rationale:
+      'Scheduled bounded retention purge for the webhook evidence chain (payment-gateway:purge, Issue #932) — same tolerant-of-delay, never-latency-sensitive profile as usage-metering-purge/audit-log-purge; the withTenant call inside retention-purge.ts already passes workClass: "maintenance" explicitly. Runs as awcms_mini_worker, the only role migration 102 grants DELETE on these tables.'
+  },
   "scripts/workflow-escalations-dispatch.ts": {
     workClass: "background_sync",
     rationale:

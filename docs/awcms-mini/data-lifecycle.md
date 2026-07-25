@@ -32,14 +32,25 @@ ada; atau `"generic"` — dieksekusi langsung oleh mesin ini). Divalidasi
 `bun run data-lifecycle:registry:check` (bagian `bun run check`) dan
 `security:readiness`'s `checkDataLifecycleRegistryValid`.
 
-Empat descriptor terdaftar di PR ini:
+Descriptor yang terdaftar saat ini (dihitung `bun run
+data-lifecycle:registry:check`, yang mencetak jumlahnya — kalau tabel di
+bawah ini tidak cocok dengan jumlah itu, tabel ini yang basi):
 
-| Descriptor key                       | Tabel                            | Owner               | Mode        | Kelas retensi         |
-| ------------------------------------ | -------------------------------- | ------------------- | ----------- | --------------------- |
-| `logging.audit_events`               | `awcms_mini_audit_events`        | `logging`           | `delegated` | `audit_security`      |
-| `visitor_analytics.visit_events`     | `awcms_mini_visit_events`        | `visitor_analytics` | `delegated` | `analytics_telemetry` |
-| `form_drafts.form_drafts`            | `awcms_mini_form_drafts`         | `form_drafts`       | `delegated` | `operational_queue`   |
-| `data_lifecycle.data_lifecycle_runs` | `awcms_mini_data_lifecycle_runs` | `data_lifecycle`    | `generic`   | `operational_queue`   |
+| Descriptor key                         | Tabel                                             | Owner               | Mode        | Kelas retensi         |
+| -------------------------------------- | ------------------------------------------------- | ------------------- | ----------- | --------------------- |
+| `logging.audit_events`                 | `awcms_mini_audit_events`                         | `logging`           | `delegated` | `audit_security`      |
+| `visitor_analytics.visit_events`       | `awcms_mini_visit_events`                         | `visitor_analytics` | `delegated` | `analytics_telemetry` |
+| `form_drafts.form_drafts`              | `awcms_mini_form_drafts`                          | `form_drafts`       | `delegated` | `operational_queue`   |
+| `data_lifecycle.data_lifecycle_runs`   | `awcms_mini_data_lifecycle_runs`                  | `data_lifecycle`    | `generic`   | `operational_queue`   |
+| `data_exchange.import_batches`         | `awcms_mini_data_exchange_import_batches`         | `data_exchange`     | `generic`   | `operational_queue`   |
+| `data_exchange.export_jobs`            | `awcms_mini_data_exchange_export_jobs`            | `data_exchange`     | `generic`   | `operational_queue`   |
+| `data_exchange.reconciliation_reports` | `awcms_mini_data_exchange_reconciliation_reports` | `data_exchange`     | `generic`   | `operational_queue`   |
+| `integration_hub.inbound_deliveries`   | `awcms_mini_integration_inbound_deliveries`       | `integration_hub`   | `generic`   | `communication_log`   |
+| `usage_metering.events`                | `awcms_mini_usage_events`                         | `usage_metering`    | `delegated` | `financial_tax`       |
+| `payment_gateway.webhook_inbox`        | `awcms_mini_payment_gateway_webhook_inbox`        | `payment_gateway`   | `delegated` | `audit_security`      |
+| `payment_gateway.normalized_events`    | `awcms_mini_payment_gateway_normalized_events`    | `payment_gateway`   | `delegated` | `audit_security`      |
+| `payment_gateway.processing_attempts`  | `awcms_mini_payment_gateway_processing_attempts`  | `payment_gateway`   | `delegated` | `audit_security`      |
+| `payment_gateway.reconciliations`      | `awcms_mini_payment_gateway_reconciliations`      | `payment_gateway`   | `delegated` | `audit_security`      |
 
 ## Retensi data (per descriptor)
 
@@ -48,18 +59,75 @@ descriptor mendeklarasikan kelas retensi dan batas amannya sendiri,
 dipetakan ke kebutuhan bisnis/kepatuhan tabel itu spesifik, bukan angka
 generik yang dipaksakan ke semua data.
 
-| Descriptor                           | Default  | Batas aman (min–max) | Rasional                                                                                                                           |
-| ------------------------------------ | -------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `logging.audit_events`               | 730 hari | 365–1825 hari        | Doc 04 "Security/audit log: 1–5 tahun sesuai kebutuhan" — titik tengah rentang                                                     |
-| `visitor_analytics.visit_events`     | 90 hari  | 7–730 hari           | Selaras `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS` (doc 18/`visitor-analytics.md`) — telemetry, retensi jauh lebih pendek dari audit |
-| `form_drafts.form_drafts`            | 30 hari  | 1–365 hari           | Selaras `FORM_DRAFT_RETENTION_DAYS` — scratch state, bukan rekaman bisnis                                                          |
-| `data_lifecycle.data_lifecycle_runs` | 180 hari | 30–1825 hari         | Riwayat eksekusi lifecycle ITU SENDIRI adalah bukti kepatuhan (ISO 27001/22301) — retensi menengah, diarsipkan sebelum purge fisik |
+| Descriptor                             | Default  | Batas aman (min–max) | Rasional                                                                                                                                                                     |
+| -------------------------------------- | -------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `logging.audit_events`                 | 730 hari | 365–1825 hari        | Doc 04 "Security/audit log: 1–5 tahun sesuai kebutuhan" — titik tengah rentang                                                                                               |
+| `visitor_analytics.visit_events`       | 90 hari  | 7–730 hari           | Selaras `VISITOR_ANALYTICS_EVENT_RETENTION_DAYS` (doc 18/`visitor-analytics.md`) — telemetry, retensi jauh lebih pendek dari audit                                           |
+| `form_drafts.form_drafts`              | 30 hari  | 1–365 hari           | Selaras `FORM_DRAFT_RETENTION_DAYS` — scratch state, bukan rekaman bisnis                                                                                                    |
+| `data_lifecycle.data_lifecycle_runs`   | 180 hari | 30–1825 hari         | Riwayat eksekusi lifecycle ITU SENDIRI adalah bukti kepatuhan (ISO 27001/22301) — retensi menengah, diarsipkan sebelum purge fisik                                           |
+| `data_exchange.import_batches`         | 30 hari  | 7–365 hari           | Metadata batch impor — state operasional, bukan rekaman bisnis; hasil impornya sendiri hidup di tabel domain tujuan                                                          |
+| `data_exchange.export_jobs`            | 30 hari  | 7–365 hari           | Sama seperti import batch — job queue state, artefak ekspornya dikelola terpisah                                                                                             |
+| `data_exchange.reconciliation_reports` | 180 hari | 30–1825 hari         | Laporan rekonsiliasi adalah bukti kepatuhan atas pertukaran data, bukan sekadar state job                                                                                    |
+| `integration_hub.inbound_deliveries`   | 90 hari  | 7–365 hari           | Log pengiriman masuk — bukti transport berumur pendek, bukan rekaman bisnis                                                                                                  |
+| `usage_metering.events`                | 730 hari | 365–3650 hari        | Bukti tagihan: harus bertahan melewati siklus sengketa faktur dan kewajiban arsip pajak                                                                                      |
+| `payment_gateway.webhook_inbox`        | 400 hari | 180–2555 hari        | Bukti dispute/chargeback provider — providernya sendiri lazim membatasi ke ≤1 tahun; 400 hari = setahun penuh plus margin. Sengaja LEBIH PENDEK dari `usage_metering.events` |
+| `payment_gateway.normalized_events`    | 400 hari | 180–2555 hari        | Satu mata rantai bukti yang sama; seluruh rantai menua sebagai satu kesatuan (lihat §Rantai bukti payment_gateway)                                                           |
+| `payment_gateway.processing_attempts`  | 400 hari | 180–2555 hari        | Idem — daun rantai bukti                                                                                                                                                     |
+| `payment_gateway.reconciliations`      | 400 hari | 180–2555 hari        | Log rekonsiliasi pembayaran; INDEPENDEN dari rantai di atas dan di-legal-hold terpisah                                                                                       |
 
 `retentionDaysOverride` (dry-run on-demand, `POST
 /api/v1/data-lifecycle/dry-run`) selalu di-clamp ke `[retentionMinDays,
 retentionMaxDays]` descriptor — operator tidak bisa memaksa retensi di
 luar batas aman yang dideklarasikan pemilik tabel, dan **legal hold
 tetap menang** di atas override apa pun (lihat §Legal hold).
+
+## Rantai bukti `payment_gateway` (Issue #932)
+
+Empat descriptor `payment_gateway` tidak berdiri sendiri-sendiri.
+Tiganya membentuk SATU rantai bukti dengan FK NOT NULL yang menunjuk ke
+atas:
+
+```
+webhook_inbox  <-  normalized_events  <-  processing_attempts
+```
+
+`reconciliations` berdiri terpisah (hanya mereferensi payment intent).
+
+**Umur saja bukan cutoff yang aman.** Baris inbox selalu LEBIH TUA dari
+normalized event turunannya, jadi purge murni berdasarkan umur akan
+mencoba menghapus induk sementara anak yang belum menua masih
+mereferensinya, lalu gagal di foreign key. Karena itu tiap tingkat hanya
+menghapus baris yang **tidak punya anak yang masih hidup** (`NOT
+EXISTS`). Efek praktisnya: bukti menua sebagai satu rantai utuh, bukan
+pecahan — webhook yang processing attempt-nya masih di dalam window
+retensi tetap punya baris inbox yang bisa dibaca.
+
+**Legal hold pada satu mata rantai memblokir seluruh rantai** (fail-
+closed): purge sebagian rantai yang di-hold akan menyisakan bukti yang
+tak bisa ditafsirkan (baris inbox tanpa outcome) atau outcome tanpa
+provenance. `payment_gateway.reconciliations` di-hold TERPISAH — hold
+pada rantai tidak pernah dibaca sebagai mencakupnya, maupun sebagai
+alasan untuk melewatinya.
+
+**Batas DELETE adalah GRANT, bukan trigger.** Sebelum migration 102,
+keempat tabel ini memakai trigger `BEFORE UPDATE OR DELETE` yang raise
+tanpa syarat — artinya bukan "role app tidak boleh menghapus" (itu batas
+yang memang diinginkan dan tetap berlaku) melainkan "TIDAK ADA role yang
+bisa menghapus, termasuk pemilik tabel". Migration 102 mempersempit
+trigger itu ke `BEFORE UPDATE` — setiap proteksi edit-in-place TIDAK
+BERUBAH — dan memindahkan batas DELETE ke grant, persis pola
+`usage_metering` (migration 087):
+
+| Role                | UPDATE          | DELETE                                    |
+| ------------------- | --------------- | ----------------------------------------- |
+| `awcms_mini_app`    | ditolak trigger | **ditolak grant** (tak pernah di-grant)   |
+| `awcms_mini_worker` | ditolak trigger | diizinkan — hanya lewat `retention-purge` |
+| pemilik tabel       | ditolak trigger | diizinkan (operasi migration)             |
+
+Jalur DELETE nyata satu-satunya adalah
+`src/modules/payment-gateway/application/retention-purge.ts` (`bun run
+payment-gateway:purge`): bounded per batch, urutan FK-safe, sadar legal
+hold, dan diaudit.
 
 ## Legal hold
 

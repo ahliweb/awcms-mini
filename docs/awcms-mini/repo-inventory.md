@@ -43,7 +43,7 @@
 
 ## Migrations
 
-101 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `101_awcms_mini_control_plane_projection_sources.sql`).
+102 migration files in `sql/` (`001_awcms_mini_foundation_schema.sql` .. `102_awcms_mini_payment_gateway_retention.sql`).
 
 | #   | File                                                                     |
 | --- | ------------------------------------------------------------------------ |
@@ -148,6 +148,7 @@
 | 099 | `099_awcms_mini_usage_metering_safe_watermark_cursor.sql`                |
 | 100 | `100_awcms_mini_usage_metering_stale_watermark_index.sql`                |
 | 101 | `101_awcms_mini_control_plane_projection_sources.sql`                    |
+| 102 | `102_awcms_mini_payment_gateway_retention.sql`                           |
 
 ## Tables & Row-Level Security
 
@@ -177,13 +178,13 @@ No gap found: every tenant-scoped table has an `ENABLE ROW LEVEL SECURITY` state
 
 ## Tests
 
-390 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
+391 test files under `tests/` (`*.test.ts`, `*.test.mjs`, `*.e2e.ts`).
 
 | Directory     | Test files |
 | ------------- | ---------- |
 | `(root)`      | 49         |
 | `e2e`         | 11         |
-| `integration` | 118        |
+| `integration` | 119        |
 | `modules`     | 5          |
 | `unit`        | 207        |
 

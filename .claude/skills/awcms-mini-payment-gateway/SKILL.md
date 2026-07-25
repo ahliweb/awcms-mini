@@ -64,6 +64,14 @@ kredensial kartu / PAN (ADR-0022 §11).
    attempts / reconciliations append-only; intent state machine forward-legal
    (initiated→pending→{settled,failed,expired}; failed→initiated; settled→
    {refunded,disputed}); refund result write-once. REVOKE DELETE.
+   **Append-only = TIDAK ADA edit in-place, BUKAN "simpan selamanya".** Trigger
+   keempat tabel itu `BEFORE UPDATE` saja sejak `102` (#932). Sebelumnya
+   `BEFORE UPDATE OR DELETE` + raise tanpa syarat = TIDAK ADA role yang bisa
+   hapus, termasuk pemilik tabel → retensi mustahil, legal hold tak punya
+   objek. Batas DELETE sekarang ada di GRANT (`awcms_mini_app` tidak pernah,
+   `awcms_mini_worker` ya), pola `usage_metering` `087`. Kalau menambah tabel
+   bukti append-only baru: pakai `BEFORE UPDATE` + grant, JANGAN sertakan
+   `OR DELETE`.
 5. **no hash tenant-facing oracle**; uang EXACT bigint minor-unit no-float
    (`domain/money.ts`).
 6. **fail-closed tri-state SEMUA field parser** (`request-parsing`/`request-
@@ -84,8 +92,17 @@ LAN/offline (modul disabled) = 100% tanpa provider.
 - PROVIDES `payment_outcome` (`_shared/ports/payment-outcome-port.ts`) —
   settled/refunded diteruskan ke `subscription_billing.recordPaymentAllocation`
   (write path #876 sendiri, idempoten, audited), wired di composition-root.
-- Migrasi `093` (schema) + `094` (permissions); jobs
-  `payment-gateway:dispatch-outbox|reconcile|expire-sweep`.
+- Migrasi `093` (schema) + `094` (permissions) + `102` (retensi bukti, #932);
+  jobs `payment-gateway:dispatch-outbox|reconcile|expire-sweep|purge`.
+- `dataLifecycle`: 4 descriptor (`domain/lifecycle-keys.ts`) mode `delegated`,
+  jalur hapus TUNGGAL `application/retention-purge.ts`. Rantai
+  `webhook_inbox <- normalized_events <- processing_attempts` di-purge
+  FK-safe (daun dulu; tiap tingkat HANYA hapus baris tanpa anak yang masih
+  hidup — umur saja tidak aman, induk selalu lebih tua dari anaknya). Legal
+  hold di satu mata rantai memblokir SELURUH rantai (fail-closed);
+  `reconciliations` independen, di-hold terpisah. Test batas grant WAJIB
+  assert SQLSTATE `42501` — "sekadar throw" juga dipenuhi `23503` dari FK
+  anak dan lolos walau grant salah lebar.
 
 Lihat `src/modules/payment-gateway/README.md` untuk detail ERD/tabel/state
 machine.

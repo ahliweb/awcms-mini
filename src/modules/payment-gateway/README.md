@@ -85,6 +85,33 @@ tests without any real network.
 `outbox` (dispatch queue), `refunds` (write-once result), `reconciliations`
 (append-only), `provider_health` (circuit breaker), `job_leases`.
 
+"Append-only" above means **no in-place edit**, enforced by a `BEFORE UPDATE`
+trigger per table. It does NOT mean "retained forever": since `sql/102` those
+four tables can be aged out by the retention purge below. Before `102` the
+triggers were `BEFORE UPDATE OR DELETE` and raised unconditionally, so no role
+could delete a row — not even the table owner (Issue #932).
+
+## Retention (`sql/102`, Issue #932)
+
+The evidence chain `webhook_inbox <- normalized_events <-
+processing_attempts` (NOT NULL FKs pointing up), plus the independent
+`reconciliations`, carry `dataLifecycle` descriptors in `delegated` mode
+(`domain/lifecycle-keys.ts`). `application/retention-purge.ts` is the single
+delete path: bounded batches, FK-safe order (leaf first, and each level only
+deletes rows with no surviving child), legal-hold aware, audited.
+
+The DELETE boundary is a GRANT, not a trigger: `awcms_mini_app` — the role every
+HTTP request runs as — is never granted DELETE on any of the four, and
+`awcms_mini_worker` is, mirroring `usage_metering`'s migration 087. An
+integration test asserts the app role is refused with SQLSTATE `42501`
+specifically; a bare "it threw" assertion would also be satisfied by the
+foreign-key violation a seeded chain produces, and would miss a wrongly widened
+grant.
+
+A legal hold on ANY link of the chain blocks all three of its tables
+(fail-closed — a partly purged held chain leaves evidence that cannot be
+interpreted). `reconciliations` is held separately.
+
 ## Jobs
 
 - `bun run payment-gateway:dispatch-outbox` — dispatch provider work outside any
@@ -92,6 +119,8 @@ tests without any real network.
 - `bun run payment-gateway:reconcile` — provider vs local drift, audited
   correction, per-tenant lease.
 - `bun run payment-gateway:expire-sweep` — expire live intents past their window.
+- `bun run payment-gateway:purge` — retention purge for the evidence tables
+  above; runs as `awcms_mini_worker`, per-tenant lease, safe offline/LAN.
 
 ## API
 

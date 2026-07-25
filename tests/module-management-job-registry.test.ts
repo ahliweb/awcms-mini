@@ -106,6 +106,7 @@ describe("fetchModuleJobs", () => {
         "bun run organization-structure:metrics-snapshot",
         "bun run payment-gateway:dispatch-outbox",
         "bun run payment-gateway:expire-sweep",
+        "bun run payment-gateway:purge",
         "bun run payment-gateway:reconcile",
         "bun run production:preflight",
         "bun run reporting:exports:dispatch",
