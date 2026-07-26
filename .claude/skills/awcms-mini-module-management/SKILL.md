@@ -92,6 +92,52 @@ satu-titik). Dipanggil dari:
   `docs/awcms-mini/deployment-profiles.md` §Shared worker runner; perilaku
   `syncModuleDescriptors` sendiri TIDAK berubah.
 
+### Paritas import vs `dependencies` — gerbang yang BERBEDA dari DAG di atas
+
+`bun run modules:imports:check` (`scripts/validate-module-imports.ts`).
+
+`modules:dag:check` divalidasi dari `listModules()`, yaitu array `dependencies`
+**tulisan tangan**. Karena itu ia secara struktural TIDAK MUNGKIN menyadari satu
+hal yang justru paling gampang membusuk: edge import yang ada di KODE tapi tidak
+pernah dideklarasikan. Sebuah modul bisa menumbuhkan dependency runtime ke modul
+lain dan semua gate lama tetap hijau, karena tidak ada yang pernah membandingkan
+keduanya.
+
+Ini bukan pembukuan teoretis. `dependencies` bermakna operasional (#845/PR#855):
+menentukan protected-module, preset deployment profile, dan reverse-dependency
+guard yang menolak men-disable modul yang masih dibutuhkan. Edge yang TIDAK
+dideklarasikan berarti platform boleh men-disable `B` sementara `A` masih
+memanggilnya saat runtime — gagalnya baru terlihat di produksi, pada tenant yang
+kebetulan men-disable modul yang tepat.
+
+Tiga keputusan desainnya, jangan "diperbaiki" tanpa membaca ini:
+
+- **Hanya import RUNTIME.** Deteksi memakai `Bun.Transpiler.scanImports`, yang
+  MENGHAPUS `import type` sebelum melapor — itu semantik yang diinginkan, bukan
+  keterbatasan. `dependencies` mengatur pengaktifan runtime, jadi import
+  type-only (yang lenyap saat build dan tak bisa memanggil apa pun) TIDAK boleh
+  dipaksa mendeklarasikan dependency runtime. Memaksanya akan mendorong orang
+  menambahkan edge PALSU hanya demi menyenangkan gate, dan edge itu lalu
+  mengubah perilaku protected-module/preset/reverse-dep yang sungguhan.
+- **Parse betulan, bukan regex.** Sintaks import punya terlalu banyak bentuk
+  (named multi-baris, side-effect, `import()` dinamis, `export ... from`);
+  daftar pola pasti melewatkan sebagian, dan gate dengan titik buta diam-diam
+  terbaca "sudah diverifikasi" padahal membuktikan sedikit.
+- **Nama direktori BUKAN module key.** Peta direktori→key dibangun dengan
+  meng-import `module.ts` tiap direktori dan membaca `key` deskriptornya, karena
+  keduanya memang menyimpang (`workflow-approval/` ber-key `workflow`, lihat
+  §Module key vs nama direktori). Transform `replace("-","_")` akan salah
+  meresolusi modul itu lalu melewatkan atau mengarang pelanggaran.
+
+Arah `_shared` sengaja satu arah: import KE `_shared` selalu boleh (itu jalur
+capability port ADR-0011/ADR-0013 yang disahkan), sedangkan `_shared` yang
+meng-import modul konkret dilaporkan sebagai pelanggaran TERSENDIRI — persis
+bentuk yang harus dibongkar di #859.
+
+Saat gate ini ditulis invariannya sudah bersih (0 edge tak-terdeklarasi dari 241
+edge import lintas-modul). Justru itu alasannya murah dipasang SEKARANG: ia
+mengunci keadaan baik, bukan datang membawa backlog.
+
 **Fix nyata untuk cycle historis** (Issue #680): `tenant_admin.dependencies`
 diubah dari `["profile_identity", "identity_access"]` menjadi `[]` —
 `profile_identity`/`identity_access`'s array masing-masing SUDAH benar

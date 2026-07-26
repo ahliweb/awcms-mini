@@ -136,6 +136,15 @@ jobs:
       - name: Module dependency graph check
         run: bun run modules:dag:check
 
+      # Compares the ACTUAL cross-module runtime import graph against the
+      # declared `dependencies`. `modules:dag:check` above validates only the
+      # declared graph (it is fed the hand-written arrays), so it is
+      # structurally unable to notice an import edge nobody declared — and an
+      # undeclared edge means the platform can disable a module another module
+      # still calls at runtime.
+      - name: Module import/dependency parity check
+        run: bun run modules:imports:check
+
       # Issue #740 (epic #738): added alongside `modules:dag:check` in
       # `package.json`'s `check` script — PR #769 security-auditor review
       # found these two were missing here, reproducing exactly the "CI
