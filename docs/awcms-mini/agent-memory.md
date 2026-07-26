@@ -21,7 +21,7 @@ Memory agent Claude Code disimpan di `~/.claude/projects/<slug-cwd>/memory/` —
 - Repo ini **publik**. Jangan pernah menulis secret/kredensial nyata ke memory — nilai seperti `awcms_mini_password` adalah placeholder yang sama dengan `.env.example` dan memang sudah publik.
 - `MEMORY.md` adalah indeks yang dimuat tiap sesi; file lain dimuat sesuai relevansi.
 
-**Jumlah memory saat snapshot terakhir: 116.**
+**Jumlah memory saat snapshot terakhir: 117.**
 
 ## Sengaja TIDAK disertakan
 
@@ -94,6 +94,7 @@ Konsekuensi yang disengaja: memory lain **tetap** bisa merujuk memory yang dikec
 - [Idle-in-transaction hang](idle-in-transaction-hang.md) — proses test kunci koneksi idle-in-tx → HANG TRUNCATE test lain; diagnosa pg_stat_activity
 - [Dev server smoke leak + E2E flake](dev-server-smoke-test-process-leak.md) — `pkill astro dev` meleset → timeout palsu. `admin-analytics` RESOLVED (#883/PR#884): reload-poll. E2E lokal awcms-pg:5433
 - [Shared DB migration schema drift](shared-db-migration-schema-drift.md) — migration satu worktree ubah schema semua worktree; branch tak terkait gagal sampai catch up
+- [graphify isolated ≠ dead code](graphify-isolated-nodes-not-dead-code.md) — node berderajat 0 bukan bukti tak terpakai (grep dulu); `graph.html` berhenti digenerate >5000 node
 - [Scratch DB verify when poisoned](scratch-db-verify-when-shared-db-poisoned.md) — agent racuni DB dev → ~117 fail seragam; `CREATE DATABASE awcms-mini-verify<NNN>` isolasi; `build Complete!`=exit 0
 
 ## Database & Bun
@@ -2083,6 +2084,40 @@ confirm it was never present anywhere else in history in a way that looks
 like an accidental real credential later scrubbed. Only then resolve via
 the API — this is a security-relevant decision on a public-facing page,
 worth the extra verification pass even when the answer seems obvious.
+`````
+
+<!-- memory-file: graphify-isolated-nodes-not-dead-code.md -->
+
+`````markdown
+---
+name: graphify-isolated-nodes-not-dead-code
+description: "Node terisolasi di graph graphify BUKAN bukti dead code — verifikasi dengan grep dulu; graph.html berhenti digenerate di atas 5000 node"
+metadata: 
+  node_type: memory
+  type: reference
+  modified: 2026-07-26T00:57:55.023Z
+---
+
+Analisis `graphify-out/graph.json` (2026-07-26, 11.130 node / 38.515 edge) memunculkan 36 node
+berderajat 0. Godaannya membacanya sebagai dead code. **Salah** — diverifikasi dengan grep:
+`Pagination.astro` punya 11 rujukan, `ThemeToggle.astro` 5, `LanguageSwitcher.astro` 4. Penyebabnya
+identitas node: spesifier import relatif (`../components/X.astro`) kadang jadi node TERPISAH dari
+node berkas aslinya, sehingga keduanya menggantung.
+
+**Why:** graph pengetahuan adalah alat NAVIGASI, bukan sumber kebenaran soal keterjangkauan. Klaim
+"tidak ada yang memakai X" harus dibuktikan dengan pencarian teks, bukan derajat node — sejalan
+[[grep-for-marker-cannot-prove-absence]].
+
+**How to apply:**
+- Sebelum menghapus apa pun karena "terisolasi di graph", grep namanya di `src/`. Selalu.
+- Yang graph BISA dipercaya (dan sudah terbukti berguna): edge `imports` antar direktori modul.
+  Dari situ lahir gate `modules:imports:check` — lihat skill `awcms-mini-module-management`.
+- `graph.html` **berhenti dibuat** di atas batas viz default (5.000 node). Sejak melewatinya,
+  graphify melewatkannya DIAM-DIAM; berkas HTML lama yang masih ter-commit lalu menggambarkan graph
+  yang BERBEDA dari `graph.json` di sebelahnya. Karena itu `graph.html` kini di-gitignore.
+  Regenerate lokal: `GRAPHIFY_VIZ_NODE_LIMIT=15000 graphify cluster-only .`
+- Repo ini dibangun `--code-only` (`cost.json` = 0 token). Tanpa flag itu graphify menuntut LLM API
+  key untuk ~66 berkas dokumen dan GAGAL exit 1.
 `````
 
 <!-- memory-file: grep-for-marker-cannot-prove-absence.md -->
@@ -7763,6 +7798,14 @@ DATABASE_URL=".../awcms-mini-verify<NNN>" bun run db:migrate   # 78 migration be
 DATABASE_URL=".../awcms-mini-verify<NNN>" bun run check        # hijau
 # lalu DROP DATABASE scratch saat selesai
 ```
+
+**"DROP saat selesai" itu sering terlupa, dan biayanya nyata.** Per 2026-07-26 terkumpul **52
+database** (~2,1 GB) di server Postgres dev — sisa scratch dari sesi-sesi lama (`awcms-w4*`,
+`awcms-mini-verify930*`, `awcms_mini_test_*`, dst), semuanya 0 koneksi. Dibersihkan menjadi 4
+(120 MB). Sebelum hapus massal: minta konfirmasi atas DAFTAR PERSIS (lihat
+[[bulk-branch-delete-needs-named-list]]), dan **jangan** ikut menghapus `awcms-mini` (DB dev asli)
+atau `awcms_micro_test` (milik proyek lain). Cek `pg_stat_activity` per database tepat sebelum
+`DROP` — jangan andalkan snapshot koneksi yang diambil di awal.
 
 `bun run check` merangkai `... && bun run test && bun run build` dengan `&&`,
 jadi bila `astro build` mencapai "Complete!" itu BUKTI `bun run test` exit 0 —
