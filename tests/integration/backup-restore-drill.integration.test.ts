@@ -170,6 +170,16 @@ let hmacKeyFile: string;
 let keyDir: string;
 const extraDatabasesToDrop = new Set<string>();
 
+// Hook timeout. bun:test's default (5s) is too tight for these hooks on a
+// busy CI runner: `DROP DATABASE` forces a checkpoint (flushing every dirty
+// buffer written by the thousands of tests that ran before this file), and
+// the drill/restore scripts create databases of their own. Measured on an
+// otherwise idle PostgreSQL 18.4 the first drop alone already takes ~2.5s;
+// under CI write load the afterAll exceeded 5s and failed an otherwise
+// green suite ("a beforeEach/afterEach hook timed out", unnamed test).
+// Only the hooks get the generous budget; the test bodies keep the default.
+const HOOK_TIMEOUT_MS = 60_000;
+
 async function dropDatabaseIfExists(name: string): Promise<void> {
   const admin = getAdminSql();
   await admin.unsafe(`DROP DATABASE IF EXISTS "${name}"`);
@@ -185,7 +195,7 @@ suite(
       hmacKeyFile = join(keyDir, "hmac.key");
       writeFileSync(encKeyFile, randomBytes(32).toString("base64"));
       writeFileSync(hmacKeyFile, randomBytes(32).toString("base64"));
-    });
+    }, HOOK_TIMEOUT_MS);
 
     beforeEach(async () => {
       await resetDatabase();
@@ -200,7 +210,7 @@ suite(
         INSERT INTO awcms_mini_offices (tenant_id, office_code, office_name)
         VALUES (${TENANT_A}, 'HQ', 'Tenant A HQ')
       `;
-    });
+    }, HOOK_TIMEOUT_MS);
 
     afterEach(() => {
       while (tmpDirs.length > 0) {
@@ -214,7 +224,7 @@ suite(
         await dropDatabaseIfExists(name);
       }
       rmSync(keyDir, { recursive: true, force: true });
-    });
+    }, HOOK_TIMEOUT_MS);
 
     test("backup-postgres.sh produces an encrypted dump + signed manifest, and restore-postgres.sh verifies + restores it into the default disposable database", async () => {
       const backupDir = makeTmpDir();
