@@ -722,7 +722,7 @@ no-store` for every generic cache, plus a private `X-AWCMS-Edge-Cache` header
   tenant-context label, password show/hide + their aria labels) in en.po/id.po.
 - c7dc217: security(tooling): jangan terbitkan detail infrastruktur produksi lewat snapshot memory
 
-  `docs/awcms-mini/agent-memory.md` terbit ke repo **publik**, tapi `sanitize()` hanya menangani `originSessionId`, homedir, dan placeholder berbentuk-password — detail infrastruktur lolos utuh. Dua memory dikecualikan di level file (`EXCLUDE`): `dinkes-prod-multi-app-coolify-onboarding.md` (IP publik server produksi, alias ssh, username admin + konfigurasi sudo, topologi IP internal pada bridge Docker, detail hardening) dan `pasted-secret-in-chat-treat-as-compromised.md` (menautkan server itu ke insiden kredensial konkret; tidak memuat nilai secret apa pun).
+  [redacted: description of excluded memory files]
 
   Mengecualikan file saja ternyata setengah jalan: `MEMORY.md` memuat hook satu baris per memory yang **merangkum** isinya, sehingga baris indeks tetap membocorkan hal yang sama — termasuk username admin server tersebut. `dropExcludedIndexLines()` kini membuang baris indeks yang menunjuk memory ter-`EXCLUDE`, beserta heading yang seluruh entrinya terbuang (judul tersisa tanpa entri tidak memberi informasi apa pun tapi tetap menyebut nama servernya). `[[wikilink]]` di tengah prosa sengaja dibiarkan menggantung — perilaku lama yang sudah didokumentasikan.
 
@@ -1325,7 +1325,7 @@ NOTHING` + winning-row replay). `correct`/`reconcile`/`rebuild` routes require
   Karena repo ini publik, snapshot disanitasi: `originSessionId` dibuang, home
   directory diganti `~` (hanya `os.homedir()` sungguhan — pola `/home/<user>`
   generik akan merusak path proyek bersama yang bermakna seperti
-  `/home/data/dev_bun/awpos`), dan placeholder berbentuk-password diredaksi agar
+  `<checkout>`), dan placeholder berbentuk-password diredaksi agar
   tidak memicu secret scanner. Memory device-specific yang tidak berguna di device
   lain dikecualikan lewat daftar `EXCLUDE` yang wajib menyertakan alasan, dan
   alasan itu dirender ke dokumen supaya pengecualiannya tidak senyap.

@@ -106,7 +106,7 @@ sebagai base/dependency, bukan 38 issue dari awal.
 ## Outline PRD/SRS
 
 PRD/SRS lengkap **sudah ada** di
-`/home/data/dev_bun/awpos/docs/awpos/02_prd_detail_per_modul.md` (PRD) dan
+`<checkout>/docs/awpos/02_prd_detail_per_modul.md` (PRD) dan
 `03_srs_detail_per_modul.md` (SRS) — dokumen ini tidak menduplikasinya,
 hanya meringkas untuk konteks keputusan pilot:
 

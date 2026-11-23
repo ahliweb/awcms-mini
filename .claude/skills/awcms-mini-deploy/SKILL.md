@@ -109,8 +109,8 @@ Kalau langkah deploy ini butuh token API Coolify/Cloudflare atau kredensial
 server secara interaktif (dijalankan agent/operator dalam satu sesi kerja,
 bukan job cron), ambil lewat `agent-cred get <service> <field>` (isi dulu
 dengan `agent-cred set <service>` bila belum ada) — jangan `read -s` ad-hoc
-atau credential inline baru. TTL cache 3 jam. Detail: repo `personal-coding`
-`docs/sop-agent-cred-credential-cache.md`. Job cron/systemd tetap pakai
+atau credential inline baru. TTL cache 3 jam. Detail: standar lintas-portofolio
+internal. Job cron/systemd tetap pakai
 env var/secret file seperti biasa (lihat `deploy/backup/README.md`).
 
 ## Rollback
