@@ -52,7 +52,7 @@ src/lib/performance/
   query-plan-budgets.ts      pure: versioned regression-budget registry +
                               EXPLAIN (FORMAT JSON) evaluator
   query-plan-runner.ts       I/O: runs EXPLAIN under RLS, rolled back always
-  analyze-fixtures.ts        I/O: owner ANALYZE + verify analyze_count
+  analyze-fixtures.ts        I/O: owner VACUUM (FULL, ANALYZE) + verify analyze_count
                               advanced (Issue #849 — no silent no-op)
   workload.ts                I/O: one real, withTenant-gated operation per
                               work class (interactive/critical_transaction/
