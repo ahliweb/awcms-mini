@@ -52,17 +52,10 @@ function loadComposeServiceNames() {
 
 /**
  * Dokumen GENERATED yang isinya bukan prosa dokumentasi repo, sehingga aturan
- * di berkas ini tidak berlaku dan hanya menghasilkan false positive.
- *
- * `agent-memory.md` adalah cermin verbatim memory agent (`bun run
- * memory:docs:sync`): indeks `MEMORY.md`-nya menautkan berkas memory yang hidup
- * di luar repo (terbaca sebagai tautan internal rusak), dan prosanya menyebut
- * perintah `docker compose` ilustratif yang bukan service nyata. Memperbaikinya
- * agar "lolos" berarti mengubah isi memory — merusak fidelitas round-trip
- * `memory:docs:restore`. Lihat AGENTS.md aturan #16.
+ * di berkas ini tidak berlaku. Saat ini kosong.
  * @type {Set<string>}
  */
-const GENERATED_EXEMPT = new Set(["docs/awcms-mini/agent-memory.md"]);
+const GENERATED_EXEMPT = new Set();
 
 /** @returns {string[]} */
 function listMarkdown() {

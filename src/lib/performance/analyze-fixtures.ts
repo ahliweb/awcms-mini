@@ -91,7 +91,20 @@ export async function analyzeQueryPlanFixtures(
     // `table` is a compile-time constant from QUERY_PLAN_ANALYZE_TABLES (or a
     // caller-supplied literal in tests) — never user input; `ANALYZE` takes
     // no bind parameters, so `unsafe` interpolation is required and safe here.
-    await privilegedSql.unsafe(`ANALYZE ${table}`);
+    //
+    // `VACUUM (FULL, ANALYZE)`, not bare `ANALYZE`: ANALYZE refreshes row
+    // counts and histograms but neither reclaims the dead space the fixture
+    // reset (`DELETE`, the only write the app role has) leaves behind nor
+    // touches the visibility map. Heap-bound plans are costed by page count,
+    // so the same rows cost 471.9 to 931.1 (blog full-text) and 530 to 2306
+    // (audit reporting) depending on how much residue earlier tests and
+    // earlier runs left in the table. FULL rewrites the heap compactly, which
+    // makes the cost a function of the live rows alone (identical to the
+    // decimal across four consecutive runs). It takes an ACCESS EXCLUSIVE
+    // lock, acceptable only because this path is behind the non-production
+    // target guard. VACUUM bumps `analyze_count` too, so the verification
+    // below is unchanged.
+    await privilegedSql.unsafe(`VACUUM (FULL, ANALYZE) ${table}`);
   }
 
   const after = await readAnalyzeCounts(privilegedSql, tables);

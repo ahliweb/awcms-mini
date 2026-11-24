@@ -28,6 +28,7 @@ import type { APIContext, APIRoute } from "astro";
 import {
   getDatabaseClient,
   getSetupDatabaseClient,
+  resetDatabaseClientsForTests,
   getWorkerDatabaseClient
 } from "../../src/lib/database/client";
 import { resetPublicTenantCache } from "../../src/lib/tenant/public-tenant-cache";
@@ -153,6 +154,14 @@ export async function provisionAppRole(): Promise<void> {
   appUrl.username = "awcms_mini_app";
   appUrl.password = APP_ROLE_TEST_PASSWORD;
   process.env.DATABASE_URL = appUrl.toString();
+  // Drop any app pool memoized earlier in this process: it may still be
+  // connected as the privileged role it was created under (RLS and grants do
+  // not apply to it), which turns every RLS/least-privilege assertion below
+  // into a superuser query. Only the `app` kind is reset on purpose: the
+  // `setup`/`worker` pools are NOT, because the dedicated setup role cannot
+  // currently run the setup wizard (see the note on provisionSetupRole), and
+  // resetting it would surface that product gap in unrelated suites.
+  resetDatabaseClientsForTests("app");
 }
 
 /**
@@ -183,6 +192,12 @@ export async function provisionWorkerRole(): Promise<void> {
  * role. Must run after `applyMigrations()` and before the first setup-route
  * call.
  */
+// NOTE: the setup wizard's `INSERT ... ON CONFLICT (tenant_id) DO NOTHING` on
+// awcms_mini_tenant_settings needs SELECT on that table, but migration 045
+// grants the setup role INSERT only — so `POST /api/v1/setup/initialize` fails
+// with 42501 when it really runs as awcms_mini_setup. The suites that call it
+// today only pass because their setup pool was memoized under a more
+// privileged role. Left as-is (applied migration, archive repo): see report.
 export async function provisionSetupRole(): Promise<void> {
   await getAdminSql().unsafe(
     `ALTER ROLE awcms_mini_setup WITH LOGIN PASSWORD '${SETUP_ROLE_TEST_PASSWORD}'`
