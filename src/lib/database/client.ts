@@ -153,6 +153,30 @@ function getNamedDatabaseClient(kind: ClientKind): Bun.SQL {
   return client;
 }
 
+/**
+ * Test seam. `sharedClients` memoizes each kind's pool for the life of the
+ * process, and `bun test` runs every file in ONE process — so whichever test
+ * first calls `getDatabaseClient()` decides which Postgres role every later
+ * test connects as, whatever `DATABASE_URL` says by then. A test that reached
+ * a client while `DATABASE_URL` still held the privileged migration-owner URL
+ * silently turned every later RLS/least-privilege test into a superuser query
+ * (RLS and grants do not apply to it). Dropping the memoized pool when the
+ * harness repoints a role URL (see `tests/integration/harness.ts`) makes the
+ * result independent of file order. Pass no kind to drop all of them. Never
+ * called by production code.
+ */
+export function resetDatabaseClientsForTests(kind?: ClientKind): void {
+  const kinds: ClientKind[] = kind ? [kind] : ["app", "worker", "setup"];
+
+  for (const k of kinds) {
+    const client = sharedClients.get(k);
+    sharedClients.delete(k);
+    // Fire-and-forget: a pool that never connected closes instantly, and a
+    // close failure must not fail the test that merely repointed a role.
+    void Promise.resolve(client?.close()).catch(() => undefined);
+  }
+}
+
 /** The "web runtime" connection (`awcms_mini_app`) — every ordinary HTTP request. */
 export function getDatabaseClient(): Bun.SQL {
   return getNamedDatabaseClient("app");
